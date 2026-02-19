@@ -48,133 +48,57 @@
 ---
 
 <div align="center">
-<h1>TODO: Project Name</h1>
+<h1>OpenVerifiableLLM – Deterministic Dataset Pipeline</h1>
 </div>
 
-[TODO](https://TODO.stability.nexus/) is a ... TODO: Project Description.
+OpenVerifiableLLM is a deterministic Wikipedia preprocessing and dataset verification pipeline designed to support fully reproducible LLM training.
+
+It ensures that:
+
+- The same Wikipedia dump always produces identical processed output.
+- Dataset fingerprints (SHA256 hashes) are generated for verification.
+- A manifest file captures dataset identity and environment metadata.
 
 ---
 
 ## 🚀 Features
 
-TODO: List your main features here:
-
-- **Feature 1**: Description
-- **Feature 2**: Description
-- **Feature 3**: Description
-- **Feature 4**: Description
+- **Deterministic Wikipedia preprocessing**
+- **Wikitext cleaning (templates, references, links removed)**
+- **Stable XML parsing with memory-efficient streaming**
+- **SHA256 hashing of raw and processed datasets**
+- **Automatic dataset manifest generation**
+- **Reproducible data identity tracking**
 
 ---
 
 ## 💻 Tech Stack
 
-TODO: Update based on your project
-
-### Frontend
-- React / Next.js / Flutter / React Native
-- TypeScript
-- TailwindCSS
-
-### Backend
-- Flask / FastAPI / Node.js / Supabase
-- Database: PostgreSQL / SQLite / MongoDB
-
-### AI/ML (if applicable)
-- LangChain / LangGraph / LlamaIndex
-- Google Gemini / OpenAI / Anthropic Claude
-- Vector Database: Weaviate / Pinecone / Chroma
-- RAG / Prompt Engineering / Agent Frameworks
-
-### Blockchain (if applicable)
-- Solidity / solana / cardano / ergo Smart Contracts
-- Hardhat / Truffle / foundry
-- Web3.js / Ethers.js / Wagmi
-- OpenZeppelin / alchemy / Infura
+- Python 3.9+
+- `xml.etree.ElementTree` (stream parsing)
+- `bz2` (compressed dump handling)
+- `hashlib` (SHA256 hashing)
+- `pathlib`
+- `re` (deterministic cleaning)
 
 ---
 
-## ✅ Project Checklist
+## 📂 Project Structure
 
-TODO: Complete applicable items based on your project type
-
-- [ ] **The protocol** (if applicable):
-   - [ ] has been described and formally specified in a paper.
-   - [ ] has had its main properties mathematically proven.
-   - [ ] has been formally verified.
-- [ ] **The smart contracts** (if applicable):
-   - [ ] were thoroughly reviewed by at least two knights of The Stable Order.
-   - [ ] were deployed to: [Add deployment details]
-- [ ] **The mobile app** (if applicable):
-   - [ ] has an _About_ page containing the Stability Nexus's logo and pointing to the social media accounts of the Stability Nexus.
-   - [ ] is available for download as a release in this repo.
-   - [ ] is available in the relevant app stores.
-- [ ] **The AI/ML components** (if applicable):
-   - [ ] LLM/model selection and configuration are documented.
-   - [ ] Prompts and system instructions are version-controlled.
-   - [ ] Content safety and moderation mechanisms are implemented.
-   - [ ] API keys and rate limits are properly managed.
-
----
-
-## 🔗 Repository Links
-
-TODO: Update with your repository structure
-
-1. [Main Repository](https://github.com/AOSSIE-Org/TODO)
-2. [Frontend](https://github.com/AOSSIE-Org/TODO/tree/main/frontend) (if separate)
-3. [Backend](https://github.com/AOSSIE-Org/TODO/tree/main/backend) (if separate)
-
----
-
-## 🏗️ Architecture Diagram
-
-TODO: Add your system architecture diagram here
-
+```text
+OpenVerifiableLLM/
+│
+├── scripts/
+│ ├── preprocess.py
+│ ├── generate_manifest.py
+│ └── hash_utils.py
+│
+├── data/
+│ ├── raw/
+│ └── processed/
+│
+└── dataset_manifest.json
 ```
-[Architecture Diagram Placeholder]
-```
-
-You can create architecture diagrams using:
-- [Draw.io](https://draw.io)
-- [Excalidraw](https://excalidraw.com)
-- [Lucidchart](https://lucidchart.com)
-- [Mermaid](https://mermaid.js.org) (for code-based diagrams)
-
-Example structure to include:
-- Frontend components
-- Backend services
-- Database architecture
-- External APIs/services
-- Data flow between components
-
----
-
-## 🔄 User Flow
-
-TODO: Add user flow diagrams showing how users interact with your application
-
-```
-[User Flow Diagram Placeholder]
-```
-
-### Key User Journeys
-
-TODO: Document main user flows:
-
-1. **User Journey 1**: Description
-   - Step 1
-   - Step 2
-   - Step 3
-
-2. **User Journey 2**: Description
-   - Step 1
-   - Step 2
-   - Step 3
-
-3. **User Journey 3**: Description
-   - Step 1
-   - Step 2
-   - Step 3
 
 ---
 
@@ -182,58 +106,66 @@ TODO: Document main user flows:
 
 ### Prerequisites
 
-TODO: List what developers need installed
+- Python 3.9+
+- Wikipedia dump from:
+  https://dumps.wikimedia.org/
 
-- Node.js 18+ / Python 3.9+ / Flutter SDK
-- npm / yarn / pnpm
-- [Any specific tools or accounts needed]
+Recommended for testing:
+- `simplewiki-YYYYMMDD-pages-articles.xml.bz2`
+
+---
 
 ### Installation
-
-TODO: Provide detailed setup instructions
 
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/AOSSIE-Org/TODO.git
-cd TODO
+git clone https://github.com/AOSSIE-Org/OpenVerifiableLLM.git
+cd OpenVerifiableLLM
 ```
 
-#### 2. Install Dependencies
+### ▶ Running the Pipeline
+
+#### Step 1 — Place Dump File
+Move your Wikipedia dump into:
 
 ```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
+data/raw/
 ```
 
-#### 3. Configure Environment Variables(.env.example)
-
-Create a `.env` file in the root directory:
-
-```env
-# Add your environment variables here
-API_KEY=your_api_key
-DATABASE_URL=your_database_url
-```
-
-#### 4. Run the Development Server
+Example:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+data/raw/simplewiki-20260201-pages-articles.xml.bz2
 ```
+#### Step 2 — Run Preprocessing
 
-#### 5. Open your Browser
+```bash
+python scripts/preprocess.py data/raw/simplewiki-20260201-pages-articles.xml.bz2
+```
+This will:
+- Create `data/processed/wiki_clean.txt`
+- Generate `dataset_manifest.json`
+- Compute `SHA256` hashes
 
-Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
+#### 📜 Example Manifest
 
-For detailed setup instructions, please refer to our [Installation Guide](./docs/INSTALL_GUIDE.md) (if you have one).
+```json
+{
+  "wikipedia_dump": "simplewiki-20260201-pages-articles.xml.bz2",
+  "dump_date": "2026-02-01",
+  "raw_sha256": "...",
+  "processed_sha256": "...",
+  "preprocessing_version": "v1",
+  "python_version": "3.13.2"
+}
+```
+## 📈 Future Extensions
+- Deterministic tokenization stage
+- Token-level hashing
+- Multi-GPU training reproducibility
+- Environment containerization (Docker)
+- Full checkpoint verification protocol
 
 ---
 
