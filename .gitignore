@@ -325,5 +325,4 @@ TSWLatexianTemp*
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
 
-dataset_manifest.json
-data
+data/
