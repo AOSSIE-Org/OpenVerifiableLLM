@@ -1,0 +1,3 @@
+Wikipedia is a free online encyclopedia.
+It is maintained by a community of volunteers.
+This is a small reproducibility sample.
