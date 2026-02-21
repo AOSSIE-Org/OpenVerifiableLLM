@@ -1,9 +1,10 @@
 import json
-import sys
 import platform
 from pathlib import Path
-from hash_utils import sha256_file
+from .hash_utils import sha256_file
 
+# Anchor paths to project root (two levels up from this file)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def extract_dump_date(filename: str):
     parts = filename.split("-")
@@ -15,13 +16,12 @@ def extract_dump_date(filename: str):
 
 def generate_manifest(raw_path, processed_path):
     raw_path = Path(raw_path)
-
-    # Automatically infer processed file path
-    processed_path = Path("data/processed/wiki_clean.txt")
+    processed_path = Path(processed_path)
 
     if not processed_path.exists():
-        print("Error: Processed file not found. Run preprocessing first.")
-        sys.exit(1)
+        raise FileNotFoundError(
+            f"Processed file not found at {processed_path}. Run preprocessing first."
+        )
 
     manifest = {
         "wikipedia_dump": raw_path.name,
@@ -32,7 +32,9 @@ def generate_manifest(raw_path, processed_path):
         "python_version": platform.python_version()
     }
 
-    with open("dataset_manifest.json", "w") as f:
+    manifest_path = _PROJECT_ROOT / "dataset_manifest.json"
+
+    with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print("Manifest generated successfully.")
+    print(f"Manifest written to {manifest_path}")

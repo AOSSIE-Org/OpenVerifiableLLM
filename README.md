@@ -108,9 +108,10 @@ OpenVerifiableLLM/
 
 - Python 3.9+
 - Wikipedia dump from:
-  https://dumps.wikimedia.org/
+  <https://dumps.wikimedia.org/>
 
 Recommended for testing:
+
 - `simplewiki-YYYYMMDD-pages-articles.xml.bz2`
 
 ---
@@ -127,6 +128,7 @@ cd OpenVerifiableLLM
 ### ▶ Running the Pipeline
 
 #### Step 1 — Place Dump File
+
 Move your Wikipedia dump into:
 
 ```bash
@@ -138,12 +140,15 @@ Example:
 ```bash
 data/raw/simplewiki-20260201-pages-articles.xml.bz2
 ```
+
 #### Step 2 — Run Preprocessing
 
 ```bash
-python scripts/preprocess.py data/raw/simplewiki-20260201-pages-articles.xml.bz2
+python -m scripts.preprocess <args>
 ```
+
 This will:
+
 - Create `data/processed/wiki_clean.txt`
 - Generate `dataset_manifest.json`
 - Compute `SHA256` hashes
@@ -160,7 +165,9 @@ This will:
   "python_version": "3.13.2"
 }
 ```
+
 ## 📈 Future Extensions
+
 - Deterministic tokenization stage
 - Token-level hashing
 - Multi-GPU training reproducibility
@@ -209,4 +216,4 @@ Thanks a lot for spending your time helping TODO grow. Keep rocking 🥂
 
 [![Contributors](https://contrib.rocks/image?repo=AOSSIE-Org/TODO)](https://github.com/AOSSIE-Org/TODO/graphs/contributors)
 
-© 2025 AOSSIE 
+© 2025 AOSSIE
