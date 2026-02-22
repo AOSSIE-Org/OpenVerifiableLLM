@@ -95,7 +95,7 @@ OpenVerifiableLLM/
 |
 ├── examples/
 │   ├── demo_util.py
-│   ├── sample_wiki.xml
+│   ├── sample_wiki.py
 │   └── sample_wiki.xml.bz2
 │
 ├── openverifiablellm/
@@ -146,7 +146,7 @@ pip install -e .
 #### Step 2 — Place Dump File
 
 Move your Wikipedia dump into the project root directory
-(the same directory that contains the ```openverifiablellm/``` folder).
+(the same directory that contains the `openverifiablellm/` folder).
 
 Example:
 

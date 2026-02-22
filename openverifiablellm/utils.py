@@ -146,7 +146,7 @@ def clean_wikitext(text: str) -> str:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python preprocess.py <input_dump>")
+        print("Usage: python -m openverifiablellm.utils <input_dump>")
         sys.exit(1)
         
     logging.basicConfig(
