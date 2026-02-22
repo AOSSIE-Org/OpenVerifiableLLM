@@ -88,16 +88,24 @@ It ensures that:
 ```text
 OpenVerifiableLLM/
 │
-├── scripts/
-│ ├── preprocess.py
-│ ├── generate_manifest.py
-│ └── hash_utils.py
+├── data/              ← created automatically at runtime
+│   ├── dataset_manifest.json
+│   └── processed/
+│       └── wiki_clean.txt
+|
+├── examples/
+│   ├── demo_util.py
+│   ├── sample_wiki.xml
+│   └── sample_wiki.xml.bz2
 │
-├── data/
-│ ├── raw/
-│ └── processed/
+├── openverifiablellm/
+│   ├── __init__.py        ← (should exist)
+│   └── utils.py
 │
-└── dataset_manifest.json
+├── tests/
+│   └── test_util.py
+│
+└── requirements.txt
 ```
 
 ---
@@ -127,24 +135,37 @@ cd OpenVerifiableLLM
 
 ### ▶ Running the Pipeline
 
-#### Step 1 — Place Dump File
+#### Step 1 — Install the Package
 
-Move your Wikipedia dump into:
+From the project root:
 
 ```bash
-data/raw/
+pip install -e .
 ```
+
+#### Step 2 — Place Dump File
+
+Move your Wikipedia dump into the project root directory
+(the same directory that contains the ```openverifiablellm/``` folder).
 
 Example:
 
 ```bash
-data/raw/simplewiki-20260201-pages-articles.xml.bz2
+simplewiki-20260201-pages-articles.xml.bz2
 ```
 
-#### Step 2 — Run Preprocessing
+Copy the file path to use as the argument when running preprocessing.
+
+Example (relative path):
 
 ```bash
-python -m scripts.preprocess <args>
+simplewiki-20260201-pages-articles.xml.bz2
+```
+
+#### Step 3 — Run Preprocessing
+
+```bash
+python -m openverifiablellm.utils simplewiki-20260201-pages-articles.xml.bz2
 ```
 
 This will:
@@ -152,6 +173,7 @@ This will:
 - Create `data/processed/wiki_clean.txt`
 - Generate `dataset_manifest.json`
 - Compute `SHA256` hashes
+- Log preprocessing status
 
 #### 📜 Example Manifest
 
@@ -165,6 +187,37 @@ This will:
   "python_version": "3.13.2"
 }
 ```
+
+---
+
+## 🧪 Running Tests
+
+To verify correctness and reproducibility:
+
+```bash
+pytest
+```
+
+This runs:
+
+- Unit tests for:
+
+  - `clean_wikitext`
+  - `compute_sha256`
+  - `extract_dump_date`
+  - `generate_manifest`
+
+- Integration test for:
+
+  - `extract_text_from_xml` (end-to-end pipeline using a synthetic .bz2 file)
+
+All tests should pass:
+
+```text
+11 passed in 0.xx s
+```
+
+---
 
 ## 📈 Future Extensions
 
