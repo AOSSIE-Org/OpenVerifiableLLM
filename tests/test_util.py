@@ -47,15 +47,19 @@ def test_generate_manifest_raises_if_processed_missing(tmp_path):
     with pytest.raises(FileNotFoundError):
         utils.generate_manifest(raw_file, missing_file)
         
-def test_generate_manifest_runs_if_file_exists(tmp_path):
+def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
     raw_file = tmp_path / "raw.txt"
     raw_file.write_text("dummy")
 
     processed_file = tmp_path / "processed.txt"
     processed_file.write_text("cleaned")
 
-    # Should not raise
     utils.generate_manifest(raw_file, processed_file)
+
+    manifest_file = tmp_path / "data/dataset_manifest.json"
+    assert manifest_file.exists()
     
 # --------------- compute_sha256 ------------------------------------
 
