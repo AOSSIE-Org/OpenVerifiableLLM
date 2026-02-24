@@ -331,3 +331,4 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.bz2
