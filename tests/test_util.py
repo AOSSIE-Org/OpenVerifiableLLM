@@ -2,9 +2,14 @@ import bz2
 import hashlib
 import pytest
 from openverifiablellm import utils
-# run test by--
-## pip install -e . (from project root)
-## pytest
+
+"""
+Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
+
+Run with:
+    pip install -e ".[dev]"
+    pytest
+"""
 
 # --------------- clean_wikitext tests ------------------------------------
 
