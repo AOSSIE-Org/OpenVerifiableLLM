@@ -127,3 +127,22 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
     assert "Hello World" in processed_file.read_text()
     
+    # --------------- manifest includes merkle fields ------------------------------------
+
+def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    raw_file = tmp_path / "raw.txt"
+    raw_file.write_text("dummy data")
+
+    processed_file = tmp_path / "processed.txt"
+    processed_file.write_text("cleaned data")
+
+    utils.generate_manifest(raw_file, processed_file)
+
+    manifest_file = tmp_path / "data/dataset_manifest.json"
+    manifest = manifest_file.read_text()
+
+    assert "raw_merkle_root" in manifest
+    assert "processed_merkle_root" in manifest
+    assert "chunk_size_bytes" in manifest

@@ -11,6 +11,53 @@ import platform
 
 logger = logging.getLogger(__name__)
 
+# Merkle Tree Chunk-Level Hashing for Large Files
+def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
+    """
+    Compute the Merkle Root hash of a file by splitting it into chunks.
+
+    This allows researchers to cryptographically verify specific chunks
+    or subsets of the training data without re-hashing the entire dataset.
+
+    Parameters
+    ----------
+    file_path : Union[str, Path]
+        Path to the dataset file.
+    chunk_size : int
+        Size of each chunk in bytes (default: 1MB).
+
+    Returns
+    -------
+    str
+        The final Merkle Root hash string.
+    """
+    path = Path(file_path)
+    leaves = []
+
+    # 1. Read file in chunks and hash each chunk (raw bytes)
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            leaves.append(hashlib.sha256(chunk).digest())
+
+    # Handle empty files deterministically
+    if not leaves:
+        return hashlib.sha256(b"").hexdigest()
+
+    # 2. Build the tree bottom-up
+    while len(leaves) > 1:
+        next_level = []
+        for i in range(0, len(leaves), 2):
+            left = leaves[i]
+            right = leaves[i + 1] if i + 1 < len(leaves) else left
+
+            combined = left + right
+            next_level.append(hashlib.sha256(combined).digest())
+
+        leaves = next_level
+
+    return leaves[0].hex()
+
+
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):
     """
@@ -74,6 +121,13 @@ def generate_manifest(raw_path, processed_path):
         "dump_date": extract_dump_date(raw_path.name),
         "raw_sha256": compute_sha256(str(raw_path)),
         "processed_sha256": compute_sha256(str(processed_path)),
+
+        # ---------------- ADDED FIELDS ----------------
+        "raw_merkle_root": compute_merkle_root(raw_path),
+        "processed_merkle_root": compute_merkle_root(processed_path),
+        "chunk_size_bytes": 1024 * 1024,
+        # ---------------------------------------------------------------
+
         "preprocessing_version": "v1",
         "python_version": platform.python_version()
     }
