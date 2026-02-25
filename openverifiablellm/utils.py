@@ -31,6 +31,9 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 10
     str
         The final Merkle Root hash string.
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
     path = Path(file_path)
     leaves = []
 
