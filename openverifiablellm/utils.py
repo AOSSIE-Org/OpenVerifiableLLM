@@ -126,9 +126,9 @@ def generate_manifest(raw_path, processed_path):
         "processed_sha256": compute_sha256(str(processed_path)),
 
         # ---------------- ADDED FIELDS ----------------
-        "raw_merkle_root": compute_merkle_root(raw_path),
-        "processed_merkle_root": compute_merkle_root(processed_path),
-        "chunk_size_bytes": 1024 * 1024,
+        "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "processed_merkle_root": compute_merkle_root(processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
 
         "preprocessing_version": "v1",
