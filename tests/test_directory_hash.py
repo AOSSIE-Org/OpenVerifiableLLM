@@ -88,6 +88,30 @@ def test_empty_directory_hash(tmp_path):
     # SHA256 of empty input
     assert hash_value == hashlib.sha256().hexdigest()
 
-def test_nonexistent_directory_raises():
+def test_nonexistent_directory_raises(tmp_path):
+    missing_path = tmp_path / "non_existent_dir"
+
     with pytest.raises(FileNotFoundError):
-        compute_directory_hash("non_existent_dir")
+        compute_directory_hash(missing_path)
+
+
+def test_nested_directories_and_move(tmp_path):
+    subdir1 = tmp_path / "subdir1"
+    subdir2 = tmp_path / "subdir2"
+    subdir1.mkdir()
+    subdir2.mkdir()
+
+    file1 = subdir1 / "a.txt"
+    file2 = subdir2 / "b.txt"
+
+    file1.write_text("content1", encoding="utf-8")
+    file2.write_text("content2", encoding="utf-8")
+
+    original_hash = compute_directory_hash(tmp_path)
+
+    # Move file1 into subdir2
+    file1.rename(subdir2 / "a.txt")
+
+    new_hash = compute_directory_hash(tmp_path)
+
+    assert original_hash != new_hash

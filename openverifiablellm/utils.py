@@ -137,12 +137,15 @@ def compute_directory_hash(directory_path: Union[str, Path]) -> str:
     """
     directory = Path(directory_path)
 
-    if not directory.exists() or not directory.is_dir():
-        raise FileNotFoundError(f"Directory not found: {directory}")
+    if not directory.exists():
+        raise FileNotFoundError(f"Path not found: {directory}")
+
+    if not directory.is_dir():
+        raise NotADirectoryError(f"Path is not a directory: {directory}")
 
     sha256 = hashlib.sha256()
 
-    files = []
+    entries = []
 
     for f in directory.rglob("*"):
         if not f.is_file():
@@ -150,20 +153,15 @@ def compute_directory_hash(directory_path: Union[str, Path]) -> str:
 
         relative = f.relative_to(directory)
 
-        # Ignore hidden files and any file inside hidden directories
         if any(part.startswith(".") for part in relative.parts):
             continue
 
-        files.append(f)
+        rel_posix = relative.as_posix()
+        entries.append((rel_posix, f))
 
-    # Sort deterministically by normalized relative path
-    files_sorted = sorted(
-        files,
-        key=lambda f: f.relative_to(directory).as_posix()
-    )
+    entries_sorted = sorted(entries, key=lambda e: e[0])
 
-    for file in files_sorted:
-        relative_path = file.relative_to(directory).as_posix()
+    for relative_path, file in entries_sorted:
 
         # Include relative path in hash
         sha256.update(relative_path.encode("utf-8"))
