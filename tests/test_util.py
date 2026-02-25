@@ -140,9 +140,13 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
 
     utils.generate_manifest(raw_file, processed_file)
 
+import json
+@@
     manifest_file = tmp_path / "data/dataset_manifest.json"
-    manifest = manifest_file.read_text()
+    manifest = json.loads(manifest_file.read_text())
 
     assert "raw_merkle_root" in manifest
     assert "processed_merkle_root" in manifest
-    assert "chunk_size_bytes" in manifest
+    assert manifest["chunk_size_bytes"] == 1024 * 1024
+    assert len(manifest["raw_merkle_root"]) == 64
+    assert len(manifest["processed_merkle_root"]) == 64
