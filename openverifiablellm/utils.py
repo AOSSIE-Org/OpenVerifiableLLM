@@ -39,7 +39,7 @@ def extract_text_from_xml(input_path):
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     output_path = output_dir / "wiki_clean.txt"
 
     with bz2.open(input_path, "rb") as f:
@@ -58,7 +58,7 @@ def extract_text_from_xml(input_path):
                     elem.clear()
     logger.info("Preprocessing complete. Output saved to %s", output_path)
     generate_manifest(input_path,output_path)
-    
+
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
     raw_path = Path(raw_path)
@@ -114,6 +114,68 @@ def compute_sha256(file_path: Union[str, Path]) -> str:
 
     return sha256.hexdigest()
 
+def compute_directory_hash(directory_path: Union[str, Path]) -> str:
+    """
+    Compute a deterministic SHA256 hash of a directory.
+
+    The hash incorporates:
+    - Relative file paths (normalized to POSIX style)
+    - File contents (via compute_sha256)
+
+    Hidden files and files inside hidden directories (starting with '.')
+    are ignored.
+
+    Parameters
+    ----------
+    directory_path : Union[str, Path]
+        Path to directory to hash.
+
+    Returns
+    -------
+    str
+        SHA256 hex digest representing directory contents.
+    """
+    directory = Path(directory_path)
+
+    if not directory.exists() or not directory.is_dir():
+        raise FileNotFoundError(f"Directory not found: {directory}")
+
+    sha256 = hashlib.sha256()
+
+    files = []
+
+    for f in directory.rglob("*"):
+        if not f.is_file():
+            continue
+
+        relative = f.relative_to(directory)
+
+        # Ignore hidden files and any file inside hidden directories
+        if any(part.startswith(".") for part in relative.parts):
+            continue
+
+        files.append(f)
+
+    # Sort deterministically by normalized relative path
+    files_sorted = sorted(
+        files,
+        key=lambda f: f.relative_to(directory).as_posix()
+    )
+
+    for file in files_sorted:
+        relative_path = file.relative_to(directory).as_posix()
+
+        # Include relative path in hash
+        sha256.update(relative_path.encode("utf-8"))
+        sha256.update(b"\0")  # delimiter
+
+        # Include file content hash
+        file_hash = compute_sha256(file)
+        sha256.update(file_hash.encode("utf-8"))
+        sha256.update(b"\0")  # delimiter
+
+    return sha256.hexdigest()
+
 def extract_dump_date(filename: str):
     parts = filename.split("-")
     for part in parts:
@@ -148,7 +210,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python -m openverifiablellm.utils <input_dump>")
         sys.exit(1)
-        
+
     logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s - %(message)s"
