@@ -115,3 +115,11 @@ def test_nested_directories_and_move(tmp_path):
     new_hash = compute_directory_hash(tmp_path)
 
     assert original_hash != new_hash
+
+
+def test_not_a_directory_raises(tmp_path):
+    file_path = tmp_path / "a_file.txt"
+    file_path.write_text("content", encoding="utf-8")
+
+    with pytest.raises(NotADirectoryError):
+        compute_directory_hash(file_path)

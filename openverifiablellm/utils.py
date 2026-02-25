@@ -138,10 +138,10 @@ def compute_directory_hash(directory_path: Union[str, Path]) -> str:
     directory = Path(directory_path)
 
     if not directory.exists():
-        raise FileNotFoundError(f"Path not found: {directory}")
+        raise FileNotFoundError(directory)
 
     if not directory.is_dir():
-        raise NotADirectoryError(f"Path is not a directory: {directory}")
+        raise NotADirectoryError(directory)
 
     sha256 = hashlib.sha256()
 
