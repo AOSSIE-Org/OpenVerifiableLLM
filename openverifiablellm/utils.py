@@ -40,6 +40,80 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 10
 
     return leaves[0].hex()
 
+def generate_merkle_proof(
+    file_path: Union[str, Path],
+    chunk_index: int,
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+):
+    """
+    Generate Merkle proof for a specific chunk index.
+
+    Returns:
+        List of tuples (sibling_hash_hex, is_left)
+    """
+    path = Path(file_path)
+    leaves = []
+
+    # Build leaf level
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            leaf_hex = compute_sha256(chunk)
+            leaves.append(bytes.fromhex(leaf_hex))
+
+    if not leaves:
+        raise ValueError("Cannot generate proof for empty file")
+
+    if chunk_index < 0 or chunk_index >= len(leaves):
+        raise IndexError("Chunk index out of range")
+
+    proof = []
+    index = chunk_index
+
+    while len(leaves) > 1:
+        # If odd number of nodes, duplicate last
+        if len(leaves) % 2 == 1:
+            leaves.append(leaves[-1])
+
+        sibling_index = index ^ 1
+        sibling = leaves[sibling_index]
+
+        is_left = sibling_index < index
+        proof.append((sibling.hex(), is_left))
+
+        # Build next level
+        next_level = []
+        for i in range(0, len(leaves), 2):
+            combined = leaves[i] + leaves[i + 1]
+            parent_hex = compute_sha256(combined)
+            next_level.append(bytes.fromhex(parent_hex))
+
+        index //= 2
+        leaves = next_level
+
+    return proof
+
+def verify_merkle_proof(
+    chunk_bytes: bytes,
+    proof,
+    merkle_root: str
+) -> bool:
+    """
+    Verify a Merkle proof for given chunk bytes.
+    """
+    current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
+
+    for sibling_hex, is_left in proof:
+        sibling = bytes.fromhex(sibling_hex)
+
+        if is_left:
+            combined = sibling + current_hash
+        else:
+            combined = current_hash + sibling
+
+        parent_hex = compute_sha256(combined)
+        current_hash = bytes.fromhex(parent_hex)
+
+    return current_hash.hex() == merkle_root
 
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):
