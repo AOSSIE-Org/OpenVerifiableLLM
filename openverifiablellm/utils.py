@@ -13,7 +13,10 @@ logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
 
 # Merkle Tree Chunk-Level Hashing for Large Files
-def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
+def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
     path = Path(file_path)
     leaves = []
 
@@ -52,6 +55,10 @@ def generate_merkle_proof(
         List of tuples (sibling_hash_hex, is_left)
     """
     path = Path(file_path)
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
     leaves = []
 
     # Build leaf level
@@ -100,10 +107,22 @@ def verify_merkle_proof(
     """
     Verify a Merkle proof for given chunk bytes.
     """
-    current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
+    try:
+        current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
+        expected_root = bytes.fromhex(merkle_root)
+    except (TypeError, ValueError):
+        return False
 
-    for sibling_hex, is_left in proof:
-        sibling = bytes.fromhex(sibling_hex)
+    for step in proof:
+        if not isinstance(step, (tuple, list)) or len(step) != 2:
+            return False
+
+        sibling_hex, is_left = step
+
+        try:
+            sibling = bytes.fromhex(sibling_hex)
+        except (TypeError, ValueError):
+            return False
 
         if is_left:
             combined = sibling + current_hash
@@ -113,7 +132,7 @@ def verify_merkle_proof(
         parent_hex = compute_sha256(combined)
         current_hash = bytes.fromhex(parent_hex)
 
-    return current_hash.hex() == merkle_root
+    return current_hash == expected_root
 
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):

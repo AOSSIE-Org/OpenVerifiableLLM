@@ -208,5 +208,15 @@ def test_merkle_proof_verification(tmp_path):
     with file.open("rb") as f:
         f.seek(8)
         chunk = f.read(8)
-
+    # Positive case
     assert utils.verify_merkle_proof(chunk, proof, root)
+
+    # Negative case: tampered chunk
+    tampered_chunk = bytearray(chunk)
+    tampered_chunk[0] ^= 1
+    assert not utils.verify_merkle_proof(bytes(tampered_chunk), proof, root)
+
+    # Negative case: tampered proof
+    bad_proof = proof.copy()
+    bad_proof[0] = ("00" * 32, proof[0][1])
+    assert not utils.verify_merkle_proof(chunk, bad_proof, root)
