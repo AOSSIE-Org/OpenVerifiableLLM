@@ -194,3 +194,19 @@ def test_merkle_root_empty_file(tmp_path):
     expected = hashlib.sha256(b"").hexdigest()
 
     assert root == expected
+
+# --------------- Merkle proof generation ------------------------------------
+
+def test_merkle_proof_verification(tmp_path):
+    file = tmp_path / "data.txt"
+    content = b"hello world this is merkle proof test"
+    file.write_bytes(content)
+
+    root = utils.compute_merkle_root(file, chunk_size=8)
+    proof = utils.generate_merkle_proof(file, chunk_index=1, chunk_size=8)
+
+    with file.open("rb") as f:
+        f.seek(8)
+        chunk = f.read(8)
+
+    assert utils.verify_merkle_proof(chunk, proof, root)
