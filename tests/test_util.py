@@ -146,3 +146,50 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     assert "raw_merkle_root" in manifest
     assert "processed_merkle_root" in manifest
     assert "chunk_size_bytes" in manifest
+
+# --------------- compute_merkle_root ------------------------------------
+
+def test_merkle_root_deterministic(tmp_path):
+    file = tmp_path / "data.txt"
+    file.write_text("hello wikipedia")
+
+    root1 = utils.compute_merkle_root(file, chunk_size=4)
+    root2 = utils.compute_merkle_root(file, chunk_size=4)
+
+    assert root1 == root2
+
+
+def test_merkle_root_changes_when_content_changes(tmp_path):
+    file = tmp_path / "data.txt"
+    file.write_text("content A")
+
+    root1 = utils.compute_merkle_root(file)
+
+    file.write_text("content B")
+
+    root2 = utils.compute_merkle_root(file)
+
+    assert root1 != root2
+
+
+def test_merkle_root_single_chunk_equals_sha256(tmp_path):
+    file = tmp_path / "data.txt"
+    content = "small file"
+    file.write_text(content)
+
+    merkle_root = utils.compute_merkle_root(file, chunk_size=10_000)
+
+    expected = hashlib.sha256(content.encode()).hexdigest()
+
+    assert merkle_root == expected
+
+
+def test_merkle_root_empty_file(tmp_path):
+    file = tmp_path / "empty.txt"
+    file.write_text("")
+
+    root = utils.compute_merkle_root(file)
+
+    expected = hashlib.sha256(b"").hexdigest()
+
+    assert root == expected

@@ -13,37 +13,18 @@ logger = logging.getLogger(__name__)
 
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
-    """
-    Compute the Merkle Root hash of a file by splitting it into chunks.
-
-    This allows researchers to cryptographically verify specific chunks
-    or subsets of the training data without re-hashing the entire dataset.
-
-    Parameters
-    ----------
-    file_path : Union[str, Path]
-        Path to the dataset file.
-    chunk_size : int
-        Size of each chunk in bytes (default: 1MB).
-
-    Returns
-    -------
-    str
-        The final Merkle Root hash string.
-    """
     path = Path(file_path)
     leaves = []
 
-    # 1. Read file in chunks and hash each chunk (raw bytes)
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            leaves.append(hashlib.sha256(chunk).digest())
+            # STRICTLY reuse compute_sha256
+            leaf_hex = compute_sha256(chunk)
+            leaves.append(bytes.fromhex(leaf_hex))
 
-    # Handle empty files deterministically
     if not leaves:
-        return hashlib.sha256(b"").hexdigest()
+        return compute_sha256(b"")
 
-    # 2. Build the tree bottom-up
     while len(leaves) > 1:
         next_level = []
         for i in range(0, len(leaves), 2):
@@ -51,7 +32,8 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 10
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            next_level.append(hashlib.sha256(combined).digest())
+            parent_hex = compute_sha256(combined)
+            next_level.append(bytes.fromhex(parent_hex))
 
         leaves = next_level
 
@@ -140,27 +122,19 @@ def generate_manifest(raw_path, processed_path):
 
     logger.info("Manifest written to %s", manifest_path)
 
-# helpers
-def compute_sha256(file_path: Union[str, Path]) -> str:
+# helpers:Update compute_sha256() to support bytes input directly.
+def compute_sha256(file_path: Union[str, Path, bytes]) -> str:
     """
-    Compute SHA256 hash of a file.
-
-    This provides a deterministic fingerprint of the dataset,
-    enabling reproducibility and verification.
-
-    Parameters
-    ----------
-    file_path : Union[str, Path]
-        Path to the dataset file (string or Path-like).
-
-    Returns
-    -------
-    str
-        SHA256 hash string.
+    Compute SHA256 hash of a file OR raw bytes.
     """
-    path = Path(file_path)
-
     sha256 = hashlib.sha256()
+
+    # If bytes provided
+    if isinstance(file_path, (bytes, bytearray)):
+        sha256.update(file_path)
+        return sha256.hexdigest()
+
+    path = Path(file_path)
 
     with path.open("rb") as f:
         while chunk := f.read(8192):
