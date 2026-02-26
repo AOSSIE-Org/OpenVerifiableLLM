@@ -124,7 +124,7 @@ def generate_manifest(raw_path, processed_path):
     logger.info("Manifest written to %s", manifest_path)
 
 # helpers:Update compute_sha256() to support bytes input directly.
-def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
+def compute_sha256(data: Union[str, Path, bytes, bytearray]) -> str:
     """
     Compute SHA256 hash of a file OR raw bytes.
         This is used for both raw and processed files to ensure integrity.
@@ -133,12 +133,12 @@ def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
     """
     sha256 = hashlib.sha256()
 
-    # If bytes provided
-    if isinstance(file_path, (bytes, bytearray)):
-        sha256.update(file_path)
+    # If raw bytes provided
+    if isinstance(data, (bytes, bytearray)):
+        sha256.update(data)
         return sha256.hexdigest()
 
-    path = Path(file_path)
+    path = Path(data)
 
     with path.open("rb") as f:
         while chunk := f.read(8192):
