@@ -2,6 +2,7 @@ import bz2
 import hashlib
 import pytest
 from openverifiablellm import utils
+import json
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -141,7 +142,7 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     utils.generate_manifest(raw_file, processed_file)
 
     manifest_file = tmp_path / "data/dataset_manifest.json"
-    manifest = manifest_file.read_text()
+    manifest = json.loads(manifest_file.read_text())
 
     assert "raw_merkle_root" in manifest
     assert "processed_merkle_root" in manifest

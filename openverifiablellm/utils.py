@@ -18,7 +18,7 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 10
 
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            # STRICTLY reuse compute_sha256
+            # reuse compute_sha256
             leaf_hex = compute_sha256(chunk)
             leaves.append(bytes.fromhex(leaf_hex))
 
@@ -105,9 +105,9 @@ def generate_manifest(raw_path, processed_path):
         "processed_sha256": compute_sha256(str(processed_path)),
 
         # ---------------- ADDED FIELDS ----------------
-        "raw_merkle_root": compute_merkle_root(raw_path),
-        "processed_merkle_root": compute_merkle_root(processed_path),
-        "chunk_size_bytes": 1024 * 1024,
+        "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "processed_merkle_root": compute_merkle_root(processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
 
         "preprocessing_version": "v1",
