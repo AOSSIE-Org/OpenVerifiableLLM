@@ -10,6 +10,7 @@ import json
 import platform
 
 logger = logging.getLogger(__name__)
+MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
 
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
@@ -123,7 +124,7 @@ def generate_manifest(raw_path, processed_path):
     logger.info("Manifest written to %s", manifest_path)
 
 # helpers:Update compute_sha256() to support bytes input directly.
-def compute_sha256(file_path: Union[str, Path, bytes]) -> str:
+def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
     """
     Compute SHA256 hash of a file OR raw bytes.
         This is used for both raw and processed files to ensure integrity.
