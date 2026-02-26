@@ -126,6 +126,9 @@ def generate_manifest(raw_path, processed_path):
 def compute_sha256(file_path: Union[str, Path, bytes]) -> str:
     """
     Compute SHA256 hash of a file OR raw bytes.
+        This is used for both raw and processed files to ensure integrity.
+    This provides a deterministic fingerprint of the dataset,
+    enabling reproducibility and verification.
     """
     sha256 = hashlib.sha256()
 
