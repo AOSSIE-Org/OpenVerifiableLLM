@@ -99,53 +99,6 @@ def generate_merkle_proof(
 
     return proof
 
-def verify_merkle_proof(
-    chunk_bytes: bytes,
-    proof,
-    merkle_root: str
-) -> bool:
-    """
-    Verify a Merkle proof for given chunk bytes.
-    """
-    try:
-        current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
-        expected_root = bytes.fromhex(merkle_root)
-    except (TypeError, ValueError):
-        return False
-
-    # Validate proof container
-    if not isinstance(proof, (list, tuple)):
-        return False
-
-    for step in proof:
-        if not isinstance(step, (tuple, list)) or len(step) != 2:
-            return False
-
-        sibling_hex, is_left = step
-
-        # Validate types
-        if not isinstance(sibling_hex, str) or not isinstance(is_left, bool):
-            return False
-
-        try:
-            sibling = bytes.fromhex(sibling_hex)
-        except (TypeError, ValueError):
-            return False
-
-        # Ensure correct SHA256 length (32 bytes)
-        if len(sibling) != hashlib.sha256().digest_size:
-            return False
-
-        if is_left:
-            combined = sibling + current_hash
-        else:
-            combined = current_hash + sibling
-
-        parent_hex = compute_sha256(combined)
-        current_hash = bytes.fromhex(parent_hex)
-
-    return current_hash == expected_root
-
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):
     """
