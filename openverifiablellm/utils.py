@@ -248,28 +248,53 @@ def load_merkle_proof(
         return json.load(f)
 
 
-def verify_merkle_proof_from_file(
+def verify_merkle_proof(
     chunk_bytes: bytes,
-    proof_path: Union[str, Path],
+    proof,
     merkle_root: str
 ) -> bool:
     """
-    Verify chunk using proof stored in a JSON file.
+    Verify a Merkle proof for given chunk bytes.
     """
     try:
-        data = load_merkle_proof(proof_path)
-    except (OSError, json.JSONDecodeError) as e:
-        logger.warning("Failed to load proof file %s: %s", proof_path, e)
+        current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
+        expected_root = bytes.fromhex(merkle_root)
+    except (TypeError, ValueError):
         return False
 
-    proof = data.get("proof")
-    if proof is None:
+    if not isinstance(proof, (list, tuple)):
         return False
 
-    return verify_merkle_proof(chunk_bytes, proof, merkle_root)
+    for step in proof:
+        if not isinstance(step, (tuple, list)) or len(step) != 2:
+            return False
+
+        sibling_hex, is_left = step
+
+        if not isinstance(sibling_hex, str) or not isinstance(is_left, bool):
+            return False
+
+        try:
+            sibling = bytes.fromhex(sibling_hex)
+        except (TypeError, ValueError):
+            return False
+
+        # Ensure correct hash length
+        if len(sibling) != hashlib.sha256().digest_size:
+            return False
+
+        if is_left:
+            combined = sibling + current_hash
+        else:
+            combined = current_hash + sibling
+
+        parent_hex = compute_sha256(combined)
+        current_hash = bytes.fromhex(parent_hex)
+
+    return current_hash == expected_root
 
 # helpers:Update compute_sha256() to support bytes input directly.
-def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
+def compute_sha256(data: Union[str, Path, bytes, bytearray]) -> str:
     """
     Compute SHA256 hash of a file OR raw bytes.
         This is used for both raw and processed files to ensure integrity.
@@ -278,12 +303,12 @@ def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
     """
     sha256 = hashlib.sha256()
 
-    # If bytes provided
-    if isinstance(file_path, (bytes, bytearray)):
-        sha256.update(file_path)
+    # If raw bytes provided
+    if isinstance(data, (bytes, bytearray)):
+        sha256.update(data)
         return sha256.hexdigest()
 
-    path = Path(file_path)
+    path = Path(data)
 
     with path.open("rb") as f:
         while chunk := f.read(8192):
