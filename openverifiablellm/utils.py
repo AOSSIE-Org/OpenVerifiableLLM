@@ -3,7 +3,6 @@ import re
 import defusedxml.ElementTree as ET
 from pathlib import Path
 import sys
-from typing import Union
 import hashlib
 import logging
 import json
