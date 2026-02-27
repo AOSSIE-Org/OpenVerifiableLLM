@@ -8,6 +8,7 @@ import hashlib
 import logging
 import json
 import platform
+from typing import Union, Optional
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -124,22 +125,33 @@ def generate_manifest(raw_path, processed_path):
     logger.info("Manifest written to %s", manifest_path)
 
 # helpers:Update compute_sha256() to support bytes input directly.
-def compute_sha256(data: Union[str, Path, bytes, bytearray]) -> str:
+def compute_sha256(
+    *,
+    data: Optional[Union[bytes, bytearray]] = None,
+    file_path: Optional[Union[str, Path]] = None,
+) -> str:
     """
     Compute SHA256 hash of a file OR raw bytes.
-        This is used for both raw and processed files to ensure integrity.
+
+    This is used for both raw and processed files to ensure integrity.
     This provides a deterministic fingerprint of the dataset,
     enabling reproducibility and verification.
+
+    Exactly one of `data` or `file_path` must be provided.
     """
+
+    if (data is None) == (file_path is None):
+        raise ValueError(
+            "Exactly one of 'data' or 'file_path' must be provided."
+        )
+
     sha256 = hashlib.sha256()
 
-    # If raw bytes provided
-    if isinstance(data, (bytes, bytearray)):
+    if data is not None:
         sha256.update(data)
         return sha256.hexdigest()
 
-    path = Path(data)
-
+    path = Path(file_path)
     with path.open("rb") as f:
         while chunk := f.read(8192):
             sha256.update(chunk)
