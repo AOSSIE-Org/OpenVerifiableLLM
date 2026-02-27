@@ -113,15 +113,27 @@ def verify_merkle_proof(
     except (TypeError, ValueError):
         return False
 
+    # Validate proof container
+    if not isinstance(proof, (list, tuple)):
+        return False
+
     for step in proof:
         if not isinstance(step, (tuple, list)) or len(step) != 2:
             return False
 
         sibling_hex, is_left = step
 
+        # Validate types
+        if not isinstance(sibling_hex, str) or not isinstance(is_left, bool):
+            return False
+
         try:
             sibling = bytes.fromhex(sibling_hex)
         except (TypeError, ValueError):
+            return False
+
+        # Ensure correct SHA256 length (32 bytes)
+        if len(sibling) != hashlib.sha256().digest_size:
             return False
 
         if is_left:
