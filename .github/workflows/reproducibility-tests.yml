@@ -1,0 +1,90 @@
+name: Reproducibility Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '0 0 * * 0'
+
+jobs:
+  test-dataset-hashing:
+    name: Test Dataset Hashing
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: pip install pytest
+      
+      - name: Run dataset hashing tests
+        run: python -m pytest tests/test_dataset_hash.py -v --tb=short
+
+  cross-platform-validation:
+    name: Cross-Platform Validation
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+      
+      - name: Install dependencies
+        run: pip install pytest
+      
+      - name: Run comprehensive tests
+        run: python -m pytest tests/ -v --tb=short
+      
+      - name: Run reproducibility test
+        run: python scripts/test_reproducibility.py --test=reproducibility --output-hash
+      
+      - name: Save reproducibility hash
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducible-hash-${{ matrix.os }}
+          path: reproducible_hash.txt
+
+  hash-comparison:
+    name: Compare Hashes Across Platforms
+    needs: [test-dataset-hashing, cross-platform-validation]
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Download all hashes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: reproducible-hash-*
+          merge-multiple: false
+      
+      - name: Compare hashes
+        run: |
+          ubuntu_hash=$(cat reproducible-hash-ubuntu-latest/reproducible_hash.txt)
+          windows_hash=$(cat reproducible-hash-windows-latest/reproducible_hash.txt)
+          macos_hash=$(cat reproducible-hash-macos-latest/reproducible_hash.txt)
+          
+          echo "Ubuntu Hash:   $ubuntu_hash"
+          echo "Windows Hash:  $windows_hash"
+          echo "macOS Hash:    $macos_hash"
+          
+          if [ "$ubuntu_hash" != "$windows_hash" ] || [ "$ubuntu_hash" != "$macos_hash" ]; then
+            echo "::error::CRITICAL: Reproducibility hashes do not match across operating systems!"
+            exit 1
+          fi
+          
+          echo "SUCCESS: All reproducibility hashes match across operating systems"
