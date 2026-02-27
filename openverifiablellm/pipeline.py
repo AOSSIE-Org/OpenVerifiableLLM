@@ -2,7 +2,7 @@ import json
 import hashlib
 from pathlib import Path
 from typing import Union, Dict
-from .dataset_hash import compute_sha256
+from .utils import compute_sha256
 
 
 def normalize_line_endings(content: str) -> str:

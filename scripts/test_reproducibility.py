@@ -9,7 +9,7 @@ from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from openverifiablellm.dataset_hash import compute_sha256
+from openverifiablellm import compute_sha256
 
 
 def generate_manifest(directory_path: Path) -> dict:

@@ -1,4 +1,4 @@
-from .dataset_hash import compute_sha256
+from .utils import compute_sha256
 from .pipeline import (
     generate_manifest,
     get_manifest_hash,

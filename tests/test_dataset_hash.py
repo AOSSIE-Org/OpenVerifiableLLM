@@ -4,7 +4,7 @@ import tempfile
 import pytest
 import json
 from pathlib import Path
-from openverifiablellm.dataset_hash import compute_sha256
+from openverifiablellm import compute_sha256
 
 
 def test_correct_sha256_output(tmp_path):

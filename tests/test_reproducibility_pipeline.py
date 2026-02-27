@@ -3,7 +3,7 @@ import hashlib
 import tempfile
 import pytest
 from pathlib import Path
-from openverifiablellm.dataset_hash import compute_sha256
+from openverifiablellm import compute_sha256
 
 
 def normalize_line_endings(content: str) -> str:
