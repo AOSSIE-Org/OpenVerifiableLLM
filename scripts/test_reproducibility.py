@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import sys
 import json
-import hashlib
 import tempfile
 import argparse
 from pathlib import Path
@@ -9,28 +8,7 @@ from typing import Dict, List, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from openverifiablellm import compute_sha256
-
-
-def generate_manifest(directory_path: Path) -> dict:
-    files = [f for f in directory_path.glob("**/*") if f.is_file()]
-    files.sort(key=lambda x: str(x.relative_to(directory_path)).replace("\\", "/"))
-    
-    manifest_entries = []
-    for file in files:
-        rel_path = str(file.relative_to(directory_path)).replace("\\", "/")
-        file_hash = compute_sha256(file)
-        manifest_entries.append({
-            "path": rel_path,
-            "sha256": file_hash,
-            "size": file.stat().st_size
-        })
-    return {"files": manifest_entries}
-
-
-def get_manifest_hash(manifest: dict) -> str:
-    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(manifest_json.encode("utf-8")).hexdigest()
+from openverifiablellm.pipeline import generate_manifest, get_manifest_hash
 
 
 def create_test_dataset(directory: Path, seed: int = 42) -> None:
@@ -61,14 +39,14 @@ def test_reproducibility_multiple_runs(runs: int = 3, seed: int = 42) -> Tuple[b
     return all_match, hashes, hashes[0] if hashes else ""
 
 
-def run_all_tests() -> Dict[str, bool]:
+def run_all_tests(runs: int, seed: int) -> Dict[str, bool]:
     print("=" * 60)
     print("Running Reproducibility Tests")
     print("=" * 60)
     results = {}
     
     print("\n1. Testing reproducibility across multiple runs...")
-    success, hashes, final_hash = test_reproducibility_multiple_runs()
+    success, hashes, final_hash = test_reproducibility_multiple_runs(runs, seed)
     results["reproducibility"] = success
     print(f"   {'PASSED' if success else 'FAILED'}: All runs produced {'same' if success else 'different'} hash")
     
@@ -89,7 +67,7 @@ def main():
     args = parser.parse_args()
     
     if args.test == "all":
-        results = run_all_tests()
+        results = run_all_tests(args.runs, args.seed)
         if args.output_hash:
             success, hashes, final_hash = test_reproducibility_multiple_runs(args.runs, args.seed)
             if success:

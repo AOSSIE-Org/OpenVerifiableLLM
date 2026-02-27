@@ -10,12 +10,12 @@ from .pipeline import (
 )
 
 __all__ = [
+    "compare_manifests",
+    "compute_normalized_sha256",
     "compute_sha256",
     "generate_manifest",
     "get_manifest_hash",
-    "run_pipeline",
-    "compute_normalized_sha256",
     "normalize_line_endings",
+    "run_pipeline",
     "validate_manifest_integrity",
-    "compare_manifests",
 ]

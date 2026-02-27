@@ -52,12 +52,26 @@ def run_pipeline(directory_path: Union[str, Path]) -> str:
 
 def validate_manifest_integrity(manifest: Dict, directory_path: Union[str, Path]) -> bool:
     dir_path = Path(directory_path)
+    
+    manifest_paths = {entry["path"] for entry in manifest.get("files", [])}
+    actual_paths = {
+        str(f.relative_to(dir_path)).replace("\\", "/")
+        for f in dir_path.glob("**/*")
+        if f.is_file()
+    }
+    
+    if manifest_paths != actual_paths:
+        return False
+    
     for entry in manifest["files"]:
         file_path = dir_path / entry["path"]
         try:
-            recomputed_hash = compute_normalized_sha256(file_path)
-        except (UnicodeDecodeError, ValueError):
-            recomputed_hash = compute_sha256(file_path)
+            try:
+                recomputed_hash = compute_normalized_sha256(file_path)
+            except (UnicodeDecodeError, ValueError):
+                recomputed_hash = compute_sha256(file_path)
+        except (FileNotFoundError, PermissionError, OSError, IOError):
+            return False
         if entry["sha256"] != recomputed_hash:
             return False
     return True

@@ -1,35 +1,13 @@
 import json
 import hashlib
-import tempfile
 import pytest
 from pathlib import Path
 from openverifiablellm import compute_sha256
-
-
-def normalize_line_endings(content: str) -> str:
-    return content.replace('\r\n', '\n').replace('\r', '\n')
-
-
-def generate_manifest(directory_path: Path) -> dict:
-    files = [f for f in directory_path.glob("**/*") if f.is_file()]
-    files.sort(key=lambda x: str(x.relative_to(directory_path)).replace("\\", "/"))
-    
-    manifest_entries = []
-    for file in files:
-        rel_path = str(file.relative_to(directory_path)).replace("\\", "/")
-        file_hash = compute_sha256(file)
-        manifest_entries.append({
-            "path": rel_path,
-            "sha256": file_hash,
-            "size": file.stat().st_size
-        })
-    
-    return {"files": manifest_entries}
-
-
-def get_manifest_hash(manifest: dict) -> str:
-    manifest_json = json.dumps(manifest, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(manifest_json.encode("utf-8")).hexdigest()
+from openverifiablellm.pipeline import (
+    generate_manifest,
+    get_manifest_hash,
+    validate_manifest_integrity,
+)
 
 
 def test_manifest_generation(tmp_path):
@@ -136,10 +114,29 @@ def test_manifest_integrity(tmp_path):
     
     manifest = generate_manifest(tmp_path)
     
-    for entry in manifest["files"]:
-        file_path = tmp_path / entry["path"]
-        recomputed_hash = compute_sha256(file_path)
-        assert entry["sha256"] == recomputed_hash
+    is_valid = validate_manifest_integrity(manifest, tmp_path)
+    assert is_valid is True
+
+
+def test_manifest_integrity_extra_file(tmp_path):
+    (tmp_path / "original.txt").write_text("Original content", encoding="utf-8")
+    
+    manifest = generate_manifest(tmp_path)
+    (tmp_path / "extra.txt").write_text("Extra file", encoding="utf-8")
+    
+    is_valid = validate_manifest_integrity(manifest, tmp_path)
+    assert is_valid is False
+
+
+def test_manifest_integrity_missing_file(tmp_path):
+    (tmp_path / "file1.txt").write_text("File 1", encoding="utf-8")
+    (tmp_path / "file2.txt").write_text("File 2", encoding="utf-8")
+    
+    manifest = generate_manifest(tmp_path)
+    (tmp_path / "file2.txt").unlink()
+    
+    is_valid = validate_manifest_integrity(manifest, tmp_path)
+    assert is_valid is False
 
 
 def test_json_serialization_consistency():
