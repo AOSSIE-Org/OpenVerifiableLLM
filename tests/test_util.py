@@ -2,6 +2,7 @@ import bz2
 import hashlib
 import pytest
 from openverifiablellm import utils
+import json
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -127,3 +128,69 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
     assert "Hello World" in processed_file.read_text()
     
+    # --------------- manifest includes merkle fields ------------------------------------
+
+def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    raw_file = tmp_path / "raw.txt"
+    raw_file.write_text("dummy data")
+
+    processed_file = tmp_path / "processed.txt"
+    processed_file.write_text("cleaned data")
+
+    utils.generate_manifest(raw_file, processed_file)
+
+    manifest_file = tmp_path / "data/dataset_manifest.json"
+    manifest = json.loads(manifest_file.read_text())
+
+    assert "raw_merkle_root" in manifest
+    assert "processed_merkle_root" in manifest
+    assert "chunk_size_bytes" in manifest
+
+# --------------- compute_merkle_root ------------------------------------
+
+def test_merkle_root_deterministic(tmp_path):
+    file = tmp_path / "data.txt"
+    file.write_text("hello wikipedia")
+
+    root1 = utils.compute_merkle_root(file, chunk_size=4)
+    root2 = utils.compute_merkle_root(file, chunk_size=4)
+
+    assert root1 == root2
+
+
+def test_merkle_root_changes_when_content_changes(tmp_path):
+    file = tmp_path / "data.txt"
+    file.write_text("content A")
+
+    root1 = utils.compute_merkle_root(file)
+
+    file.write_text("content B")
+
+    root2 = utils.compute_merkle_root(file)
+
+    assert root1 != root2
+
+
+def test_merkle_root_single_chunk_equals_sha256(tmp_path):
+    file = tmp_path / "data.txt"
+    content = "small file"
+    file.write_text(content)
+
+    merkle_root = utils.compute_merkle_root(file, chunk_size=10_000)
+
+    expected = hashlib.sha256(content.encode()).hexdigest()
+
+    assert merkle_root == expected
+
+
+def test_merkle_root_empty_file(tmp_path):
+    file = tmp_path / "empty.txt"
+    file.write_text("")
+
+    root = utils.compute_merkle_root(file)
+
+    expected = hashlib.sha256(b"").hexdigest()
+
+    assert root == expected

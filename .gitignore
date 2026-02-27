@@ -332,3 +332,5 @@ __pycache__/
 *.pyo
 *.pyd
 *.bz2
+
+*.venv
