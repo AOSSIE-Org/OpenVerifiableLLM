@@ -157,6 +157,8 @@ reviews:
     - Confirm that the code meets the project's requirements and objectives
     - Confirm that copyright years are up-to date whenever a file is changed
     - Point out redundant obvious comments that do not add clarity to the code
+    - Ensure that comments are concise and suggest more concise comment statements if possible
+    - Discourage usage of verbose comment styles such as NatSpec
     - Look for code duplication
     - Suggest code completions when:
         - seeing a TODO comment
