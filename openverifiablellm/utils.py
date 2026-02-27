@@ -3,29 +3,31 @@ import re
 import defusedxml.ElementTree as ET
 from pathlib import Path
 import sys
-from typing import Union
 import hashlib
 import logging
 import json
 import platform
-from typing import Union, Optional
+from typing import Union, Optional, Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
 
 # Merkle Tree Chunk-Level Hashing for Large Files
-def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
+def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
     path = Path(file_path)
     leaves = []
 
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
             # reuse compute_sha256
-            leaf_hex = compute_sha256(chunk)
+            leaf_hex = compute_sha256(data=chunk)
             leaves.append(bytes.fromhex(leaf_hex))
 
     if not leaves:
-        return compute_sha256(b"")
+        return compute_sha256(data=b"")
 
     while len(leaves) > 1:
         next_level = []
@@ -34,13 +36,68 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 10
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            parent_hex = compute_sha256(combined)
+            parent_hex = compute_sha256(data=combined)
             next_level.append(bytes.fromhex(parent_hex))
 
         leaves = next_level
 
     return leaves[0].hex()
 
+def generate_merkle_proof(
+    file_path: Union[str, Path],
+    chunk_index: int,
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+):
+    """
+    Generate Merkle proof for a specific chunk index.
+
+    Returns:
+        List of tuples (sibling_hash_hex, is_left)
+    """
+    path = Path(file_path)
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    leaves = []
+
+    # Build leaf level
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            leaf_hex = compute_sha256(data=chunk)
+            leaves.append(bytes.fromhex(leaf_hex))
+
+    if not leaves:
+        raise ValueError("Cannot generate proof for empty file")
+
+    if chunk_index < 0 or chunk_index >= len(leaves):
+        raise IndexError("Chunk index out of range")
+
+    proof = []
+    index = chunk_index
+
+    while len(leaves) > 1:
+        # If odd number of nodes, duplicate last
+        if len(leaves) % 2 == 1:
+            leaves.append(leaves[-1])
+
+        sibling_index = index ^ 1
+        sibling = leaves[sibling_index]
+
+        is_left = sibling_index < index
+        proof.append((sibling.hex(), is_left))
+
+        # Build next level
+        next_level = []
+        for i in range(0, len(leaves), 2):
+            combined = leaves[i] + leaves[i + 1]
+            parent_hex = compute_sha256(data=combined)
+            next_level.append(bytes.fromhex(parent_hex))
+
+        index //= 2
+        leaves = next_level
+
+    return proof
 
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):
@@ -103,8 +160,8 @@ def generate_manifest(raw_path, processed_path):
     manifest = {
         "wikipedia_dump": raw_path.name,
         "dump_date": extract_dump_date(raw_path.name),
-        "raw_sha256": compute_sha256(str(raw_path)),
-        "processed_sha256": compute_sha256(str(processed_path)),
+        "raw_sha256": compute_sha256(file_path=raw_path),
+        "processed_sha256": compute_sha256(file_path=processed_path),
 
         # ---------------- ADDED FIELDS ----------------
         "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
@@ -123,6 +180,119 @@ def generate_manifest(raw_path, processed_path):
         json.dump(manifest, f, indent=2)
 
     logger.info("Manifest written to %s", manifest_path)
+
+def export_merkle_proof(
+    proof: List[Tuple[str, bool]],
+    chunk_index: int,
+    chunk_size: int,
+    output_path: Union[str, Path]
+) -> None:
+    """
+    Export Merkle proof to a JSON file for portable verification.
+    """
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    if not isinstance(proof, list):
+        raise ValueError("proof must be a list")
+
+    if chunk_index < 0:
+        raise ValueError("chunk_index must be non-negative")
+
+    data = {
+        "chunk_index": chunk_index,
+        "chunk_size": chunk_size,
+        "proof": proof,
+    }
+
+    output_path = Path(output_path)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def load_merkle_proof(
+    proof_path: Union[str, Path]
+) -> Dict[str, Any]:
+    """
+    Load Merkle proof from a JSON file.
+    """
+    proof_path = Path(proof_path)
+
+    with proof_path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def verify_merkle_proof(
+    chunk_bytes: bytes,
+    proof,
+    merkle_root: str
+) -> bool:
+    """
+    Verify a Merkle proof for given chunk bytes.
+    """
+    try:
+        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
+        expected_root = bytes.fromhex(merkle_root)
+    except (TypeError, ValueError):
+        return False
+
+    if not isinstance(proof, (list, tuple)):
+        return False
+
+    for step in proof:
+        if not isinstance(step, (tuple, list)) or len(step) != 2:
+            return False
+
+        sibling_hex, is_left = step
+
+        if not isinstance(sibling_hex, str) or not isinstance(is_left, bool):
+            return False
+
+        try:
+            sibling = bytes.fromhex(sibling_hex)
+        except (TypeError, ValueError):
+            return False
+
+        # Ensure correct hash length
+        if len(sibling) != hashlib.sha256().digest_size:
+            return False
+
+        if is_left:
+            combined = sibling + current_hash
+        else:
+            combined = current_hash + sibling
+
+        parent_hex = compute_sha256(data=combined)
+        current_hash = bytes.fromhex(parent_hex)
+
+    return current_hash == expected_root
+
+def verify_merkle_proof_from_file(
+    proof_file_path: Union[str, Path],
+    chunk_data: bytes,
+    expected_root: str
+) -> bool:
+    proof_file_path = Path(proof_file_path)
+
+    if not proof_file_path.exists():
+        raise FileNotFoundError(f"Proof file not found: {proof_file_path}")
+
+    with proof_file_path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError("Malformed proof file: expected JSON object")
+
+    required_keys = {"chunk_index", "chunk_size", "proof"}
+    if not required_keys.issubset(data.keys()):
+        raise ValueError("Malformed proof file: missing required keys")
+
+    proof = data["proof"]
+
+    if not isinstance(proof, list):
+        raise ValueError("Malformed proof: proof must be a list")
+
+    return verify_merkle_proof(chunk_data, proof, expected_root)
 
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(
