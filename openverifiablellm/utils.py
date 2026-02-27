@@ -256,7 +256,11 @@ def verify_merkle_proof_from_file(
     """
     Verify chunk using proof stored in a JSON file.
     """
-    data = load_merkle_proof(proof_path)
+    try:
+        data = load_merkle_proof(proof_path)
+    except (OSError, json.JSONDecodeError) as e:
+        logger.warning("Failed to load proof file %s: %s", proof_path, e)
+        return False
 
     proof = data.get("proof")
     if proof is None:
