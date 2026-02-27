@@ -24,11 +24,11 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
             # reuse compute_sha256
-            leaf_hex = compute_sha256(chunk)
+            leaf_hex = compute_sha256(data=chunk)
             leaves.append(bytes.fromhex(leaf_hex))
 
     if not leaves:
-        return compute_sha256(b"")
+        return compute_sha256(data=b"")
 
     while len(leaves) > 1:
         next_level = []
@@ -37,7 +37,7 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            parent_hex = compute_sha256(combined)
+            parent_hex = compute_sha256(data=combined)
             next_level.append(bytes.fromhex(parent_hex))
 
         leaves = next_level
@@ -65,7 +65,7 @@ def generate_merkle_proof(
     # Build leaf level
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            leaf_hex = compute_sha256(chunk)
+            leaf_hex = compute_sha256(data=chunk)
             leaves.append(bytes.fromhex(leaf_hex))
 
     if not leaves:
@@ -92,7 +92,7 @@ def generate_merkle_proof(
         next_level = []
         for i in range(0, len(leaves), 2):
             combined = leaves[i] + leaves[i + 1]
-            parent_hex = compute_sha256(combined)
+            parent_hex = compute_sha256(data=combined)
             next_level.append(bytes.fromhex(parent_hex))
 
         index //= 2
@@ -109,7 +109,7 @@ def verify_merkle_proof(
     Verify a Merkle proof for given chunk bytes.
     """
     try:
-        current_hash = bytes.fromhex(compute_sha256(chunk_bytes))
+        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
         expected_root = bytes.fromhex(merkle_root)
     except (TypeError, ValueError):
         return False
@@ -140,7 +140,7 @@ def verify_merkle_proof(
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(combined)
+        parent_hex = compute_sha256(data=combined)
         current_hash = bytes.fromhex(parent_hex)
 
     return current_hash == expected_root
@@ -206,8 +206,8 @@ def generate_manifest(raw_path, processed_path):
     manifest = {
         "wikipedia_dump": raw_path.name,
         "dump_date": extract_dump_date(raw_path.name),
-        "raw_sha256": compute_sha256(str(raw_path)),
-        "processed_sha256": compute_sha256(str(processed_path)),
+        "raw_sha256": compute_sha256(file_path=raw_path),
+        "processed_sha256": compute_sha256(file_path=processed_path),
 
         # ---------------- ADDED FIELDS ----------------
         "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
