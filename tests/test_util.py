@@ -220,3 +220,26 @@ def test_merkle_proof_verification(tmp_path):
     bad_proof = proof.copy()
     bad_proof[0] = ("00" * 32, proof[0][1])
     assert not utils.verify_merkle_proof(chunk, bad_proof, root)
+
+def test_export_and_load_merkle_proof(tmp_path):
+    file = tmp_path / "data.txt"
+    content = b"portable proof verification example"
+    file.write_bytes(content)
+
+    root = utils.compute_merkle_root(file, chunk_size=8)
+    proof = utils.generate_merkle_proof(file, chunk_index=1, chunk_size=8)
+
+    proof_file = tmp_path / "proof.json"
+
+    utils.export_merkle_proof(
+        proof,
+        chunk_index=1,
+        chunk_size=8,
+        output_path=proof_file
+    )
+
+    with file.open("rb") as f:
+        f.seek(8)
+        chunk = f.read(8)
+
+    assert utils.verify_merkle_proof_from_file(chunk, proof_file, root)

@@ -216,6 +216,54 @@ def generate_manifest(raw_path, processed_path):
 
     logger.info("Manifest written to %s", manifest_path)
 
+def export_merkle_proof(
+    proof,
+    chunk_index: int,
+    chunk_size: int,
+    output_path: Union[str, Path]
+):
+    """
+    Export Merkle proof to a JSON file for portable verification.
+    """
+    data = {
+        "chunk_index": chunk_index,
+        "chunk_size": chunk_size,
+        "proof": proof,
+    }
+
+    output_path = Path(output_path)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_merkle_proof(
+    proof_path: Union[str, Path]
+):
+    """
+    Load Merkle proof from a JSON file.
+    """
+    proof_path = Path(proof_path)
+
+    with proof_path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def verify_merkle_proof_from_file(
+    chunk_bytes: bytes,
+    proof_path: Union[str, Path],
+    merkle_root: str
+) -> bool:
+    """
+    Verify chunk using proof stored in a JSON file.
+    """
+    data = load_merkle_proof(proof_path)
+
+    proof = data.get("proof")
+    if proof is None:
+        return False
+
+    return verify_merkle_proof(chunk_bytes, proof, merkle_root)
+
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(file_path: Union[str, Path, bytes, bytearray]) -> str:
     """
