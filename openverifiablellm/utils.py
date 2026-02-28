@@ -13,6 +13,14 @@ from typing import Union, Optional
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
 
+# Precompiled regular expressions for wikitext cleaning
+RE_TEMPLATE = re.compile(r"\{\{.*?\}\}", re.DOTALL)
+RE_REF = re.compile(r"<ref.*?>.*?</ref>", re.DOTALL)
+RE_HTML_TAG = re.compile(r"<.*?>")
+RE_LINK_PIPE = re.compile(r"\[\[.*?\|(.*?)\]\]")
+RE_LINK = re.compile(r"\[\[(.*?)\]\]")
+RE_WHITESPACE = re.compile(r"\s+")
+
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = 1024 * 1024) -> str:
     path = Path(file_path)
@@ -70,7 +78,7 @@ def extract_text_from_xml(input_path):
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     output_path = output_dir / "wiki_clean.txt"
 
     with bz2.open(input_path, "rb") as f:
@@ -89,7 +97,7 @@ def extract_text_from_xml(input_path):
                     elem.clear()
     logger.info("Preprocessing complete. Output saved to %s", output_path)
     generate_manifest(input_path,output_path)
-    
+
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
     raw_path = Path(raw_path)
@@ -180,19 +188,19 @@ def clean_wikitext(text: str) -> str:
 
     These limitations are acceptable for lightweight, deterministic preprocessing.
     """
-    text = re.sub(r"\{\{.*?\}\}", "", text, flags=re.DOTALL)
-    text = re.sub(r"<ref.*?>.*?</ref>", "", text, flags=re.DOTALL)
-    text = re.sub(r"<.*?>", "", text)
-    text = re.sub(r"\[\[.*?\|(.*?)\]\]", r"\1", text)
-    text = re.sub(r"\[\[(.*?)\]\]", r"\1", text)
-    text = re.sub(r"\s+", " ", text)
+    text = RE_TEMPLATE.sub("", text)
+    text = RE_REF.sub("", text)
+    text = RE_HTML_TAG.sub("", text)
+    text = RE_LINK_PIPE.sub(r"\1", text)
+    text = RE_LINK.sub(r"\1", text)
+    text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python -m openverifiablellm.utils <input_dump>")
         sys.exit(1)
-        
+
     logging.basicConfig(
     level=logging.INFO,
     format="%(levelname)s - %(message)s"
