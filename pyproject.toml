@@ -23,3 +23,7 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["openverifiablellm*"]
 
+dependencies = [
+    "defusedxml",
+    "tokenizers>=0.13.0"
+]
