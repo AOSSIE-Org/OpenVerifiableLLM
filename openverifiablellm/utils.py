@@ -3,12 +3,11 @@ import re
 import defusedxml.ElementTree as ET
 from pathlib import Path
 import sys
-from typing import Union
 import hashlib
 import logging
 import json
 import platform
-from typing import Union, Optional
+from typing import Union, Optional, Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -226,6 +225,76 @@ def generate_manifest(raw_path, processed_path):
         json.dump(manifest, f, indent=2)
 
     logger.info("Manifest written to %s", manifest_path)
+
+def export_merkle_proof(
+    proof: List[Tuple[str, bool]],
+    chunk_index: int,
+    chunk_size: int,
+    output_path: Union[str, Path]
+) -> None:
+    """
+    Export Merkle proof to a JSON file for portable verification.
+    """
+
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    if not isinstance(proof, list):
+        raise ValueError("proof must be a list")
+
+    if chunk_index < 0:
+        raise ValueError("chunk_index must be non-negative")
+
+    data = {
+        "chunk_index": chunk_index,
+        "chunk_size": chunk_size,
+        "proof": proof,
+    }
+
+    output_path = Path(output_path)
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
+def load_merkle_proof(
+    proof_path: Union[str, Path]
+) -> Dict[str, Any]:
+    """
+    Load Merkle proof from a JSON file.
+    """
+    proof_path = Path(proof_path)
+
+    with proof_path.open("r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+# Content before line 270 remains unchanged
+# Entire function definition from lines 270-314 should be deleted
+def verify_merkle_proof_from_file(
+    proof_file_path: Union[str, Path],
+    chunk_data: bytes,
+    expected_root: str
+) -> bool:
+    proof_file_path = Path(proof_file_path)
+
+    if not proof_file_path.exists():
+        raise FileNotFoundError(f"Proof file not found: {proof_file_path}")
+
+    with proof_file_path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError("Malformed proof file: expected JSON object")
+
+    required_keys = {"chunk_index", "chunk_size", "proof"}
+    if not required_keys.issubset(data.keys()):
+        raise ValueError("Malformed proof file: missing required keys")
+
+    proof = data["proof"]
+
+    if not isinstance(proof, list):
+        raise ValueError("Malformed proof: proof must be a list")
+
+    return verify_merkle_proof(chunk_data, proof, expected_root)
 
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(
