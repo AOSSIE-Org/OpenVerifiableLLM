@@ -176,11 +176,13 @@ def extract_text_from_xml(input_path):
     
     output_path = output_dir / "wiki_clean.txt"
 
-    if input_path.suffix == ".bz2":
+    suffix = input_path.suffix.lower()
+    if suffix == ".bz2":
         file_handle = bz2.open(input_path, "rb")
-    else:
+    elif suffix == ".xml":
         file_handle = open(input_path, "rb")
-    
+    else:
+        raise ValueError("input_path must have .xml or .bz2 extension")
     with file_handle as f:
         context = ET.iterparse(f, events=("end",))
 
