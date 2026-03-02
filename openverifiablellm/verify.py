@@ -25,6 +25,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, Union
 import sys
+import subprocess
 
 from openverifiablellm import utils
 
@@ -230,10 +231,9 @@ def verify_preprocessing(
     # 1. Load existing manifest
     try:
         manifest = _load_manifest(manifest_path)
-    except (FileNotFoundError, json.JSONDecodeError) as exc:
-        check_name = "manifest_exists" if isinstance(exc, FileNotFoundError) else "manifest_valid_json"
+    except FileNotFoundError as exc:
         report.add(CheckResult(
-            name=check_name,
+            name="manifest_exists",
             status=CheckStatus.FAIL,
             detail=str(exc),
         ))
@@ -320,22 +320,22 @@ def verify_preprocessing(
     try:
         logger.info("Re-running preprocessing in temp dir: %s", tmp_dir)
 
-        # Temporarily switch cwd so extract_text_from_xml writes into tmp_dir
-        import os
-        original_cwd = os.getcwd()
-        os.chdir(tmp_dir)
         try:
-            utils.extract_text_from_xml(input_dump)
-        except (OSError, EOFError, Exception) as exc:
+            subprocess.run(
+                [sys.executable, "-m", "openverifiablellm.utils", str(input_dump)],
+                cwd=tmp_dir,              # run inside temp directory
+                check=True,               # raise if exit code != 0
+                capture_output=True,      # capture stdout/stderr
+                text=True,                # return as string (not bytes)
+            )
+        except subprocess.CalledProcessError as exc:
             # Decompression or XML parse failure — tampered / corrupt file
             report.add(CheckResult(
                 name="reprocessing_succeeded",
                 status=CheckStatus.FAIL,
-                detail=f"Re-run raised {type(exc).__name__}: {exc}",
+                detail=f"Re-run failed with exit code {exc.returncode}: {exc.stderr.strip()}",
             ))
             return report
-        finally:
-            os.chdir(original_cwd)
 
         reproduced_processed = tmp_dir / "data" / "processed" / "wiki_clean.txt"
 
