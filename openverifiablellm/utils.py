@@ -300,6 +300,36 @@ def load_merkle_proof(
     with proof_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
+
+# Content before line 270 remains unchanged
+# Entire function definition from lines 270-314 should be deleted
+def verify_merkle_proof_from_file(
+    proof_file_path: Union[str, Path],
+    chunk_data: bytes,
+    expected_root: str
+) -> bool:
+    proof_file_path = Path(proof_file_path)
+
+    if not proof_file_path.exists():
+        raise FileNotFoundError(f"Proof file not found: {proof_file_path}")
+
+    with proof_file_path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if not isinstance(data, dict):
+        raise ValueError("Malformed proof file: expected JSON object")
+
+    required_keys = {"chunk_index", "chunk_size", "proof"}
+    if not required_keys.issubset(data.keys()):
+        raise ValueError("Malformed proof file: missing required keys")
+
+    proof = data["proof"]
+
+    if not isinstance(proof, list):
+        raise ValueError("Malformed proof: proof must be a list")
+
+    return verify_merkle_proof(chunk_data, proof, expected_root)
+
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(
     *,
