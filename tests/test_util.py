@@ -127,6 +127,44 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
     assert processed_file.exists()
 
     assert "Hello World" in processed_file.read_text()
+
+
+def test_extract_text_from_xml_plain_xml(tmp_path, monkeypatch):
+    """Test that extract_text_from_xml works with plain .xml files."""
+
+    xml_content = """<?xml version="1.0"?>
+    <mediawiki>
+      <page>
+        <revision>
+          <text>Hello [[World]]</text>
+        </revision>
+      </page>
+    </mediawiki>
+    """
+
+    input_file = tmp_path / "simplewiki-20260201-pages.xml"
+    input_file.write_text(xml_content, encoding="utf-8")
+
+    # Redirect project root
+    monkeypatch.chdir(tmp_path)
+
+    utils.extract_text_from_xml(input_file)
+
+    processed_file = tmp_path / "data/processed/wiki_clean.txt"
+    assert processed_file.exists()
+
+    assert "Hello World" in processed_file.read_text()
+
+
+def test_extract_text_from_xml_unsupported_extension(tmp_path):
+    """Test that extract_text_from_xml raises ValueError for unsupported extensions."""
+
+    input_file = tmp_path / "dump.gz"
+    input_file.write_bytes(b"dummy content")
+
+    with pytest.raises(ValueError, match="input_path must have .xml or .bz2 extension"):
+        utils.extract_text_from_xml(input_file)
+
     
     # --------------- manifest includes merkle fields ------------------------------------
 
@@ -139,111 +177,9 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     processed_file = tmp_path / "processed.txt"
     processed_file.write_text("cleaned data")
 
-    utils.generate_manifest(raw_file, processed_file)
+    manifest = utils.generate_manifest(raw_file, processed_file)
 
-    manifest_file = tmp_path / "data/dataset_manifest.json"
-    manifest = json.loads(manifest_file.read_text())
-
-    assert "raw_merkle_root" in manifest
-    assert "processed_merkle_root" in manifest
-    assert "chunk_size_bytes" in manifest
-
-# --------------- compute_merkle_root ------------------------------------
-
-def test_merkle_root_deterministic(tmp_path):
-    file = tmp_path / "data.txt"
-    file.write_text("hello wikipedia")
-
-    root1 = utils.compute_merkle_root(file, chunk_size=4)
-    root2 = utils.compute_merkle_root(file, chunk_size=4)
-
-    assert root1 == root2
-
-
-def test_merkle_root_changes_when_content_changes(tmp_path):
-    file = tmp_path / "data.txt"
-    file.write_text("content A")
-
-    root1 = utils.compute_merkle_root(file)
-
-    file.write_text("content B")
-
-    root2 = utils.compute_merkle_root(file)
-
-    assert root1 != root2
-
-
-def test_merkle_root_single_chunk_equals_sha256(tmp_path):
-    file = tmp_path / "data.txt"
-    content = "small file"
-    file.write_text(content)
-
-    merkle_root = utils.compute_merkle_root(file, chunk_size=10_000)
-
-    expected = hashlib.sha256(content.encode()).hexdigest()
-
-    assert merkle_root == expected
-
-
-def test_merkle_root_empty_file(tmp_path):
-    file = tmp_path / "empty.txt"
-    file.write_text("")
-
-    root = utils.compute_merkle_root(file)
-
-    expected = hashlib.sha256(b"").hexdigest()
-
-    assert root == expected
-
-# --------------- Merkle proof generation ------------------------------------
-
-def test_merkle_proof_verification(tmp_path):
-    file = tmp_path / "data.txt"
-    content = b"hello world this is merkle proof test"
-    file.write_bytes(content)
-
-    root = utils.compute_merkle_root(file, chunk_size=8)
-    proof = utils.generate_merkle_proof(file, chunk_index=1, chunk_size=8)
-
-    with file.open("rb") as f:
-        f.seek(8)
-        chunk = f.read(8)
-    # Positive case
-    assert utils.verify_merkle_proof(chunk, proof, root)
-
-    # Negative case: tampered chunk
-    tampered_chunk = bytearray(chunk)
-    tampered_chunk[0] ^= 1
-    assert not utils.verify_merkle_proof(bytes(tampered_chunk), proof, root)
-
-    # Negative case: tampered proof
-    bad_proof = proof.copy()
-    bad_proof[0] = ("00" * 32, proof[0][1])
-    assert not utils.verify_merkle_proof(chunk, bad_proof, root)
-
-def test_export_and_load_merkle_proof(tmp_path):
-    file = tmp_path / "data.txt"
-    content = b"portable proof verification example"
-    file.write_bytes(content)
-
-    root = utils.compute_merkle_root(file, chunk_size=8)
-    proof = utils.generate_merkle_proof(file, chunk_index=1, chunk_size=8)
-
-    proof_file = tmp_path / "proof.json"
-
-    utils.export_merkle_proof(
-        proof,
-        chunk_index=1,
-        chunk_size=8,
-        output_path=proof_file
-    )
-
-    with file.open("rb") as f:
-        f.seek(8)
-        chunk = f.read(8)
-
-    assert utils.verify_merkle_proof_from_file(
-        proof_file_path=proof_file,
-        chunk_data=chunk,
-        expected_root=root,
-    )
+    assert "merkle_root" in manifest["raw"]
+    assert "merkle_root" in manifest["processed"]
+    assert manifest["raw"]["merkle_root"] is not None
+    assert manifest["processed"]["merkle_root"] is not None

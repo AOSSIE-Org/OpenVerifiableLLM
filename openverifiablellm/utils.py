@@ -147,218 +147,36 @@ def verify_merkle_proof(
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(data=combined)
-        current_hash = bytes.fromhex(parent_hex)
+        current_hash = bytes.fromhex(compute_sha256(data=combined))
 
     return current_hash == expected_root
 
-# extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+
+def compute_sha256(file_path: Union[str, Path, None] = None, data: Union[bytes, None] = None) -> str:
     """
-    Process a compressed Wikipedia XML dump into cleaned plain text.
-
-    Each <page> element is parsed, its revision text is extracted,
-    cleaned using `clean_wikitext()`, and appended to a single
-    output text file.
-
-    The processed output is saved to:
-        data/processed/wiki_clean.txt
-
-    Parameters
-    ----------
-    input_path : str or Path
-        Path to the compressed Wikipedia XML (.bz2) dump file.
-
-    Output
-    ------
-    Creates:
-        data/processed/wiki_clean.txt
+    Compute SHA-256 hash of a file or raw bytes.
     """
-    input_path = Path(input_path)
-
-    # Fixed output path
-    project_root = Path.cwd()
-    output_dir = project_root / "data" / "processed"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_path = output_dir / "wiki_clean.txt"
-
-    with bz2.open(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
-
-        with open(output_path, "w", encoding="utf-8") as out:
-            for _, elem in context:
-                if elem.tag.endswith("page"):
-                    text_elem = elem.find(".//{*}text")
-
-                    if text_elem is not None and text_elem.text:
-                        cleaned = clean_wikitext(text_elem.text)
-                        if cleaned:
-                            out.write(cleaned + "\n\n")
-
-                    elem.clear()
-    logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
-
-# generate data manifest
-def generate_manifest(raw_path, processed_path):
-    raw_path = Path(raw_path)
-    processed_path = Path(processed_path)
-
-    if not processed_path.exists():
-        raise FileNotFoundError(
-            f"Processed file not found at {processed_path}. Run preprocessing first."
-        )
-
-    manifest = {
-        "wikipedia_dump": raw_path.name,
-        "dump_date": extract_dump_date(raw_path.name),
-        "raw_sha256": compute_sha256(file_path=raw_path),
-        "processed_sha256": compute_sha256(file_path=processed_path),
-
-        # ---------------- ADDED FIELDS ----------------
-        "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
-        "processed_merkle_root": compute_merkle_root(processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
-        "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
-        # ---------------------------------------------------------------
-
-        "preprocessing_version": "v1",
-        "python_version": platform.python_version()
-    }
-    project_root = Path.cwd()
-    manifest_path = project_root / "data" / "dataset_manifest.json"
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
-
-    logger.info("Manifest written to %s", manifest_path)
-
-def export_merkle_proof(
-    proof: List[Tuple[str, bool]],
-    chunk_index: int,
-    chunk_size: int,
-    output_path: Union[str, Path]
-) -> None:
-    """
-    Export Merkle proof to a JSON file for portable verification.
-    """
-
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be a positive integer")
-
-    if not isinstance(proof, list):
-        raise ValueError("proof must be a list")
-
-    if chunk_index < 0:
-        raise ValueError("chunk_index must be non-negative")
-
-    data = {
-        "chunk_index": chunk_index,
-        "chunk_size": chunk_size,
-        "proof": proof,
-    }
-
-    output_path = Path(output_path)
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-
-def load_merkle_proof(
-    proof_path: Union[str, Path]
-) -> Dict[str, Any]:
-    """
-    Load Merkle proof from a JSON file.
-    """
-    proof_path = Path(proof_path)
-
-    with proof_path.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-# Content before line 270 remains unchanged
-# Entire function definition from lines 270-314 should be deleted
-def verify_merkle_proof_from_file(
-    proof_file_path: Union[str, Path],
-    chunk_data: bytes,
-    expected_root: str
-) -> bool:
-    proof_file_path = Path(proof_file_path)
-
-    if not proof_file_path.exists():
-        raise FileNotFoundError(f"Proof file not found: {proof_file_path}")
-
-    with proof_file_path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    if not isinstance(data, dict):
-        raise ValueError("Malformed proof file: expected JSON object")
-
-    required_keys = {"chunk_index", "chunk_size", "proof"}
-    if not required_keys.issubset(data.keys()):
-        raise ValueError("Malformed proof file: missing required keys")
-
-    proof = data["proof"]
-
-    if not isinstance(proof, list):
-        raise ValueError("Malformed proof: proof must be a list")
-
-    return verify_merkle_proof(chunk_data, proof, expected_root)
-
-# helpers:Update compute_sha256() to support bytes input directly.
-def compute_sha256(
-    *,
-    data: Optional[Union[bytes, bytearray]] = None,
-    file_path: Optional[Union[str, Path]] = None,
-) -> str:
-    """
-    Compute SHA256 hash of a file OR raw bytes.
-
-    This is used for both raw and processed files to ensure integrity.
-    This provides a deterministic fingerprint of the dataset,
-    enabling reproducibility and verification.
-
-    Exactly one of `data` or `file_path` must be provided.
-    """
-
-    if (data is None) == (file_path is None):
-        raise ValueError(
-            "Exactly one of 'data' or 'file_path' must be provided."
-        )
-
     sha256 = hashlib.sha256()
 
     if data is not None:
         sha256.update(data)
         return sha256.hexdigest()
 
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
+    if file_path is not None:
+        path = Path(file_path)
+        if not path.exists():
+            raise FileNotFoundError(f"File not found: {file_path}")
+        with path.open("rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256.update(chunk)
+        return sha256.hexdigest()
 
-    return sha256.hexdigest()
+    raise ValueError("Either file_path or data must be provided")
 
-def extract_dump_date(filename: str):
-    parts = filename.split("-")
-    for part in parts:
-        if part.isdigit() and len(part) == 8:
-            return f"{part[:4]}-{part[4:6]}-{part[6:]}"
-    return "unknown"
 
 def clean_wikitext(text: str) -> str:
     """
-    Basic deterministic wikitext cleaning.
-
-    Note:
-    This uses simple regex-based rules for speed and consistency.
-    It does NOT fully parse MediaWiki syntax.
-
-    Limitations:
-    - Deeply nested templates may not be fully removed.
-    - Some complex <ref /> cases may not be perfectly handled.
-    - This is not a complete MediaWiki parser.
-
-    These limitations are acceptable for lightweight, deterministic preprocessing.
+    Clean wikitext markup from a string.
     """
     text = RE_TEMPLATE.sub("", text)
     text = RE_REF.sub("", text)
@@ -368,13 +186,93 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump>")
-        sys.exit(1)
 
-    logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s - %(message)s"
-    )
-    extract_text_from_xml(sys.argv[1])
+def extract_dump_date(filename: str) -> str:
+    """
+    Extract dump date from a Wikipedia dump filename.
+    Expected format: <prefix>-YYYYMMDD-<suffix>
+    Returns date as 'YYYY-MM-DD' or 'unknown'.
+    """
+    match = re.search(r"-(\d{8})-", filename)
+    if match:
+        raw = match.group(1)
+        return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
+    return "unknown"
+
+
+def extract_text_from_xml(input_path: Union[str, Path]) -> None:
+    """
+    Extract and clean text from a Wikipedia XML dump file.
+    Supports both .bz2 compressed and plain .xml files.
+    Output is written to data/processed/wiki_clean.txt.
+    """
+    input_path = Path(input_path)
+    output_dir = Path("data/processed")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_file = output_dir / "wiki_clean.txt"
+
+    dump_date = extract_dump_date(input_path.name)
+
+    suffix = input_path.suffix.lower()
+    if suffix == ".bz2":
+        file_handle = bz2.open(input_path, "rb")
+    elif suffix == ".xml":
+        file_handle = open(input_path, "rb")
+    else:
+        raise ValueError("input_path must have .xml or .bz2 extension")
+
+    with file_handle as f:
+        context = ET.iterparse(f, events=("end",))
+        with open(output_file, "w", encoding="utf-8") as out:
+            for event, elem in context:
+                if elem.tag.endswith("text") and elem.text:
+                    cleaned = clean_wikitext(elem.text)
+                    if cleaned:
+                        out.write(cleaned + "\n")
+                elem.clear()
+
+    logger.info(f"Extracted text from {input_path} (dump date: {dump_date}) to {output_file}")
+
+
+def generate_manifest(
+    raw_path: Union[str, Path],
+    processed_path: Union[str, Path],
+    output_dir: Union[str, Path, None] = None
+) -> Dict[str, Any]:
+    """
+    Generate a dataset manifest with file metadata and hashes.
+    """
+    raw_path = Path(raw_path)
+    processed_path = Path(processed_path)
+
+    if not processed_path.exists():
+        raise FileNotFoundError(f"Processed file not found: {processed_path}")
+
+    if output_dir is None:
+        output_dir = Path("data")
+    else:
+        output_dir = Path(output_dir)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_file = output_dir / "dataset_manifest.json"
+
+    manifest = {
+        "raw": {
+            "path": str(raw_path),
+            "sha256": compute_sha256(raw_path) if raw_path.exists() else None,
+            "merkle_root": compute_merkle_root(raw_path) if raw_path.exists() else None,
+        },
+        "processed": {
+            "path": str(processed_path),
+            "sha256": compute_sha256(processed_path),
+            "merkle_root": compute_merkle_root(processed_path),
+        },
+        "platform": platform.platform(),
+        "python_version": sys.version,
+    }
+
+    with open(manifest_file, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+
+    logger.info(f"Manifest written to {manifest_file}")
+    return manifest
