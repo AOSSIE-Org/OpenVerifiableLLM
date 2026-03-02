@@ -4,7 +4,7 @@ Tests for Deterministic Preprocessing Verification Mode.
 Uses only the standard library (unittest) — no pytest needed.
 
 Run with:
-    python tests/test_verify.py -v
+    python test_verify.py -v
 """
 
 import bz2
@@ -123,9 +123,7 @@ exec(compile(UTILS_CODE, "<utils_stub>", "exec"), _utils.__dict__)
 sys.modules.setdefault("openverifiablellm", _pkg)
 sys.modules["openverifiablellm.utils"] = _utils
 
-sys.path.insert(0, str(Path(__file__).parent))
-import verify as verify_module  # noqa: E402
-from verify import (
+from openverifiablellm.verify import (
     CheckResult,
     CheckStatus,
     VerificationReport,
@@ -133,6 +131,8 @@ from verify import (
     _load_manifest,
     verify_preprocessing,
 )
+
+import openverifiablellm.verify as verify_module  # noqa: E402
 
 utils = _utils
 
