@@ -7,6 +7,7 @@ from openverifiablellm.pipeline import (
     generate_manifest,
     get_manifest_hash,
     validate_manifest_integrity,
+    compare_manifests,
 )
 
 
@@ -229,3 +230,111 @@ def test_binary_files_in_manifest(tmp_path):
             break
     else:
         pytest.fail("Binary file not found in manifest")
+
+
+def test_compare_manifests_identical(tmp_path):
+    (tmp_path / "file1.txt").write_text("Content 1", encoding="utf-8")
+    (tmp_path / "file2.txt").write_text("Content 2", encoding="utf-8")
+    
+    manifest1 = generate_manifest(tmp_path)
+    manifest2 = generate_manifest(tmp_path)
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == []
+    assert result["removed"] == []
+    assert result["modified"] == []
+    assert set(result["unchanged"]) == {"file1.txt", "file2.txt"}
+
+
+def test_compare_manifests_added_files():
+    manifest1 = {"files": [{"path": "file1.txt", "sha256": "abc123", "size": 10}]}
+    manifest2 = {
+        "files": [
+            {"path": "file1.txt", "sha256": "abc123", "size": 10},
+            {"path": "file2.txt", "sha256": "def456", "size": 20}
+        ]
+    }
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == ["file2.txt"]
+    assert result["removed"] == []
+    assert result["modified"] == []
+    assert result["unchanged"] == ["file1.txt"]
+
+
+def test_compare_manifests_removed_files():
+    manifest1 = {
+        "files": [
+            {"path": "file1.txt", "sha256": "abc123", "size": 10},
+            {"path": "file2.txt", "sha256": "def456", "size": 20}
+        ]
+    }
+    manifest2 = {"files": [{"path": "file1.txt", "sha256": "abc123", "size": 10}]}
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == []
+    assert result["removed"] == ["file2.txt"]
+    assert result["modified"] == []
+    assert result["unchanged"] == ["file1.txt"]
+
+
+def test_compare_manifests_modified_files():
+    manifest1 = {"files": [{"path": "file1.txt", "sha256": "abc123", "size": 10}]}
+    manifest2 = {"files": [{"path": "file1.txt", "sha256": "different", "size": 15}]}
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == []
+    assert result["removed"] == []
+    assert result["modified"] == ["file1.txt"]
+    assert result["unchanged"] == []
+
+
+def test_compare_manifests_mixed_scenario():
+    manifest1 = {
+        "files": [
+            {"path": "file1.txt", "sha256": "abc123", "size": 10},
+            {"path": "file2.txt", "sha256": "def456", "size": 20},
+            {"path": "file3.txt", "sha256": "ghi789", "size": 30}
+        ]
+    }
+    manifest2 = {
+        "files": [
+            {"path": "file1.txt", "sha256": "abc123", "size": 10},
+            {"path": "file2.txt", "sha256": "modified", "size": 25},
+            {"path": "file4.txt", "sha256": "new123", "size": 40}
+        ]
+    }
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == ["file4.txt"]
+    assert result["removed"] == ["file3.txt"]
+    assert result["modified"] == ["file2.txt"]
+    assert result["unchanged"] == ["file1.txt"]
+
+
+def test_compare_manifests_empty_manifests():
+    empty_manifest = {"files": []}
+    
+    result = compare_manifests(empty_manifest, empty_manifest)
+    
+    assert result["added"] == []
+    assert result["removed"] == []
+    assert result["modified"] == []
+    assert result["unchanged"] == []
+
+
+def test_compare_manifests_both_empty_to_has_files():
+    manifest1 = {"files": []}
+    manifest2 = {"files": [{"path": "new.txt", "sha256": "abc123", "size": 10}]}
+    
+    result = compare_manifests(manifest1, manifest2)
+    
+    assert result["added"] == ["new.txt"]
+    assert result["removed"] == []
+    assert result["modified"] == []
+    assert result["unchanged"] == []
