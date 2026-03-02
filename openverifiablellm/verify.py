@@ -230,9 +230,10 @@ def verify_preprocessing(
     # 1. Load existing manifest
     try:
         manifest = _load_manifest(manifest_path)
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, json.JSONDecodeError) as exc:
+        check_name = "manifest_exists" if isinstance(exc, FileNotFoundError) else "manifest_valid_json"
         report.add(CheckResult(
-            name="manifest_exists",
+            name=check_name,
             status=CheckStatus.FAIL,
             detail=str(exc),
         ))
