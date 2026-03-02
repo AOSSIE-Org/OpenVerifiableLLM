@@ -242,8 +242,10 @@ def test_export_and_load_merkle_proof(tmp_path):
         f.seek(8)
         chunk = f.read(8)
 
-    assert utils.verify_merkle_proof_from_file(
-        proof_file_path=proof_file,
-        chunk_data=chunk,
-        expected_root=root,
+    loaded_data = utils.load_merkle_proof(proof_file)
+
+    assert utils.verify_merkle_proof(
+        chunk_bytes=chunk,
+        proof=loaded_data["proof"],
+        merkle_root=root,
     )
