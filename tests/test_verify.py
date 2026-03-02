@@ -4,7 +4,7 @@ Tests for Deterministic Preprocessing Verification Mode.
 Uses only the standard library (unittest) — no pytest needed.
 
 Run with:
-    python test_verify.py -v
+    python tests/test_verify.py -v
 """
 
 import bz2
