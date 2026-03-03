@@ -155,7 +155,7 @@ def verify_merkle_proof(
 # extract clean wikipage from actual wikipage
 def extract_text_from_xml(input_path):
     """
-    Process a compressed Wikipedia XML dump into cleaned plain text.
+    Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
     Each <page> element is parsed, its revision text is extracted,
     cleaned using `clean_wikitext()`, and appended to a single
@@ -167,7 +167,7 @@ def extract_text_from_xml(input_path):
     Parameters
     ----------
     input_path : str or Path
-        Path to the compressed Wikipedia XML (.bz2) dump file.
+        Path to the Wikipedia XML dump file.
 
     Output
     ------
@@ -183,7 +183,13 @@ def extract_text_from_xml(input_path):
 
     output_path = output_dir / "wiki_clean.txt"
 
-    with bz2.open(input_path, "rb") as f:
+    # Auto-detect file type using magic bytes separation
+    with open(input_path, "rb") as test_f:
+        is_bz2 = test_f.read(3) == b"BZh"
+
+    open_func = bz2.open if is_bz2 else open
+
+    with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
 
         with open(output_path, "w", encoding="utf-8") as out:
