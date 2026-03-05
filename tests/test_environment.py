@@ -1,16 +1,45 @@
 """
-test_fingerprint.py
+tests/test_environment.py
 
-Integration tests for the environment fingerprint feature.
+Tests for the environment fingerprinting feature.
+Covers fingerprint output, consistency, and manifest integration.
 
 Run with:
-    pytest tests/test_fingerprint.py -v -s
+    pytest tests/test_environment.py -v -s
 """
 
 import json
-from openverifiablellm.environment import generate_environment_fingerprint
+import tempfile
+from pathlib import Path
+from openverifiablellm.environment import compute_object_hash, generate_environment_fingerprint
 from openverifiablellm.utils import generate_manifest
 
+
+# --------------- compute_object_hash tests ------------------------------------
+
+def test_hash_deterministic():
+    """Same object must always produce the same hash."""
+    obj = {"a": 1, "b": 2}
+    assert compute_object_hash(obj) == compute_object_hash(obj)
+
+
+def test_hash_order_independent():
+    """Hash must be identical regardless of key order."""
+    obj1 = {"a": 1, "b": 2}
+    obj2 = {"b": 2, "a": 1}
+    assert compute_object_hash(obj1) == compute_object_hash(obj2)
+
+
+def test_hash_changes_on_modification():
+    """Changing a value must produce a different hash."""
+    obj = {"a": 1}
+    h1 = compute_object_hash(obj)
+    obj["a"] = 2
+    h2 = compute_object_hash(obj)
+    assert h1 != h2
+
+
+# --------------- generate_environment_fingerprint tests ------------------------------------
 
 def test_fingerprint_returns_hash_and_environment():
     """Fingerprint must return both environment_hash and environment keys."""
@@ -50,6 +79,8 @@ def test_fingerprint_is_consistent_across_calls():
     result1 = generate_environment_fingerprint()
     result2 = generate_environment_fingerprint()
     assert result1["environment_hash"] == result2["environment_hash"]
+    assert result1["environment"] == result2["environment"]
+    print("✅ Environment fingerprint consistency test passed!")
 
 
 def test_fingerprint_is_embedded_in_manifest(tmp_path, monkeypatch):
@@ -89,3 +120,48 @@ def test_fingerprint_summary_print(capsys):
     captured = capsys.readouterr()
     assert "ENVIRONMENT FINGERPRINT SUMMARY" in captured.out
     assert "packages installed" in captured.out
+
+
+# --------------- manifest integration tests ------------------------------------
+
+def test_manifest_includes_environment():
+    """Test that generate_manifest includes environment fingerprint."""
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.xml', delete=False) as raw_file:
+        raw_file.write("<test>raw data</test>")
+        raw_path = raw_file.name
+
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as processed_file:
+        processed_file.write('{"processed": "data"}')
+        processed_path = processed_file.name
+
+    manifest_path = Path.cwd() / "data" / "dataset_manifest.json"
+
+    try:
+        generate_manifest(raw_path, processed_path)
+
+        assert manifest_path.exists(), "Manifest file not created"
+
+        with open(manifest_path, 'r') as f:
+            manifest = json.load(f)
+
+        assert "environment" in manifest, "Environment field missing from manifest"
+        assert "environment_hash" in manifest, "Environment hash missing from manifest"
+
+        env = manifest["environment"]
+        assert "python_version" in env, "Python version missing"
+        assert "platform" in env, "Platform missing"
+        assert "pip_packages" in env, "Pip packages missing"
+
+        env_hash = manifest["environment_hash"]
+        assert len(env_hash) == 64, "Environment hash should be 64 characters"
+        assert all(c in '0123456789abcdef' for c in env_hash), "Hash should be hex"
+
+        print("✅ Integration test passed!")
+        print(f"✅ Environment hash: {env_hash[:16]}...")
+        print(f"✅ Manifest contains {len(env)} environment fields")
+
+    finally:
+        Path(raw_path).unlink(missing_ok=True)
+        Path(processed_path).unlink(missing_ok=True)
+        Path(manifest_path).unlink(missing_ok=True)
