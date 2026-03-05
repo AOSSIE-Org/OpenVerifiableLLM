@@ -269,12 +269,27 @@ def verify_preprocessing(
     # Merkle root of raw file
     if "raw_merkle_root" in manifest:
         chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
+        if not isinstance(chunk_size, int) or chunk_size <= 0:
+            report.add(CheckResult(
+                name="chunk_size_bytes",
+                status=CheckStatus.FAIL,
+                expected=str(utils.MERKLE_CHUNK_SIZE_BYTES),
+                actual=str(chunk_size),
+                detail="Manifest chunk_size_bytes must be a positive integer",
+            ))
+            return report
         raw_merkle_actual = utils.compute_merkle_root(input_dump, chunk_size=chunk_size)
         _check_field(
             report, "raw_merkle_root",
             expected=manifest["raw_merkle_root"],
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
+        )
+        _check_field(
+            report, "manifest_chunk_size_bytes",
+            expected=manifest.get("chunk_size_bytes"),
+            actual=reproduced_manifest.get("chunk_size_bytes"),
+            detail="Merkle chunk size used during preprocessing",
         )
     else:
         report.add(CheckResult(

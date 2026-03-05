@@ -4,7 +4,7 @@ download_dump.py
 Dedicated script for downloading Wikipedia XML dump files.
 
 Downloads the specified Wikipedia dump and verifies its integrity
-using a SHA256 checksum fetched from Wikimedia's own checksum file.
+using an MD5 checksum fetched from Wikimedia's checksum file.
 
 Usage
 -----
@@ -136,8 +136,8 @@ def _verify_checksum(dest: Path, checksum_url: str) -> bool:
     """
     expected = _fetch_expected_md5(checksum_url, dest.name)
     if expected is None:
-        logger.warning("Checksum verification skipped — could not retrieve expected hash.")
-        return True  # non-fatal
+        logger.error("Checksum verification failed: expected hash unavailable.")
+        return False
 
     logger.info("Verifying checksum ...")
     actual = _compute_md5(dest)
@@ -265,7 +265,7 @@ def main(argv=None) -> None:
         )
         print(f"\nDump ready at: {dest}")
         print(f"\nNext step — run preprocessing:")
-        print(f"  python -m openverifiablellm.utils {dest.name}")
+        print(f"  python -m openverifiablellm.utils \"{dest}\"")
 
     except RuntimeError as exc:
         logger.error("%s", exc)
