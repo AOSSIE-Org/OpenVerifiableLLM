@@ -20,6 +20,33 @@ RE_LINK_PIPE = re.compile(r"\[\[.*?\|(.*?)\]\]")
 RE_LINK = re.compile(r"\[\[(.*?)\]\]")
 RE_WHITESPACE = re.compile(r"\s+")
 
+# helpers: New helper to compute SHA256 and return raw bytes directly
+def compute_sha256_bytes(
+    *,
+    data: Optional[Union[bytes, bytearray]] = None,
+    file_path: Optional[Union[str, Path]] = None,
+) -> bytes:
+    """
+    Compute SHA256 hash of a file OR raw bytes, returning raw bytes.
+    This avoids the overhead of converting to a hex string and back.
+    """
+    if (data is None) == (file_path is None):
+        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
+
+    sha256 = hashlib.sha256()
+
+    if data is not None:
+        sha256.update(data)
+        return sha256.digest()
+
+    path = Path(file_path)
+    with path.open("rb") as f:
+        while chunk := f.read(8192):
+            sha256.update(chunk)
+
+    return sha256.digest()
+
+
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
     if chunk_size <= 0:
@@ -30,9 +57,9 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
 
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            # reuse compute_sha256
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            # use new helper to directly get bytes
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         return compute_sha256(data=b"")
@@ -44,8 +71,8 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         leaves = next_level
 
@@ -72,8 +99,8 @@ def generate_merkle_proof(
     # Build leaf level
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         raise ValueError("Cannot generate proof for empty file")
@@ -99,8 +126,8 @@ def generate_merkle_proof(
         next_level = []
         for i in range(0, len(leaves), 2):
             combined = leaves[i] + leaves[i + 1]
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         index //= 2
         leaves = next_level
@@ -116,7 +143,7 @@ def verify_merkle_proof(
     Verify a Merkle proof for given chunk bytes.
     """
     try:
-        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
+        current_hash = compute_sha256_bytes(data=chunk_bytes)
         expected_root = bytes.fromhex(merkle_root)
     except (TypeError, ValueError):
         return False
@@ -147,8 +174,7 @@ def verify_merkle_proof(
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(data=combined)
-        current_hash = bytes.fromhex(parent_hex)
+        current_hash = compute_sha256_bytes(data=combined)
 
     return current_hash == expected_root
 
