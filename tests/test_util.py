@@ -69,6 +69,20 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
 
 # --------------- compute_sha256 ------------------------------------
 
+def test_compute_sha256_bytes(tmp_path):
+    file = tmp_path / "sample.txt"
+    content = b"hello wikipedia"
+    file.write_bytes(content)
+
+    expected = hashlib.sha256(content).digest()
+
+    actual_data = utils.compute_sha256_bytes(data=content)
+    actual_file = utils.compute_sha256_bytes(file_path=file)
+
+    assert actual_data == expected
+    assert actual_file == expected
+
+
 def test_correct_sha256_output(tmp_path):
     file = tmp_path / "sample.txt"
     content = "hello wikipedia"
@@ -265,8 +279,9 @@ def test_export_and_load_merkle_proof(tmp_path):
         f.seek(8)
         chunk = f.read(8)
 
-    assert utils.verify_merkle_proof_from_file(
-        proof_file_path=proof_file,
-        chunk_data=chunk,
-        expected_root=root,
+    proof_data = utils.load_merkle_proof(proof_path=proof_file)
+    assert utils.verify_merkle_proof(
+        chunk_bytes=chunk,
+        proof=proof_data["proof"],
+        merkle_root=root,
     )
