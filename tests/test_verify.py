@@ -4,125 +4,21 @@ Tests for Deterministic Preprocessing Verification Mode.
 Uses only the standard library (unittest) — no pytest needed.
 
 Run with:
-    python test_verify.py -v
+    python -m pytest tests/test_verify.py -v
+    # or
+    python tests/test_verify.py -v
 """
 
 import bz2
-import hashlib
 import json
 import os
-import platform
 import shutil
 import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 
-# Bootstrap: inject openverifiablellm.utils stub so verify.py can import it
-
-UTILS_CODE = r"""
-import bz2, re, hashlib, json, platform, logging
-from pathlib import Path
-import defusedxml.ElementTree as ET
-
-logger = logging.getLogger(__name__)
-MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024
-
-def compute_sha256(*, data=None, file_path=None):
-    if (data is None) == (file_path is None):
-        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
-    sha256 = hashlib.sha256()
-    if data is not None:
-        sha256.update(data)
-        return sha256.hexdigest()
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-    return sha256.hexdigest()
-
-def compute_merkle_root(file_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES):
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be a positive integer")
-    path = Path(file_path)
-    leaves = []
-    with path.open("rb") as f:
-        while chunk := f.read(chunk_size):
-            leaves.append(bytes.fromhex(compute_sha256(data=chunk)))
-    if not leaves:
-        return compute_sha256(data=b"")
-    while len(leaves) > 1:
-        nxt = []
-        for i in range(0, len(leaves), 2):
-            left = leaves[i]
-            right = leaves[i+1] if i+1 < len(leaves) else leaves[i]
-            nxt.append(bytes.fromhex(compute_sha256(data=left+right)))
-        leaves = nxt
-    return leaves[0].hex()
-
-def extract_dump_date(filename):
-    for part in filename.split("-"):
-        if part.isdigit() and len(part) == 8:
-            return f"{part[:4]}-{part[4:6]}-{part[6:]}"
-    return "unknown"
-
-def clean_wikitext(text):
-    text = re.sub(r"\{\{.*?\}\}", "", text, flags=re.DOTALL)
-    text = re.sub(r"<ref.*?>.*?</ref>", "", text, flags=re.DOTALL)
-    text = re.sub(r"<.*?>", "", text)
-    text = re.sub(r"\[\[.*?\|(.*?)\]\]", r"\1", text)
-    text = re.sub(r"\[\[(.*?)\]\]", r"\1", text)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-def generate_manifest(raw_path, processed_path):
-    raw_path = Path(raw_path)
-    processed_path = Path(processed_path)
-    if not processed_path.exists():
-        raise FileNotFoundError(f"Processed file not found at {processed_path}.")
-    manifest = {
-        "wikipedia_dump": raw_path.name,
-        "dump_date": extract_dump_date(raw_path.name),
-        "raw_sha256": compute_sha256(file_path=raw_path),
-        "processed_sha256": compute_sha256(file_path=processed_path),
-        "raw_merkle_root": compute_merkle_root(raw_path),
-        "processed_merkle_root": compute_merkle_root(processed_path),
-        "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
-        "preprocessing_version": "v1",
-        "python_version": platform.python_version(),
-    }
-    mp = Path.cwd() / "data" / "dataset_manifest.json"
-    mp.parent.mkdir(parents=True, exist_ok=True)
-    with open(mp, "w") as f:
-        json.dump(manifest, f, indent=2)
-
-def extract_text_from_xml(input_path):
-    input_path = Path(input_path)
-    out_dir = Path.cwd() / "data" / "processed"
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "wiki_clean.txt"
-    opener = bz2.open(input_path, "rb") if input_path.suffix == ".bz2" else open(input_path, "rb")
-    with opener as f:
-        ctx = ET.iterparse(f, events=("end",))
-        with open(out_path, "w", encoding="utf-8") as out:
-            for _, elem in ctx:
-                if elem.tag.endswith("page"):
-                    te = elem.find(".//{*}text")
-                    if te is not None and te.text:
-                        cleaned = clean_wikitext(te.text)
-                        if cleaned:
-                            out.write(cleaned + "\n\n")
-                    elem.clear()
-    generate_manifest(input_path, out_path)
-"""
-
-_pkg = types.ModuleType("openverifiablellm")
-_utils = types.ModuleType("openverifiablellm.utils")
-exec(compile(UTILS_CODE, "<utils_stub>", "exec"), _utils.__dict__)
-sys.modules.setdefault("openverifiablellm", _pkg)
-sys.modules["openverifiablellm.utils"] = _utils
-
+from openverifiablellm import utils
 from openverifiablellm.verify import (
     CheckResult,
     CheckStatus,
@@ -132,12 +28,7 @@ from openverifiablellm.verify import (
     verify_preprocessing,
 )
 
-import openverifiablellm.verify as verify_module  # noqa: E402
-
-utils = _utils
-
-# Shared helpers
-
+# Shared fixture helpers
 XML_CONTENT = """<?xml version="1.0"?>
 <mediawiki>
   <page>
@@ -155,6 +46,7 @@ XML_CONTENT = """<?xml version="1.0"?>
 
 
 def make_dump(tmp_dir: Path) -> Path:
+    """Write a minimal compressed Wikipedia dump and return its path."""
     dump = tmp_dir / "simplewiki-20260201-pages-articles.xml.bz2"
     with bz2.open(dump, "wt", encoding="utf-8") as f:
         f.write(XML_CONTENT)
@@ -162,6 +54,7 @@ def make_dump(tmp_dir: Path) -> Path:
 
 
 def run_preprocessing(tmp_dir: Path, dump: Path) -> None:
+    """Run utils.extract_text_from_xml() with tmp_dir as the working directory."""
     original = os.getcwd()
     os.chdir(tmp_dir)
     try:
@@ -171,6 +64,8 @@ def run_preprocessing(tmp_dir: Path, dump: Path) -> None:
 
 
 class TmpMixin(unittest.TestCase):
+    """Creates and cleans up a fresh temporary directory for each test."""
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
 
@@ -178,7 +73,7 @@ class TmpMixin(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
 
-# VerificationReport tests
+# VerificationReport unit tests
 
 class TestVerificationReport(unittest.TestCase):
 
@@ -221,13 +116,12 @@ class TestVerificationReport(unittest.TestCase):
         self.assertIn("VERIFICATION FAILED", r.summary())
 
     def test_summary_mentions_input_dump(self):
-        r = self._r()
-        self.assertIn("d.bz2", r.summary())
+        self.assertIn("d.bz2", self._r().summary())
 
     def test_to_dict_json_serialisable(self):
         r = self._r()
         r.add(CheckResult("x", CheckStatus.PASS))
-        json.dumps(r.to_dict())
+        json.dumps(r.to_dict())  # must not raise
 
     def test_to_dict_count_matches_checks(self):
         r = self._r()
@@ -257,8 +151,7 @@ class TestVerificationReport(unittest.TestCase):
         self.assertIn("~", str(CheckResult("x", CheckStatus.SKIP)))
 
 
-# _check_field tests
-
+# _check_field unit tests
 class TestCheckField(unittest.TestCase):
 
     def _r(self):
@@ -288,7 +181,7 @@ class TestCheckField(unittest.TestCase):
         self.assertEqual(r.checks[-1].detail, "my note")
 
 
-# _load_manifest tests
+# _load_manifest unit tests
 
 class TestLoadManifest(TmpMixin):
 
@@ -396,7 +289,7 @@ class TestFailureScenarios(TmpMixin):
         self.assertEqual(c.status, CheckStatus.FAIL)
 
     def test_fails_when_raw_file_tampered(self):
-        """A tampered bz2 causes failure on raw_sha256 or reprocessing_succeeded."""
+        """A tampered .bz2 must cause failure on raw_sha256 or reprocessing_succeeded."""
         td = Path(tempfile.mkdtemp())
         try:
             tampered = td / self.dump.name
@@ -457,7 +350,7 @@ class TestFailureScenarios(TmpMixin):
             shutil.rmtree(td)
 
 
-# Legacy manifest (no Merkle fields)
+# Legacy manifest compatibility (no Merkle fields)
 class TestLegacyManifest(TmpMixin):
 
     def setUp(self):

@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Optional, Union
 import sys
 import subprocess
+import os
 
 from openverifiablellm import utils
 
@@ -321,12 +322,17 @@ def verify_preprocessing(
         logger.info("Re-running preprocessing in temp dir: %s", tmp_dir)
 
         try:
+
+            env = os.environ.copy()
+            env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+
             subprocess.run(
                 [sys.executable, "-m", "openverifiablellm.utils", str(input_dump)],
-                cwd=tmp_dir,              # run inside temp directory
-                check=True,               # raise if exit code != 0
-                capture_output=True,      # capture stdout/stderr
-                text=True,                # return as string (not bytes)
+                cwd=tmp_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+                env=env,
             )
         except subprocess.CalledProcessError as exc:
             # Decompression or XML parse failure — tampered / corrupt file
