@@ -70,18 +70,15 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
 # --------------- compute_sha256 ------------------------------------
 
 def test_correct_sha256_output(tmp_path):
-    # Create a temporary file
     file = tmp_path / "sample.txt"
     content = "hello wikipedia"
     file.write_text(content, encoding="utf-8")
 
-    # Expected hash using standard hashlib
     expected = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
-    # Hash using your function
-    actual = utils.compute_sha256(str(file))
+    # FIX: use file_path= keyword argument
+    actual = utils.compute_sha256(file_path=str(file))
 
-    # Verify correctness
     assert actual == expected
 
 
@@ -92,12 +89,14 @@ def test_different_content_different_hash(tmp_path):
     file1.write_text("Content A", encoding="utf-8")
     file2.write_text("Content B", encoding="utf-8")
 
-    assert utils.compute_sha256(file1) != utils.compute_sha256(file2)
+    # FIX: use file_path= keyword argument
+    assert utils.compute_sha256(file_path=file1) != utils.compute_sha256(file_path=file2)
 
 
 def test_file_not_found():
     with pytest.raises(FileNotFoundError):
-        utils.compute_sha256("non_existent_file.txt")
+        # FIX: use file_path= keyword argument
+        utils.compute_sha256(file_path="non_existent_file.txt")
         
 # --------------- extract_text_from_xml tests ------------------------------------
 
@@ -118,7 +117,6 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
     with bz2.open(input_file, "wt", encoding="utf-8") as f:
         f.write(xml_content)
 
-    # Redirect project root
     monkeypatch.chdir(tmp_path)
 
     utils.extract_text_from_xml(input_file)
@@ -128,7 +126,7 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
     assert "Hello World" in processed_file.read_text()
     
-    # --------------- manifest includes merkle fields ------------------------------------
+# --------------- manifest includes merkle fields ------------------------------------
 
 def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -208,18 +206,17 @@ def test_merkle_proof_verification(tmp_path):
     with file.open("rb") as f:
         f.seek(8)
         chunk = f.read(8)
-    # Positive case
+
     assert utils.verify_merkle_proof(chunk, proof, root)
 
-    # Negative case: tampered chunk
     tampered_chunk = bytearray(chunk)
     tampered_chunk[0] ^= 1
     assert not utils.verify_merkle_proof(bytes(tampered_chunk), proof, root)
 
-    # Negative case: tampered proof
     bad_proof = proof.copy()
     bad_proof[0] = ("00" * 32, proof[0][1])
     assert not utils.verify_merkle_proof(chunk, bad_proof, root)
+
 
 def test_export_and_load_merkle_proof(tmp_path):
     file = tmp_path / "data.txt"
