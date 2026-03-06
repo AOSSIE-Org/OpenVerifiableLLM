@@ -227,7 +227,9 @@ DATABASE_URL=your_database_url
 ```
 
 #### 4. Run the Development Server
+'''bash
 pytest
+
 
 #### 5. Open your Browser
 
