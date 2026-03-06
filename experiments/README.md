@@ -1,18 +1,14 @@
-# Experiments
+## How to Run
 
-This directory contains reproducibility experiments for the OpenVerifiableLLM project.
+Checkpoint reproducibility test:
 
-Purpose:
-To validate assumptions about deterministic training, checkpoint reproducibility,
-and dataset sampling.
+python experiments/checkpoint_reproducibility/train_tiny_model.py
+python experiments/checkpoint_reproducibility/verify_hash_consistency.py
 
-Experiments included:
+Seed determinism test:
 
-checkpoint_reproducibility
-Tests whether identical training runs produce identical checkpoint hashes.
+python experiments/determinism_tests/seed_replay_test.py
 
-determinism_tests
-Tests whether setting fixed seeds results in deterministic outputs.
+Dataset subset reproducibility:
 
-dataset_subset_tests
-Tests reproducible sampling of dataset subsets.
+python experiments/dataset_subset_tests/wikipedia_subset.py
