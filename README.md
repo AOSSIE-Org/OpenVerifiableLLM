@@ -204,17 +204,17 @@ cd TODO
 '''bash
 python -m venv venv
 '''
-Activate environment
+# Activate environment
 
 Windows:
-'''
 venv\Scripts\activate
-'''
 
 Linux/Mac:
-'''
 source venv/bin/activate
+#  Install dependencies
+pip intsall -r requirments.txt
 '''
+
 
 #### 3. Configure Environment Variables(.env.example)
 
