@@ -1,14 +1,14 @@
-import hashlib
-
-def file_hash(path):
-    sha = hashlib.sha256()
-
-    with open(path, "rb") as f:
-        while chunk := f.read(8192):
-            sha.update(chunk)
-
-    return sha.hexdigest()
+import sys
 
 hash_value = file_hash("checkpoint.pt")
 
 print("Checkpoint SHA256 hash:", hash_value)
+
+# verify hash consistency
+second_hash = file_hash("checkpoint.pt")
+
+if hash_value != second_hash:
+    print("Hash mismatch detected!")
+    sys.exit(1)
+
+print("Hash verification successful")

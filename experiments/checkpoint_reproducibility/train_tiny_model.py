@@ -1,13 +1,11 @@
 import torch
 import random
 import numpy as np
+from pathlib import Path
+from experiments.utils import set_seed
 
 SEED = 42
 
-def set_seed(seed):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
 
 set_seed(SEED)
 
@@ -16,7 +14,7 @@ model = torch.nn.Linear(10, 2)
 
 optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
-for step in range(100):
+for _ in range(100):
     x = torch.randn(32, 10)
     y = torch.randn(32, 2)
 
@@ -26,6 +24,8 @@ for step in range(100):
     loss.backward()
     optimizer.step()
 
-torch.save(model.state_dict(), "checkpoint.pt")
+checkpoint_path = Path(__file__).parent / "checkpoint.pt"
 
-print("Checkpoint saved as checkpoint.pt")
+torch.save(model.state_dict(), checkpoint_path)
+
+print(f"Checkpoint saved as {checkpoint_path}")
