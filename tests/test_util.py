@@ -69,6 +69,20 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
 
 # --------------- compute_sha256 ------------------------------------
 
+def test_compute_sha256_bytes(tmp_path):
+    file = tmp_path / "sample.txt"
+    content = b"hello wikipedia"
+    file.write_bytes(content)
+
+    expected = hashlib.sha256(content).digest()
+
+    actual_data = utils.compute_sha256_bytes(data=content)
+    actual_file = utils.compute_sha256_bytes(file_path=file)
+
+    assert actual_data == expected
+    assert actual_file == expected
+
+
 def test_correct_sha256_output(tmp_path):
     file = tmp_path / "sample.txt"
     content = "hello wikipedia"
@@ -219,6 +233,26 @@ def test_merkle_root_empty_file(tmp_path):
 
     assert root == expected
 
+def test_compute_merkle_root_multi_chunk_hardcoded(tmp_path):
+    file = tmp_path / "data.txt"
+    # 3 chunks of 8 bytes each
+    chunk1 = b"chunk__1"
+    chunk2 = b"chunk__2"
+    chunk3 = b"chunk__3"
+    file.write_bytes(chunk1 + chunk2 + chunk3)
+
+    h1 = hashlib.sha256(chunk1).digest()
+    h2 = hashlib.sha256(chunk2).digest()
+    h3 = hashlib.sha256(chunk3).digest()
+
+    h12 = hashlib.sha256(h1 + h2).digest()
+    h33 = hashlib.sha256(h3 + h3).digest()
+
+    expected_root = hashlib.sha256(h12 + h33).hexdigest()
+
+    actual_root = utils.compute_merkle_root(file, chunk_size=8)
+    assert actual_root == expected_root
+
 # --------------- Merkle proof generation ------------------------------------
 
 def test_merkle_proof_verification(tmp_path):
@@ -265,8 +299,9 @@ def test_export_and_load_merkle_proof(tmp_path):
         f.seek(8)
         chunk = f.read(8)
 
-    assert utils.verify_merkle_proof_from_file(
-        proof_file_path=proof_file,
-        chunk_data=chunk,
-        expected_root=root,
+    proof_data = utils.load_merkle_proof(proof_path=proof_file)
+    assert utils.verify_merkle_proof(
+        chunk_bytes=chunk,
+        proof=proof_data["proof"],
+        merkle_root=root,
     )
