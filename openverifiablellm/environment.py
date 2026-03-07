@@ -1,9 +1,9 @@
-import sys
+import hashlib
+import json
 import platform
 import subprocess
-import json
-import hashlib
-from typing import Dict, Any
+import sys
+from typing import Any, Dict
 
 
 def _canonical_json(obj: Any) -> str:
