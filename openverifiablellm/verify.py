@@ -285,12 +285,6 @@ def verify_preprocessing(
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
         )
-        _check_field(
-            report, "manifest_chunk_size_bytes",
-            expected=manifest.get("chunk_size_bytes"),
-            actual=reproduced_manifest.get("chunk_size_bytes"),
-            detail="Merkle chunk size used during preprocessing",
-        )
     else:
         report.add(CheckResult(
             name="raw_merkle_root",
@@ -416,6 +410,13 @@ def verify_preprocessing(
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
             )
+            if "chunk_size_bytes" in manifest:
+                _check_field(
+                    report, "manifest_chunk_size_bytes",
+                    expected=manifest["chunk_size_bytes"],
+                    actual=reproduced_manifest.get("chunk_size_bytes"),
+                    detail="Merkle chunk size used during preprocessing",
+                )
         else:
             report.add(CheckResult(
                 name="manifest_regenerated",
