@@ -10,6 +10,7 @@ import platform
 import os
 import time
 import tracemalloc
+import argparse
 from typing import Union, Optional, Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -424,7 +425,7 @@ def run_benchmark(file_path: str):
         root_hex = compute_merkle_root(file_path, chunk_size=chunk_size)
         end_time = time.perf_counter()
 
-        current_mem, peak_mem = tracemalloc.get_traced_memory()
+        _current_mem, peak_mem = tracemalloc.get_traced_memory()
 
         root_time = end_time - start_time
         mins, secs = divmod(root_time, 60)
@@ -436,8 +437,11 @@ def run_benchmark(file_path: str):
 
         # Benchmark generate_merkle_proof
         start_time = time.perf_counter()
-        # Generate proof for a chunk (e.g. chunk 10 if there are enough, otherwise chunk 0)
-        chunk_index = 10 if size_mb > 10 else 0
+
+        file_size_bytes = os.path.getsize(file_path)
+        chunk_count = max(1, (file_size_bytes + chunk_size - 1) // chunk_size)
+        chunk_index = min(10, chunk_count - 1)
+
         _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
         end_time = time.perf_counter()
 
@@ -456,18 +460,19 @@ def run_benchmark(file_path: str):
         sys.exit(1)
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump> [--BENCHMARK_MODE=TRUE]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="OpenVerifiableLLM Preprocessing")
+    parser.add_argument("input_dump", help="Path to the Wikipedia XML dump file")
+    parser.add_argument("--BENCHMARK_MODE", type=str, choices=["TRUE", "FALSE"], default="FALSE", help="Run in benchmark mode")
+    parser.add_argument("--chunk_size", type=int, default=MERKLE_CHUNK_SIZE_BYTES, help="Chunk size in bytes for Merkle hashing")
+
+    args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
         format="%(levelname)s - %(message)s"
     )
 
-    input_dump = sys.argv[1]
-
-    if "--BENCHMARK_MODE=TRUE" in sys.argv:
-        run_benchmark(input_dump)
+    if args.BENCHMARK_MODE == "TRUE":
+        run_benchmark(args.input_dump)
     else:
-        extract_text_from_xml(input_dump)
+        extract_text_from_xml(args.input_dump)

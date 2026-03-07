@@ -233,6 +233,26 @@ def test_merkle_root_empty_file(tmp_path):
 
     assert root == expected
 
+def test_compute_merkle_root_multi_chunk_hardcoded(tmp_path):
+    file = tmp_path / "data.txt"
+    # 3 chunks of 8 bytes each
+    chunk1 = b"chunk__1"
+    chunk2 = b"chunk__2"
+    chunk3 = b"chunk__3"
+    file.write_bytes(chunk1 + chunk2 + chunk3)
+
+    h1 = hashlib.sha256(chunk1).digest()
+    h2 = hashlib.sha256(chunk2).digest()
+    h3 = hashlib.sha256(chunk3).digest()
+
+    h12 = hashlib.sha256(h1 + h2).digest()
+    h33 = hashlib.sha256(h3 + h3).digest()
+
+    expected_root = hashlib.sha256(h12 + h33).hexdigest()
+
+    actual_root = utils.compute_merkle_root(file, chunk_size=8)
+    assert actual_root == expected_root
+
 # --------------- Merkle proof generation ------------------------------------
 
 def test_merkle_proof_verification(tmp_path):
