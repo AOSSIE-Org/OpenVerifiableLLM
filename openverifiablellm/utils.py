@@ -7,6 +7,9 @@ import hashlib
 import logging
 import json
 import platform
+import os
+import time
+import tracemalloc
 from typing import Union, Optional, Dict, Any, List, Tuple
 
 logger = logging.getLogger(__name__)
@@ -400,13 +403,71 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
+def run_benchmark(file_path: str):
+    logger.info("--- Starting Benchmark ---")
+
+    if not os.path.exists(file_path):
+        logger.error(f"Error: File not found at {file_path}")
+        sys.exit(1)
+
+    size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    chunk_size = 1024 * 1024  # 1MB
+
+    logger.info(f"Benchmarking file: {file_path}")
+    logger.info(f"File size: {size_mb:.2f} MB")
+
+    try:
+        tracemalloc.start()
+
+        # Benchmark compute_merkle_root
+        start_time = time.perf_counter()
+        root_hex = compute_merkle_root(file_path, chunk_size=chunk_size)
+        end_time = time.perf_counter()
+
+        current_mem, peak_mem = tracemalloc.get_traced_memory()
+
+        root_time = end_time - start_time
+        mins, secs = divmod(root_time, 60)
+        logger.info(f"compute_merkle_root ({size_mb:.2f} MB file): {int(mins)}m {secs:.3f}s")
+        logger.info(f"Peak Memory Usage: {peak_mem / 10**6:.3f} MB")
+        logger.info(f"Merkle Root: {root_hex}")
+
+        tracemalloc.reset_peak()
+
+        # Benchmark generate_merkle_proof
+        start_time = time.perf_counter()
+        # Generate proof for a chunk (e.g. chunk 10 if there are enough, otherwise chunk 0)
+        chunk_index = 10 if size_mb > 10 else 0
+        _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
+        end_time = time.perf_counter()
+
+        _, peak_mem_proof = tracemalloc.get_traced_memory()
+
+        proof_time = end_time - start_time
+        pmins, psecs = divmod(proof_time, 60)
+        logger.info(f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s")
+        logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
+
+        logger.info("--- Benchmark Complete ---")
+        tracemalloc.stop()
+
+    except Exception:
+        logger.exception("An error occurred during benchmarking")
+        sys.exit(1)
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump>")
+        print("Usage: python -m openverifiablellm.utils <input_dump> [--BENCHMARK_MODE=TRUE]")
         sys.exit(1)
 
     logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s - %(message)s"
+        level=logging.INFO,
+        format="%(levelname)s - %(message)s"
     )
-    extract_text_from_xml(sys.argv[1])
+
+    input_dump = sys.argv[1]
+
+    if "--BENCHMARK_MODE=TRUE" in sys.argv:
+        run_benchmark(input_dump)
+    else:
+        extract_text_from_xml(input_dump)
