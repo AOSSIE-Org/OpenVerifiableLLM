@@ -13,6 +13,11 @@ import json
 from openverifiablellm.environment import compute_object_hash, generate_environment_fingerprint
 from openverifiablellm.utils import generate_manifest
 
+from pathlib import Path
+from openverifiablellm.environment import compute_object_hash, generate_environment_fingerprint
+from openverifiablellm.utils import generate_manifest
+
+
 # --------------- compute_object_hash tests ------------------------------------
 
 def test_hash_deterministic():
