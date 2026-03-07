@@ -5,14 +5,12 @@ import logging
 import platform
 import re
 import sys
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
-
 import defusedxml.ElementTree as ET
 
+from pathlib import Path
 from openverifiablellm.environment import generate_environment_fingerprint
 from typing import Union, Optional, Dict, Any, List, Tuple
-from openverifiablellm.environment import generate_environment_fingerprint
+
 
 
 logger = logging.getLogger(__name__)

@@ -247,7 +247,6 @@ TODO: Add screenshots showcasing your application
 
 ---
 # Developer Setup
-
 This project uses `uv` for dependency management.
 
 ## Installation
