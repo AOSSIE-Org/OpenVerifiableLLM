@@ -274,20 +274,25 @@ def verify_preprocessing(
         detail="SHA256 of the raw input dump",
     )
 
+    # Shared Merkle chunk size validation
+    chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
+    if (
+        ("raw_merkle_root" in manifest or "processed_merkle_root" in manifest)
+        and (not isinstance(chunk_size, int) or chunk_size <= 0)
+    ):
+        report.add(
+            CheckResult(
+                name="chunk_size_bytes",
+                status=CheckStatus.FAIL,
+                expected=str(utils.MERKLE_CHUNK_SIZE_BYTES),
+                actual=str(chunk_size),
+                detail="Manifest chunk_size_bytes must be a positive integer",
+            )
+        )
+        return report
+
     # Merkle root of raw file
     if "raw_merkle_root" in manifest:
-        chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
-        if not isinstance(chunk_size, int) or chunk_size <= 0:
-            report.add(
-                CheckResult(
-                    name="chunk_size_bytes",
-                    status=CheckStatus.FAIL,
-                    expected=str(utils.MERKLE_CHUNK_SIZE_BYTES),
-                    actual=str(chunk_size),
-                    detail="Manifest chunk_size_bytes must be a positive integer",
-                )
-            )
-            return report
         raw_merkle_actual = utils.compute_merkle_root(input_dump, chunk_size=chunk_size)
         _check_field(
             report,
@@ -383,6 +388,7 @@ def verify_preprocessing(
                     "-m",
                     "openverifiablellm.utils",
                     str(input_dump),
+                    "--write-manifest",
                 ],
                 cwd=tmp_dir,
                 check=True,
@@ -435,7 +441,6 @@ def verify_preprocessing(
 
         # Merkle root of reproduced processed file
         if "processed_merkle_root" in manifest:
-            chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
             proc_merkle_actual = utils.compute_merkle_root(
                 reproduced_processed, chunk_size=chunk_size
             )
