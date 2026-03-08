@@ -383,7 +383,6 @@ def verify_preprocessing(
                     "-m",
                     "openverifiablellm.utils",
                     str(input_dump),
-                    "--write-manifest",
                 ],
                 cwd=tmp_dir,
                 check=True,
