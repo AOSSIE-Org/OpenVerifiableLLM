@@ -36,10 +36,12 @@ def collect_environment_metadata() -> Dict[str, Any]:
     # PyTorch + CUDA
     try:
         import torch
-
         env["pytorch_version"] = torch.__version__
         env["cuda_version"] = torch.version.cuda
-        env["cudnn_version"] = torch.backends.cudnn.version()
+        try:
+            env["cudnn_version"] = torch.backends.cudnn.version()
+        except (AttributeError, ImportError):
+            env["cudnn_version"] = None
 
         # GPU info
         if torch.cuda.is_available():
@@ -63,24 +65,23 @@ def collect_environment_metadata() -> Dict[str, Any]:
 
     # NVIDIA driver
     try:
-        driver = subprocess.check_output(
+        driver_output = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader"],
             stderr=subprocess.DEVNULL,
+            text=True,
         )
-        env["nvidia_driver"] = driver.decode().strip()
+        drivers = sorted(list(set(line.strip() for line in driver_output.splitlines() if line.strip())))
+        env["nvidia_driver"] = ", ".join(drivers)
     except Exception:
         env["nvidia_driver"] = None
 
     # Installed packages
     try:
-        packages = (
-            subprocess.check_output(
-                ["pip", "freeze"],
-                stderr=subprocess.DEVNULL,
-            )
-            .decode()
-            .splitlines()
-        )
+        packages = subprocess.check_output(
+            [sys.executable, "-m", "pip", "freeze"],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).splitlines()
 
         packages.sort()
         env["pip_packages"] = packages
