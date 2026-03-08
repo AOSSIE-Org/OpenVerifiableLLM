@@ -267,7 +267,7 @@ def main(argv=None) -> None:
         )
         print(f"\nDump ready at: {dest}")
         print("\nNext step — run preprocessing from the repository root:")
-        print(f'  python -m openverifiablellm.utils "{dest}" --write-manifest')
+        print(f'  python -m openverifiablellm.utils "{dest}"')
 
     except RuntimeError as exc:
         logger.error("%s", exc)
