@@ -477,10 +477,11 @@ def verify_preprocessing(
             report.add(
                 CheckResult(
                     name="manifest_regenerated",
-                    status=CheckStatus.SKIP,
-                    detail="Reproduced manifest not found — skipping manifest field checks",
+                    status=CheckStatus.FAIL,
+                    detail="Reproduced manifest not found after re-running preprocessing",
                 )
             )
+            return report
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
