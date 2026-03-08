@@ -417,6 +417,12 @@ def verify_preprocessing(
                     actual=reproduced_manifest.get("chunk_size_bytes"),
                     detail="Merkle chunk size used during preprocessing",
                 )
+            else:
+                report.add(CheckResult(
+                    name="manifest_chunk_size_bytes",
+                    status=CheckStatus.SKIP,
+                    detail="Field absent from manifest (older version)",
+                ))
         else:
             report.add(CheckResult(
                 name="manifest_regenerated",
