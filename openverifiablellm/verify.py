@@ -285,9 +285,8 @@ def verify_preprocessing(
 
     # Shared Merkle chunk size validation
     chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
-    if (
-        ("raw_merkle_root" in manifest or "processed_merkle_root" in manifest)
-        and (not isinstance(chunk_size, int) or chunk_size <= 0)
+    if ("raw_merkle_root" in manifest or "processed_merkle_root" in manifest) and (
+        not isinstance(chunk_size, int) or chunk_size <= 0
     ):
         report.add(
             CheckResult(
@@ -474,13 +473,23 @@ def verify_preprocessing(
             with reproduced_manifest_path.open() as f:
                 reproduced_manifest = json.load(f)
 
-            _check_field(
-                report,
-                "manifest_preprocessing_version",
-                expected=manifest.get("preprocessing_version"),
-                actual=reproduced_manifest.get("preprocessing_version"),
-                detail="Preprocessing version tag",
-            )
+            expected_preprocessing_version = manifest.get("preprocessing_version")
+            if expected_preprocessing_version is None:
+                report.add(
+                    CheckResult(
+                        name="manifest_preprocessing_version",
+                        status=CheckStatus.SKIP,
+                        detail="Field absent from manifest (older version)",
+                    )
+                )
+            else:
+                _check_field(
+                    report,
+                    "manifest_preprocessing_version",
+                    expected=expected_preprocessing_version,
+                    actual=reproduced_manifest.get("preprocessing_version"),
+                    detail="Preprocessing version tag",
+                )
             if "chunk_size_bytes" in manifest:
                 _check_field(
                     report,
