@@ -361,7 +361,13 @@ def verify_preprocessing(
             env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
 
             subprocess.run(
-                [sys.executable, "-m", "openverifiablellm.utils", str(input_dump), "--write-manifest"],
+                [
+                    sys.executable,
+                    "-m",
+                    "openverifiablellm.utils",
+                    str(input_dump),
+                    "--write-manifest",
+                ],
                 cwd=tmp_dir,
                 check=True,
                 capture_output=True,
