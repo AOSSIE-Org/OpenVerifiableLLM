@@ -242,6 +242,15 @@ def verify_preprocessing(
             )
         )
         return report
+    except json.JSONDecodeError as exc:
+        report.add(
+            CheckResult(
+                name="manifest_valid_json",
+                status=CheckStatus.FAIL,
+                detail=f"Manifest is not valid JSON: {exc}",
+            )
+        )
+        return report
 
     report.add(
         CheckResult(
@@ -301,15 +310,7 @@ def verify_preprocessing(
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
         )
-        if "chunk_size_bytes" in manifest:
-            _check_field(
-                report,
-                "manifest_chunk_size_bytes",
-                expected=manifest["chunk_size_bytes"],
-                actual=chunk_size,
-                detail="Merkle chunk size used during preprocessing",
-            )
-        else:
+        if "chunk_size_bytes" not in manifest:
             report.add(
                 CheckResult(
                     name="manifest_chunk_size_bytes",
@@ -480,6 +481,14 @@ def verify_preprocessing(
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
             )
+            if "chunk_size_bytes" in manifest:
+                _check_field(
+                    report,
+                    "manifest_chunk_size_bytes",
+                    expected=manifest["chunk_size_bytes"],
+                    actual=reproduced_manifest.get("chunk_size_bytes"),
+                    detail="Merkle chunk size used during preprocessing",
+                )
         else:
             report.add(
                 CheckResult(
