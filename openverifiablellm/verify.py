@@ -470,8 +470,18 @@ def verify_preprocessing(
         # 6. Compare reproduced manifest fields
         reproduced_manifest_path = tmp_dir / "data" / "dataset_manifest.json"
         if reproduced_manifest_path.exists():
-            with reproduced_manifest_path.open() as f:
-                reproduced_manifest = json.load(f)
+            try:
+                with reproduced_manifest_path.open() as f:
+                    reproduced_manifest = json.load(f)
+            except json.JSONDecodeError as exc:
+                report.add(
+                    CheckResult(
+                        name="reproduced_manifest_valid_json",
+                        status=CheckStatus.FAIL,
+                        detail=f"Reproduced manifest is not valid JSON: {exc}",
+                    )
+                )
+                return report
 
             expected_preprocessing_version = manifest.get("preprocessing_version")
             if expected_preprocessing_version is None:
