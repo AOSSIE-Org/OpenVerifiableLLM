@@ -404,7 +404,7 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
-def run_benchmark(file_path: str):
+def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
     logger.info("--- Starting Benchmark ---")
 
     if not os.path.exists(file_path):
@@ -412,7 +412,6 @@ def run_benchmark(file_path: str):
         sys.exit(1)
 
     size_mb = os.path.getsize(file_path) / (1024 * 1024)
-    chunk_size = 1024 * 1024  # 1MB
 
     logger.info(f"Benchmarking file: {file_path}")
     logger.info(f"File size: {size_mb:.2f} MB")
@@ -473,6 +472,6 @@ if __name__ == "__main__":
     )
 
     if args.BENCHMARK_MODE == "TRUE":
-        run_benchmark(args.input_dump)
+        run_benchmark(args.input_dump, args.chunk_size)
     else:
         extract_text_from_xml(args.input_dump)
