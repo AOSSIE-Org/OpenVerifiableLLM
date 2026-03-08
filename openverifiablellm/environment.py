@@ -36,6 +36,7 @@ def collect_environment_metadata() -> Dict[str, Any]:
     # PyTorch + CUDA
     try:
         import torch
+
         env["pytorch_version"] = torch.__version__
         env["cuda_version"] = torch.version.cuda
         try:
@@ -70,7 +71,9 @@ def collect_environment_metadata() -> Dict[str, Any]:
             stderr=subprocess.DEVNULL,
             text=True,
         )
-        drivers = sorted(list(set(line.strip() for line in driver_output.splitlines() if line.strip())))
+        drivers = sorted(
+            list(set(line.strip() for line in driver_output.splitlines() if line.strip()))
+        )
         env["nvidia_driver"] = ", ".join(drivers)
     except Exception:
         env["nvidia_driver"] = None
