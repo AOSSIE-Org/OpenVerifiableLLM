@@ -348,7 +348,15 @@ def verify_preprocessing(
 
     python_ver = platform.python_version()
     expected_python = manifest.get("python_version")
-    if expected_python and python_ver != expected_python:
+    if expected_python is None:
+        report.add(
+            CheckResult(
+                name="python_version",
+                status=CheckStatus.SKIP,
+                detail="Field absent from manifest (older version)",
+            )
+        )
+    elif python_ver != expected_python:
         report.add(
             CheckResult(
                 name="python_version",
@@ -388,7 +396,6 @@ def verify_preprocessing(
                     "-m",
                     "openverifiablellm.utils",
                     str(input_dump),
-                    "--write-manifest",
                 ],
                 cwd=tmp_dir,
                 check=True,
