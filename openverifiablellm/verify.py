@@ -296,13 +296,25 @@ def verify_preprocessing(
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
         )
-        _check_field(
-            report,
-            "manifest_chunk_size_bytes",
-            expected=manifest.get("chunk_size_bytes"),
-            actual=chunk_size,
-            detail="Merkle chunk size used during preprocessing",
-        )
+        if "chunk_size_bytes" in manifest:
+            _check_field(
+                report,
+                "manifest_chunk_size_bytes",
+                expected=manifest["chunk_size_bytes"],
+                actual=chunk_size,
+                detail="Merkle chunk size used during preprocessing",
+            )
+        else:
+            report.add(
+                CheckResult(
+                    name="manifest_chunk_size_bytes",
+                    status=CheckStatus.SKIP,
+                    detail=(
+                        "Field absent from manifest (older version); "
+                        f"assumed default {utils.MERKLE_CHUNK_SIZE_BYTES}"
+                    ),
+                )
+            )
     else:
         report.add(
             CheckResult(
@@ -358,7 +370,12 @@ def verify_preprocessing(
 
         try:
             env = os.environ.copy()
-            env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+            repo_root = str(Path(__file__).resolve().parent.parent)
+            pythonpath_entries = [repo_root, *[p for p in sys.path if p]]
+            existing_pythonpath = env.get("PYTHONPATH")
+            if existing_pythonpath:
+                pythonpath_entries.append(existing_pythonpath)
+            env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath_entries))
 
             subprocess.run(
                 [

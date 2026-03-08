@@ -266,7 +266,7 @@ def main(argv=None) -> None:
             verify=not args.no_verify,
         )
         print(f"\nDump ready at: {dest}")
-        print("\nNext step — run preprocessing:")
+        print("\nNext step — run preprocessing from the repository root:")
         print(f'  python -m openverifiablellm.utils "{dest}" --write-manifest')
 
     except RuntimeError as exc:
