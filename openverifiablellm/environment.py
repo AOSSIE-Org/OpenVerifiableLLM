@@ -41,7 +41,7 @@ def collect_environment_metadata() -> Dict[str, Any]:
         env["cuda_version"] = torch.version.cuda
         try:
             env["cudnn_version"] = torch.backends.cudnn.version()
-        except (AttributeError, ImportError):
+        except (AttributeError, ImportError, RuntimeError):
             env["cudnn_version"] = None
 
         # GPU info
