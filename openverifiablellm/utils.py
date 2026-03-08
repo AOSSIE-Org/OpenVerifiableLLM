@@ -380,8 +380,11 @@ def clean_wikitext(text: str) -> str:
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump>")
+        print("Usage: python -m openverifiablellm.utils <input_dump> [--write-manifest]")
         sys.exit(1)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
-    extract_text_from_xml(sys.argv[1])
+    extract_text_from_xml(
+        sys.argv[1],
+        write_manifest="--write-manifest" in sys.argv[2:],
+    )
