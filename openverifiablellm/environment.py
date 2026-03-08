@@ -36,6 +36,7 @@ def collect_environment_metadata() -> Dict[str, Any]:
     # PyTorch + CUDA
     try:
         import torch
+
         env["pytorch_version"] = torch.__version__
         env["cuda_version"] = torch.version.cuda
         env["cudnn_version"] = torch.backends.cudnn.version()
@@ -72,10 +73,14 @@ def collect_environment_metadata() -> Dict[str, Any]:
 
     # Installed packages
     try:
-        packages = subprocess.check_output(
-            ["pip", "freeze"],
-            stderr=subprocess.DEVNULL,
-        ).decode().splitlines()
+        packages = (
+            subprocess.check_output(
+                ["pip", "freeze"],
+                stderr=subprocess.DEVNULL,
+            )
+            .decode()
+            .splitlines()
+        )
 
         packages.sort()
         env["pip_packages"] = packages

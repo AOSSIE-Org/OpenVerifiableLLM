@@ -5,13 +5,12 @@ import logging
 import platform
 import re
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
+
 import defusedxml.ElementTree as ET
 
-from pathlib import Path
 from openverifiablellm.environment import generate_environment_fingerprint
-from typing import Union, Optional, Dict, Any, List, Tuple
-
-
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -157,7 +156,7 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
 
 
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
@@ -208,7 +207,8 @@ def extract_text_from_xml(input_path):
 
                     elem.clear()
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path, output_path)
+    if write_manifest:
+        generate_manifest(input_path, output_path)
 
 
 # generate data manifest
@@ -237,10 +237,9 @@ def generate_manifest(raw_path, processed_path):
         "python_version": platform.python_version(),
     }
     env_data = generate_environment_fingerprint()
-    manifest.update({
-        "environment": env_data["environment"],
-        "environment_hash": env_data["environment_hash"]
-    })
+    manifest.update(
+        {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
+    )
     project_root = Path.cwd()
     manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
