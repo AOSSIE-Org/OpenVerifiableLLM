@@ -7,7 +7,7 @@ import hashlib
 import logging
 import json
 import platform
-from typing import Union, Optional, Dict, Any, List, Tuple, Generator, Iterable
+from typing import Union, Optional, Dict, Any, List, Tuple, Generator, Iterable, Iterator
 from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
@@ -21,60 +21,93 @@ RE_LINK_PIPE = re.compile(r"\[\[.*?\|(.*?)\]\]")
 RE_LINK = re.compile(r"\[\[(.*?)\]\]")
 RE_WHITESPACE = re.compile(r"\s+")
 
+def _sha256_hex(data: bytes) -> str:
+    """Internal helper: return SHA-256 hex digest of raw bytes."""
+    return hashlib.sha256(data).hexdigest()
+
 # Merkle Tree Chunk-Level Hashing for Large Files
-def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
+def compute_merkle_root(
+    file_path: Union[str, Path, None] = None,
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
+    *,
+    chunks: Optional[Iterable[bytes]] = None,
+) -> str:
+    """
+    Compute a Merkle root from a file path or an arbitrary iterable of byte chunks.
+
+    Supports two modes:
+    - File mode (default): reads *file_path* in *chunk_size* chunks from disk.
+    - Streaming mode: pass ``chunks=<iterable>`` to consume any byte iterable
+      (generator, network stream, list …) without touching the filesystem.
+
+    Exactly one of *file_path* or *chunks* must be provided.
+    """
+    if (file_path is None) == (chunks is None):
+        raise ValueError("Exactly one of 'file_path' or 'chunks' must be provided.")
+
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
-    path = Path(file_path)
-    leaves = []
+    def _iter_chunks() -> Iterator[bytes]:
+        if chunks is not None:
+            yield from chunks
+        else:
+            path = Path(file_path)  # type: ignore[arg-type]
+            with path.open("rb") as f:
+                while chunk := f.read(chunk_size):
+                    yield chunk
 
-    with path.open("rb") as f:
-        while chunk := f.read(chunk_size):
-            # reuse compute_sha256
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+    leaves: List[bytes] = []
+    for chunk in _iter_chunks():
+        leaves.append(bytes.fromhex(_sha256_hex(chunk)))
 
     if not leaves:
-        return compute_sha256(data=b"")
+        return _sha256_hex(b"")
 
     while len(leaves) > 1:
-        next_level = []
+        next_level: List[bytes] = []
         for i in range(0, len(leaves), 2):
             left = leaves[i]
             right = leaves[i + 1] if i + 1 < len(leaves) else left
-
             combined = left + right
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
-
+            next_level.append(bytes.fromhex(_sha256_hex(combined)))
         leaves = next_level
 
     return leaves[0].hex()
 
 def generate_merkle_proof(
-    file_path: Union[str, Path],
-    chunk_index: int,
-    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
-):
+    file_path: Union[str, Path, None] = None,
+    chunk_index: int = 0,
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
+    *,
+    chunks: Optional[Iterable[bytes]] = None,
+) -> List[Tuple[str, bool]]:
     """
     Generate Merkle proof for a specific chunk index.
+
+    Supports two modes:
+    - File mode (default): reads *file_path* in *chunk_size* chunks.
+    - Streaming mode: pass ``chunks=<iterable>`` to consume any byte iterable.
 
     Returns:
         List of tuples (sibling_hash_hex, is_left)
     """
-    path = Path(file_path)
+    if (file_path is None) == (chunks is None):
+        raise ValueError("Exactly one of 'file_path' or 'chunks' must be provided.")
 
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
-    leaves = []
+    leaves: List[bytes] = []
 
-    # Build leaf level
-    with path.open("rb") as f:
-        while chunk := f.read(chunk_size):
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+    if chunks is not None:
+        for chunk in chunks:
+            leaves.append(bytes.fromhex(_sha256_hex(chunk)))
+    else:
+        path = Path(file_path)  # type: ignore[arg-type]
+        with path.open("rb") as f:
+            while chunk := f.read(chunk_size):
+                leaves.append(bytes.fromhex(_sha256_hex(chunk)))
 
     if not leaves:
         raise ValueError("Cannot generate proof for empty file")
@@ -82,11 +115,10 @@ def generate_merkle_proof(
     if chunk_index < 0 or chunk_index >= len(leaves):
         raise IndexError("Chunk index out of range")
 
-    proof = []
+    proof: List[Tuple[str, bool]] = []
     index = chunk_index
 
     while len(leaves) > 1:
-        # If odd number of nodes, duplicate last
         if len(leaves) % 2 == 1:
             leaves.append(leaves[-1])
 
@@ -96,12 +128,10 @@ def generate_merkle_proof(
         is_left = sibling_index < index
         proof.append((sibling.hex(), is_left))
 
-        # Build next level
-        next_level = []
+        next_level: List[bytes] = []
         for i in range(0, len(leaves), 2):
             combined = leaves[i] + leaves[i + 1]
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            next_level.append(bytes.fromhex(_sha256_hex(combined)))
 
         index //= 2
         leaves = next_level
@@ -117,7 +147,7 @@ def verify_merkle_proof(
     Verify a Merkle proof for given chunk bytes.
     """
     try:
-        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
+        current_hash = bytes.fromhex(_sha256_hex(chunk_bytes))
         expected_root = bytes.fromhex(merkle_root)
     except (TypeError, ValueError):
         return False
@@ -148,64 +178,89 @@ def verify_merkle_proof(
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(data=combined)
+        parent_hex = _sha256_hex(combined)
         current_hash = bytes.fromhex(parent_hex)
 
     return current_hash == expected_root
 
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+def extract_text_from_xml(
+    input_path: Union[str, Path],
+    stream: bool = False,
+) -> Optional[Generator[str, None, None]]:
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
-    Each <page> element is parsed, its revision text is extracted,
-    cleaned using `clean_wikitext()`, and appended to a single
-    output text file.
+    Supports two modes controlled by the *stream* flag:
 
-    The processed output is saved to:
-        data/processed/wiki_clean.txt
+    - **Batch mode** (``stream=False``, default): writes all cleaned article
+      texts to ``data/processed/wiki_clean.txt`` and generates the manifest.
+      Returns ``None``.
+
+    - **Streaming mode** (``stream=True``): returns a generator that yields
+      one cleaned plain-text string per Wikipedia article with O(1) memory
+      usage.  No file is written and no manifest is generated.
 
     Parameters
     ----------
     input_path : str or Path
-        Path to the Wikipedia XML dump file.
+        Path to the Wikipedia XML dump file (plain or bz2-compressed).
+    stream : bool
+        If True, return a generator instead of writing to disk.
 
-    Output
-    ------
-    Creates:
-        data/processed/wiki_clean.txt
+    Returns
+    -------
+    None or Generator[str, None, None]
+        ``None`` in batch mode; a text generator in streaming mode.
     """
     input_path = Path(input_path)
 
-    # Fixed output path
-    project_root = Path.cwd()
-    output_dir = project_root / "data" / "processed"
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    output_path = output_dir / "wiki_clean.txt"
-
-    # Auto-detect file type using magic bytes separation
     with open(input_path, "rb") as test_f:
         is_bz2 = test_f.read(3) == b"BZh"
 
     open_func = bz2.open if is_bz2 else open
 
+    if stream:
+        def _generator() -> Generator[str, None, None]:
+            with open_func(input_path, "rb") as f:
+                context = ET.iterparse(f, events=("end",))
+                for _, elem in context:
+                    if elem.tag.endswith("page"):
+                        text_elem = elem.find(".//{*}text")
+                        raw_text: str = ""
+                        if text_elem is not None and text_elem.text:
+                            raw_text = text_elem.text
+                        elem.clear()
+                        if not raw_text:
+                            continue
+                        cleaned = clean_wikitext(raw_text)
+                        if cleaned:
+                            yield cleaned
+            logger.info("Finished streaming articles from '%s'.", input_path.name)
+
+        return _generator()
+
+    # Batch mode — write to file
+    project_root = Path.cwd()
+    output_dir = project_root / "data" / "processed"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / "wiki_clean.txt"
+
     with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
-
         with open(output_path, "w", encoding="utf-8") as out:
             for _, elem in context:
                 if elem.tag.endswith("page"):
                     text_elem = elem.find(".//{*}text")
-
                     if text_elem is not None and text_elem.text:
                         cleaned = clean_wikitext(text_elem.text)
                         if cleaned:
                             out.write(cleaned + "\n\n")
-
                     elem.clear()
+
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
+    generate_manifest(input_path, output_path)
+    return None
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
@@ -286,9 +341,6 @@ def load_merkle_proof(
     with proof_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
-
-# Content before line 270 remains unchanged
-# Entire function definition from lines 270-314 should be deleted
 def verify_merkle_proof_from_file(
     proof_file_path: Union[str, Path],
     chunk_data: bytes,
@@ -321,33 +373,49 @@ def compute_sha256(
     *,
     data: Optional[Union[bytes, bytearray]] = None,
     file_path: Optional[Union[str, Path]] = None,
-) -> str:
+    stream: bool = False,
+) -> Union[str, Generator[Tuple[bytes, str], None, None]]:
     """
-    Compute SHA256 hash of a file OR raw bytes.
+    Compute SHA256 hash of a file OR raw bytes, with optional streaming support.
 
-    This is used for both raw and processed files to ensure integrity.
-    This provides a deterministic fingerprint of the dataset,
-    enabling reproducibility and verification.
+    Modes
+    -----
+    - **data** mode: hash raw bytes in memory, return hex string.
+    - **file_path** mode (``stream=False``, default): hash the entire file,
+      return hex string.
+    - **file_path** mode (``stream=True``): return a generator that yields
+      ``(chunk_bytes, running_hex)`` pairs.  The final ``running_hex`` equals
+      the SHA-256 of the whole file — same value as ``stream=False``.
 
-    Exactly one of `data` or `file_path` must be provided.
+    Exactly one of ``data`` or ``file_path`` must be provided.
+    ``stream=True`` is only valid with ``file_path``.
     """
-
     if (data is None) == (file_path is None):
-        raise ValueError(
-            "Exactly one of 'data' or 'file_path' must be provided."
-        )
+        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
 
-    sha256 = hashlib.sha256()
+    if stream and data is not None:
+        raise ValueError("stream=True is only valid with file_path, not data.")
 
     if data is not None:
+        sha256 = hashlib.sha256()
         sha256.update(data)
         return sha256.hexdigest()
 
-    path = Path(file_path)
+    path = Path(file_path)  # type: ignore[arg-type]
+
+    if stream:
+        def _stream_gen() -> Generator[Tuple[bytes, str], None, None]:
+            _sha256 = hashlib.sha256()
+            with path.open("rb") as f:
+                while _chunk := f.read(8192):
+                    _sha256.update(_chunk)
+                    yield _chunk, _sha256.hexdigest()
+        return _stream_gen()
+
+    sha256 = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(8192):
             sha256.update(chunk)
-
     return sha256.hexdigest()
 
 def extract_dump_date(filename: str):
@@ -379,237 +447,6 @@ def clean_wikitext(text: str) -> str:
     text = RE_LINK.sub(r"\1", text)
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
-
-# ---------------------------------------------------------------------------
-# Streaming / generator-based variants
-# ---------------------------------------------------------------------------
-
-def stream_chunks(
-    file_path: Union[str, Path],
-    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
-) -> Generator[bytes, None, None]:
-    """
-    Yield successive raw byte chunks from *file_path* without loading the
-    entire file into memory.
-
-    This is the streaming analogue to the chunk-reading loop inside
-    ``compute_merkle_root``.  Callers can process each chunk on-the-fly
-    (e.g. hash it, write it somewhere) without ever holding more than one
-    chunk in RAM at a time.
-
-    Parameters
-    ----------
-    file_path:
-        Path to any binary file (plain or bz2-compressed).
-    chunk_size:
-        Number of bytes per chunk.  Must be a positive integer.
-        Defaults to ``MERKLE_CHUNK_SIZE_BYTES`` (1 MB).
-
-    Yields
-    ------
-    bytes
-        Raw byte chunk of at most *chunk_size* bytes.
-        The final chunk may be shorter if the file size is not a multiple
-        of *chunk_size*.
-
-    Raises
-    ------
-    ValueError
-        If *chunk_size* is not a positive integer.
-    FileNotFoundError
-        If *file_path* does not exist.
-
-    Examples
-    --------
-    >>> for chunk in stream_chunks("data/raw/simplewiki.xml.bz2"):
-    ...     process(chunk)
-    """
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be a positive integer")
-
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-
-    with path.open("rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            yield chunk
-
-
-def stream_sha256(
-    file_path: Union[str, Path],
-    chunk_size: int = 8192,
-) -> Generator[Tuple[bytes, str], None, None]:
-    """
-    Stream SHA-256 hashes of successive chunks from *file_path*.
-
-    Unlike ``compute_sha256``, which returns a **single** hash over the
-    entire file, this generator yields ``(chunk_bytes, partial_hex)``
-    pairs as each chunk is read.  After the generator is exhausted the
-    last ``partial_hex`` value equals the SHA-256 of the whole file.
-
-    Parameters
-    ----------
-    file_path:
-        Path to the file to hash.
-    chunk_size:
-        Read buffer size in bytes (default 8 192).
-
-    Yields
-    ------
-    (chunk_bytes, running_hex) : Tuple[bytes, str]
-        *chunk_bytes* — the raw bytes just read.
-        *running_hex* — SHA-256 hex digest of **all bytes read so far**
-        (i.e. the rolling hash after absorbing *chunk_bytes*).
-
-    Examples
-    --------
-    >>> *_, (_, final_hash) = stream_sha256("data/raw/dump.xml.bz2")
-    >>> print(final_hash)   # same value as compute_sha256(file_path=...)
-    """
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be a positive integer")
-
-    path = Path(file_path)
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {path}")
-
-    sha256 = hashlib.sha256()
-    with path.open("rb") as f:
-        while True:
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-            sha256.update(chunk)
-            yield chunk, sha256.hexdigest()
-
-
-def compute_merkle_root_streaming(
-    chunks: Iterable[bytes],
-) -> str:
-    """
-    Compute a Merkle root over an **arbitrary iterable of byte chunks**
-    without requiring a seekable file on disk.
-
-    This is the streaming counterpart to ``compute_merkle_root``.  It
-    accepts any iterable — a ``stream_chunks()`` generator, a network
-    socket, a list of pre-computed blobs, etc. — so callers are not
-    restricted to file-backed data.
-
-    The leaf hashes and tree construction follow the exact same algorithm
-    as ``compute_merkle_root`` to ensure identical roots for identical
-    content.
-
-    Parameters
-    ----------
-    chunks:
-        Any iterable that yields ``bytes`` objects.  Each object is
-        treated as one Merkle leaf.
-
-    Returns
-    -------
-    str
-        64-character lowercase hex SHA-256 Merkle root.
-        Returns ``compute_sha256(data=b"")`` for an empty iterable.
-
-    Examples
-    --------
-    >>> root = compute_merkle_root_streaming(stream_chunks("dump.xml.bz2"))
-    >>> assert root == compute_merkle_root("dump.xml.bz2")
-    """
-    leaves: List[bytes] = []
-
-    for chunk in chunks:
-        leaf_hex = compute_sha256(data=chunk)
-        leaves.append(bytes.fromhex(leaf_hex))
-
-    if not leaves:
-        return compute_sha256(data=b"")
-
-    while len(leaves) > 1:
-        next_level: List[bytes] = []
-        for i in range(0, len(leaves), 2):
-            left = leaves[i]
-            right = leaves[i + 1] if i + 1 < len(leaves) else left
-            combined = left + right
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
-        leaves = next_level
-
-    return leaves[0].hex()
-
-
-def stream_extract_text_from_xml(
-    input_path: Union[str, Path],
-) -> Generator[str, None, None]:
-    """
-    Stream cleaned article texts from a Wikipedia XML dump without writing
-    any output file.
-
-    This is the generator-based (streaming) counterpart to
-    ``extract_text_from_xml``.  It yields one cleaned plain-text string
-    per Wikipedia article, keeping heap usage at O(1) regardless of dump
-    size.
-
-    Supports both plain ``.xml`` and bzip2-compressed ``.xml.bz2`` inputs
-    by sniffing the first three bytes for the BZh magic header — exactly
-    the same auto-detection logic used in ``extract_text_from_xml``.
-
-    Parameters
-    ----------
-    input_path:
-        Path to a Wikipedia XML dump (compressed or uncompressed).
-
-    Yields
-    ------
-    str
-        Cleaned plain-text content of one Wikipedia article.
-        Articles that are empty after cleaning are silently skipped.
-
-    Raises
-    ------
-    FileNotFoundError
-        If *input_path* does not exist on disk.
-    ET.ParseError
-        If the XML stream is structurally malformed.
-
-    Examples
-    --------
-    >>> total_chars = sum(len(t) for t in stream_extract_text_from_xml("dump.xml.bz2"))
-    >>> print(f"Total characters: {total_chars:,}")
-    """
-    input_path = Path(input_path)
-
-    if not input_path.exists():
-        raise FileNotFoundError(f"Dump file not found: {input_path}")
-
-    with open(input_path, "rb") as probe:
-        is_bz2 = probe.read(3) == b"BZh"
-
-    open_func = bz2.open if is_bz2 else open
-
-    with open_func(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
-        for _, elem in context:
-            if elem.tag.endswith("page"):
-                text_elem = elem.find(".//{*}text")
-                raw_text: str = ""
-                if text_elem is not None and text_elem.text:
-                    raw_text = text_elem.text
-                elem.clear()
-
-                if not raw_text:
-                    continue
-
-                cleaned = clean_wikitext(raw_text)
-                if cleaned:
-                    yield cleaned
-
-    logger.info("Finished streaming articles from '%s'.", input_path.name)
-
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
