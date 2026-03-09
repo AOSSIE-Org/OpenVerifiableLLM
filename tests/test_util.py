@@ -258,6 +258,7 @@ def test_export_and_load_merkle_proof(tmp_path):
         proof,
         chunk_index=1,
         chunk_size=8,
+        merkle_root=root,
         output_path=proof_file
     )
 
@@ -269,4 +270,11 @@ def test_export_and_load_merkle_proof(tmp_path):
         proof_file_path=proof_file,
         chunk_data=chunk,
         expected_root=root,
+    )
+
+    # Test mismatching merkle_root rejection
+    assert not utils.verify_merkle_proof_from_file(
+        proof_file_path=proof_file,
+        chunk_data=chunk,
+        expected_root="1" * 64, # Different root
     )

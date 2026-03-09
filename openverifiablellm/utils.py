@@ -208,6 +208,12 @@ def extract_text_from_xml(input_path):
     logger.info("Preprocessing complete. Output saved to %s", output_path)
     generate_manifest(input_path,output_path)
 
+    # Automatically generate ZKP proofs for the processed text chunks
+    proofs_dir = output_dir / "proofs"
+    logger.info("Generating ZKP-compatible Merkle proofs for verification pipelines...")
+    num_proofs = export_all_merkle_proofs(output_path, proofs_dir, MERKLE_CHUNK_SIZE_BYTES)
+    logger.info("Successfully exported %d ZKP proofs to %s", num_proofs, proofs_dir)
+
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
     raw_path = Path(raw_path)
@@ -251,10 +257,12 @@ def export_merkle_proof(
     proof: List[Tuple[str, bool]],
     chunk_index: int,
     chunk_size: int,
+    merkle_root: str,
     output_path: Union[str, Path]
 ) -> None:
     """
     Export Merkle proof to a JSON file for portable verification.
+    Structured into public_inputs and witness for Zero-Knowledge Proof (ZKP) compatibility.
     """
 
     if chunk_size <= 0:
@@ -267,9 +275,14 @@ def export_merkle_proof(
         raise ValueError("chunk_index must be non-negative")
 
     data = {
-        "chunk_index": chunk_index,
-        "chunk_size": chunk_size,
-        "proof": proof,
+        "public_inputs": {
+            "merkle_root": merkle_root,
+            "chunk_index": chunk_index,
+            "chunk_size": chunk_size,
+        },
+        "witness": {
+            "sibling_hashes": proof,
+        }
     }
 
     output_path = Path(output_path)
@@ -287,14 +300,91 @@ def load_merkle_proof(
     with proof_path.open("r", encoding="utf-8") as f:
         return json.load(f)
 
+def export_all_merkle_proofs(
+    file_path: Union[str, Path],
+    output_dir: Union[str, Path],
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+) -> int:
+    """
+    Efficiently generate and export Merkle proofs for all chunks of a file.
+    Saves them as individual JSON files in the output directory.
+    Returns the number of proofs generated.
+    """
+    path = Path(file_path)
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-# Content before line 270 remains unchanged
-# Entire function definition from lines 270-314 should be deleted
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    leaves = []
+    with path.open("rb") as f:
+        while chunk := f.read(chunk_size):
+            leaf_hex = compute_sha256(data=chunk)
+            leaves.append(bytes.fromhex(leaf_hex))
+
+    if not leaves:
+        return 0
+
+    num_leaves = len(leaves)
+
+    # Build the Merkle tree level by level
+    tree = []
+    current_level = list(leaves)
+
+    while len(current_level) > 1:
+        if len(current_level) % 2 == 1:
+            current_level.append(current_level[-1])
+
+        tree.append(list(current_level))
+
+        next_level = []
+        for i in range(0, len(current_level), 2):
+            combined = current_level[i] + current_level[i + 1]
+            parent_hex = compute_sha256(data=combined)
+            next_level.append(bytes.fromhex(parent_hex))
+
+        current_level = next_level
+
+    tree.append(current_level)
+
+    merkle_root = tree[-1][0].hex()
+    prefix = path.name
+
+    # Export a proof for each chunk
+    for chunk_index in range(num_leaves):
+        proof = []
+        index = chunk_index
+
+        for level in tree[:-1]:
+            sibling_index = index ^ 1
+            sibling = level[sibling_index]
+            is_left = sibling_index < index
+            proof.append((sibling.hex(), is_left))
+            index //= 2
+
+        output_path = output_dir / f"{prefix}_chunk_{chunk_index}_proof.json"
+
+        # Reuse existing single-proof exporter
+        export_merkle_proof(
+            proof=proof,
+            chunk_index=chunk_index,
+            chunk_size=chunk_size,
+            merkle_root=merkle_root,
+            output_path=output_path
+        )
+
+    return num_leaves
+
+
 def verify_merkle_proof_from_file(
     proof_file_path: Union[str, Path],
     chunk_data: bytes,
     expected_root: str
 ) -> bool:
+    """
+    Verify a Merkle proof from a ZKP-compatible JSON file.
+    """
     proof_file_path = Path(proof_file_path)
 
     if not proof_file_path.exists():
@@ -306,14 +396,27 @@ def verify_merkle_proof_from_file(
     if not isinstance(data, dict):
         raise ValueError("Malformed proof file: expected JSON object")
 
-    required_keys = {"chunk_index", "chunk_size", "proof"}
-    if not required_keys.issubset(data.keys()):
-        raise ValueError("Malformed proof file: missing required keys")
+    if "public_inputs" not in data or "witness" not in data:
+        raise ValueError("Malformed proof file: missing public_inputs or witness")
 
-    proof = data["proof"]
+    public_inputs = data["public_inputs"]
+    witness = data["witness"]
+
+    required_public_keys = {"merkle_root", "chunk_index", "chunk_size"}
+    if not isinstance(public_inputs, dict) or not required_public_keys.issubset(public_inputs.keys()):
+        raise ValueError("Malformed proof file: missing required keys in public_inputs")
+
+    if not isinstance(witness, dict) or "sibling_hashes" not in witness:
+        raise ValueError("Malformed proof file: missing sibling_hashes in witness")
+
+    proof_root = public_inputs["merkle_root"]
+    if proof_root != expected_root:
+        return False
+
+    proof = witness["sibling_hashes"]
 
     if not isinstance(proof, list):
-        raise ValueError("Malformed proof: proof must be a list")
+        raise ValueError("Malformed proof: sibling_hashes must be a list")
 
     return verify_merkle_proof(chunk_data, proof, expected_root)
 
