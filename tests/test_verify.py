@@ -221,6 +221,8 @@ class TestHappyPath(TmpMixin):
             "manifest_exists", "raw_file_exists", "raw_sha256",
             "processed_sha256", "dump_date", "wikipedia_dump_name",
             "python_version", "reprocessing_succeeded",
+            # new fields added in verification
+            "manifest_preprocessing_version", "manifest_chunk_size_bytes",
         ):
             self.assertIn(required, names)
 
@@ -232,6 +234,16 @@ class TestHappyPath(TmpMixin):
     def test_processed_sha256_check_passes(self):
         r = verify_preprocessing(self.dump, project_root=self.tmp)
         c = next(x for x in r.checks if x.name == "processed_sha256")
+        self.assertEqual(c.status, CheckStatus.PASS)
+
+    def test_manifest_preprocessing_version_check_passes(self):
+        r = verify_preprocessing(self.dump, project_root=self.tmp)
+        c = next(x for x in r.checks if x.name == "manifest_preprocessing_version")
+        self.assertEqual(c.status, CheckStatus.PASS)
+
+    def test_manifest_chunk_size_check_passes(self):
+        r = verify_preprocessing(self.dump, project_root=self.tmp)
+        c = next(x for x in r.checks if x.name == "manifest_chunk_size_bytes")
         self.assertEqual(c.status, CheckStatus.PASS)
 
     def test_merkle_checks_pass_or_skip(self):
