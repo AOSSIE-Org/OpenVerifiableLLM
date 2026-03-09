@@ -331,7 +331,6 @@ def verify_preprocessing(
         logger.info("Re-running preprocessing in temp dir: %s", tmp_dir)
 
         try:
-
             env = os.environ.copy()
             env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
 
@@ -410,10 +409,11 @@ def verify_preprocessing(
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
             )
+
             if "chunk_size_bytes" in manifest:
                 _check_field(
                     report, "manifest_chunk_size_bytes",
-                    expected=manifest["chunk_size_bytes"],
+                    expected=manifest.get("chunk_size_bytes"),
                     actual=reproduced_manifest.get("chunk_size_bytes"),
                     detail="Merkle chunk size used during preprocessing",
                 )
