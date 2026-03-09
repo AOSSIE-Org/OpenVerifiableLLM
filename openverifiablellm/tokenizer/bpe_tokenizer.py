@@ -1,14 +1,13 @@
 from pathlib import Path
+
 from tokenizers import ByteLevelBPETokenizer
 
 from .base import BaseTokenizer
-
 
 SPECIAL_TOKENS = ["<s>", "</s>", "<unk>", "<pad>", "<mask>"]
 
 
 class BPETokenizer(BaseTokenizer):
-
     def train(self, text_file: Path, save_path: Path):
 
         tokenizer = ByteLevelBPETokenizer()
