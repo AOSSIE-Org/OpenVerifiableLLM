@@ -252,12 +252,16 @@ def verify_manifest_chain(
 
     # If explicit previous manifest is provided, verify the link
     if previous_manifest_path is not None:
-        link_valid = verify_manifest_chain_link(previous_manifest_path, manifest_data)
-        message = (
-            "Chain link verified against previous manifest ✓"
-            if link_valid
-            else "Chain link broken — previous manifest does not match stored hash ✗"
-        )
+        try:
+            link_valid = verify_manifest_chain_link(previous_manifest_path, manifest_data)
+            message = (
+                "Chain link verified against previous manifest ✓"
+                if link_valid
+                else "Chain link broken — previous manifest does not match stored hash ✗"
+            )
+        except (OSError, ValueError) as exc:
+            link_valid = False
+            message = f"Failed to verify previous manifest: {exc}"
         return {
             "chain_valid": link_valid,
             "chain_message": message,
