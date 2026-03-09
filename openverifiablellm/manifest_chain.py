@@ -87,10 +87,9 @@ def compute_manifest_hash(manifest: Union[str, Path, Dict[str, Any]]) -> str:
             except json.JSONDecodeError as e:
                 raise ValueError(f"Malformed manifest JSON: {e}")
 
-    # Create a copy and remove parent_manifest_hash before hashing
-    # (so the hash doesn't include itself)
+    # Hash the entire manifest so descendants authenticate both the
+    # manifest contents and its declared predecessor.
     hashable = manifest_data.copy()
-    hashable.pop("parent_manifest_hash", None)
 
     canonical = _canonical_json(hashable)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -278,8 +277,10 @@ def verify_manifest_chain(
         message = "parent_manifest_hash is empty (first run in chain)"
         chain_valid = True
     else:
-        message = "parent_manifest_hash present (chain-aware manifest)"
-        chain_valid = True
+        message = (
+            "Cannot verify non-root manifest without previous_manifest_path"
+        )
+        chain_valid = False
 
     return {
         "chain_valid": chain_valid,

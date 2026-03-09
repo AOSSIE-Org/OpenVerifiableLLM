@@ -265,23 +265,30 @@ def verify_preprocessing(
     ))
 
     # ===== Verify manifest chain if previous manifest is provided =====
-    if previous_manifest_path and previous_manifest_path.exists():
-        try:
-            chain_valid = verify_manifest_chain_link(previous_manifest_path, manifest)
-            status = CheckStatus.PASS if chain_valid else CheckStatus.FAIL
-            report.add(CheckResult(
-                name="manifest_chain_link",
-                status=status,
-                expected=str(Path(previous_manifest_path).name),
-                actual="✓ linked" if chain_valid else "✗ broken",
-                detail="Verifies parent_manifest_hash matches previous manifest hash",
-            ))
-        except Exception as e:
+    if previous_manifest_path is not None:
+        if not previous_manifest_path.exists():
             report.add(CheckResult(
                 name="manifest_chain_link",
                 status=CheckStatus.FAIL,
-                detail=f"Chain verification error: {e}",
+                detail=f"Previous manifest not found: {previous_manifest_path}",
             ))
+        else:
+            try:
+                chain_valid = verify_manifest_chain_link(previous_manifest_path, manifest)
+                status = CheckStatus.PASS if chain_valid else CheckStatus.FAIL
+                report.add(CheckResult(
+                    name="manifest_chain_link",
+                    status=status,
+                    expected=previous_manifest_path.name,
+                    actual="✓ linked" if chain_valid else "✗ broken",
+                    detail="Verifies parent_manifest_hash matches previous manifest hash",
+                ))
+            except (OSError, ValueError) as exc:
+                report.add(CheckResult(
+                    name="manifest_chain_link",
+                    status=CheckStatus.FAIL,
+                    detail=f"Chain verification error: {exc}",
+                ))
     else:
         # Check if manifest has chain awareness (parent_manifest_hash field)
         chain_report = verify_manifest_chain(manifest_path)
