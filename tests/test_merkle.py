@@ -382,7 +382,7 @@ _WIKI_XML_FIXTURE = textwrap.dedent("""\
       </page>
       <page>
         <title>Beta</title>
-        <revision><text>Beta article text about <ref>ref</ref> dogs.</text></revision>
+        <revision><text>Beta article text about &lt;ref&gt;ref&lt;/ref&gt; dogs.</text></revision>
       </page>
       <page>
         <title>Gamma</title>
