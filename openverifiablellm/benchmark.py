@@ -36,13 +36,12 @@ import logging
 import sys
 import time
 import tracemalloc
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from openverifiablellm.incremental_merkle import IncrementalMerkleTree
-from openverifiablellm.streaming_utils import stream_text_from_xml
-from openverifiablellm.utils import clean_wikitext
+from openverifiablellm.utils import clean_wikitext, extract_text_from_xml
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -149,7 +148,9 @@ def _run_new_way(file_path: Path) -> BenchmarkResult:
 
     tree = IncrementalMerkleTree()
 
-    for article_text in stream_text_from_xml(str(file_path)):
+    stream = extract_text_from_xml(file_path, stream=True)
+    assert stream is not None, "extract_text_from_xml must return a generator when stream=True"
+    for article_text in stream:
         tree.append_leaf(article_text)
 
     root_hex: str = tree.get_root_hash() or hashlib.sha256(b"").hexdigest()
@@ -209,7 +210,7 @@ def _render_markdown_table(
         "- *Wall-clock time* is measured with `time.perf_counter` on a single run.",
         "  For publication-quality numbers repeat 3× and report median ± std-dev.",
         "- The Old Way intentionally omits `elem.clear()` to reproduce the OOM behaviour.",
-        "- The New Way uses `stream_text_from_xml` + `IncrementalMerkleTree` from this PR.",
+        "- The New Way uses `extract_text_from_xml(..., stream=True)` + `IncrementalMerkleTree` from this PR.",
         "",
     ]
     return "\n".join(lines)

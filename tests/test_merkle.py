@@ -19,11 +19,15 @@ Run with:
 """
 
 import hashlib
+import io
+import textwrap
+from pathlib import Path
 from typing import List, Optional
 
 import pytest
 
 from openverifiablellm.incremental_merkle import IncrementalMerkleTree
+from openverifiablellm.utils import extract_text_from_xml
 
 
 # ===========================================================================
@@ -362,3 +366,90 @@ class TestRepr:
         r = repr(tree)
         assert "leaves=7" in r
         assert "IncrementalMerkleTree" in r
+
+
+# ===========================================================================
+# Integration test: extract_text_from_xml(stream=True) + IncrementalMerkleTree
+# ===========================================================================
+
+# Minimal MediaWiki-style XML dump with 3 articles.
+_WIKI_XML_FIXTURE = textwrap.dedent("""\
+    <?xml version="1.0" encoding="UTF-8"?>
+    <mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">
+      <page>
+        <title>Alpha</title>
+        <revision><text>Alpha article text about [[cats]] and {{tmpl}}.</text></revision>
+      </page>
+      <page>
+        <title>Beta</title>
+        <revision><text>Beta article text about <ref>ref</ref> dogs.</text></revision>
+      </page>
+      <page>
+        <title>Gamma</title>
+        <revision><text>Gamma article text: simple plain text only.</text></revision>
+      </page>
+    </mediawiki>
+""")
+
+
+class TestStreamingXmlIntegration:
+    """
+    Exercises extract_text_from_xml(..., stream=True) end-to-end by feeding
+    its output into IncrementalMerkleTree and comparing with the batch
+    reference implementation.
+
+    Uses a tiny in-memory XML fixture so the test is fast and requires no
+    external files.
+    """
+
+    def _write_xml_fixture(self, tmp_path) -> Path:
+        """Write the XML fixture to a temp file and return its path."""
+        p = tmp_path / "wiki_test.xml"
+        p.write_text(_WIKI_XML_FIXTURE, encoding="utf-8")
+        return p
+
+    def test_streaming_root_matches_batch_root(self, tmp_path) -> None:
+        """
+        extract_text_from_xml(stream=True) must yield the same articles as
+        iterating manually, and IncrementalMerkleTree fed from the stream
+        must produce the same root as the batch reference.
+        """
+        xml_path = self._write_xml_fixture(tmp_path)
+
+        # Collect streamed texts
+        gen = extract_text_from_xml(xml_path, stream=True)
+        assert gen is not None, "extract_text_from_xml must return a generator when stream=True"
+        streamed_texts = list(gen)
+
+        assert len(streamed_texts) > 0, "Fixture must yield at least one article"
+
+        # Batch reference root
+        expected_root = batch_merkle_root(streamed_texts)
+        assert expected_root is not None
+
+        # Incremental root built by re-streaming
+        gen2 = extract_text_from_xml(xml_path, stream=True)
+        assert gen2 is not None
+        tree = IncrementalMerkleTree()
+        for text in gen2:
+            tree.append_leaf(text)
+
+        assert tree.get_root_hash() == expected_root, (
+            "IncrementalMerkleTree root does not match batch root "
+            "when fed from extract_text_from_xml(stream=True)"
+        )
+
+    def test_streaming_yields_cleaned_text(self, tmp_path) -> None:
+        """
+        Streamed article texts must have wikitext markup removed
+        (no {{ }}, [[ ]], or <ref> tags).
+        """
+        xml_path = self._write_xml_fixture(tmp_path)
+        gen = extract_text_from_xml(xml_path, stream=True)
+        assert gen is not None
+        texts = list(gen)
+
+        for text in texts:
+            assert "{{" not in text, "Templates should be stripped"
+            assert "[[" not in text, "Links should be stripped"
+            assert "<ref>" not in text, "Ref tags should be stripped"
