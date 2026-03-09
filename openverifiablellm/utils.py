@@ -438,11 +438,21 @@ def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
         start_time = time.perf_counter()
 
         file_size_bytes = os.path.getsize(file_path)
-        chunk_count = max(1, (file_size_bytes + chunk_size - 1) // chunk_size)
-        chunk_index = min(10, chunk_count - 1)
+        if file_size_bytes == 0:
+            logger.info("Skipping proof benchmark for empty file")
+        else:
+            chunk_count = (file_size_bytes + chunk_size - 1) // chunk_size
+            chunk_index = min(10, chunk_count - 1)
 
-        _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
-        end_time = time.perf_counter()
+            _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
+            end_time = time.perf_counter()
+
+            _, peak_mem_proof = tracemalloc.get_traced_memory()
+
+            proof_time = end_time - start_time
+            pmins, psecs = divmod(proof_time, 60)
+            logger.info(f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s")
+            logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
 
         _, peak_mem_proof = tracemalloc.get_traced_memory()
 
