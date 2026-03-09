@@ -125,7 +125,7 @@ def get_parent_manifest_hash(
         logger.info("Parent manifest hash computed: %s", parent_hash)
         return parent_hash
     except Exception as e:
-        logger.error("Could not compute parent manifest hash: %s", e)
+        logger.exception("Could not compute parent manifest hash: %s", e)
         raise
 
 
