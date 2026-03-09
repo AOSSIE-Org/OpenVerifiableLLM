@@ -7,7 +7,7 @@ import hashlib
 import logging
 import json
 import platform
-from typing import Union, Optional, Dict, Any, List, Tuple
+from typing import Union, Optional, Dict, Any, List, Tuple, Generator, Iterable
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -373,6 +373,237 @@ def clean_wikitext(text: str) -> str:
     text = RE_LINK.sub(r"\1", text)
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
+
+# ---------------------------------------------------------------------------
+# Streaming / generator-based variants
+# ---------------------------------------------------------------------------
+
+def stream_chunks(
+    file_path: Union[str, Path],
+    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
+) -> Generator[bytes, None, None]:
+    """
+    Yield successive raw byte chunks from *file_path* without loading the
+    entire file into memory.
+
+    This is the streaming analogue to the chunk-reading loop inside
+    ``compute_merkle_root``.  Callers can process each chunk on-the-fly
+    (e.g. hash it, write it somewhere) without ever holding more than one
+    chunk in RAM at a time.
+
+    Parameters
+    ----------
+    file_path:
+        Path to any binary file (plain or bz2-compressed).
+    chunk_size:
+        Number of bytes per chunk.  Must be a positive integer.
+        Defaults to ``MERKLE_CHUNK_SIZE_BYTES`` (1 MB).
+
+    Yields
+    ------
+    bytes
+        Raw byte chunk of at most *chunk_size* bytes.
+        The final chunk may be shorter if the file size is not a multiple
+        of *chunk_size*.
+
+    Raises
+    ------
+    ValueError
+        If *chunk_size* is not a positive integer.
+    FileNotFoundError
+        If *file_path* does not exist.
+
+    Examples
+    --------
+    >>> for chunk in stream_chunks("data/raw/simplewiki.xml.bz2"):
+    ...     process(chunk)
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk
+
+
+def stream_sha256(
+    file_path: Union[str, Path],
+    chunk_size: int = 8192,
+) -> Generator[Tuple[bytes, str], None, None]:
+    """
+    Stream SHA-256 hashes of successive chunks from *file_path*.
+
+    Unlike ``compute_sha256``, which returns a **single** hash over the
+    entire file, this generator yields ``(chunk_bytes, partial_hex)``
+    pairs as each chunk is read.  After the generator is exhausted the
+    last ``partial_hex`` value equals the SHA-256 of the whole file.
+
+    Parameters
+    ----------
+    file_path:
+        Path to the file to hash.
+    chunk_size:
+        Read buffer size in bytes (default 8 192).
+
+    Yields
+    ------
+    (chunk_bytes, running_hex) : Tuple[bytes, str]
+        *chunk_bytes* — the raw bytes just read.
+        *running_hex* — SHA-256 hex digest of **all bytes read so far**
+        (i.e. the rolling hash after absorbing *chunk_bytes*).
+
+    Examples
+    --------
+    >>> *_, (_, final_hash) = stream_sha256("data/raw/dump.xml.bz2")
+    >>> print(final_hash)   # same value as compute_sha256(file_path=...)
+    """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be a positive integer")
+
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+
+    sha256 = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            sha256.update(chunk)
+            yield chunk, sha256.hexdigest()
+
+
+def compute_merkle_root_streaming(
+    chunks: Iterable[bytes],
+) -> str:
+    """
+    Compute a Merkle root over an **arbitrary iterable of byte chunks**
+    without requiring a seekable file on disk.
+
+    This is the streaming counterpart to ``compute_merkle_root``.  It
+    accepts any iterable — a ``stream_chunks()`` generator, a network
+    socket, a list of pre-computed blobs, etc. — so callers are not
+    restricted to file-backed data.
+
+    The leaf hashes and tree construction follow the exact same algorithm
+    as ``compute_merkle_root`` to ensure identical roots for identical
+    content.
+
+    Parameters
+    ----------
+    chunks:
+        Any iterable that yields ``bytes`` objects.  Each object is
+        treated as one Merkle leaf.
+
+    Returns
+    -------
+    str
+        64-character lowercase hex SHA-256 Merkle root.
+        Returns ``compute_sha256(data=b"")`` for an empty iterable.
+
+    Examples
+    --------
+    >>> root = compute_merkle_root_streaming(stream_chunks("dump.xml.bz2"))
+    >>> assert root == compute_merkle_root("dump.xml.bz2")
+    """
+    leaves: List[bytes] = []
+
+    for chunk in chunks:
+        leaf_hex = compute_sha256(data=chunk)
+        leaves.append(bytes.fromhex(leaf_hex))
+
+    if not leaves:
+        return compute_sha256(data=b"")
+
+    while len(leaves) > 1:
+        next_level: List[bytes] = []
+        for i in range(0, len(leaves), 2):
+            left = leaves[i]
+            right = leaves[i + 1] if i + 1 < len(leaves) else left
+            combined = left + right
+            parent_hex = compute_sha256(data=combined)
+            next_level.append(bytes.fromhex(parent_hex))
+        leaves = next_level
+
+    return leaves[0].hex()
+
+
+def stream_extract_text_from_xml(
+    input_path: Union[str, Path],
+) -> Generator[str, None, None]:
+    """
+    Stream cleaned article texts from a Wikipedia XML dump without writing
+    any output file.
+
+    This is the generator-based (streaming) counterpart to
+    ``extract_text_from_xml``.  It yields one cleaned plain-text string
+    per Wikipedia article, keeping heap usage at O(1) regardless of dump
+    size.
+
+    Supports both plain ``.xml`` and bzip2-compressed ``.xml.bz2`` inputs
+    by sniffing the first three bytes for the BZh magic header — exactly
+    the same auto-detection logic used in ``extract_text_from_xml``.
+
+    Parameters
+    ----------
+    input_path:
+        Path to a Wikipedia XML dump (compressed or uncompressed).
+
+    Yields
+    ------
+    str
+        Cleaned plain-text content of one Wikipedia article.
+        Articles that are empty after cleaning are silently skipped.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *input_path* does not exist on disk.
+    ET.ParseError
+        If the XML stream is structurally malformed.
+
+    Examples
+    --------
+    >>> total_chars = sum(len(t) for t in stream_extract_text_from_xml("dump.xml.bz2"))
+    >>> print(f"Total characters: {total_chars:,}")
+    """
+    input_path = Path(input_path)
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Dump file not found: {input_path}")
+
+    with open(input_path, "rb") as probe:
+        is_bz2 = probe.read(3) == b"BZh"
+
+    open_func = bz2.open if is_bz2 else open
+
+    with open_func(input_path, "rb") as f:
+        context = ET.iterparse(f, events=("end",))
+        for _, elem in context:
+            if elem.tag.endswith("page"):
+                text_elem = elem.find(".//{*}text")
+                raw_text: str = ""
+                if text_elem is not None and text_elem.text:
+                    raw_text = text_elem.text
+                elem.clear()
+
+                if not raw_text:
+                    continue
+
+                cleaned = clean_wikitext(raw_text)
+                if cleaned:
+                    yield cleaned
+
+    logger.info("Finished streaming articles from '%s'.", input_path.name)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
