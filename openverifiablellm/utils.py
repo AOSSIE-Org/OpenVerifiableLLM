@@ -8,6 +8,7 @@ import logging
 import json
 import platform
 from typing import Union, Optional, Dict, Any, List, Tuple, Generator, Iterable
+from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -231,6 +232,11 @@ def generate_manifest(raw_path, processed_path):
         "preprocessing_version": "v1",
         "python_version": platform.python_version()
     }
+    env_data = generate_environment_fingerprint()
+    manifest.update({
+        "environment": env_data["environment"],
+        "environment_hash": env_data["environment_hash"]
+    })
     project_root = Path.cwd()
     manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
