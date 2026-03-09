@@ -454,12 +454,8 @@ def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
             logger.info(f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s")
             logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
 
-        _, peak_mem_proof = tracemalloc.get_traced_memory()
-
-        proof_time = end_time - start_time
-        pmins, psecs = divmod(proof_time, 60)
-        logger.info(f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s")
-        logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
+        logger.info("--- Benchmark Complete ---")
+        tracemalloc.stop()
 
         logger.info("--- Benchmark Complete ---")
         tracemalloc.stop()
