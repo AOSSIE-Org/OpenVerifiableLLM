@@ -87,20 +87,24 @@ def generate_merkle_proof(
     index = chunk_index
 
     while len(leaves) > 1:
-        # If odd number of nodes, duplicate last
-        if len(leaves) % 2 == 1:
-            leaves.append(leaves[-1])
+        if index % 2 == 0:
+            sibling_index = index + 1
+            if sibling_index >= len(leaves):
+                sibling_index = index  # odd level — no real sibling, duplicate self
+            is_left = False
+        else:
+            sibling_index = index - 1
+            is_left = True
 
-        sibling_index = index ^ 1
         sibling = leaves[sibling_index]
-
-        is_left = sibling_index < index
         proof.append((sibling.hex(), is_left))
 
-        # Build next level
+        # Build next level — same inline strategy as compute_merkle_root()
         next_level = []
         for i in range(0, len(leaves), 2):
-            combined = leaves[i] + leaves[i + 1]
+            left = leaves[i]
+            right = leaves[i + 1] if (i + 1) < len(leaves) else left
+            combined = left + right
             parent_hex = compute_sha256(data=combined)
             next_level.append(bytes.fromhex(parent_hex))
 
