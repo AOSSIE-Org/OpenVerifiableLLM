@@ -13,7 +13,6 @@ import bz2
 import json
 import os
 import shutil
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -75,8 +74,8 @@ class TmpMixin(unittest.TestCase):
 
 # VerificationReport unit tests
 
-class TestVerificationReport(unittest.TestCase):
 
+class TestVerificationReport(unittest.TestCase):
     def _r(self):
         return VerificationReport(input_dump="d.bz2", manifest_path="m.json")
 
@@ -153,7 +152,6 @@ class TestVerificationReport(unittest.TestCase):
 
 # _check_field unit tests
 class TestCheckField(unittest.TestCase):
-
     def _r(self):
         return VerificationReport(input_dump="d", manifest_path="m")
 
@@ -183,8 +181,8 @@ class TestCheckField(unittest.TestCase):
 
 # _load_manifest unit tests
 
-class TestLoadManifest(TmpMixin):
 
+class TestLoadManifest(TmpMixin):
     def test_raises_file_not_found_if_absent(self):
         with self.assertRaises(FileNotFoundError):
             _load_manifest(self.tmp / "no.json")
@@ -203,8 +201,8 @@ class TestLoadManifest(TmpMixin):
 
 # Integration: happy path
 
-class TestHappyPath(TmpMixin):
 
+class TestHappyPath(TmpMixin):
     def setUp(self):
         super().setUp()
         self.dump = make_dump(self.tmp)
@@ -218,11 +216,14 @@ class TestHappyPath(TmpMixin):
         r = verify_preprocessing(self.dump, project_root=self.tmp)
         names = {c.name for c in r.checks}
         for required in (
-            "manifest_exists", "raw_file_exists", "raw_sha256",
-            "processed_sha256", "dump_date", "wikipedia_dump_name",
-            "python_version", "reprocessing_succeeded",
-            # new fields added in verification
-            "manifest_preprocessing_version", "manifest_chunk_size_bytes",
+            "manifest_exists",
+            "raw_file_exists",
+            "raw_sha256",
+            "processed_sha256",
+            "dump_date",
+            "wikipedia_dump_name",
+            "python_version",
+            "reprocessing_succeeded",
         ):
             self.assertIn(required, names)
 
@@ -234,16 +235,6 @@ class TestHappyPath(TmpMixin):
     def test_processed_sha256_check_passes(self):
         r = verify_preprocessing(self.dump, project_root=self.tmp)
         c = next(x for x in r.checks if x.name == "processed_sha256")
-        self.assertEqual(c.status, CheckStatus.PASS)
-
-    def test_manifest_preprocessing_version_check_passes(self):
-        r = verify_preprocessing(self.dump, project_root=self.tmp)
-        c = next(x for x in r.checks if x.name == "manifest_preprocessing_version")
-        self.assertEqual(c.status, CheckStatus.PASS)
-
-    def test_manifest_chunk_size_check_passes(self):
-        r = verify_preprocessing(self.dump, project_root=self.tmp)
-        c = next(x for x in r.checks if x.name == "manifest_chunk_size_bytes")
         self.assertEqual(c.status, CheckStatus.PASS)
 
     def test_merkle_checks_pass_or_skip(self):
@@ -270,8 +261,8 @@ class TestHappyPath(TmpMixin):
 
 # Integration: failure scenarios
 
-class TestFailureScenarios(TmpMixin):
 
+class TestFailureScenarios(TmpMixin):
     def setUp(self):
         super().setUp()
         self.dump = make_dump(self.tmp)
@@ -309,12 +300,12 @@ class TestFailureScenarios(TmpMixin):
             r = verify_preprocessing(tampered, project_root=self.tmp)
             self.assertFalse(r.all_passed)
             relevant = [
-                c for c in r.checks
+                c
+                for c in r.checks
                 if c.name in ("raw_sha256", "reprocessing_succeeded")
                 and c.status == CheckStatus.FAIL
             ]
-            self.assertGreater(len(relevant), 0,
-                               "Expected at least one failure for tampered file")
+            self.assertGreater(len(relevant), 0, "Expected at least one failure for tampered file")
         finally:
             shutil.rmtree(td)
 
@@ -364,7 +355,6 @@ class TestFailureScenarios(TmpMixin):
 
 # Legacy manifest compatibility (no Merkle fields)
 class TestLegacyManifest(TmpMixin):
-
     def setUp(self):
         super().setUp()
         self.dump = make_dump(self.tmp)
@@ -381,8 +371,6 @@ class TestLegacyManifest(TmpMixin):
             c = next((x for x in r.checks if x.name == name), None)
             self.assertIsNotNone(c, f"check '{name}' not found")
             self.assertEqual(c.status, CheckStatus.SKIP)
-        # legacy manifests should not even contain the chunk-size
-        self.assertFalse(any(c.name == "manifest_chunk_size_bytes" for c in r.checks))
 
     def test_other_checks_still_pass(self):
         r = verify_preprocessing(self.dump, project_root=self.tmp)

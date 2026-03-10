@@ -1,15 +1,16 @@
 import bz2
-import re
-import defusedxml.ElementTree as ET
-from pathlib import Path
-import sys
 import hashlib
-import logging
 import json
+import logging
 import platform
-from typing import Union, Optional, Dict, Any, List, Tuple
-from openverifiablellm.environment import generate_environment_fingerprint
+import re
+import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import defusedxml.ElementTree as ET
+
+from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -22,8 +23,11 @@ RE_LINK_PIPE = re.compile(r"\[\[.*?\|(.*?)\]\]")
 RE_LINK = re.compile(r"\[\[(.*?)\]\]")
 RE_WHITESPACE = re.compile(r"\s+")
 
+
 # Merkle Tree Chunk-Level Hashing for Large Files
-def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
+def compute_merkle_root(
+    file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+) -> str:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
@@ -53,10 +57,9 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
 
     return leaves[0].hex()
 
+
 def generate_merkle_proof(
-    file_path: Union[str, Path],
-    chunk_index: int,
-    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+    file_path: Union[str, Path], chunk_index: int, chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
 ):
     """
     Generate Merkle proof for a specific chunk index.
@@ -109,11 +112,8 @@ def generate_merkle_proof(
 
     return proof
 
-def verify_merkle_proof(
-    chunk_bytes: bytes,
-    proof,
-    merkle_root: str
-) -> bool:
+
+def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
     """
     Verify a Merkle proof for given chunk bytes.
     """
@@ -154,8 +154,9 @@ def verify_merkle_proof(
 
     return current_hash == expected_root
 
+
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
@@ -206,7 +207,9 @@ def extract_text_from_xml(input_path):
 
                     elem.clear()
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
+    if write_manifest:
+        generate_manifest(input_path, output_path)
+
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
@@ -223,21 +226,20 @@ def generate_manifest(raw_path, processed_path):
         "dump_date": extract_dump_date(raw_path.name),
         "raw_sha256": compute_sha256(file_path=raw_path),
         "processed_sha256": compute_sha256(file_path=processed_path),
-
         # ---------------- ADDED FIELDS ----------------
         "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
-        "processed_merkle_root": compute_merkle_root(processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "processed_merkle_root": compute_merkle_root(
+            processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES
+        ),
         "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
-
         "preprocessing_version": "v1",
-        "python_version": platform.python_version()
+        "python_version": platform.python_version(),
     }
     env_data = generate_environment_fingerprint()
-    manifest.update({
-        "environment": env_data["environment"],
-        "environment_hash": env_data["environment_hash"]
-    })
+    manifest.update(
+        {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
+    )
     project_root = Path.cwd()
     manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -247,11 +249,9 @@ def generate_manifest(raw_path, processed_path):
 
     logger.info("Manifest written to %s", manifest_path)
 
+
 def export_merkle_proof(
-    proof: List[Tuple[str, bool]],
-    chunk_index: int,
-    chunk_size: int,
-    output_path: Union[str, Path]
+    proof: List[Tuple[str, bool]], chunk_index: int, chunk_size: int, output_path: Union[str, Path]
 ) -> None:
     """
     Export Merkle proof to a JSON file for portable verification.
@@ -276,9 +276,8 @@ def export_merkle_proof(
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-def load_merkle_proof(
-    proof_path: Union[str, Path]
-) -> Dict[str, Any]:
+
+def load_merkle_proof(proof_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load Merkle proof from a JSON file.
     """
@@ -288,12 +287,8 @@ def load_merkle_proof(
         return json.load(f)
 
 
-# Content before line 270 remains unchanged
-# Entire function definition from lines 270-314 should be deleted
 def verify_merkle_proof_from_file(
-    proof_file_path: Union[str, Path],
-    chunk_data: bytes,
-    expected_root: str
+    proof_file_path: Union[str, Path], chunk_data: bytes, expected_root: str
 ) -> bool:
     proof_file_path = Path(proof_file_path)
 
@@ -317,6 +312,7 @@ def verify_merkle_proof_from_file(
 
     return verify_merkle_proof(chunk_data, proof, expected_root)
 
+
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(
     *,
@@ -334,9 +330,7 @@ def compute_sha256(
     """
 
     if (data is None) == (file_path is None):
-        raise ValueError(
-            "Exactly one of 'data' or 'file_path' must be provided."
-        )
+        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
 
     sha256 = hashlib.sha256()
 
@@ -351,12 +345,14 @@ def compute_sha256(
 
     return sha256.hexdigest()
 
+
 def extract_dump_date(filename: str):
     parts = filename.split("-")
     for part in parts:
         if part.isdigit() and len(part) == 8:
             return f"{part[:4]}-{part[4:6]}-{part[6:]}"
     return "unknown"
+
 
 def clean_wikitext(text: str) -> str:
     """
@@ -381,13 +377,14 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump>")
+        print("Usage: python -m openverifiablellm.utils <input_dump> [--no-manifest]")
         sys.exit(1)
 
-    logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s - %(message)s"
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+    extract_text_from_xml(
+        sys.argv[1],
+        write_manifest="--no-manifest" not in sys.argv[2:],
     )
-    extract_text_from_xml(sys.argv[1])

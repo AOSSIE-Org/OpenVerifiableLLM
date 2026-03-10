@@ -1,9 +1,10 @@
 import json
+
 import pytest
 
 from openverifiablellm.tokenizer import (
-    train_tokenizer,
     hash_tokenizer_config,
+    train_tokenizer,
 )
 
 
@@ -18,7 +19,8 @@ def sample_text_file(tmp_path):
             "Anyone can edit Wikipedia articles.\n"
             "Wikipedia was launched on January 15 2001.\n"
             "It is one of the most popular websites in the world.\n"
-        ) * 100,
+        )
+        * 100,
         encoding="utf-8",
     )
     return text_file
@@ -42,6 +44,7 @@ def trained_tokenizer(tmp_path, sample_text_file):
 # ---------------------------------------------------------------------
 # Positive Tests
 # ---------------------------------------------------------------------
+
 
 def test_train_tokenizer_creates_files(trained_tokenizer):
     """Training should create vocab.json and merges.txt."""
@@ -87,10 +90,7 @@ def test_hash_changes_when_vocab_changes(trained_tokenizer):
 
     hashes_after = hash_tokenizer_config(trained_tokenizer)
 
-    assert (
-        hashes_before["tokenizer_vocab_hash"]
-        != hashes_after["tokenizer_vocab_hash"]
-    )
+    assert hashes_before["tokenizer_vocab_hash"] != hashes_after["tokenizer_vocab_hash"]
 
 
 def test_hash_changes_when_merges_change(trained_tokenizer):
@@ -104,10 +104,7 @@ def test_hash_changes_when_merges_change(trained_tokenizer):
 
     hashes_after = hash_tokenizer_config(trained_tokenizer)
 
-    assert (
-        hashes_before["tokenizer_merges_hash"]
-        != hashes_after["tokenizer_merges_hash"]
-    )
+    assert hashes_before["tokenizer_merges_hash"] != hashes_after["tokenizer_merges_hash"]
 
 
 def test_vocab_size_matches_actual(trained_tokenizer):
@@ -123,6 +120,7 @@ def test_vocab_size_matches_actual(trained_tokenizer):
 # ---------------------------------------------------------------------
 # Negative Tests (API Hardening)
 # ---------------------------------------------------------------------
+
 
 def test_train_tokenizer_invalid_vocab_size(sample_text_file, tmp_path):
     with pytest.raises(ValueError, match="vocab_size must be > 0"):

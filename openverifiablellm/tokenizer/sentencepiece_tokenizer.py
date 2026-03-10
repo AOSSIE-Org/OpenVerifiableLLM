@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import sentencepiece as spm
 
 from .base import BaseTokenizer
