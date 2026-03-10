@@ -1,8 +1,10 @@
 import bz2
 import hashlib
-import pytest
-from openverifiablellm import utils
 import json
+
+import pytest
+
+from openverifiablellm import utils
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -13,6 +15,7 @@ Run with:
 """
 
 # --------------- clean_wikitext tests ------------------------------------
+
 
 def test_clean_wikitext_removes_templates_and_refs():
     text = "Hello {{Infobox}} <ref>cite</ref> world"
@@ -31,7 +34,9 @@ def test_clean_wikitext_collapses_whitespace():
     cleaned = utils.clean_wikitext(text)
     assert cleaned == "Hello world test"
 
+
 # --------------- extract_dump_date tests ------------------------------------
+
 
 def test_extract_dump_date_valid():
     filename = "simplewiki-20260201-pages-articles.xml.bz2"
@@ -42,7 +47,9 @@ def test_extract_dump_date_invalid():
     filename = "no-date-file.xml.bz2"
     assert utils.extract_dump_date(filename) == "unknown"
 
+
 # --------------- generate manifest ------------------------------------
+
 
 def test_generate_manifest_raises_if_processed_missing(tmp_path):
     raw_file = tmp_path / "raw.txt"
@@ -52,6 +59,7 @@ def test_generate_manifest_raises_if_processed_missing(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         utils.generate_manifest(raw_file, missing_file)
+
 
 def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -66,6 +74,7 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
 
     manifest_file = tmp_path / "data/dataset_manifest.json"
     assert manifest_file.exists()
+
 
 # --------------- compute_sha256 ------------------------------------
 
@@ -110,7 +119,9 @@ def test_file_not_found():
     with pytest.raises(FileNotFoundError):
         utils.compute_sha256(file_path="non_existent_file.txt")
 
+
 # --------------- extract_text_from_xml tests ------------------------------------
+
 
 def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
@@ -166,7 +177,9 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
 
     assert "Hello Uncompressed" in processed_file.read_text()
 
+
 # --------------- manifest includes merkle fields ------------------------------------
+
 
 def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -186,7 +199,9 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     assert "processed_merkle_root" in manifest
     assert "chunk_size_bytes" in manifest
 
+
 # --------------- compute_merkle_root ------------------------------------
+
 
 def test_merkle_root_deterministic(tmp_path):
     file = tmp_path / "data.txt"
@@ -253,7 +268,9 @@ def test_compute_merkle_root_multi_chunk_hardcoded(tmp_path):
     actual_root = utils.compute_merkle_root(file, chunk_size=8)
     assert actual_root == expected_root
 
+
 # --------------- Merkle proof generation ------------------------------------
+
 
 def test_merkle_proof_verification(tmp_path):
     file = tmp_path / "data.txt"
@@ -288,20 +305,14 @@ def test_export_and_load_merkle_proof(tmp_path):
 
     proof_file = tmp_path / "proof.json"
 
-    utils.export_merkle_proof(
-        proof,
-        chunk_index=1,
-        chunk_size=8,
-        output_path=proof_file
-    )
+    utils.export_merkle_proof(proof, chunk_index=1, chunk_size=8, output_path=proof_file)
 
     with file.open("rb") as f:
         f.seek(8)
         chunk = f.read(8)
 
-    proof_data = utils.load_merkle_proof(proof_path=proof_file)
-    assert utils.verify_merkle_proof(
-        chunk_bytes=chunk,
-        proof=proof_data["proof"],
-        merkle_root=root,
+    assert utils.verify_merkle_proof_from_file(
+        proof_file_path=proof_file,
+        chunk_data=chunk,
+        expected_root=root,
     )
