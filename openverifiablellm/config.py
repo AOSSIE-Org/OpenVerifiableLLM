@@ -48,14 +48,14 @@ def _load_from_yaml(yaml_path: Path) -> Optional[List[str]]:
         with yaml_path.open("r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         if isinstance(data, dict) and "benchmarks" in data:
-            benchmarks = data["benchmarks"]
-            if isinstance(benchmarks, list) and all(
-                isinstance(b, str) for b in benchmarks
-            ):
-                return benchmarks
+            raw_benchmarks = data["benchmarks"]
+            if isinstance(raw_benchmarks, list):
+                benchmarks = [b.strip() for b in raw_benchmarks if isinstance(b, str) and b.strip()]
+                if benchmarks:
+                    return benchmarks
         logger.warning(
             "benchmarks.yaml found but does not contain a valid "
-            "'benchmarks' list; falling back to defaults."
+            "non-empty 'benchmarks' list; falling back to defaults."
         )
     except yaml.YAMLError as exc:
         logger.warning("Failed to parse %s: %s", yaml_path, exc)
@@ -69,15 +69,17 @@ def load_config(cli_benchmarks: Optional[str] = None) -> BenchmarkConfig:
 
     # Priority 1: CLI flag
     if cli_benchmarks:
-        config.benchmarks = [
-            b.strip() for b in cli_benchmarks.split(",") if b.strip()
-        ]
-        logger.info("Benchmarks from CLI: %s", config.benchmarks)
-        return config
+        benchmarks = [b.strip() for b in cli_benchmarks.split(",") if b.strip()]
+        if benchmarks:
+            config.benchmarks = benchmarks
+            logger.info("Benchmarks from CLI: %s", config.benchmarks)
+            return config
+        else:
+            logger.warning("CLI provided empty benchmarks; falling back to next priority.")
 
     # Priority 2: YAML config file
     yaml_benchmarks = _load_from_yaml(Path(BENCHMARKS_YAML))
-    if yaml_benchmarks is not None:
+    if yaml_benchmarks:
         config.benchmarks = yaml_benchmarks
         logger.info("Benchmarks from %s: %s", BENCHMARKS_YAML, config.benchmarks)
         return config

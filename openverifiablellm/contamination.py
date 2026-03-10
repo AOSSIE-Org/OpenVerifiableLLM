@@ -38,7 +38,9 @@ def fetch_benchmarks(config: BenchmarkConfig) -> List[str]:
 
     for benchmark in config.benchmarks:
         path = Path(benchmark)
-        if path.suffix in (".jsonl", ".csv") and path.is_file():
+        if path.suffix in (".jsonl", ".csv"):
+            if not path.is_file():
+                raise FileNotFoundError(f"Local benchmark file not found: {benchmark}")
             texts.extend(_load_local(path))
         else:
             texts.extend(_load_hf(benchmark, config.trust_remote_code))
@@ -246,7 +248,7 @@ def check_contamination(
                 normalised_benchmarks = {_normalise(bt) for bt in benchmark_texts}
 
             for nb in normalised_benchmarks:
-                if ngram in nb:
+                if f" {ngram} " in f" {nb} ":
                     return True
 
     return False
