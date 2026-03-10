@@ -78,6 +78,7 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
 
 # --------------- compute_sha256 ------------------------------------
 
+
 def test_compute_sha256_bytes(tmp_path):
     file = tmp_path / "sample.txt"
     content = b"hello wikipedia"
@@ -247,6 +248,7 @@ def test_merkle_root_empty_file(tmp_path):
     expected = hashlib.sha256(b"").hexdigest()
 
     assert root == expected
+
 
 def test_compute_merkle_root_multi_chunk_hardcoded(tmp_path):
     file = tmp_path / "data.txt"

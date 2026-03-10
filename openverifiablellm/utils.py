@@ -55,7 +55,6 @@ def compute_sha256_bytes(
     return sha256.digest()
 
 
-
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(
     file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
@@ -408,6 +407,7 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
+
 def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
     logger.info("--- Starting Benchmark ---")
 
@@ -455,7 +455,9 @@ def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
 
             proof_time = end_time - start_time
             pmins, psecs = divmod(proof_time, 60)
-            logger.info(f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s")
+            logger.info(
+                f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s"
+            )
             logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
 
         logger.info("--- Benchmark Complete ---")
@@ -465,19 +467,28 @@ def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
         logger.exception("An error occurred during benchmarking")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="OpenVerifiableLLM Preprocessing")
     parser.add_argument("input_dump", help="Path to the Wikipedia XML dump file")
-    parser.add_argument("--BENCHMARK_MODE", type=str, choices=["TRUE", "FALSE"], default="FALSE", help="Run in benchmark mode")
-    parser.add_argument("--chunk_size", type=int, default=MERKLE_CHUNK_SIZE_BYTES, help="Chunk size in bytes for Merkle hashing")
+    parser.add_argument(
+        "--BENCHMARK_MODE",
+        type=str,
+        choices=["TRUE", "FALSE"],
+        default="FALSE",
+        help="Run in benchmark mode",
+    )
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=MERKLE_CHUNK_SIZE_BYTES,
+        help="Chunk size in bytes for Merkle hashing",
+    )
     parser.add_argument("--no-manifest", action="store_true", help="Skip manifest generation")
 
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
     if args.BENCHMARK_MODE == "TRUE":
         run_benchmark(args.input_dump, args.chunk_size)
