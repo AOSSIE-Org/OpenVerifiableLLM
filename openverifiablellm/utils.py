@@ -155,7 +155,7 @@ def verify_merkle_proof(
     return current_hash == expected_root
 
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
@@ -197,13 +197,13 @@ def extract_text_from_xml(input_path):
 
     # load checkpoint if exists
     if checkpoint_file.exists():
-            try:
-              with open(checkpoint_file, "r") as cp:
-                 data = json.load(cp)
-                 start_page = data.get("last_processed_page", 0)
-            except (json.JSONDecodeError, OSError):
-              logger.warning("Checkpoint file corrupted. Restarting from beginning.")
-              start_page = 0
+        try:
+            with open(checkpoint_file, "r") as cp:
+                data = json.load(cp)
+                start_page = data.get("last_processed_page", 0)
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Checkpoint file corrupted. Restarting from beginning.")
+            start_page = 0
 
     with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
@@ -247,8 +247,9 @@ def extract_text_from_xml(input_path):
     # remove checkpoint after successful completion
     if checkpoint_file.exists():
         checkpoint_file.unlink()
-
-    generate_manifest(input_path, output_path)
+        
+    if write_manifest:
+        generate_manifest(input_path, output_path)
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
@@ -432,4 +433,4 @@ if __name__ == "__main__":
     level=logging.INFO,
     format="%(levelname)s - %(message)s"
     )
-    extract_text_from_xml(sys.argv[1])
+    extract_text_from_xml(sys.argv[1], write_manifest=True)
