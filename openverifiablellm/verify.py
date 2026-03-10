@@ -3,7 +3,7 @@ Deterministic Preprocessing Verification Mode
 ==============================================
 
 Re-runs dataset preprocessing from scratch and validates that all
-generated artifacts (SHA256, Merkle roots, manifest fields) match
+generated artifacts (SHA256, Merkle roots, manifest fields, environment hash) match
 the previously recorded manifest exactly.
 
 Usage (CLI):
@@ -29,6 +29,7 @@ import subprocess
 import os
 
 from openverifiablellm import utils
+from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +326,24 @@ def verify_preprocessing(
             actual=python_ver,
         ))
 
+    # checks environment hash
+    if "environment_hash" in manifest:
+        current_env = generate_environment_fingerprint()
+
+        _check_field(
+            report,
+            "environment_hash",
+            expected=manifest.get("environment_hash"),
+            actual=current_env["environment_hash"],
+            detail="Environment fingerprint comparison"
+        )
+    else:
+        report.add(CheckResult(
+            name="environment_hash",
+            status=CheckStatus.SKIP,
+            detail="Field absent from manifest (older version)"
+        ))
+    
     # 4. Re-run preprocessing in an isolated temp directory
     tmp_dir = Path(tempfile.mkdtemp(prefix="ovllm_verify_"))
     try:
