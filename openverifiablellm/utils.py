@@ -176,39 +176,74 @@ def extract_text_from_xml(input_path):
     Creates:
         data/processed/wiki_clean.txt
     """
+
     input_path = Path(input_path)
 
-    # Fixed output path
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / "wiki_clean.txt"
 
-    # Auto-detect file type using magic bytes separation
+    checkpoint_file = project_root / "data" / "checkpoint.json"
+
+    # detect bz2
     with open(input_path, "rb") as test_f:
         is_bz2 = test_f.read(3) == b"BZh"
 
     open_func = bz2.open if is_bz2 else open
 
+    start_page = 0
+
+    # load checkpoint if exists
+    if checkpoint_file.exists():
+        with open(checkpoint_file, "r") as cp:
+            data = json.load(cp)
+            start_page = data.get("last_processed_page", 0)
+
     with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
 
         with open(output_path, "w", encoding="utf-8") as out:
+
             page_index = 0
+
             for _, elem in context:
+
                 if elem.tag.endswith("page"):
+
                     page_index += 1
+
+                    # skip already processed pages
+                    if page_index <= start_page:
+                        elem.clear()
+                        continue
+
                     text_elem = elem.find(".//{*}text")
 
                     if text_elem is not None and text_elem.text:
                         cleaned = clean_wikitext(text_elem.text)
+
                         if cleaned:
                             out.write(cleaned + "\n\n")
 
+                    # save checkpoint every 1000 pages
+                    if page_index % 1000 == 0:
+                        with open(checkpoint_file, "w") as cp:
+                            json.dump(
+                                {"last_processed_page": page_index},
+                                cp
+                            )
+
                     elem.clear()
+
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
+
+    # remove checkpoint after successful completion
+    if checkpoint_file.exists():
+        checkpoint_file.unlink()
+
+    generate_manifest(input_path, output_path)
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
