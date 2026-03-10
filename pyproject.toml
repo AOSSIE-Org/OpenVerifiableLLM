@@ -11,9 +11,16 @@ authors = [
 ]
 requires-python = ">=3.9"
 
-dependencies = [
+dependencies= [
     "defusedxml",
-    "tokenizers==0.15.2"
+    "datasets",
+    "pyyaml",
+    "rbloom"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
 ]
 
 [tool.setuptools.packages.find]

@@ -38,9 +38,11 @@ def compute_merkle_root(
         while chunk := f.read(chunk_size):
             # reuse compute_sha256
             leaf_hex = compute_sha256(data=chunk)
+            leaf_hex = compute_sha256(data=chunk)
             leaves.append(bytes.fromhex(leaf_hex))
 
     if not leaves:
+        return compute_sha256(data=b"")
         return compute_sha256(data=b"")
 
     while len(leaves) > 1:
@@ -50,6 +52,7 @@ def compute_merkle_root(
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
+            parent_hex = compute_sha256(data=combined)
             parent_hex = compute_sha256(data=combined)
             next_level.append(bytes.fromhex(parent_hex))
 
@@ -156,13 +159,22 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
 
 
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path, *, write_manifest: bool = False):
+def extract_text_from_xml(
+    input_path,
+    bloom_filter=None,
+    benchmark_texts=None,
+    n=13,
+    benchmarks_used=None,
+):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
     Each <page> element is parsed, its revision text is extracted,
-    cleaned using `clean_wikitext()`, and appended to a single
+    cleaned using ``clean_wikitext()``, and appended to a single
     output text file.
+    When *bloom_filter* and *benchmark_texts* are supplied, each
+    cleaned chunk is checked for contamination with evaluation
+    benchmarks.  Contaminated chunks are silently skipped.
 
     The processed output is saved to:
         data/processed/wiki_clean.txt
@@ -170,7 +182,15 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     Parameters
     ----------
     input_path : str or Path
-        Path to the Wikipedia XML dump file.
+        Path to the compressed Wikipedia XML (.bz2) dump file.
+    bloom_filter : rbloom.Bloom, optional
+        Pre-built Bloom filter containing benchmark n-grams.
+    benchmark_texts : list[str], optional
+        Original benchmark text strings for exact verification.
+    n : int, optional
+        N-gram size used for contamination checking (default 13).
+    benchmarks_used : list[str], optional
+        Names of benchmark datasets used (written to manifest).
 
     Output
     ------
@@ -179,12 +199,19 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     input_path = Path(input_path)
 
+    # Lazy import to avoid circular dependency at module level
+    if bloom_filter is not None and benchmark_texts is not None:
+        from openverifiablellm.contamination import check_contamination
+    else:
+        check_contamination = None
+
     # Fixed output path
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / "wiki_clean.txt"
+    redacted_chunks = 0
 
     # Auto-detect file type using magic bytes separation
     with open(input_path, "rb") as test_f:
@@ -203,16 +230,39 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                     if text_elem is not None and text_elem.text:
                         cleaned = clean_wikitext(text_elem.text)
                         if cleaned:
+                            if check_contamination is not None:
+                                if check_contamination(
+                                    cleaned,
+                                    bloom_filter,
+                                    benchmark_texts,
+                                    n=n,
+                                ):
+                                    redacted_chunks += 1
+                                    elem.clear()
+                                    continue
+
                             out.write(cleaned + "\n\n")
 
                     elem.clear()
+
+    if redacted_chunks:
+        logger.info(
+            "Contamination detection: redacted %d chunk(s).", redacted_chunks
+        )
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    if write_manifest:
-        generate_manifest(input_path, output_path)
-
-
+    generate_manifest(
+        input_path,
+        output_path,
+        benchmarks_used=benchmarks_used,
+        redacted_chunks=redacted_chunks,
+    )
+    
 # generate data manifest
-def generate_manifest(raw_path, processed_path):
+def generate_manifest(raw_path, processed_path, benchmarks_used=None, redacted_chunks=0):
+    """
+    Generate a dataset manifest JSON file.
+
+    """
     raw_path = Path(raw_path)
     processed_path = Path(processed_path)
 
@@ -224,9 +274,10 @@ def generate_manifest(raw_path, processed_path):
     manifest = {
         "wikipedia_dump": raw_path.name,
         "dump_date": extract_dump_date(raw_path.name),
-        "raw_sha256": compute_sha256(file_path=raw_path),
-        "processed_sha256": compute_sha256(file_path=processed_path),
-        # ---------------- ADDED FIELDS ----------------
+        "raw_sha256": compute_sha256(file_path=str(raw_path)),
+        "processed_sha256": compute_sha256(file_path=str(processed_path)),
+
+        # ---------------- MERKLE FIELDS ----------------
         "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
         "processed_merkle_root": compute_merkle_root(
             processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES
@@ -240,6 +291,12 @@ def generate_manifest(raw_path, processed_path):
     manifest.update(
         {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
     )
+
+    # --- contamination metadata ---
+    if benchmarks_used is not None:
+        manifest["contamination_checks_passed"] = benchmarks_used
+        manifest["redacted_chunks"] = redacted_chunks
+
     project_root = Path.cwd()
     manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
