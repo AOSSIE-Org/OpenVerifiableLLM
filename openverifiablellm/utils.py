@@ -195,8 +195,10 @@ def extract_text_from_xml(input_path):
         context = ET.iterparse(f, events=("end",))
 
         with open(output_path, "w", encoding="utf-8") as out:
+            page_index = 0
             for _, elem in context:
                 if elem.tag.endswith("page"):
+                    page_index += 1
                     text_elem = elem.find(".//{*}text")
 
                     if text_elem is not None and text_elem.text:
