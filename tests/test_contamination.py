@@ -96,7 +96,8 @@ class TestBloomFilter:
     def test_serialisation_roundtrip(self, tmp_path):
         config = self._make_config(tmp_path)
         texts = ["one two three four five six seven"]
-        bloom1 = build_bloom_filter(texts, config)
+        build_bloom_filter(texts, config)
+        assert config.filter_path.exists()
 
         # Loading again should read from disk
         bloom2 = build_bloom_filter(texts, config)
@@ -159,18 +160,26 @@ class TestManifestContamination:
         processed_file = tmp_path / "processed.txt"
         processed_file.write_text("cleaned data")
 
+        metadata = {
+            "enabled": True,
+            "n_gram_size": 13,
+            "benchmarks_used": ["gsm8k", "cais/mmlu"],
+            "redacted_chunks": 7,
+        }
+        
         utils.generate_manifest(
             raw_file,
             processed_file,
-            benchmarks_used=["gsm8k", "cais/mmlu"],
-            redacted_chunks=7,
+            contamination_metadata=metadata,
         )
 
         manifest_file = tmp_path / "data" / "dataset_manifest.json"
         manifest = json.loads(manifest_file.read_text())
 
-        assert manifest["contamination_checks_passed"] == ["gsm8k", "cais/mmlu"]
-        assert manifest["redacted_chunks"] == 7
+        assert "contamination" in manifest
+        assert manifest["contamination"]["benchmarks_used"] == ["gsm8k", "cais/mmlu"]
+        assert manifest["contamination"]["redacted_chunks"] == 7
+        assert manifest["contamination"]["enabled"] is True
 
     def test_manifest_omits_contamination_when_not_used(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
@@ -186,8 +195,8 @@ class TestManifestContamination:
         manifest_file = tmp_path / "data" / "dataset_manifest.json"
         manifest = json.loads(manifest_file.read_text())
 
+        assert "contamination" not in manifest
         assert "contamination_checks_passed" not in manifest
-        assert "redacted_chunks" not in manifest
 
 
 # ------------------------------------------------------------------ #
@@ -195,7 +204,8 @@ class TestManifestContamination:
 # ------------------------------------------------------------------ #
 
 class TestBackwardCompat:
-    def test_extract_text_from_xml_no_contamination(self, tmp_path, monkeypatch):
+    @pytest.fixture
+    def simple_xml(self, tmp_path):
         xml_content = """<?xml version="1.0"?>
         <mediawiki>
           <page>
@@ -205,13 +215,25 @@ class TestBackwardCompat:
           </page>
         </mediawiki>
         """
-        input_file = tmp_path / "simplewiki-20260201-pages.xml.bz2"
+        input_file = tmp_path / "simplewiki.xml.bz2"
         with bz2.open(input_file, "wt", encoding="utf-8") as f:
             f.write(xml_content)
+        return input_file
 
+    def test_extract_text_from_xml_no_contamination(self, simple_xml, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        utils.extract_text_from_xml(input_file)
+        utils.extract_text_from_xml(simple_xml)
 
         processed_file = tmp_path / "data" / "processed" / "wiki_clean.txt"
         assert processed_file.exists()
         assert "Hello World" in processed_file.read_text()
+
+    def test_extract_fails_if_only_bloom_filter_provided(self, simple_xml):
+        from rbloom import Bloom
+        dummy_bloom = Bloom(100, 0.01)
+        with pytest.raises(ValueError, match="Both 'bloom_filter' and 'benchmark_texts' must"):
+            utils.extract_text_from_xml(simple_xml, bloom_filter=dummy_bloom)
+
+    def test_extract_fails_if_only_benchmark_texts_provided(self, simple_xml):
+        with pytest.raises(ValueError, match="Both 'bloom_filter' and 'benchmark_texts' must"):
+            utils.extract_text_from_xml(simple_xml, benchmark_texts=["some text"])

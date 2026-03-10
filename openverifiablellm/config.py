@@ -25,6 +25,7 @@ class BenchmarkConfig:
     bloom_capacity: int = 10_000_000
     bloom_error_rate: float = 0.001
     filter_path: Path = Path("data/filter.bin")
+    trust_remote_code: bool = False
 
 
 def _load_from_yaml(yaml_path: Path) -> Optional[List[str]]:

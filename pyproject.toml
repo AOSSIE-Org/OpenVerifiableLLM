@@ -11,16 +11,20 @@ authors = [
 ]
 requires-python = ">=3.9"
 
-dependencies= [
+dependencies = [
     "defusedxml",
-    "datasets",
-    "pyyaml",
-    "rbloom"
+    "tokenizers==0.15.2",
+    "sentencepiece"
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest"
+]
+contamination = [
+    "datasets",
+    "pyyaml",
+    "rbloom"
 ]
 
 [tool.setuptools.packages.find]

@@ -165,6 +165,7 @@ def extract_text_from_xml(
     benchmark_texts=None,
     n=13,
     benchmarks_used=None,
+    write_manifest=True,
 ):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
@@ -198,6 +199,13 @@ def extract_text_from_xml(
         data/processed/wiki_clean.txt
     """
     input_path = Path(input_path)
+
+    # Validate contamination arguments
+    if (bloom_filter is None) != (benchmark_texts is None):
+        raise ValueError(
+            "Both 'bloom_filter' and 'benchmark_texts' must "
+            "be provided to enable contamination checking."
+        )
 
     # Lazy import to avoid circular dependency at module level
     if bloom_filter is not None and benchmark_texts is not None:
@@ -250,15 +258,25 @@ def extract_text_from_xml(
             "Contamination detection: redacted %d chunk(s).", redacted_chunks
         )
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(
-        input_path,
-        output_path,
-        benchmarks_used=benchmarks_used,
-        redacted_chunks=redacted_chunks,
-    )
+    
+    if write_manifest:
+        contamination_metadata = None
+        if check_contamination is not None:
+            contamination_metadata = {
+                "enabled": True,
+                "n_gram_size": n,
+                "benchmarks_used": benchmarks_used if benchmarks_used is not None else [],
+                "redacted_chunks": redacted_chunks,
+            }
+            
+        generate_manifest(
+            input_path,
+            output_path,
+            contamination_metadata=contamination_metadata,
+        )
     
 # generate data manifest
-def generate_manifest(raw_path, processed_path, benchmarks_used=None, redacted_chunks=0):
+def generate_manifest(raw_path, processed_path, contamination_metadata=None):
     """
     Generate a dataset manifest JSON file.
 
@@ -293,9 +311,8 @@ def generate_manifest(raw_path, processed_path, benchmarks_used=None, redacted_c
     )
 
     # --- contamination metadata ---
-    if benchmarks_used is not None:
-        manifest["contamination_checks_passed"] = benchmarks_used
-        manifest["redacted_chunks"] = redacted_chunks
+    if contamination_metadata is not None:
+        manifest["contamination"] = contamination_metadata
 
     project_root = Path.cwd()
     manifest_path = project_root / "data" / "dataset_manifest.json"

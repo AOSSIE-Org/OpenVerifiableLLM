@@ -41,7 +41,7 @@ def fetch_benchmarks(config: BenchmarkConfig) -> List[str]:
         if path.suffix in (".jsonl", ".csv") and path.is_file():
             texts.extend(_load_local(path))
         else:
-            texts.extend(_load_hf(benchmark))
+            texts.extend(_load_hf(benchmark, config.trust_remote_code))
 
     logger.info(
         "Loaded %d benchmark text(s) from %d source(s).",
@@ -51,7 +51,12 @@ def fetch_benchmarks(config: BenchmarkConfig) -> List[str]:
     return texts
 
 
-def _load_hf(dataset_id: str) -> List[str]:
+class DatasetLoadError(Exception):
+    """Raised when a benchmark dataset cannot be loaded from its source."""
+    pass
+
+
+def _load_hf(dataset_id: str, trust_remote_code: bool = False) -> List[str]:
     """Load benchmark texts from a Hugging Face dataset."""
     try:
         from datasets import load_dataset
@@ -63,10 +68,10 @@ def _load_hf(dataset_id: str) -> List[str]:
 
     texts: List[str] = []
     try:
-        ds = load_dataset(dataset_id, trust_remote_code=True)
+        ds = load_dataset(dataset_id, trust_remote_code=trust_remote_code)
     except Exception as exc:
-        logger.warning("Could not load HF dataset '%s': %s", dataset_id, exc)
-        return texts
+        logger.error("Could not load HF dataset '%s': %s", dataset_id, exc)
+        raise DatasetLoadError(f"Failed to load HF dataset '{dataset_id}'") from exc
 
     splits = ds.values() if hasattr(ds, "values") else [ds]
     for split in splits:
@@ -149,13 +154,37 @@ def build_bloom_filter(
 
     """
     filter_path = Path(config.filter_path)
+    meta_path = filter_path.with_suffix(filter_path.suffix + ".meta")
+
+    hasher = hashlib.sha256()
+    for text in benchmark_texts:
+        hasher.update(text.encode("utf-8"))
+    inputs_hash = hasher.hexdigest()
+
+    current_meta = {
+        "benchmarks": sorted(config.benchmarks),
+        "n": config.n,
+        "bloom_capacity": config.bloom_capacity,
+        "bloom_error_rate": config.bloom_error_rate,
+        "inputs_hash": inputs_hash,
+        "version": 1,
+    }
 
     # --- load from cache if available ---
-    if filter_path.is_file():
-        logger.info("Loading existing Bloom filter from %s", filter_path)
-        raw = filter_path.read_bytes()
-        bloom = Bloom.load_bytes(raw, _bloom_hash)
-        return bloom
+    if filter_path.is_file() and meta_path.is_file():
+        try:
+            with meta_path.open("r", encoding="utf-8") as f:
+                cached_meta = json.load(f)
+            
+            if cached_meta == current_meta:
+                logger.info("Loading existing Bloom filter from %s", filter_path)
+                raw = filter_path.read_bytes()
+                bloom = Bloom.load_bytes(raw, _bloom_hash)
+                return bloom
+            else:
+                logger.info("Bloom filter metadata mismatch; ignoring stale cache.")
+        except Exception as exc:
+            logger.warning("Failed to read Bloom filter metadata: %s", exc)
 
     logger.info(
         "Building Bloom filter (capacity=%s, error_rate=%s, n=%s) …",
@@ -176,7 +205,11 @@ def build_bloom_filter(
 
     filter_path.parent.mkdir(parents=True, exist_ok=True)
     filter_path.write_bytes(bloom.save_bytes())
-    logger.info("Bloom filter saved to %s", filter_path)
+    
+    with meta_path.open("w", encoding="utf-8") as f:
+        json.dump(current_meta, f, indent=2)
+        
+    logger.info("Bloom filter and metadata saved to %s", filter_path)
 
     return bloom
 
