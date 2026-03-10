@@ -1,10 +1,10 @@
+import argparse
 import bz2
 import hashlib
 import json
 import logging
-import platform
-import argparse
 import os
+import platform
 import re
 import sys
 import time
