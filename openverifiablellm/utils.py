@@ -197,13 +197,17 @@ def extract_text_from_xml(input_path):
 
     # load checkpoint if exists
     if checkpoint_file.exists():
-        with open(checkpoint_file, "r") as cp:
-            data = json.load(cp)
-            start_page = data.get("last_processed_page", 0)
+            try:
+              with open(checkpoint_file, "r") as cp:
+                 data = json.load(cp)
+                 start_page = data.get("last_processed_page", 0)
+            except (json.JSONDecodeError, OSError):
+              logger.warning("Checkpoint file corrupted. Restarting from beginning.")
+              start_page = 0
 
     with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
-
+        mode = "a" if start_page > 0 else "w"
         with open(output_path, "w", encoding="utf-8") as out:
 
             page_index = 0
@@ -229,11 +233,13 @@ def extract_text_from_xml(input_path):
 
                     # save checkpoint every 1000 pages
                     if page_index % 1000 == 0:
+                        tmp_checkpoint = checkpoint_file.with_suffix(".tmp")
                         with open(checkpoint_file, "w") as cp:
                             json.dump(
                                 {"last_processed_page": page_index},
                                 cp
                             )
+                        tmp_checkpoint.replace(checkpoint_file)
 
                     elem.clear()
 
