@@ -4,7 +4,6 @@ import sentencepiece as spm
 
 from .base import BaseTokenizer
 
-
 SPM_MODEL_FILE = "spm.model"
 SPM_VOCAB_FILE = "spm.vocab"
 
@@ -49,8 +48,7 @@ class SentencePieceTokenizer(BaseTokenizer):
 
         if not text_file.is_file():
             raise FileNotFoundError(
-                f"Training file not found at {text_file}. "
-                f"Please provide a valid text corpus file."
+                f"Training file not found at {text_file}. Please provide a valid text corpus file."
             )
 
         save_path.mkdir(parents=True, exist_ok=True)
@@ -162,8 +160,7 @@ class SentencePieceTokenizer(BaseTokenizer):
 
         if not model_path.is_file():
             raise FileNotFoundError(
-                f"SentencePiece model not found at {model_path}. "
-                f"Please train the tokenizer first."
+                f"SentencePiece model not found at {model_path}. Please train the tokenizer first."
             )
 
         self._model = spm.SentencePieceProcessor()
@@ -179,6 +176,5 @@ class SentencePieceTokenizer(BaseTokenizer):
 
         if self._model is None:
             raise RuntimeError(
-                "SentencePiece model is not loaded. "
-                "Call train() or load() before encode/decode."
+                "SentencePiece model is not loaded. Call train() or load() before encode/decode."
             )

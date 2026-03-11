@@ -1,12 +1,11 @@
 import pytest
-from pathlib import Path
 
 from openverifiablellm.tokenizer.sentencepiece_tokenizer import SentencePieceTokenizer
-
 
 # ------------------------------------------------------------------
 # Fixtures
 # ------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_text_file(tmp_path):
@@ -36,6 +35,7 @@ def trained_tokenizer(tmp_path, sample_text_file):
 # Training tests
 # ------------------------------------------------------------------
 
+
 def test_spm_train_creates_artifacts(tmp_path, sample_text_file):
     """Training should produce spm.model and spm.vocab."""
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=2)
@@ -64,10 +64,7 @@ def test_spm_train_raises_file_not_found(tmp_path):
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=2)
 
     with pytest.raises(FileNotFoundError, match="Training file not found"):
-        tokenizer.train(
-            tmp_path / "nonexistent.txt",
-            tmp_path / "tokenizer"
-        )
+        tokenizer.train(tmp_path / "nonexistent.txt", tmp_path / "tokenizer")
 
 
 def test_spm_train_raises_if_directory_passed(tmp_path, sample_text_file):
@@ -81,6 +78,7 @@ def test_spm_train_raises_if_directory_passed(tmp_path, sample_text_file):
 # ------------------------------------------------------------------
 # Encode / Decode tests
 # ------------------------------------------------------------------
+
 
 def test_spm_encode_returns_list_of_ints(trained_tokenizer):
     """encode() should return a list of integers."""
@@ -125,6 +123,7 @@ def test_spm_decode_raises_if_not_loaded():
 # Load tests
 # ------------------------------------------------------------------
 
+
 def test_spm_load_from_disk(trained_tokenizer):
     """load() should successfully restore tokenizer from disk."""
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=2)
@@ -156,6 +155,7 @@ def test_spm_load_raises_if_model_missing(tmp_path):
 # Artifact path tests
 # ------------------------------------------------------------------
 
+
 def test_spm_get_vocab_path(tmp_path):
     """get_vocab_path() should return path to spm.vocab."""
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=2)
@@ -176,6 +176,7 @@ def test_spm_get_merges_path_returns_none(tmp_path):
 # Special tokens tests
 # ------------------------------------------------------------------
 
+
 def test_spm_special_tokens_in_vocabulary(trained_tokenizer):
     """Special tokens should be present in trained vocabulary."""
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=2)
@@ -193,6 +194,7 @@ def test_spm_special_tokens_in_vocabulary(trained_tokenizer):
 # ------------------------------------------------------------------
 # Determinism tests
 # ------------------------------------------------------------------
+
 
 def test_spm_training_is_deterministic(tmp_path, sample_text_file):
     """Training twice on same data should produce same vocab."""
