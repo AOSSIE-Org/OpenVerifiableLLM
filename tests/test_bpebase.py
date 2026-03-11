@@ -6,6 +6,7 @@ from openverifiablellm.tokenizer.bpe_tokenizer import BPETokenizer
 # Fixtures
 # ------------------------------------------------------------------
 
+
 @pytest.fixture
 def sample_text_file(tmp_path):
     """Create a sample text file for training."""
@@ -33,6 +34,7 @@ def trained_tokenizer(tmp_path, sample_text_file):
 # ------------------------------------------------------------------
 # Training tests
 # ------------------------------------------------------------------
+
 
 def test_bpe_train_creates_artifacts(tmp_path, sample_text_file):
     """Training should produce vocab.json and merges.txt."""
@@ -62,10 +64,7 @@ def test_bpe_train_raises_file_not_found(tmp_path):
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
 
     with pytest.raises(FileNotFoundError, match="Training file not found"):
-        tokenizer.train(
-            tmp_path / "nonexistent.txt",
-            tmp_path / "tokenizer"
-        )
+        tokenizer.train(tmp_path / "nonexistent.txt", tmp_path / "tokenizer")
 
 
 def test_bpe_train_raises_if_directory_passed(tmp_path, sample_text_file):
@@ -79,6 +78,7 @@ def test_bpe_train_raises_if_directory_passed(tmp_path, sample_text_file):
 # ------------------------------------------------------------------
 # Encode / Decode tests
 # ------------------------------------------------------------------
+
 
 def test_bpe_encode_returns_list_of_ints(trained_tokenizer):
     """encode() should return a list of integers."""
@@ -134,6 +134,7 @@ def test_bpe_decode_raises_if_not_loaded():
 # Load tests
 # ------------------------------------------------------------------
 
+
 def test_bpe_load_from_disk(trained_tokenizer):
     """load() should successfully restore tokenizer from disk."""
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
@@ -176,6 +177,7 @@ def test_bpe_load_raises_if_merges_missing(tmp_path):
 # Artifact path tests
 # ------------------------------------------------------------------
 
+
 def test_bpe_get_vocab_path(tmp_path):
     """get_vocab_path() should return path to vocab.json."""
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
@@ -196,6 +198,7 @@ def test_bpe_get_merges_path(tmp_path):
 # Special tokens tests
 # ------------------------------------------------------------------
 
+
 def test_bpe_special_tokens_in_vocabulary(trained_tokenizer):
     """Special tokens should be present in trained vocabulary."""
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
@@ -214,6 +217,7 @@ def test_bpe_special_tokens_in_vocabulary(trained_tokenizer):
 # ------------------------------------------------------------------
 # Determinism tests
 # ------------------------------------------------------------------
+
 
 def test_bpe_training_is_deterministic(tmp_path, sample_text_file):
     """Training twice on same data should produce same vocab."""
@@ -235,6 +239,7 @@ def test_bpe_training_is_deterministic(tmp_path, sample_text_file):
 # ------------------------------------------------------------------
 # Constructor validation tests
 # ------------------------------------------------------------------
+
 
 def test_bpe_raises_if_vocab_size_zero():
     """BPETokenizer should raise ValueError if vocab_size <= 0."""

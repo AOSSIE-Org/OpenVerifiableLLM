@@ -41,8 +41,7 @@ class BPETokenizer(BaseTokenizer):
 
         if not text_file.is_file():
             raise FileNotFoundError(
-                f"Training file not found at {text_file}. "
-                f"Please provide a valid text corpus file."
+                f"Training file not found at {text_file}. Please provide a valid text corpus file."
             )
 
         save_path.mkdir(parents=True, exist_ok=True)
@@ -120,14 +119,12 @@ class BPETokenizer(BaseTokenizer):
 
         if not vocab_path.is_file():
             raise FileNotFoundError(
-                f"vocab.json not found at {vocab_path}. "
-                f"Please train the tokenizer first."
+                f"vocab.json not found at {vocab_path}. Please train the tokenizer first."
             )
 
         if not merges_path.is_file():
             raise FileNotFoundError(
-                f"merges.txt not found at {merges_path}. "
-                f"Please train the tokenizer first."
+                f"merges.txt not found at {merges_path}. Please train the tokenizer first."
             )
 
         self._tokenizer = ByteLevelBPETokenizer(
@@ -161,6 +158,5 @@ class BPETokenizer(BaseTokenizer):
 
         if self._tokenizer is None:
             raise RuntimeError(
-                "BPE tokenizer is not loaded. "
-                "Call train() or load() before encode/decode."
+                "BPE tokenizer is not loaded. Call train() or load() before encode/decode."
             )
