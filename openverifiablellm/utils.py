@@ -234,7 +234,8 @@ def extract_text_from_xml(input_path):
         temp_output_path.replace(output_path)
 
     # manifest generation must succeed before we declare the pipeline complete
-    generate_manifest(input_path, output_path)
+    if write_manifest:
+        generate_manifest(input_path, output_path)
     logger.info("Preprocessing complete. Output saved to %s", output_path)
 
 # generate data manifest
