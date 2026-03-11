@@ -203,15 +203,19 @@ def test_extract_text_from_xml_midstream_failure(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    # monkeypatch iterparse to raise after first yield
+    # monkeypatch iterparse to raise once a complete <page> element has
+    # been processed.  this simulates a failure that occurs after at least one
+    # page worth of text has been written to the temporary file.
     import xml.etree.ElementTree as _ET
     original_iter = _ET.iterparse
 
     def failing_iterparse(f, events):
-        # yield one normal event then error
-        for ev in original_iter(f, events):
-            yield ev
-            raise _ET.ParseError("simulated midstream failure")
+        for event, elem in original_iter(f, events):
+            yield event, elem
+            # once we've seen the end of a <page>, trigger an error on the
+            # following iteration to emulate a midstream parse failure
+            if event == "end" and elem.tag.endswith("page"):
+                raise _ET.ParseError("simulated midstream failure")
 
     monkeypatch.setattr(utils.ET, "iterparse", failing_iterparse)
 
