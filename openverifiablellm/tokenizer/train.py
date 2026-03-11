@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Union
 
 from openverifiablellm.utils import compute_sha256
+
 from .factory import create_tokenizer
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,7 @@ def train_tokenizer(
     save_path = Path(save_path)
 
     if not text_file.is_file():
-        raise FileNotFoundError(
-            f"Text file not found at {text_file}. Run preprocessing first."
-        )
+        raise FileNotFoundError(f"Text file not found at {text_file}. Run preprocessing first.")
 
     save_path.mkdir(parents=True, exist_ok=True)
 
