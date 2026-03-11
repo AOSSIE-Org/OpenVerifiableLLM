@@ -212,14 +212,15 @@ def extract_text_from_xml(input_path):
     except ET.ParseError as e:
         # provide context about which file failed to parse
         msg = f"Failed to parse XML dump '{input_path}': {e}"
-        logger.error(msg)
+        # log full traceback for diagnostics
+        logger.exception(msg)
         # remove any temporary output that may have been written
         try:
             if temp_output_path.exists():
                 temp_output_path.unlink()
-        except Exception:
-            # best-effort cleanup; do not mask original error
-            pass
+        except OSError as oe:
+            # warn on cleanup failure but don’t mask original parser error
+            logger.warning("Failed to remove temp file %s: %s", temp_output_path, oe)
         # re-raise a new ParseError containing context while preserving
         # parser-specific attributes such as position/code so that
         # downstream handlers can inspect line/column info.
@@ -232,8 +233,9 @@ def extract_text_from_xml(input_path):
         # parsing succeeded, move temp file into place
         temp_output_path.replace(output_path)
 
-    logger.info("Preprocessing complete. Output saved to %s", output_path)
+    # manifest generation must succeed before we declare the pipeline complete
     generate_manifest(input_path, output_path)
+    logger.info("Preprocessing complete. Output saved to %s", output_path)
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
