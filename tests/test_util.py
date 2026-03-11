@@ -3,6 +3,7 @@ import hashlib
 import pytest
 from openverifiablellm import utils
 import json
+import defusedxml.ElementTree as ET
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -148,7 +149,10 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
     utils.extract_text_from_xml(input_file)
 
     processed_file = tmp_path / "data/processed/wiki_clean.txt"
+    tmp_file = processed_file.with_suffix(".txt.tmp")
+
     assert processed_file.exists()
+    assert not tmp_file.exists(), "temporary file should be removed after success"
 
     assert "Hello Uncompressed" in processed_file.read_text()
 
@@ -166,12 +170,63 @@ def test_extract_text_from_xml_malformed(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    # ensure the parse error bubbles up
+    # ensure a ParseError is raised and no output file remains
+    processed_file = tmp_path / "data/processed/wiki_clean.txt"
+    tmp_file = processed_file.with_suffix(".txt.tmp")
+
+    with pytest.raises(ET.ParseError) as excinfo:
+        utils.extract_text_from_xml(input_file)
+
+    msg = str(excinfo.value)
+    # the contextual prefix and input file path should be preserved
+    assert "Failed to parse XML" in msg
+    assert str(input_file) in msg
+    # no file should exist at either path
+    assert not processed_file.exists()
+    assert not tmp_file.exists()
+
+
+def test_extract_text_from_xml_midstream_failure(tmp_path, monkeypatch):
+    # simulate a parse error raised after some data has been written
+    xml_content = """<?xml version="1.0"?>
+    <mediawiki>
+      <page>
+        <revision>
+          <text>Goodbye [[Midstream]]</text>
+        </revision>
+      </page>
+    </mediawiki>
+    """
+
+    input_file = tmp_path / "simple.xml"
+    input_file.write_text(xml_content, encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    # monkeypatch iterparse to raise after first yield
+    import xml.etree.ElementTree as _ET
+    original_iter = _ET.iterparse
+
+    def failing_iterparse(f, events):
+        # yield one normal event then error
+        for ev in original_iter(f, events):
+            yield ev
+            raise _ET.ParseError("simulated midstream failure")
+
+    monkeypatch.setattr(utils.ET, "iterparse", failing_iterparse)
+
+    processed_file = tmp_path / "data/processed/wiki_clean.txt"
+    tmp_file = processed_file.with_suffix(".txt.tmp")
+
     with pytest.raises(Exception) as excinfo:
         utils.extract_text_from_xml(input_file)
 
-    # elementtree ParseError is expected
-    assert "Failed to parse XML" in str(excinfo.value) or "ParseError" in str(excinfo.value)
+    # artificial errors may not carry position/code attributes,
+    # but the handler should not crash when attempting to copy them.
+    # no strict assertion required here
+    assert not processed_file.exists()
+    assert not tmp_file.exists()
+
 
 # --------------- manifest includes merkle fields ------------------------------------
 
