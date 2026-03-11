@@ -1,4 +1,4 @@
-from .train import train_tokenizer, hash_tokenizer_config
+from .train import hash_tokenizer_config, train_tokenizer
 
 __all__ = [
     "train_tokenizer",

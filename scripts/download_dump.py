@@ -46,17 +46,18 @@ DEFAULT_OUTPUT_DIR = Path(".")
 
 # Helpers
 
+
 def _build_urls(wiki: str, date: str) -> tuple[str, str]:
     """
     Return (dump_url, checksum_url) for the given wiki and date.
 
     When date is 'latest', Wikimedia redirects to the most recent snapshot.
     """
-    dump_filename     = DUMP_FILENAME_TEMPLATE.format(wiki=wiki, date=date)
+    dump_filename = DUMP_FILENAME_TEMPLATE.format(wiki=wiki, date=date)
     checksum_filename = CHECKSUM_FILENAME_TEMPLATE.format(wiki=wiki, date=date)
 
-    base      = f"{WIKIMEDIA_BASE}/{wiki}/{date}"
-    dump_url  = f"{base}/{dump_filename}"
+    base = f"{WIKIMEDIA_BASE}/{wiki}/{date}"
+    dump_url = f"{base}/{dump_filename}"
     check_url = f"{base}/{checksum_filename}"
 
     return dump_url, check_url
@@ -76,11 +77,12 @@ def _download_file(url: str, dest: Path) -> None:
         if total_size > 0:
             downloaded = block_count * block_size
             pct = min(downloaded / total_size * 100, 100)
-            mb_done  = downloaded / 1_048_576
+            mb_done = downloaded / 1_048_576
             mb_total = total_size / 1_048_576
             print(
                 f"\r  {pct:5.1f}%  {mb_done:.1f} / {mb_total:.1f} MB",
-                end="", flush=True,
+                end="",
+                flush=True,
             )
 
     try:
@@ -147,15 +149,15 @@ def _verify_checksum(dest: Path, checksum_url: str) -> bool:
         return True
 
     logger.error(
-        "Checksum MISMATCH — file may be corrupt.\n"
-        "  expected : %s\n"
-        "  actual   : %s",
-        expected, actual,
+        "Checksum MISMATCH — file may be corrupt.\n  expected : %s\n  actual   : %s",
+        expected,
+        actual,
     )
     return False
 
 
 # Public API
+
 
 def download_dump(
     wiki: str = DEFAULT_WIKI,
@@ -213,14 +215,14 @@ def download_dump(
         if not ok:
             dest.unlink(missing_ok=True)
             raise RuntimeError(
-                "Downloaded file failed MD5 verification. "
-                "The file has been removed. Please retry."
+                "Downloaded file failed MD5 verification. The file has been removed. Please retry."
             )
 
     return dest
 
 
 # CLI
+
 
 def main(argv=None) -> None:
     logging.basicConfig(
@@ -264,8 +266,8 @@ def main(argv=None) -> None:
             verify=not args.no_verify,
         )
         print(f"\nDump ready at: {dest}")
-        print(f"\nNext step — run preprocessing:")
-        print(f"  python -m openverifiablellm.utils \"{dest}\"")
+        print("\nNext step — run preprocessing from the repository root:")
+        print(f'  python -m openverifiablellm.utils "{dest}"')
 
     except RuntimeError as exc:
         logger.error("%s", exc)

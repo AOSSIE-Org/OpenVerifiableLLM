@@ -1,8 +1,8 @@
 from pathlib import Path
+
 from tokenizers import ByteLevelBPETokenizer
 
 from .base import BaseTokenizer
-
 
 SPECIAL_TOKENS = ["<s>", "</s>", "<unk>", "<pad>", "<mask>"]
 
@@ -55,9 +55,6 @@ class BPETokenizer(BaseTokenizer):
             min_frequency=self.min_frequency,
             special_tokens=SPECIAL_TOKENS,
         )
-
-        # Must create directory BEFORE save_model() is called
-        save_path.mkdir(parents=True, exist_ok=True)
 
         tokenizer.save_model(str(save_path))
 
