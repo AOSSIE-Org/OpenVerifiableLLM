@@ -2,7 +2,6 @@ import pytest
 
 from openverifiablellm.tokenizer.bpe_tokenizer import BPETokenizer
 
-
 # ------------------------------------------------------------------
 # Fixtures
 # ------------------------------------------------------------------
