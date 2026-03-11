@@ -1,7 +1,8 @@
 import argparse
-import logging
 import json
+import logging
 from pathlib import Path
+
 from openverifiablellm.utils import extract_text_from_xml
 
 logger = logging.getLogger(__name__)
