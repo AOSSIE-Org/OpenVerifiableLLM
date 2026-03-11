@@ -9,12 +9,12 @@ Run with:
 """
 
 import json
-from pathlib import Path
+
 from openverifiablellm.environment import compute_object_hash, generate_environment_fingerprint
 from openverifiablellm.utils import generate_manifest
 
-
 # --------------- compute_object_hash tests ------------------------------------
+
 
 def test_hash_deterministic():
     """Same object must always produce the same hash."""
@@ -40,6 +40,7 @@ def test_hash_changes_on_modification():
 
 # --------------- generate_environment_fingerprint tests ------------------------------------
 
+
 def test_fingerprint_returns_hash_and_environment():
     """Fingerprint must return both environment_hash and environment keys."""
     result = generate_environment_fingerprint()
@@ -60,7 +61,14 @@ def test_fingerprint_contains_required_fields():
     """Environment block must contain all expected fields."""
     result = generate_environment_fingerprint()
     env = result["environment"]
-    for field in ["python_version", "platform", "pytorch_version", "cuda_version", "gpu_name", "pip_packages"]:
+    for field in [
+        "python_version",
+        "platform",
+        "pytorch_version",
+        "cuda_version",
+        "gpu_name",
+        "pip_packages",
+    ]:
         assert field in env, f"Missing field: {field}"
 
 
@@ -125,6 +133,7 @@ def test_fingerprint_summary_print(capsys):
 
 # --------------- manifest integration tests ------------------------------------
 
+
 def test_manifest_includes_environment(tmp_path, monkeypatch):
     """Test that generate_manifest includes environment fingerprint.
 
@@ -157,7 +166,7 @@ def test_manifest_includes_environment(tmp_path, monkeypatch):
 
     env_hash = manifest["environment_hash"]
     assert len(env_hash) == 64, "Environment hash should be 64 characters"
-    assert all(c in '0123456789abcdef' for c in env_hash), "Hash should be hex"
+    assert all(c in "0123456789abcdef" for c in env_hash), "Hash should be hex"
 
     print("✅ Integration test passed!")
     print(f"✅ Environment hash: {env_hash[:16]}...")
