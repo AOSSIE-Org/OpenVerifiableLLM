@@ -189,11 +189,16 @@ def extract_text_from_xml(input_path):
 
     open_func = bz2.open if is_bz2 else open
 
+    # write to temporary file first to avoid leaving a corrupted
+    # output if parsing fails partway through.  Only replace the
+    # final destination once parsing completes successfully.
+    temp_output_path = output_path.with_suffix(".txt.tmp")
+
     try:
         with open_func(input_path, "rb") as f:
             context = ET.iterparse(f, events=("end",))
 
-            with open(output_path, "w", encoding="utf-8") as out:
+            with open(temp_output_path, "w", encoding="utf-8") as out:
                 for _, elem in context:
                     if elem.tag.endswith("page"):
                         text_elem = elem.find(".//{*}text")
@@ -208,11 +213,21 @@ def extract_text_from_xml(input_path):
         # provide context about which file failed to parse
         msg = f"Failed to parse XML dump '{input_path}': {e}"
         logger.error(msg)
+        # remove any temporary output that may have been written
+        try:
+            if temp_output_path.exists():
+                temp_output_path.unlink()
+        except Exception:
+            # best-effort cleanup; do not mask original error
+            pass
         # re-raise a new ParseError containing context
         raise ET.ParseError(msg) from e
+    else:
+        # parsing succeeded, move temp file into place
+        temp_output_path.replace(output_path)
 
     logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
+    generate_manifest(input_path, output_path)
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
