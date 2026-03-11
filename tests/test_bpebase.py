@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 
 from openverifiablellm.tokenizer.bpe_tokenizer import BPETokenizer
 
