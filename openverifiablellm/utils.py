@@ -430,7 +430,4 @@ if __name__ == "__main__":
         sys.argv[1],
         write_manifest="--no-manifest" not in sys.argv[2:],
     )
-<<<<<<< HEAD
-    extract_text_from_xml(sys.argv[1], write_manifest=True)
-=======
->>>>>>> upstream/main
+
