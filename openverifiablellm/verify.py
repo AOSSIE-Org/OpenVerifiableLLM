@@ -6,8 +6,10 @@ Re-runs dataset preprocessing from scratch and validates that all
 generated artifacts (SHA256, Merkle roots, manifest fields, environment hash) match
 the previously recorded manifest exactly.
 
+Now includes cryptographic chain verification of manifests.
+
 Usage (CLI):
-    python -m openverifiablellm.verify <input_dump> [--manifest <path>]
+    python -m openverifiablellm.verify <input_dump> [--manifest <path>] [--previous-manifest <path>]
 
 Usage (Python):
     from openverifiablellm.verify import verify_preprocessing
@@ -29,6 +31,10 @@ from pathlib import Path
 from typing import Optional, Union
 
 from openverifiablellm import utils
+from openverifiablellm.manifest_chain import (
+    verify_manifest_chain_link,
+    verify_manifest_chain,
+)
 from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
@@ -67,6 +73,7 @@ class VerificationReport:
 
     input_dump: str
     manifest_path: str
+    previous_manifest_path: Optional[str] = None
     checks: list[CheckResult] = field(default_factory=list)
 
     def add(self, check: CheckResult) -> None:
@@ -113,6 +120,8 @@ class VerificationReport:
         # Metadata section
         lines.append(f"│ Input Dump : {self.input_dump:<88}│")
         lines.append(f"│ Manifest   : {self.manifest_path:<88}│")
+        if self.previous_manifest_path:
+            lines.append(f"│ Previous   : {self.previous_manifest_path:<88}│")
         lines.append("├" + line("─") + "┤")
 
         # Summary counts
@@ -143,6 +152,7 @@ class VerificationReport:
         return {
             "input_dump": self.input_dump,
             "manifest_path": self.manifest_path,
+            "previous_manifest_path": self.previous_manifest_path,
             "all_passed": self.all_passed,
             "counts": {
                 "total": len(self.checks),
@@ -195,6 +205,7 @@ def _load_manifest(manifest_path: Path) -> dict:
 def verify_preprocessing(
     input_dump: Union[str, Path],
     manifest_path: Optional[Union[str, Path]] = None,
+    previous_manifest_path: Optional[Union[str, Path]] = None,
     *,
     project_root: Optional[Path] = None,
 ) -> VerificationReport:
@@ -209,6 +220,9 @@ def verify_preprocessing(
     manifest_path :
         Explicit path to ``dataset_manifest.json``.
         Defaults to ``<project_root>/data/dataset_manifest.json``.
+    previous_manifest_path :
+        Optional path to the previous manifest for chain verification.
+        If provided, verifies that current manifest correctly references it.
     project_root :
         Root used to locate the default manifest.
         Defaults to ``Path.cwd()``.
@@ -226,9 +240,13 @@ def verify_preprocessing(
     else:
         manifest_path = Path(manifest_path)
 
+    if previous_manifest_path is not None:
+        previous_manifest_path = Path(previous_manifest_path).resolve()
+
     report = VerificationReport(
         input_dump=str(input_dump),
         manifest_path=str(manifest_path),
+        previous_manifest_path=str(previous_manifest_path) if previous_manifest_path else None,
     )
 
     # 1. Load existing manifest
@@ -260,6 +278,49 @@ def verify_preprocessing(
             detail=str(manifest_path),
         )
     )
+
+    # ===== Verify manifest chain if previous manifest is provided =====
+    if previous_manifest_path is not None:
+        if not previous_manifest_path.exists():
+            report.add(CheckResult(
+                name="manifest_chain_link",
+                status=CheckStatus.FAIL,
+                detail=f"Previous manifest not found: {previous_manifest_path}",
+            ))
+        else:
+            try:
+                chain_valid = verify_manifest_chain_link(previous_manifest_path, manifest)
+                status = CheckStatus.PASS if chain_valid else CheckStatus.FAIL
+                report.add(CheckResult(
+                    name="manifest_chain_link",
+                    status=status,
+                    expected=previous_manifest_path.name,
+                    actual="✓ linked" if chain_valid else "✗ broken",
+                    detail="Verifies parent_manifest_hash matches previous manifest hash",
+                ))
+            except (OSError, ValueError) as exc:
+                report.add(CheckResult(
+                    name="manifest_chain_link",
+                    status=CheckStatus.FAIL,
+                    detail=f"Chain verification error: {exc}",
+                ))
+    else:
+        # Check if manifest has chain awareness (parent_manifest_hash field)
+        chain_report = verify_manifest_chain(manifest_path)
+        if "parent_manifest_hash" in manifest:
+            status = CheckStatus.PASS if chain_report["chain_valid"] else CheckStatus.SKIP
+            report.add(CheckResult(
+                name="manifest_chain_awareness",
+                status=status,
+                detail=chain_report["chain_message"],
+            ))
+        else:
+            report.add(CheckResult(
+                name="manifest_chain_awareness",
+                status=CheckStatus.SKIP,
+                detail="Manifest predates chain feature (no parent_manifest_hash field)",
+            ))
+    # ========================================================================
 
     # 2. Validate raw file integrity BEFORE re-processing
     if not input_dump.exists():
@@ -562,6 +623,11 @@ def main(argv=None):
         help="Path to dataset_manifest.json (default: data/dataset_manifest.json)",
     )
     parser.add_argument(
+        "--previous-manifest",
+        default=None,
+        help="Path to previous manifest for chain verification",
+    )
+    parser.add_argument(
         "--json",
         dest="output_json",
         default=None,
@@ -572,6 +638,7 @@ def main(argv=None):
     report = verify_preprocessing(
         input_dump=args.input_dump,
         manifest_path=args.manifest,
+        previous_manifest_path=args.previous_manifest,
     )
 
     print(report.summary())
