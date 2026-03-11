@@ -179,6 +179,26 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
     assert "Hello Uncompressed" in processed_file.read_text()
 
 
+def test_extract_text_from_xml_malformed(tmp_path, monkeypatch):
+    # create a file missing closing tags
+    xml_content = """<?xml version=\"1.0\"?>
+    <mediawiki>
+      <page>
+        <title>Broken XML
+    """
+
+    input_file = tmp_path / "malformed.xml"
+    input_file.write_text(xml_content, encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    # ensure the parse error bubbles up
+    with pytest.raises(Exception) as excinfo:
+        utils.extract_text_from_xml(input_file)
+
+    # elementtree ParseError is expected
+    assert "Failed to parse XML" in str(excinfo.value) or "ParseError" in str(excinfo.value)
+
 # --------------- manifest includes merkle fields ------------------------------------
 
 
