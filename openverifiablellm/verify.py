@@ -285,15 +285,6 @@ def verify_preprocessing(
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
         )
-        # manifest_chunk_size_bytes will be validated later if the
-        # manifest is regenerated during the reprocessing step.  At this
-        # point we simply record the value from the manifest so that it
-        # appears in the report (pass-by-default).
-        report.add(CheckResult(
-            name="manifest_chunk_size_bytes",
-            status=CheckStatus.PASS,
-            detail=str(manifest.get("chunk_size_bytes")),
-        ))
     else:
         report.add(CheckResult(
             name="raw_merkle_root",
@@ -419,6 +410,22 @@ def verify_preprocessing(
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
             )
+            # verify that the chunk size recorded in the manifest matches
+            # the regenerated one; discrepancies indicate divergent
+            # preprocessing settings
+            if "chunk_size_bytes" in manifest:
+                _check_field(
+                    report, "manifest_chunk_size_bytes",
+                    expected=manifest.get("chunk_size_bytes"),
+                    actual=reproduced_manifest.get("chunk_size_bytes"),
+                    detail="Merkle chunk size used during preprocessing",
+                )
+            else:
+                report.add(CheckResult(
+                    name="manifest_chunk_size_bytes",
+                    status=CheckStatus.SKIP,
+                    detail="Original manifest missing chunk_size_bytes",
+                ))
         else:
             report.add(CheckResult(
                 name="manifest_regenerated",
