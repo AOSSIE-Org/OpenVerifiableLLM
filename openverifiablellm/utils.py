@@ -220,8 +220,14 @@ def extract_text_from_xml(input_path):
         except Exception:
             # best-effort cleanup; do not mask original error
             pass
-        # re-raise a new ParseError containing context
-        raise ET.ParseError(msg) from e
+        # re-raise a new ParseError containing context while preserving
+        # parser-specific attributes such as position/code so that
+        # downstream handlers can inspect line/column info.
+        wrapped = ET.ParseError(msg)
+        for attr in ("position", "code"):
+            if hasattr(e, attr):
+                setattr(wrapped, attr, getattr(e, attr))
+        raise wrapped from e
     else:
         # parsing succeeded, move temp file into place
         temp_output_path.replace(output_path)
