@@ -199,6 +199,7 @@ def test_extract_text_from_xml_malformed(tmp_path, monkeypatch):
     # elementtree ParseError is expected
     assert "Failed to parse XML" in str(excinfo.value) or "ParseError" in str(excinfo.value)
 
+
 # --------------- manifest includes merkle fields ------------------------------------
 
 
