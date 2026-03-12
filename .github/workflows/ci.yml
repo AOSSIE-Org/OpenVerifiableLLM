@@ -32,38 +32,36 @@ jobs:
 
       - name: Run Ruff Check
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin main
-            git diff --diff-filter=ACMR --name-only -z origin/main...HEAD -- '*.py' \
-              | xargs -0 -r uv run ruff check \
-                --exclude ovllm-env \
-                --exclude .venv \
-                --exclude venv \
-                --exclude site-packages \
-                --
+            FILES=$(git diff --diff-filter=ACMR --name-only origin/main...HEAD -- '*.py')
+
+            if [ -z "$FILES" ]; then
+              echo "No Python files changed."
+            else
+              echo "Running Ruff on changed files:"
+              echo "$FILES"
+              uv run ruff check $FILES
+            fi
           else
-            uv run ruff check . \
-              --exclude ovllm-env \
-              --exclude .venv \
-              --exclude venv \
-              --exclude site-packages
+            echo "Running Ruff on full repository"
+            uv run ruff check .
           fi
 
       - name: Run Ruff Format
         run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
             git fetch origin main
-            git diff --diff-filter=ACMR --name-only -z origin/main...HEAD -- '*.py' \
-              | xargs -0 -r uv run ruff format --check \
-                --exclude ovllm-env \
-                --exclude .venv \
-                --exclude venv \
-                --exclude site-packages \
-                --
+            FILES=$(git diff --diff-filter=ACMR --name-only origin/main...HEAD -- '*.py')
+
+            if [ -z "$FILES" ]; then
+              echo "No Python files changed."
+            else
+              echo "Checking formatting on changed files:"
+              echo "$FILES"
+              uv run ruff format --check $FILES
+            fi
           else
-            uv run ruff format --check . \
-              --exclude ovllm-env \
-              --exclude .venv \
-              --exclude venv \
-              --exclude site-packages
+            echo "Checking formatting for full repository"
+            uv run ruff format --check .
           fi
