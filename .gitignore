@@ -198,6 +198,16 @@ _minted*
 # nomencl
 *.nlg
 *.nlo
+
+# Virtual environments
+.venv/
+venv/
+env/
+ovllm-env/
+
+# Local test files
+bad.xml
+
 *.nls
 
 # pax
