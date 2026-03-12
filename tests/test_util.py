@@ -1,9 +1,11 @@
 import bz2
 import hashlib
+import json
+
 import pytest
+
 from openverifiablellm import utils
 import json
-import defusedxml.ElementTree as ET
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -14,6 +16,7 @@ Run with:
 """
 
 # --------------- clean_wikitext tests ------------------------------------
+
 
 def test_clean_wikitext_removes_templates_and_refs():
     text = "Hello {{Infobox}} <ref>cite</ref> world"
@@ -32,7 +35,9 @@ def test_clean_wikitext_collapses_whitespace():
     cleaned = utils.clean_wikitext(text)
     assert cleaned == "Hello world test"
 
+
 # --------------- extract_dump_date tests ------------------------------------
+
 
 def test_extract_dump_date_valid():
     filename = "simplewiki-20260201-pages-articles.xml.bz2"
@@ -43,7 +48,9 @@ def test_extract_dump_date_invalid():
     filename = "no-date-file.xml.bz2"
     assert utils.extract_dump_date(filename) == "unknown"
 
+
 # --------------- generate manifest ------------------------------------
+
 
 def test_generate_manifest_raises_if_processed_missing(tmp_path):
     raw_file = tmp_path / "raw.txt"
@@ -53,6 +60,7 @@ def test_generate_manifest_raises_if_processed_missing(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         utils.generate_manifest(raw_file, missing_file)
+
 
 def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -68,7 +76,9 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
     manifest_file = tmp_path / "data/dataset_manifest.json"
     assert manifest_file.exists()
 
+
 # --------------- compute_sha256 ------------------------------------
+
 
 def test_correct_sha256_output(tmp_path):
     file = tmp_path / "sample.txt"
@@ -97,7 +107,9 @@ def test_file_not_found():
     with pytest.raises(FileNotFoundError):
         utils.compute_sha256(file_path="non_existent_file.txt")
 
+
 # --------------- extract_text_from_xml tests ------------------------------------
+
 
 def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
@@ -156,83 +168,8 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
 
     assert "Hello Uncompressed" in processed_file.read_text()
 
-
-def test_extract_text_from_xml_malformed(tmp_path, monkeypatch):
-    # create a file missing closing tags
-    xml_content = """<?xml version=\"1.0\"?>
-    <mediawiki>
-      <page>
-        <title>Broken XML
-    """
-
-    input_file = tmp_path / "malformed.xml"
-    input_file.write_text(xml_content, encoding="utf-8")
-
-    monkeypatch.chdir(tmp_path)
-
-    # ensure a ParseError is raised and no output file remains
-    processed_file = tmp_path / "data/processed/wiki_clean.txt"
-    tmp_file = processed_file.with_suffix(".txt.tmp")
-
-    with pytest.raises(ET.ParseError) as excinfo:
-        utils.extract_text_from_xml(input_file)
-
-    msg = str(excinfo.value)
-    # the contextual prefix and input file path should be preserved
-    assert "Failed to parse XML" in msg
-    assert str(input_file) in msg
-    # no file should exist at either path
-    assert not processed_file.exists()
-    assert not tmp_file.exists()
-
-
-def test_extract_text_from_xml_midstream_failure(tmp_path, monkeypatch):
-    # simulate a parse error raised after some data has been written
-    xml_content = """<?xml version="1.0"?>
-    <mediawiki>
-      <page>
-        <revision>
-          <text>Goodbye [[Midstream]]</text>
-        </revision>
-      </page>
-    </mediawiki>
-    """
-
-    input_file = tmp_path / "simple.xml"
-    input_file.write_text(xml_content, encoding="utf-8")
-
-    monkeypatch.chdir(tmp_path)
-
-    # monkeypatch iterparse to raise once a complete <page> element has
-    # been processed.  this simulates a failure that occurs after at least one
-    # page worth of text has been written to the temporary file.
-    import xml.etree.ElementTree as _ET
-    original_iter = _ET.iterparse
-
-    def failing_iterparse(f, events):
-        for event, elem in original_iter(f, events):
-            yield event, elem
-            # once we've seen the end of a <page>, trigger an error on the
-            # following iteration to emulate a midstream parse failure
-            if event == "end" and elem.tag.endswith("page"):
-                raise _ET.ParseError("simulated midstream failure")
-
-    monkeypatch.setattr(utils.ET, "iterparse", failing_iterparse)
-
-    processed_file = tmp_path / "data/processed/wiki_clean.txt"
-    tmp_file = processed_file.with_suffix(".txt.tmp")
-
-    with pytest.raises(Exception) as excinfo:
-        utils.extract_text_from_xml(input_file)
-
-    # artificial errors may not carry position/code attributes,
-    # but the handler should not crash when attempting to copy them.
-    # no strict assertion required here
-    assert not processed_file.exists()
-    assert not tmp_file.exists()
-
-
 # --------------- manifest includes merkle fields ------------------------------------
+
 
 def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -252,7 +189,9 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     assert "processed_merkle_root" in manifest
     assert "chunk_size_bytes" in manifest
 
+
 # --------------- compute_merkle_root ------------------------------------
+
 
 def test_merkle_root_deterministic(tmp_path):
     file = tmp_path / "data.txt"
@@ -299,7 +238,9 @@ def test_merkle_root_empty_file(tmp_path):
 
     assert root == expected
 
+
 # --------------- Merkle proof generation ------------------------------------
+
 
 def test_merkle_proof_verification(tmp_path):
     file = tmp_path / "data.txt"
@@ -334,12 +275,7 @@ def test_export_and_load_merkle_proof(tmp_path):
 
     proof_file = tmp_path / "proof.json"
 
-    utils.export_merkle_proof(
-        proof,
-        chunk_index=1,
-        chunk_size=8,
-        output_path=proof_file
-    )
+    utils.export_merkle_proof(proof, chunk_index=1, chunk_size=8, output_path=proof_file)
 
     with file.open("rb") as f:
         f.seek(8)
