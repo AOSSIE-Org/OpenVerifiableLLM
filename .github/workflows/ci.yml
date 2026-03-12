@@ -9,7 +9,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -22,9 +22,10 @@ jobs:
           version: "0.10.8"
           enable-cache: true
 
-
       - name: Set up Python
-        run: uv python install 3.10 && uv venv --python 3.10
+        run: |
+          uv python install 3.10
+          uv venv --python 3.10
 
       - name: Install dependencies
         run: uv sync --locked
@@ -34,9 +35,18 @@ jobs:
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             git fetch origin main
             git diff --diff-filter=ACMR --name-only -z origin/main...HEAD -- '*.py' \
-              | xargs -0 -r uv run ruff check --
+              | xargs -0 -r uv run ruff check \
+                --exclude ovllm-env \
+                --exclude .venv \
+                --exclude venv \
+                --exclude site-packages \
+                --
           else
-            uv run ruff check .
+            uv run ruff check . \
+              --exclude ovllm-env \
+              --exclude .venv \
+              --exclude venv \
+              --exclude site-packages
           fi
 
       - name: Run Ruff Format
@@ -44,7 +54,16 @@ jobs:
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             git fetch origin main
             git diff --diff-filter=ACMR --name-only -z origin/main...HEAD -- '*.py' \
-              | xargs -0 -r uv run ruff format --check --
+              | xargs -0 -r uv run ruff format --check \
+                --exclude ovllm-env \
+                --exclude .venv \
+                --exclude venv \
+                --exclude site-packages \
+                --
           else
-            uv run ruff format --check .
+            uv run ruff format --check . \
+              --exclude ovllm-env \
+              --exclude .venv \
+              --exclude venv \
+              --exclude site-packages
           fi
