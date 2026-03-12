@@ -1,10 +1,14 @@
+import argparse
 import bz2
 import hashlib
 import json
 import logging
+import os
 import platform
 import re
 import sys
+import time
+import tracemalloc
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -24,6 +28,33 @@ RE_LINK = re.compile(r"\[\[(.*?)\]\]")
 RE_WHITESPACE = re.compile(r"\s+")
 
 
+# helpers: New helper to compute SHA256 and return raw bytes directly
+def compute_sha256_bytes(
+    *,
+    data: Optional[Union[bytes, bytearray]] = None,
+    file_path: Optional[Union[str, Path]] = None,
+) -> bytes:
+    """
+    Compute SHA256 hash of a file OR raw bytes, returning raw bytes.
+    This avoids the overhead of converting to a hex string and back.
+    """
+    if (data is None) == (file_path is None):
+        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
+
+    sha256 = hashlib.sha256()
+
+    if data is not None:
+        sha256.update(data)
+        return sha256.digest()
+
+    path = Path(file_path)
+    with path.open("rb") as f:
+        while chunk := f.read(8192):
+            sha256.update(chunk)
+
+    return sha256.digest()
+
+
 # Merkle Tree Chunk-Level Hashing for Large Files
 def compute_merkle_root(
     file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
@@ -36,9 +67,9 @@ def compute_merkle_root(
 
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            # reuse compute_sha256
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            # use new helper to directly get bytes
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         return compute_sha256(data=b"")
@@ -50,8 +81,8 @@ def compute_merkle_root(
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         leaves = next_level
 
@@ -77,8 +108,8 @@ def generate_merkle_proof(
     # Build leaf level
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         raise ValueError("Cannot generate proof for empty file")
@@ -104,8 +135,8 @@ def generate_merkle_proof(
         next_level = []
         for i in range(0, len(leaves), 2):
             combined = leaves[i] + leaves[i + 1]
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         index //= 2
         leaves = next_level
@@ -118,7 +149,7 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
     Verify a Merkle proof for given chunk bytes.
     """
     try:
-        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
+        current_hash = compute_sha256_bytes(data=chunk_bytes)
         expected_root = bytes.fromhex(merkle_root)
     except (TypeError, ValueError):
         return False
@@ -149,8 +180,7 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(data=combined)
-        current_hash = bytes.fromhex(parent_hex)
+        current_hash = compute_sha256_bytes(data=combined)
 
     return current_hash == expected_root
 
@@ -420,14 +450,93 @@ def clean_wikitext(text: str) -> str:
     return text.strip()
 
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump> [--no-manifest]")
+def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
+    logger.info("--- Starting Benchmark ---")
+
+    if not os.path.exists(file_path):
+        logger.error(f"Error: File not found at {file_path}")
         sys.exit(1)
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
-    extract_text_from_xml(
-        sys.argv[1],
-        write_manifest="--no-manifest" not in sys.argv[2:],
-    )
+    size_mb = os.path.getsize(file_path) / (1024 * 1024)
 
+    logger.info(f"Benchmarking file: {file_path}")
+    logger.info(f"File size: {size_mb:.2f} MB")
+
+    try:
+        tracemalloc.start()
+
+        # Benchmark compute_merkle_root
+        start_time = time.perf_counter()
+        root_hex = compute_merkle_root(file_path, chunk_size=chunk_size)
+        end_time = time.perf_counter()
+
+        _current_mem, peak_mem = tracemalloc.get_traced_memory()
+
+        root_time = end_time - start_time
+        mins, secs = divmod(root_time, 60)
+        logger.info(f"compute_merkle_root ({size_mb:.2f} MB file): {int(mins)}m {secs:.3f}s")
+        logger.info(f"Peak Memory Usage: {peak_mem / 10**6:.3f} MB")
+        logger.info(f"Merkle Root: {root_hex}")
+
+        tracemalloc.reset_peak()
+
+        # Benchmark generate_merkle_proof
+        start_time = time.perf_counter()
+
+        file_size_bytes = os.path.getsize(file_path)
+        if file_size_bytes == 0:
+            logger.info("Skipping proof benchmark for empty file")
+        else:
+            chunk_count = (file_size_bytes + chunk_size - 1) // chunk_size
+            chunk_index = min(10, chunk_count - 1)
+
+            _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
+            end_time = time.perf_counter()
+
+            _, peak_mem_proof = tracemalloc.get_traced_memory()
+
+            proof_time = end_time - start_time
+            pmins, psecs = divmod(proof_time, 60)
+            logger.info(
+                f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s"
+            )
+            logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
+
+        logger.info("--- Benchmark Complete ---")
+        tracemalloc.stop()
+
+    except Exception:
+        logger.exception("An error occurred during benchmarking")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="OpenVerifiableLLM Preprocessing")
+    parser.add_argument("input_dump", help="Path to the Wikipedia XML dump file")
+    parser.add_argument(
+        "--BENCHMARK_MODE",
+        type=str,
+        choices=["TRUE", "FALSE"],
+        default="FALSE",
+        help="Run in benchmark mode",
+    )
+<<<<<<< HEAD
+
+=======
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=MERKLE_CHUNK_SIZE_BYTES,
+        help="Chunk size in bytes for Merkle hashing",
+    )
+    parser.add_argument("--no-manifest", action="store_true", help="Skip manifest generation")
+
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+
+    if args.BENCHMARK_MODE == "TRUE":
+        run_benchmark(args.input_dump, args.chunk_size)
+    else:
+        extract_text_from_xml(args.input_dump, write_manifest=not args.no_manifest)
+>>>>>>> upstream/main
