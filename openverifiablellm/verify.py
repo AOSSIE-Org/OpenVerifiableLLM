@@ -31,11 +31,11 @@ from pathlib import Path
 from typing import Optional, Union
 
 from openverifiablellm import utils
-from openverifiablellm.manifest_chain import (
-    verify_manifest_chain_link,
-    verify_manifest_chain,
-)
 from openverifiablellm.environment import generate_environment_fingerprint
+from openverifiablellm.manifest_chain import (
+    verify_manifest_chain,
+    verify_manifest_chain_link,
+)
 
 logger = logging.getLogger(__name__)
 

@@ -9,17 +9,15 @@ Run with:
 """
 
 import json
+
 import pytest
-import tempfile
-import shutil
-from pathlib import Path
 
 from openverifiablellm.manifest_chain import (
+    _canonical_json,
     compute_manifest_hash,
     get_parent_manifest_hash,
-    verify_manifest_chain_link,
     verify_manifest_chain,
-    _canonical_json,
+    verify_manifest_chain_link,
 )
 
 

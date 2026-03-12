@@ -5,17 +5,17 @@ import json
 import logging
 import os
 import platform
-from typing import Union, Optional, Dict, Any, List, Tuple
-from openverifiablellm.environment import generate_environment_fingerprint
-from openverifiablellm.manifest_chain import get_parent_manifest_hash
 import re
 import sys
 import time
 import tracemalloc
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import defusedxml.ElementTree as ET
 
+from openverifiablellm.environment import generate_environment_fingerprint
+from openverifiablellm.manifest_chain import get_parent_manifest_hash
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
