@@ -167,6 +167,7 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
 
     assert "Hello Uncompressed" in processed_file.read_text()
 
+
 # --------------- manifest includes merkle fields ------------------------------------
 
 

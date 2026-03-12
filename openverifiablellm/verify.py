@@ -14,6 +14,7 @@ Usage (Python):
     report = verify_preprocessing("data/simplewiki-20260201.xml.bz2")
     print(report.summary())
 """
+
 import json
 import logging
 import os
@@ -156,6 +157,7 @@ class VerificationReport:
 
 # Core helpers
 
+
 def _check_field(
     report: VerificationReport,
     name: str,
@@ -166,8 +168,9 @@ def _check_field(
     exp_str = str(expected)
     act_str = str(actual)
     status = CheckStatus.PASS if exp_str == act_str else CheckStatus.FAIL
-    report.add(CheckResult(name=name, status=status,
-                           expected=exp_str, actual=act_str, detail=detail))
+    report.add(
+        CheckResult(name=name, status=status, expected=exp_str, actual=act_str, detail=detail)
+    )
 
 
 def _load_manifest(manifest_path: Path) -> dict:
@@ -201,18 +204,22 @@ def verify_preprocessing(
     try:
         manifest = _load_manifest(manifest_path)
     except FileNotFoundError as exc:
-        report.add(CheckResult(
-            name="manifest_exists",
-            status=CheckStatus.FAIL,
-            detail=str(exc),
-        ))
+        report.add(
+            CheckResult(
+                name="manifest_exists",
+                status=CheckStatus.FAIL,
+                detail=str(exc),
+            )
+        )
         return report
 
-    report.add(CheckResult(
-        name="manifest_exists",
-        status=CheckStatus.PASS,
-        detail=str(manifest_path),
-    ))
+    report.add(
+        CheckResult(
+            name="manifest_exists",
+            status=CheckStatus.PASS,
+            detail=str(manifest_path),
+        )
+    )
 
     if not input_dump.exists():
         report.add(
@@ -239,13 +246,15 @@ def verify_preprocessing(
     if "raw_merkle_root" in manifest:
         chunk_size = manifest.get("chunk_size_bytes", utils.MERKLE_CHUNK_SIZE_BYTES)
         if not isinstance(chunk_size, int) or chunk_size <= 0:
-            report.add(CheckResult(
-                name="chunk_size_bytes",
-                status=CheckStatus.FAIL,
-                expected=str(utils.MERKLE_CHUNK_SIZE_BYTES),
-                actual=str(chunk_size),
-                detail="Manifest chunk_size_bytes must be a positive integer",
-            ))
+            report.add(
+                CheckResult(
+                    name="chunk_size_bytes",
+                    status=CheckStatus.FAIL,
+                    expected=str(utils.MERKLE_CHUNK_SIZE_BYTES),
+                    actual=str(chunk_size),
+                    detail="Manifest chunk_size_bytes must be a positive integer",
+                )
+            )
             return report
         raw_merkle_actual = utils.compute_merkle_root(input_dump, chunk_size=chunk_size)
         _check_field(
@@ -304,12 +313,14 @@ def verify_preprocessing(
             )
         )
     else:
-        report.add(CheckResult(
-            name="python_version",
-            status=CheckStatus.PASS,
-            expected=expected_python,
-            actual=python_ver,
-        ))
+        report.add(
+            CheckResult(
+                name="python_version",
+                status=CheckStatus.PASS,
+                expected=expected_python,
+                actual=python_ver,
+            )
+        )
 
     # 4. Re-run preprocessing in an isolated temp directory
     tmp_dir = Path(tempfile.mkdtemp(prefix="ovllm_verify_"))
@@ -334,11 +345,13 @@ def verify_preprocessing(
             )
         except subprocess.CalledProcessError as exc:
             # Decompression or XML parse failure — tampered / corrupt file
-            report.add(CheckResult(
-                name="reprocessing_succeeded",
-                status=CheckStatus.FAIL,
-                detail=f"Re-run failed with exit code {exc.returncode}: {exc.stderr.strip()}",
-            ))
+            report.add(
+                CheckResult(
+                    name="reprocessing_succeeded",
+                    status=CheckStatus.FAIL,
+                    detail=f"Re-run failed with exit code {exc.returncode}: {exc.stderr.strip()}",
+                )
+            )
             return report
 
         reproduced_processed = tmp_dir / "data" / "processed" / "wiki_clean.txt"
@@ -353,11 +366,13 @@ def verify_preprocessing(
             )
             return report
 
-        report.add(CheckResult(
-            name="reprocessing_succeeded",
-            status=CheckStatus.PASS,
-            detail=str(reproduced_processed),
-        ))
+        report.add(
+            CheckResult(
+                name="reprocessing_succeeded",
+                status=CheckStatus.PASS,
+                detail=str(reproduced_processed),
+            )
+        )
 
         # 5. Compare reproduced processed file against manifest
 
@@ -396,7 +411,8 @@ def verify_preprocessing(
                 reproduced_manifest = json.load(f)
 
             _check_field(
-                report, "manifest_preprocessing_version",
+                report,
+                "manifest_preprocessing_version",
                 expected=manifest.get("preprocessing_version"),
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
@@ -415,17 +431,21 @@ def verify_preprocessing(
                     detail="Merkle chunk size used during preprocessing",
                 )
             else:
-                report.add(CheckResult(
-                    name="manifest_chunk_size_bytes",
-                    status=CheckStatus.SKIP,
-                    detail="Field absent from manifest (older version)",
-                ))
+                report.add(
+                    CheckResult(
+                        name="manifest_chunk_size_bytes",
+                        status=CheckStatus.SKIP,
+                        detail="Field absent from manifest (older version)",
+                    )
+                )
         else:
-            report.add(CheckResult(
-                name="manifest_regenerated",
-                status=CheckStatus.SKIP,
-                detail="Reproduced manifest not found — skipping manifest field checks",
-            ))
+            report.add(
+                CheckResult(
+                    name="manifest_regenerated",
+                    status=CheckStatus.SKIP,
+                    detail="Reproduced manifest not found — skipping manifest field checks",
+                )
+            )
 
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
@@ -435,12 +455,11 @@ def verify_preprocessing(
 
 # CLI entry point
 
+
 def main(argv=None):
     import argparse
 
-    logging.basicConfig(
-        level=logging.INFO, format="%(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 
     parser = argparse.ArgumentParser(description="Deterministic Preprocessing Verification Mode")
     parser.add_argument("input_dump", help="Path to the raw Wikipedia XML (.bz2) dump")
