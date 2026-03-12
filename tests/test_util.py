@@ -5,7 +5,6 @@ import json
 import pytest
 
 from openverifiablellm import utils
-import json
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.

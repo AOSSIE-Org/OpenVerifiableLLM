@@ -28,7 +28,6 @@ from pathlib import Path
 from typing import Optional, Union
 
 from openverifiablellm import utils
-from openverifiablellm.environment import generate_environment_fingerprint
 
 logger = logging.getLogger(__name__)
 
@@ -256,12 +255,9 @@ def verify_preprocessing(
             actual=raw_merkle_actual,
             detail=f"Merkle root of raw dump (chunk={chunk_size} bytes)",
         )
-        _check_field(
-            report, "manifest_chunk_size_bytes",
-            expected=manifest.get("chunk_size_bytes"),
-            actual=reproduced_manifest.get("chunk_size_bytes"),
-            detail="Merkle chunk size used during preprocessing",
-        )
+        # chunk size recorded in the manifest will be verified later once we
+        # have re-generated the manifest during reproessing. It isn't available
+        # at this point because `reproduced_manifest` doesn't exist yet.
     else:
         report.add(
             CheckResult(
@@ -405,6 +401,25 @@ def verify_preprocessing(
                 actual=reproduced_manifest.get("preprocessing_version"),
                 detail="Preprocessing version tag",
             )
+
+            # verify that the chunk size recorded in the reproduced manifest matches
+            # the original. only perform this check when the field is present in the
+            # original manifest (legacy manifests omit it, in which case we should
+            # SKIP in the same way other merkle checks are skipped).
+            if "chunk_size_bytes" in manifest:
+                _check_field(
+                    report,
+                    "manifest_chunk_size_bytes",
+                    expected=manifest.get("chunk_size_bytes"),
+                    actual=reproduced_manifest.get("chunk_size_bytes"),
+                    detail="Merkle chunk size used during preprocessing",
+                )
+            else:
+                report.add(CheckResult(
+                    name="manifest_chunk_size_bytes",
+                    status=CheckStatus.SKIP,
+                    detail="Field absent from manifest (older version)",
+                ))
         else:
             report.add(CheckResult(
                 name="manifest_regenerated",
