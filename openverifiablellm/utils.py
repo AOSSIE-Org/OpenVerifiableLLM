@@ -222,20 +222,28 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
     open_func = bz2.open if is_bz2 else open
 
-    with open_func(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
+    try:
+        with open_func(input_path, "rb") as f:
+            context = ET.iterparse(f, events=("end",))
 
-        with open(output_path, "w", encoding="utf-8") as out:
-            for _, elem in context:
-                if elem.tag.endswith("page"):
-                    text_elem = elem.find(".//{*}text")
+            with open(output_path, "w", encoding="utf-8") as out:
+                for _, elem in context:
+                    if elem.tag.endswith("page"):
+                        text_elem = elem.find(".//{*}text")
 
-                    if text_elem is not None and text_elem.text:
-                        cleaned = clean_wikitext(text_elem.text)
-                        if cleaned:
-                            out.write(cleaned + "\n\n")
+                        if text_elem is not None and text_elem.text:
+                            cleaned = clean_wikitext(text_elem.text)
+                            if cleaned:
+                                out.write(cleaned + "\n\n")
 
-                    elem.clear()
+                        elem.clear()
+    except ET.ParseError as e:
+        # provide context about which file failed to parse
+        msg = f"Failed to parse XML dump '{input_path}': {e}"
+        logger.error(msg)
+        # re-raise a new ParseError containing context
+        raise ET.ParseError(msg) from e
+
     logger.info("Preprocessing complete. Output saved to %s", output_path)
     if write_manifest:
         generate_manifest(input_path, output_path)
