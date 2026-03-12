@@ -271,13 +271,12 @@ def generate_manifest(raw_path, processed_path):
         ),
         "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
-
         #  Add parent_manifest_hash to link to previous manifest
         "parent_manifest_hash": parent_manifest_hash,
         "preprocessing_version": "v1",
         "python_version": platform.python_version(),
     }
-    
+
     env_data = generate_environment_fingerprint()
     manifest.update(
         {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
@@ -290,8 +289,9 @@ def generate_manifest(raw_path, processed_path):
         json.dump(manifest, f, indent=2)
 
     logger.info("Manifest written to %s", manifest_path)
-    logger.info("Manifest parent hash: %s", parent_manifest_hash if parent_manifest_hash else "(first run)")
-
+    logger.info(
+        "Manifest parent hash: %s", parent_manifest_hash if parent_manifest_hash else "(first run)"
+    )
 
 
 def export_merkle_proof(

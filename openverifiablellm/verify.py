@@ -282,44 +282,54 @@ def verify_preprocessing(
     # ===== Verify manifest chain if previous manifest is provided =====
     if previous_manifest_path is not None:
         if not previous_manifest_path.exists():
-            report.add(CheckResult(
-                name="manifest_chain_link",
-                status=CheckStatus.FAIL,
-                detail=f"Previous manifest not found: {previous_manifest_path}",
-            ))
+            report.add(
+                CheckResult(
+                    name="manifest_chain_link",
+                    status=CheckStatus.FAIL,
+                    detail=f"Previous manifest not found: {previous_manifest_path}",
+                )
+            )
         else:
             try:
                 chain_valid = verify_manifest_chain_link(previous_manifest_path, manifest)
                 status = CheckStatus.PASS if chain_valid else CheckStatus.FAIL
-                report.add(CheckResult(
-                    name="manifest_chain_link",
-                    status=status,
-                    expected=previous_manifest_path.name,
-                    actual="✓ linked" if chain_valid else "✗ broken",
-                    detail="Verifies parent_manifest_hash matches previous manifest hash",
-                ))
+                report.add(
+                    CheckResult(
+                        name="manifest_chain_link",
+                        status=status,
+                        expected=previous_manifest_path.name,
+                        actual="✓ linked" if chain_valid else "✗ broken",
+                        detail="Verifies parent_manifest_hash matches previous manifest hash",
+                    )
+                )
             except (OSError, ValueError) as exc:
-                report.add(CheckResult(
-                    name="manifest_chain_link",
-                    status=CheckStatus.FAIL,
-                    detail=f"Chain verification error: {exc}",
-                ))
+                report.add(
+                    CheckResult(
+                        name="manifest_chain_link",
+                        status=CheckStatus.FAIL,
+                        detail=f"Chain verification error: {exc}",
+                    )
+                )
     else:
         # Check if manifest has chain awareness (parent_manifest_hash field)
         chain_report = verify_manifest_chain(manifest_path)
         if "parent_manifest_hash" in manifest:
             status = CheckStatus.PASS if chain_report["chain_valid"] else CheckStatus.SKIP
-            report.add(CheckResult(
-                name="manifest_chain_awareness",
-                status=status,
-                detail=chain_report["chain_message"],
-            ))
+            report.add(
+                CheckResult(
+                    name="manifest_chain_awareness",
+                    status=status,
+                    detail=chain_report["chain_message"],
+                )
+            )
         else:
-            report.add(CheckResult(
-                name="manifest_chain_awareness",
-                status=CheckStatus.SKIP,
-                detail="Manifest predates chain feature (no parent_manifest_hash field)",
-            ))
+            report.add(
+                CheckResult(
+                    name="manifest_chain_awareness",
+                    status=CheckStatus.SKIP,
+                    detail="Manifest predates chain feature (no parent_manifest_hash field)",
+                )
+            )
     # ========================================================================
 
     # 2. Validate raw file integrity BEFORE re-processing
@@ -447,15 +457,17 @@ def verify_preprocessing(
             "environment_hash",
             expected=manifest.get("environment_hash"),
             actual=current_env["environment_hash"],
-            detail="Environment fingerprint comparison"
+            detail="Environment fingerprint comparison",
         )
     else:
-        report.add(CheckResult(
-            name="environment_hash",
-            status=CheckStatus.SKIP,
-            detail="Field absent from manifest (older version)"
-        ))
-    
+        report.add(
+            CheckResult(
+                name="environment_hash",
+                status=CheckStatus.SKIP,
+                detail="Field absent from manifest (older version)",
+            )
+        )
+
     # 4. Re-run preprocessing in an isolated temp directory
     tmp_dir = Path(tempfile.mkdtemp(prefix="ovllm_verify_"))
     try:
