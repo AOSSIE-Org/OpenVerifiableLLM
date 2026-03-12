@@ -39,7 +39,10 @@ def _load_from_yaml(yaml_path: Path) -> Optional[List[str]]:
           - cais/mmlu
           - /path/to/local/dataset.jsonl
 
-    Returns
+    Returns:
+        Optional[List[str]]: A list of benchmark identifiers (e.g., "gsm8k", "cais/mmlu", or local file paths)
+        when the YAML is present and valid, or None when the file is missing, unreadable, or does not contain
+        a "benchmarks" list.
     """
     if not yaml_path.is_file():
         return None
@@ -57,11 +60,9 @@ def _load_from_yaml(yaml_path: Path) -> Optional[List[str]]:
             "benchmarks.yaml found but does not contain a valid "
             "non-empty 'benchmarks' list; falling back to defaults."
         )
-    except yaml.YAMLError as exc:
-        logger.warning("Failed to parse %s: %s", yaml_path, exc)
-
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning("Failed to read/parse %s: %s", yaml_path, exc)
     return None
-
 
 def load_config(cli_benchmarks: Optional[str] = None) -> BenchmarkConfig:
     """Build a :class:`BenchmarkConfig` by resolving benchmark sources."""

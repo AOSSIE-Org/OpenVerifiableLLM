@@ -6,7 +6,6 @@ from openverifiablellm.contamination import (
     build_bloom_filter,
     check_contamination,
     get_ngrams,
-    _normalise,
 )
 from openverifiablellm.config import BenchmarkConfig
 from openverifiablellm import utils
@@ -58,6 +57,13 @@ class TestGetNgrams:
         text = "a b c d e f"
         assert len(get_ngrams(text, n=3)) == 4  # 6 - 3 + 1
         assert len(get_ngrams(text, n=6)) == 1
+
+    def test_invalid_n_raises(self):
+        text = "some valid text"
+        with pytest.raises(ValueError, match="n must be a positive integer"):
+            get_ngrams(text, n=0)
+        with pytest.raises(ValueError, match="n must be a positive integer"):
+            get_ngrams(text, n=-1)
 
 
 # ------------------------------------------------------------------ #
@@ -140,7 +146,7 @@ class TestCheckContamination:
         assert check_contamination(chunk, bloom, [benchmark], n=5) is True
 
     def test_short_chunk_not_flagged(self, tmp_path):
-        benchmark = "alpha bravo charlie delta echo foxtrot"
+        benchmark = "alpha bravo charlie delta echo foxtrot golf hotel india juliet oskar tango zulu"
         bloom = self._build_filter([benchmark], tmp_path, n=13)
         chunk = "alpha bravo"
         assert check_contamination(chunk, bloom, [benchmark], n=13) is False

@@ -126,6 +126,9 @@ def get_ngrams(text: str, n: int = 13) -> List[str]:
     result is an empty list.
 
     """
+    if n <= 0:
+        raise ValueError("n must be a positive integer")
+
     normalised = _normalise(text)
     tokens = normalised.split()
 
@@ -202,6 +205,11 @@ def build_bloom_filter(
         for ngram in get_ngrams(text, n=config.n):
             bloom.add(ngram)
             ngram_count += 1
+
+    if ngram_count == 0:
+        raise ValueError(
+            "No benchmark n-grams were generated; check the selected sources and n."
+        )
 
     logger.info("Inserted %d n-grams into the Bloom filter.", ngram_count)
 
