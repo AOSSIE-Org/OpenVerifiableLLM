@@ -36,6 +36,13 @@ dev = [
     "ruff>=0.15.4",
 ]
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning:sentencepiece",
+    "ignore:builtin type Swig:DeprecationWarning",
+    "ignore:builtin type swigvarlink:DeprecationWarning",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py39"

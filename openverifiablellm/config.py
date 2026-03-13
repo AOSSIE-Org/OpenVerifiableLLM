@@ -29,21 +29,7 @@ class BenchmarkConfig:
 
 
 def _load_from_yaml(yaml_path: Path) -> Optional[List[str]]:
-    """
-    Attempt to read benchmark identifiers from a YAML file.
-
-    Expected format::
-
-        benchmarks:
-          - gsm8k
-          - cais/mmlu
-          - /path/to/local/dataset.jsonl
-
-    Returns:
-        Optional[List[str]]: A list of benchmark identifiers (e.g., "gsm8k", "cais/mmlu", or local file paths)
-        when the YAML is present and valid, or None when the file is missing, unreadable, or does not contain
-        a "benchmarks" list.
-    """
+    """ Attempt to read benchmark identifiers from a YAML file. """
     if not yaml_path.is_file():
         return None
 
@@ -68,7 +54,6 @@ def load_config(cli_benchmarks: Optional[str] = None) -> BenchmarkConfig:
     """Build a :class:`BenchmarkConfig` by resolving benchmark sources."""
     config = BenchmarkConfig()
 
-    # Priority 1: CLI flag
     if cli_benchmarks:
         benchmarks = [b.strip() for b in cli_benchmarks.split(",") if b.strip()]
         if benchmarks:
@@ -78,13 +63,11 @@ def load_config(cli_benchmarks: Optional[str] = None) -> BenchmarkConfig:
         else:
             logger.warning("CLI provided empty benchmarks; falling back to next priority.")
 
-    # Priority 2: YAML config file
     yaml_benchmarks = _load_from_yaml(Path(BENCHMARKS_YAML))
     if yaml_benchmarks:
         config.benchmarks = yaml_benchmarks
         logger.info("Benchmarks from %s: %s", BENCHMARKS_YAML, config.benchmarks)
         return config
 
-    # Priority 3: defaults
     logger.info("Using default benchmarks: %s", config.benchmarks)
     return config

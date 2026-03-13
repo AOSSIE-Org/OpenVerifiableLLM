@@ -14,7 +14,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Iterable, List, Optional, Set
+from typing import Iterable, List, Optional, Set, Dict
 
 from rbloom import Bloom
 
@@ -58,7 +58,11 @@ class DatasetLoadError(Exception):
     pass
 
 
-def _load_hf(dataset_id: str, trust_remote_code: bool = False) -> List[str]:
+def _load_hf(
+    dataset_id: str,
+    trust_remote_code: bool = False,
+    split_map: Optional[Dict[str, List[str]]] = None
+) -> List[str]:
     """Load benchmark texts from a Hugging Face dataset."""
     try:
         from datasets import load_dataset
@@ -68,14 +72,25 @@ def _load_hf(dataset_id: str, trust_remote_code: bool = False) -> List[str]:
             "Install it with: pip install datasets"
         ) from exc
 
+    if split_map is None:
+        split_map = {"gsm8k": ["test"],"cais/mmlu": ["test", "validation"]}
+
     texts: List[str] = []
+    splits_to_load = split_map.get(dataset_id)
+    
     try:
-        ds = load_dataset(dataset_id, trust_remote_code=trust_remote_code)
+        if splits_to_load:
+            splits = [
+                load_dataset(dataset_id, split=s, trust_remote_code=trust_remote_code)
+                for s in splits_to_load
+            ]
+        else:
+            ds = load_dataset(dataset_id, trust_remote_code=trust_remote_code)
+            splits = ds.values() if hasattr(ds, "values") else [ds]
     except Exception as exc:
         logger.error("Could not load HF dataset '%s': %s", dataset_id, exc)
         raise DatasetLoadError(f"Failed to load HF dataset '{dataset_id}'") from exc
 
-    splits = ds.values() if hasattr(ds, "values") else [ds]
     for split in splits:
         for row in split:
             for field in _TEXT_FIELDS:
@@ -163,7 +178,9 @@ def build_bloom_filter(
 
     hasher = hashlib.sha256()
     for text in benchmark_texts:
-        hasher.update(text.encode("utf-8"))
+        encoded = text.encode("utf-8")
+        hasher.update(len(encoded).to_bytes(8, "little"))
+        hasher.update(encoded)
     inputs_hash = hasher.hexdigest()
 
     current_meta = {
@@ -229,8 +246,9 @@ def build_bloom_filter(
 def check_contamination(
     text: str,
     bloom_filter: Bloom,
-    benchmark_texts: List[str],
+    benchmark_texts: Optional[List[str]] = None,
     n: int = 13,
+    precomputed_normalised_benchmarks: Optional[Set[str]] = None,
 ) -> bool:
     """
     Determine whether text is contaminated by benchmark data.
@@ -244,18 +262,19 @@ def check_contamination(
        performed to eliminate false positives.
 
     """
+    if benchmark_texts is None and precomputed_normalised_benchmarks is None:
+        raise ValueError("Must provide either benchmark_texts or precomputed_normalised_benchmarks")
+
     ngrams = get_ngrams(text, n=n)
     if not ngrams:
         return False
 
-    normalised_benchmarks: Optional[Set[str]] = None
-
     for ngram in ngrams:
         if ngram in bloom_filter:
-            if normalised_benchmarks is None:
-                normalised_benchmarks = {_normalise(bt) for bt in benchmark_texts}
+            if precomputed_normalised_benchmarks is None:
+                precomputed_normalised_benchmarks = {_normalise(bt) for bt in (benchmark_texts or [])}
 
-            for nb in normalised_benchmarks:
+            for nb in precomputed_normalised_benchmarks:
                 if f" {ngram} " in f" {nb} ":
                     return True
 
