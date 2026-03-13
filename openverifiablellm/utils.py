@@ -72,7 +72,7 @@ def compute_merkle_root(
             leaves.append(leaf_bytes)
 
     if not leaves:
-        return compute_sha256(data=b"")
+        return compute_sha256_bytes(data=b"").hex()
 
     while len(leaves) > 1:
         next_level = []
@@ -229,9 +229,16 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     # load checkpoint if exists
     if checkpoint_file.exists():
         try:
-            with open(checkpoint_file, "r") as cp:
+            with open(checkpoint_file) as cp:
                 data = json.load(cp)
-                start_page = data.get("last_processed_page", 0)
+
+            last_page = data.get("last_processed_page", 0)
+
+            if isinstance(last_page, int) and last_page >= 0:
+                start_page = last_page
+            else:
+                logger.warning("Invalid checkpoint value. Restarting from beginning.")
+                start_page = 0
         except (json.JSONDecodeError, OSError):
             logger.warning("Checkpoint file corrupted. Restarting from beginning.")
             start_page = 0
@@ -520,9 +527,7 @@ if __name__ == "__main__":
         default="FALSE",
         help="Run in benchmark mode",
     )
-<<<<<<< HEAD
-
-=======
+    
     parser.add_argument(
         "--chunk_size",
         type=int,
@@ -539,4 +544,3 @@ if __name__ == "__main__":
         run_benchmark(args.input_dump, args.chunk_size)
     else:
         extract_text_from_xml(args.input_dump, write_manifest=not args.no_manifest)
->>>>>>> upstream/main
