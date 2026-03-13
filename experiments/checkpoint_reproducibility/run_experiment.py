@@ -1,7 +1,9 @@
-import torch
-import torch.nn as nn
 import hashlib
 import os
+
+import torch
+import torch.nn as nn
+
 
 class TinyModel(nn.Module):
     def __init__(self):
@@ -46,7 +48,8 @@ if __name__ == "__main__":
     with open("ckpt_a1.pt", "rb") as f:
         tampered_hash = hashlib.sha256(f.read()).hexdigest()[:8]
     print("Experiment C")
-    print(f"tampered checkpoint detected ✔" if tampered_hash != hash_a1 else "failed ❌")
+    print("tampered checkpoint detected ✔" if tampered_hash != hash_a1 else "failed ❌")
 
     for f in ["ckpt_a1.pt", "ckpt_a2.pt", "ckpt_b1.pt", "ckpt_b2.pt"]:
-        if os.path.exists(f): os.remove(f)
+        if os.path.exists(f):
+            os.remove(f)
