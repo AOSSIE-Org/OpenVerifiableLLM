@@ -132,6 +132,9 @@ class BPETokenizer(BaseTokenizer):
             merges=str(merges_path),
         )
 
+        # 🔧 Fix: re-register special tokens after loading
+        self._tokenizer.add_special_tokens(SPECIAL_TOKENS)
+
     # ------------------------------------------------------------------
     # Artifact paths
     # ------------------------------------------------------------------
