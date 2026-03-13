@@ -133,11 +133,11 @@ def test_spm_get_vocab_path(tmp_path):
     assert vocab_path == tmp_path / "spm.vocab"
 
 
-def test_spm_get_merges_path_returns_none(tmp_path):
+def test_spm_get_merges_path_returns_model_path(tmp_path):
     tokenizer = SentencePieceTokenizer(vocab_size=200, min_frequency=1)
     merges_path = tokenizer.get_merges_path(tmp_path)
 
-    assert merges_path is None
+    assert merges_path == tmp_path / "spm.model"
 
 
 def test_spm_special_tokens_in_vocabulary(trained_tokenizer):
