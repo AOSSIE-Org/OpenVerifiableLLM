@@ -1,9 +1,8 @@
-import hashlib
 import os
-
 import torch
 import torch.nn as nn
 
+from utils import set_seed, hash_file
 
 class TinyModel(nn.Module):
     def __init__(self):
@@ -18,7 +17,7 @@ INPUTS = torch.randn(5, 10, generator=DATA_GEN)
 TARGETS = torch.randn(5, 2, generator=DATA_GEN)
 
 def train_and_hash(seed, filename):
-    torch.manual_seed(seed) 
+    set_seed(seed)  
     model = TinyModel()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
     
@@ -29,8 +28,7 @@ def train_and_hash(seed, filename):
         optimizer.step()
         
     torch.save(model.state_dict(), filename)
-    with open(filename, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()[:8]
+    return hash_file(filename)[:8] 
 
 if __name__ == "__main__":
     hash_a1 = train_and_hash(123, "ckpt_a1.pt")
@@ -45,10 +43,11 @@ if __name__ == "__main__":
 
     with open("ckpt_a1.pt", "ab") as f:
         f.write(b"tamper_data")
-    with open("ckpt_a1.pt", "rb") as f:
-        tampered_hash = hashlib.sha256(f.read()).hexdigest()[:8]
+    
+    
+    tampered_hash = hash_file("ckpt_a1.pt")[:8]
     print("Experiment C")
-    print("tampered checkpoint detected ✔" if tampered_hash != hash_a1 else "failed ❌")
+    print(f"tampered checkpoint detected ✔" if tampered_hash != hash_a1 else "failed ❌")
 
     for f in ["ckpt_a1.pt", "ckpt_a2.pt", "ckpt_b1.pt", "ckpt_b2.pt"]:
         if os.path.exists(f):
