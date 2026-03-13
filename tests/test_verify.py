@@ -57,7 +57,7 @@ def run_preprocessing(tmp_dir: Path, dump: Path) -> None:
     original = os.getcwd()
     os.chdir(tmp_dir)
     try:
-        utils.extract_text_from_xml(dump)
+        utils.extract_text_from_xml(dump, write_manifest=True)
     finally:
         os.chdir(original)
 

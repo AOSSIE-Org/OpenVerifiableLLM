@@ -1,15 +1,15 @@
 import bz2
 import json
+
 import pytest
 
+from openverifiablellm import utils
+from openverifiablellm.config import BenchmarkConfig
 from openverifiablellm.contamination import (
     build_bloom_filter,
     check_contamination,
     get_ngrams,
 )
-from openverifiablellm.config import BenchmarkConfig
-from openverifiablellm import utils
-
 
 # ------------------------------------------------------------------ #
 #  get_ngrams tests                                                   #
