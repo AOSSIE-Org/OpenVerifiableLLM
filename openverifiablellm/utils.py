@@ -72,7 +72,7 @@ def compute_merkle_root(
             leaves.append(leaf_bytes)
 
     if not leaves:
-        return compute_sha256(data=b"")
+        return compute_sha256_bytes(data=b"").hex()
 
     while len(leaves) > 1:
         next_level = []
@@ -207,36 +207,85 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     Creates:
         data/processed/wiki_clean.txt
     """
+
     input_path = Path(input_path)
 
-    # Fixed output path
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / "wiki_clean.txt"
 
-    # Auto-detect file type using magic bytes separation
+    checkpoint_file = project_root / "data" / "checkpoint.json"
+
+    # detect bz2
     with open(input_path, "rb") as test_f:
         is_bz2 = test_f.read(3) == b"BZh"
 
     open_func = bz2.open if is_bz2 else open
 
+    start_page = 0
+
+    # load checkpoint if exists
+    if checkpoint_file.exists():
+        try:
+            with open(checkpoint_file) as cp:
+                data = json.load(cp)
+
+            last_page = data.get("last_processed_page", 0)
+
+            if isinstance(last_page, int) and last_page >= 0:
+                start_page = last_page
+            else:
+                logger.warning("Invalid checkpoint value. Restarting from beginning.")
+                start_page = 0
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Checkpoint file corrupted. Restarting from beginning.")
+            start_page = 0
+
     with open_func(input_path, "rb") as f:
         context = ET.iterparse(f, events=("end",))
+        mode = "a" if start_page > 0 else "w"
+        with open(output_path, mode, encoding="utf-8") as out:
 
-        with open(output_path, "w", encoding="utf-8") as out:
+            page_index = 0
+
             for _, elem in context:
+
                 if elem.tag.endswith("page"):
+
+                    page_index += 1
+
+                    # skip already processed pages
+                    if page_index <= start_page:
+                        elem.clear()
+                        continue
+
                     text_elem = elem.find(".//{*}text")
 
                     if text_elem is not None and text_elem.text:
                         cleaned = clean_wikitext(text_elem.text)
+
                         if cleaned:
                             out.write(cleaned + "\n\n")
 
+                    # save checkpoint every 1000 pages
+                    if page_index % 1000 == 0:
+                        tmp_checkpoint = checkpoint_file.with_suffix(".tmp")
+
+                        with open(tmp_checkpoint, "w") as cp:
+                            json.dump({"last_processed_page": page_index}, cp)
+
+                        tmp_checkpoint.replace(checkpoint_file)
+
                     elem.clear()
+
     logger.info("Preprocessing complete. Output saved to %s", output_path)
+
+    # remove checkpoint after successful completion
+    if checkpoint_file.exists():
+        checkpoint_file.unlink()
+        
     if write_manifest:
         generate_manifest(input_path, output_path)
 
@@ -478,6 +527,7 @@ if __name__ == "__main__":
         default="FALSE",
         help="Run in benchmark mode",
     )
+    
     parser.add_argument(
         "--chunk_size",
         type=int,
