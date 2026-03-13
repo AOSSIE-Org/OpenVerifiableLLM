@@ -334,3 +334,4 @@ __pycache__/
 *.bz2
 
 *.venv
+venv/
