@@ -9,7 +9,6 @@ SPM_VOCAB_FILE = "spm.vocab"
 
 
 class SentencePieceTokenizer(BaseTokenizer):
-
     def __init__(self, vocab_size: int, min_frequency: int):
         super().__init__(vocab_size, min_frequency)
         self._model = None
@@ -23,6 +22,13 @@ class SentencePieceTokenizer(BaseTokenizer):
                 f"Training file not found at {text_file}. Please provide a valid text corpus file."
             )
 
+        if self.min_frequency != 1:
+            raise NotImplementedError(
+                f"min_frequency={self.min_frequency} is not supported. "
+                "SentencePiece does not expose a confirmed min_count option via the Python wrapper. "
+                "Set min_frequency=1 to use the default behaviour, or confirm the upstream option before enabling filtering."
+            )
+
         save_path.mkdir(parents=True, exist_ok=True)
 
         model_prefix = save_path / "spm"
@@ -31,7 +37,6 @@ class SentencePieceTokenizer(BaseTokenizer):
             input=str(text_file),
             model_prefix=str(model_prefix),
             vocab_size=self.vocab_size,
-            min_count=self.min_frequency,
             pad_id=0,
             unk_id=1,
             bos_id=2,
