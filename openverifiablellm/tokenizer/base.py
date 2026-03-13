@@ -19,13 +19,30 @@ class BaseTokenizer(ABC):
 
     @abstractmethod
     def train(self, text_file: Path, save_path: Path):
-        """Train tokenizer and save model."""
+        """Train tokenizer on a text corpus and save artifacts to save_path."""
+        pass
+
+    @abstractmethod
+    def encode(self, text: str) -> list[int]:
+        """Encode text into a list of integer token ids."""
+        pass
+
+    @abstractmethod
+    def decode(self, ids: list[int]) -> str:
+        """Decode a list of integer token ids back into text."""
+        pass
+
+    @abstractmethod
+    def load(self, tokenizer_dir: Path):
+        """Load a previously trained tokenizer from disk."""
         pass
 
     @abstractmethod
     def get_vocab_path(self, tokenizer_dir: Path) -> Path:
+        """Return path to the vocabulary file."""
         pass
 
     @abstractmethod
-    def get_merges_path(self, tokenizer_dir: Path):
+    def get_merges_path(self, tokenizer_dir: Path) -> Path | None:
+        """Return path to the merges file, or None if not applicable."""
         pass
