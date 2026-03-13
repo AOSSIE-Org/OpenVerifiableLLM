@@ -23,12 +23,12 @@ class BaseTokenizer(ABC):
         pass
 
     @abstractmethod
-    def encode(self, text: str) -> list:
+    def encode(self, text: str) -> list[int]:
         """Encode text into a list of integer token ids."""
         pass
 
     @abstractmethod
-    def decode(self, ids: list) -> str:
+    def decode(self, ids: list[int]) -> str:
         """Decode a list of integer token ids back into text."""
         pass
 
@@ -43,6 +43,6 @@ class BaseTokenizer(ABC):
         pass
 
     @abstractmethod
-    def get_merges_path(self, tokenizer_dir: Path):
+    def get_merges_path(self, tokenizer_dir: Path) -> Path | None:
         """Return path to the merges file, or None if not applicable."""
         pass

@@ -63,7 +63,7 @@ class BPETokenizer(BaseTokenizer):
     # Encode / Decode
     # ------------------------------------------------------------------
 
-    def encode(self, text: str) -> list:
+    def encode(self, text: str) -> list[int]:
         """
         Encode text into a list of token ids.
 
@@ -80,7 +80,7 @@ class BPETokenizer(BaseTokenizer):
         self._check_loaded()
         return self._tokenizer.encode(text).ids
 
-    def decode(self, ids: list) -> str:
+    def decode(self, ids: list[int]) -> str:
         """
         Decode a list of token ids back into text.
 
@@ -95,7 +95,7 @@ class BPETokenizer(BaseTokenizer):
         """
 
         self._check_loaded()
-        return self._tokenizer.decode(ids)
+        return self._tokenizer.decode(ids, skip_special_tokens=False)
 
     # ------------------------------------------------------------------
     # Load

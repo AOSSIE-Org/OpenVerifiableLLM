@@ -67,7 +67,7 @@ def test_bpe_train_raises_file_not_found(tmp_path):
         tokenizer.train(tmp_path / "nonexistent.txt", tmp_path / "tokenizer")
 
 
-def test_bpe_train_raises_if_directory_passed(tmp_path, sample_text_file):
+def test_bpe_train_raises_if_directory_passed(tmp_path):
     """train() should raise FileNotFoundError if directory passed as text_file."""
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
 
@@ -158,7 +158,7 @@ def test_bpe_load_raises_if_vocab_missing(tmp_path):
     """load() should raise FileNotFoundError if vocab.json not found."""
     tokenizer = BPETokenizer(vocab_size=1000, min_frequency=2)
 
-    with pytest.raises(FileNotFoundError, match="vocab.json not found"):
+    with pytest.raises(FileNotFoundError, match=r"vocab\.json not found"):
         tokenizer.load(tmp_path)
 
 
@@ -169,7 +169,7 @@ def test_bpe_load_raises_if_merges_missing(tmp_path):
     # Create vocab.json but not merges.txt
     (tmp_path / "vocab.json").write_text("{}", encoding="utf-8")
 
-    with pytest.raises(FileNotFoundError, match="merges.txt not found"):
+    with pytest.raises(FileNotFoundError, match=r"merges\.txt not found"):
         tokenizer.load(tmp_path)
 
 
