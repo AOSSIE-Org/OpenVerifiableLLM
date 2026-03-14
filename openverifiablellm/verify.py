@@ -386,15 +386,17 @@ def verify_preprocessing(
             "environment_hash",
             expected=manifest.get("environment_hash"),
             actual=current_env["environment_hash"],
-            detail="Environment fingerprint comparison"
+            detail="Environment fingerprint comparison",
         )
     else:
-        report.add(CheckResult(
-            name="environment_hash",
-            status=CheckStatus.SKIP,
-            detail="Field absent from manifest (older version)"
-        ))
-    
+        report.add(
+            CheckResult(
+                name="environment_hash",
+                status=CheckStatus.SKIP,
+                detail="Field absent from manifest (older version)",
+            )
+        )
+
     # 4. Re-run preprocessing in an isolated temp directory
     tmp_dir = Path(tempfile.mkdtemp(prefix="ovllm_verify_"))
     try:

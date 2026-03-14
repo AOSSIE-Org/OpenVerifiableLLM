@@ -6,15 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "openverifiablellm"
 version = "0.1.0"
 description = "Deterministic dataset hashing utilities for verifiable LLM training"
-authors = [
-    {name = "Varshini"}
-]
-requires-python = ">=3.9"
+authors = [{name = "OpenVerifiableLLM Contributors"}]
+requires-python = ">=3.10"
 
 dependencies = [
     "defusedxml",
     "sentencepiece",
-    "tokenizers==0.15.2"
+    "tokenizers==0.15.2",
+    "numpy",
+    "torch",
 ]
 
 [tool.setuptools.packages.find]
