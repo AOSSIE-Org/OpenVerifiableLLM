@@ -317,7 +317,9 @@ def test_q6_nondeterministic_mode_informational():
     match = all(torch.equal(sd1[k], sd2[k]) for k in sd1)
     print(f"\n  [on {device}] deterministic=False, weights match: {match}")
 
+
 if __name__ == "__main__":
     import pytest
+
     # This automatically triggers pytest if you run the file directly via python
     sys.exit(pytest.main(["-v", __file__]))
