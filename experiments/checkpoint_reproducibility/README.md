@@ -1,3 +1,13 @@
+## Key Result
+
+With the following controls enabled:
+
+• torch.manual_seed()
+• torch.use_deterministic_algorithms(True)
+• deterministic checkpoint serialization
+
+two identical training runs produce identical SHA-256 checkpoint hashes.
+
 # Checkpoint Reproducibility Experiment
 
 Checks whether identical PyTorch training runs produce identical checkpoints.
