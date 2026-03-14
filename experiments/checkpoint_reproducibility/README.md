@@ -1,26 +1,46 @@
 # Checkpoint Reproducibility Experiment
 
-## Motivation
-During discussion in Discord, the question was raised whether checkpoint hashing alone could verify the integrity of a training run.
+Checks whether identical PyTorch training runs produce identical checkpoints.
+This came up in Discord — the question was whether you could verify a training
+run by hashing the checkpoint. Before that's useful you need to know if training
+is actually deterministic.
 
-Before building a full verification pipeline, we validate the assumption that identical deterministic training runs produce identical model checkpoints.
+Short answer: yes, but only if you seed the RNG and use a deterministic save
+format. These experiments figure out which things break it and which don't.
 
-## Experiments
-**A — Deterministic run** Two training runs with identical configuration.  
-*Expected:* identical checkpoint hashes.
+---
 
-**B — Seed variation** Training runs with different seeds.  
-*Expected:* different checkpoint hashes.
+## Files
 
-**C — Checkpoint tampering** Manually modify checkpoint.  
-*Expected:* verification fails.
+```
+run_experiment.py       broad pass - toggles one thing at a time, prints hashes
+test_entropy_sources.py one variable per test, run with pytest
+utils.py                set_seed() and hash_file()
+WHY.md                  what questions I was trying to answer
+RESULTS.md              what the results mean
+SOURCES.md         sources
+```
 
-## Model
-Tiny feed-forward network (to keep runtime small).
+---
 
-## Dataset
-Synthetic deterministic dataset.
+## Run it
 
-## Run
 ```bash
+cd experiments/checkpoint_reproducibility
+
 python run_experiment.py
+
+pytest test_entropy_sources.py -v
+```
+
+Expected: `run_experiment.py` shows one genuinely non-deterministic result
+(unseeded torch RNG). Pytest is 14 passed, 0 failed.
+
+---
+
+## Windows note
+
+`num_workers > 0` is skipped automatically on Windows. PyTorch uses `spawn` for
+DataLoader workers which re-imports the script in each process. Making it work
+needs more setup than the experiment is worth. See RESULTS.md for expected Linux
+behaviour.
