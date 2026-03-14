@@ -4,3 +4,5 @@ __all__ = [
     "train_tokenizer",
     "hash_tokenizer_config",
 ]
+
+from .tokenize_dataset import tokenize_dataset
