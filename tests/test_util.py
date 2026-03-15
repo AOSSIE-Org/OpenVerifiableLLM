@@ -1,7 +1,7 @@
 import bz2
 import hashlib
 import json
-from defusedxml.ElementTree import ParseError
+import xml.etree.ElementTree as ET
 
 import pytest
 
@@ -193,12 +193,9 @@ def test_extract_text_from_xml_malformed(tmp_path, monkeypatch):
 
     monkeypatch.chdir(tmp_path)
 
-    # ensure the parse error bubbles up
-    with pytest.raises(ParseError) as excinfo:
+    # ensure the parse error bubbles up with the contextual message
+    with pytest.raises(ET.ParseError, match=r"^Failed to parse XML"):
         utils.extract_text_from_xml(input_file)
-
-    # elementtree ParseError with context is expected
-    assert "Failed to parse XML dump" in str(excinfo.value)
 
 
 # --------------- manifest includes merkle fields ------------------------------------

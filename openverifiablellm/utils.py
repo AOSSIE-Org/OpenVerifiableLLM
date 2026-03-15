@@ -240,6 +240,8 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                             cleaned = clean_wikitext(text_elem.text)
                             if cleaned:
                                 out.write(cleaned + "\n\n")
+
+                        elem.clear()
                 out.flush()
                 os.fsync(out.fileno())
 
