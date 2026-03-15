@@ -7,6 +7,7 @@ import os
 import platform
 import re
 import sys
+import tempfile
 import time
 import tracemalloc
 from pathlib import Path
@@ -222,11 +223,15 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
     open_func = bz2.open if is_bz2 else open
 
+    temp_output_fd, temp_output_path = tempfile.mkstemp(suffix=".tmp", dir=output_dir)
+    os.close(temp_output_fd)
+    temp_output_path = Path(temp_output_path)
+
     try:
         with open_func(input_path, "rb") as f:
             context = ET.iterparse(f, events=("end",))
 
-            with open(output_path, "w", encoding="utf-8") as out:
+            with temp_output_path.open("w", encoding="utf-8") as out:
                 for _, elem in context:
                     if elem.tag.endswith("page"):
                         text_elem = elem.find(".//{*}text")
@@ -235,18 +240,25 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                             cleaned = clean_wikitext(text_elem.text)
                             if cleaned:
                                 out.write(cleaned + "\n\n")
+                out.flush()
+                os.fsync(out.fileno())
 
-                        elem.clear()
+        os.replace(temp_output_path, output_path)
     except ET.ParseError as e:
-        # provide context about which file failed to parse
         msg = f"Failed to parse XML dump '{input_path}': {e}"
         logger.error(msg)
-        # re-raise a new ParseError containing context
         raise ET.ParseError(msg) from e
-
-    logger.info("Preprocessing complete. Output saved to %s", output_path)
-    if write_manifest:
-        generate_manifest(input_path, output_path)
+    except Exception:
+        if temp_output_path.exists():
+            temp_output_path.unlink(missing_ok=True)
+        raise
+    else:
+        logger.info("Preprocessing complete. Output saved to %s", output_path)
+        if write_manifest:
+            generate_manifest(input_path, output_path)
+    finally:
+        if temp_output_path.exists() and temp_output_path != output_path:
+            temp_output_path.unlink(missing_ok=True)
 
 
 # generate data manifest
