@@ -277,9 +277,7 @@ def verify_manifest_chain(
         message = "parent_manifest_hash is empty (first run in chain)"
         chain_valid = True
     else:
-        message = (
-            "Cannot verify non-root manifest without previous_manifest_path"
-        )
+        message = "Cannot verify non-root manifest without previous_manifest_path"
         chain_valid = False
 
     return {
