@@ -395,8 +395,6 @@ def generate_manifest(raw_path, processed_path):
     manifest.update(
         {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
     )
-    project_root = Path.cwd()
-    manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(manifest_path, "w") as f:
