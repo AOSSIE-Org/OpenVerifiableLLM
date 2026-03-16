@@ -308,9 +308,7 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     except Exception:
         # Save progress before propagating the exception so the next run can resume
         _save_checkpoint(checkpoint_path, pages_written)
-        logger.error(
-            "Processing interrupted after %d pages. Run again to resume.", pages_written
-        )
+        logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
         raise
 
     # Processing finished successfully — remove checkpoint so a fresh
@@ -354,7 +352,6 @@ def generate_manifest(raw_path, processed_path):
         ),
         "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
-
         #  Add parent_manifest_hash to link to previous manifest
         "parent_manifest_hash": parent_manifest_hash,
         "preprocessing_version": "v1",
