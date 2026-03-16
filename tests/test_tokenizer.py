@@ -2,13 +2,13 @@ import json
 
 import pytest
 from pathlib import Path
-import tempfile
 import numpy as np
 from openverifiablellm.tokenizer import (
     hash_tokenizer_config,
     train_tokenizer,
 )
 
+from openverifiablellm.tokenizer.tokenize_dataset import tokenize_dataset
 
 @pytest.fixture
 def sample_text_file(tmp_path):
@@ -171,10 +171,6 @@ def test_hash_tokenizer_missing_merges(tmp_path):
 
 
 
-
-from openverifiablellm.tokenizer.tokenize_dataset import tokenize_dataset
-
-
 class DummyTokenizer:
     def encode(self, text):
         return [ord(c) for c in text]
@@ -183,7 +179,7 @@ class DummyTokenizer:
 def test_tokenize_dataset_creates_output(tmp_path):
 
     dataset = tmp_path / "dataset.txt"
-    dataset.write_text("hello\nworld")
+    dataset.write_text("hello\nworld,\n", encoding="utf-8")
 
     output = tmp_path / "tokens.bin"
 
@@ -198,7 +194,7 @@ def test_tokenize_dataset_creates_output(tmp_path):
 def test_tokenize_dataset_deterministic(tmp_path):
 
     dataset = tmp_path / "dataset.txt"
-    dataset.write_text("test data\nanother line")
+    dataset.write_text("test data\nanother line", encoding="utf-8")
 
     output1 = tmp_path / "tokens1.bin"
     output2 = tmp_path / "tokens2.bin"
@@ -212,3 +208,23 @@ def test_tokenize_dataset_deterministic(tmp_path):
     data2 = np.fromfile(output2, dtype=np.uint32)
 
     assert np.array_equal(data1, data2)
+
+def test_tokenize_dataset_missing_file(tmp_path):
+    tokenizer = DummyTokenizer()
+    output = tmp_path / "tokens.bin"
+
+    with pytest.raises(FileNotFoundError):
+        tokenize_dataset(tmp_path / "missing.txt", tokenizer, output)
+
+
+def test_tokenize_dataset_empty_file(tmp_path):
+    dataset = tmp_path / "empty.txt"
+    dataset.write_text("", encoding="utf-8")
+
+    output = tmp_path / "tokens.bin"
+
+    total = tokenize_dataset(dataset, DummyTokenizer(), output)
+
+    assert total == 0
+    assert output.exists()
+    assert output.stat().st_size == 0

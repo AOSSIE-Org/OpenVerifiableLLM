@@ -39,7 +39,6 @@ def tokenize_dataset(input_file, tokenizer, output_file):
          output_path.open("wb") as fout:
 
         for line in fin:
-
             text = line.strip()
 
             if not text:
@@ -49,12 +48,15 @@ def tokenize_dataset(input_file, tokenizer, output_file):
 
             if isinstance(encoded, list):
                 tokens = encoded
-            else:
-                # support tokenizers returning objects
+            elif hasattr(encoded, "ids"):
                 tokens = encoded.ids
+            else:
+                raise TypeError(
+                    f"Tokenizer.encode() returned unsupported type: {type(encoded).__name__}. "
+                    "Expected list or object with 'ids' attribute."
+                )
 
             tokens_array = np.array(tokens, dtype=np.uint32)
-
             tokens_array.tofile(fout)
 
             total_tokens += len(tokens)
