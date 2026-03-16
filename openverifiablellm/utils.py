@@ -187,37 +187,70 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
 
 
 # extract clean wikipage from actual wikipage
-CHECKPOINT_INTERVAL = 10_000  # Save checkpoint every N pages
+CHECKPOINT_INTERVAL = 1_000  # Save checkpoint every N pages
 
 
 def _checkpoint_path(output_dir: Path) -> Path:
     return output_dir / "wiki_clean.checkpoint.json"
 
 
-def _load_checkpoint(checkpoint_path: Path) -> Dict[str, Any]:
-    """Load checkpoint data if it exists, otherwise return a fresh state."""
-    if checkpoint_path.exists():
-        try:
-            with checkpoint_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-            logger.info(
-                "Resuming from checkpoint: %d pages already processed",
-                data.get("pages_processed", 0),
-            )
-            return data
-        except Exception as e:
-            logger.warning("Could not read checkpoint file (%s) — starting fresh.", e)
-    return {"pages_processed": 0}
-
-
-def _save_checkpoint(checkpoint_path: Path, pages_processed: int) -> None:
-    """Atomically save checkpoint by writing to a temp file then renaming."""
-    tmp = checkpoint_path.with_suffix(".tmp")
+def _compute_input_identity(input_path: Path) -> str:
+    """Return a stable identity for the input file."""
     try:
+        return compute_sha256(file_path=input_path)
+    except Exception:
+        return ""
+
+
+def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
+    """Load checkpoint safely and validate resume conditions."""
+    if not checkpoint_path.exists():
+        return {"pages_processed": 0}
+
+    try:
+        with checkpoint_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        pages_processed = data.get("pages_processed")
+        stored_identity = data.get("input_identity")
+
+        current_identity = _compute_input_identity(input_path)
+
+        if not isinstance(pages_processed, int) or pages_processed < 0:
+            raise ValueError("Invalid pages_processed value")
+
+        if stored_identity != current_identity:
+            raise ValueError("Input file changed since checkpoint")
+
+        if pages_processed > 0 and not output_path.exists():
+            raise ValueError("Output file missing; cannot safely resume")
+
+        logger.info("Resuming from checkpoint: %d pages already processed", pages_processed)
+
+        return data
+
+    except Exception as e:
+        logger.warning("Checkpoint invalid (%s) — starting fresh.", e)
+        return {"pages_processed": 0}
+
+
+def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_path: Path) -> None:
+    """Atomically save checkpoint with input identity."""
+    tmp = checkpoint_path.with_suffix(".tmp")
+
+    try:
+        checkpoint_data = {
+            "pages_processed": pages_processed,
+            "input_identity": _compute_input_identity(input_path),
+        }
+
         with tmp.open("w", encoding="utf-8") as f:
-            json.dump({"pages_processed": pages_processed}, f)
+            json.dump(checkpoint_data, f)
+
         tmp.replace(checkpoint_path)
+
         logger.debug("Checkpoint saved at %d pages", pages_processed)
+
     except Exception as e:
         logger.warning("Failed to save checkpoint: %s", e)
         tmp.unlink(missing_ok=True)
@@ -261,7 +294,7 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     checkpoint_path = _checkpoint_path(output_dir)
 
     # Load checkpoint — tells us how many pages were already written
-    checkpoint = _load_checkpoint(checkpoint_path)
+    checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
     pages_already_done = checkpoint["pages_processed"]
 
     # If resuming, append to existing output; otherwise start fresh
@@ -303,11 +336,11 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                         # Flush output and save checkpoint periodically
                         if pages_written % CHECKPOINT_INTERVAL == 0:
                             out.flush()
-                            _save_checkpoint(checkpoint_path, pages_written)
+                            _save_checkpoint(checkpoint_path, pages_written, input_path)
 
     except Exception:
         # Save progress before propagating the exception so the next run can resume
-        _save_checkpoint(checkpoint_path, pages_written)
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
         logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
         raise
 
