@@ -313,14 +313,14 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
     # Processing finished successfully — remove checkpoint so a fresh
     # re-run (if ever needed) starts from the beginning
+    if write_manifest:
+        generate_manifest(input_path, output_path)
     checkpoint_path.unlink(missing_ok=True)
     logger.info(
         "Preprocessing complete. %d pages processed. Output saved to %s",
         pages_written,
         output_path,
     )
-    if write_manifest:
-        generate_manifest(input_path, output_path)
 
 
 # generate data manifest
