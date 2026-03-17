@@ -231,14 +231,14 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
         return {"pages_processed": 0}
 
 
-def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_path: Path) -> None:
+def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str) -> None:
     """Atomically save checkpoint with input identity."""
     tmp = checkpoint_path.with_suffix(".tmp")
 
     try:
         checkpoint_data = {
             "pages_processed": pages_processed,
-            "input_identity": _compute_input_identity(input_path),
+            "input_identity": input_identity,
         }
 
         with tmp.open("w", encoding="utf-8") as f:
@@ -334,7 +334,12 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                         if pages_written % CHECKPOINT_INTERVAL == 0:
                             out.flush()
                             _save_checkpoint(checkpoint_path, pages_written, input_path)
-
+    except KeyboardInterrupt:
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        logger.warning(
+            "Interrupted by user after %d pages. Run again to resume.", pages_written
+        )
+        raise
     except Exception:
         # Save progress before propagating the exception so the next run can resume
         _save_checkpoint(checkpoint_path, pages_written, input_path)
