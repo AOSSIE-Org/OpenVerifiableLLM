@@ -211,6 +211,12 @@ def extract_text_from_xml(
     The processed output is saved to:
         data/processed/wiki_clean.txt
 
+    Supports resuming interrupted runs via a checkpoint file
+    (data/processed/wiki_clean.checkpoint.json). If the checkpoint
+    exists, already-processed pages are skipped and new pages are
+    appended to the existing output. Delete the checkpoint file to
+    force a full reprocessing from scratch.
+
     Parameters
     ----------
     input_path : str or Path
@@ -249,8 +255,8 @@ def extract_text_from_xml(
 
     open_func = bz2.open if is_bz2 else open
 
-    with open_func(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
+    pages_seen = 0
+    pages_written = pages_already_done
 
         with open(output_path, "w", encoding="utf-8") as out:
             for _, elem in context:
@@ -356,7 +362,8 @@ def generate_manifest(raw_path, processed_path, contamination_metadata=None):
 
     logger.info("Manifest written to %s", manifest_path)
     logger.info(
-        "Manifest parent hash: %s", parent_manifest_hash if parent_manifest_hash else "(first run)"
+        "Manifest parent hash: %s",
+        parent_manifest_hash if parent_manifest_hash else "(first run)",
     )
 
 
@@ -438,22 +445,7 @@ def compute_sha256(
 
     Exactly one of `data` or `file_path` must be provided.
     """
-
-    if (data is None) == (file_path is None):
-        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
-
-    sha256 = hashlib.sha256()
-
-    if data is not None:
-        sha256.update(data)
-        return sha256.hexdigest()
-
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
+    return compute_sha256_bytes(data=data, file_path=file_path).hex()
 
 
 def extract_dump_date(filename: str):

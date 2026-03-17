@@ -87,9 +87,9 @@ def compute_manifest_hash(manifest: Union[str, Path, Dict[str, Any]]) -> str:
             except json.JSONDecodeError as e:
                 raise ValueError(f"Malformed manifest JSON: {e}")
 
-    # Hash the entire manifest so descendants authenticate both the
-    # manifest contents and its declared predecessor.
     hashable = manifest_data.copy()
+    if isinstance(hashable, dict):
+        hashable.pop("parent_manifest_hash", None)
 
     canonical = _canonical_json(hashable)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

@@ -268,7 +268,10 @@ class TestVerifyManifestChain:
 
     def test_first_run_manifest_empty_parent(self, tmp_path):
         """First-run manifest with empty parent_manifest_hash should be valid."""
-        manifest = {"key": "value", "parent_manifest_hash": ""}
+        manifest = {
+            "key": "value",
+            "parent_manifest_hash": "",
+        }
         manifest_file = tmp_path / "manifest.json"
         manifest_file.write_text(json.dumps(manifest))
 
