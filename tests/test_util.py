@@ -317,6 +317,7 @@ def test_export_and_load_merkle_proof(tmp_path):
         expected_root=root,
     )
 
+
 def test_extract_text_from_xml_malformed_xml(tmp_path, monkeypatch):
     import defusedxml.ElementTree as ET
 
