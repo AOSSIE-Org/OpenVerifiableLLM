@@ -34,6 +34,4 @@ target-version = "py39"
 select = ["E", "F", "I"]
 ignore = ["E501"]
 
-[tool.pytest.ini_options]
-filterwarnings = [
-]
+# Removing empty pytest options to avoid duplicate key conflict with main
