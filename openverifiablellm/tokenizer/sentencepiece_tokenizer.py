@@ -1,6 +1,5 @@
-from pathlib import Path
-
 import warnings
+from pathlib import Path
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=DeprecationWarning)
