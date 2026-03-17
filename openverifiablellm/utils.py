@@ -196,10 +196,7 @@ def _checkpoint_path(output_dir: Path) -> Path:
 
 def _compute_input_identity(input_path: Path) -> str:
     """Return a stable identity for the input file."""
-    try:
-        return compute_sha256(file_path=input_path)
-    except Exception:
-        return ""
+    return compute_sha256(file_path=input_path)
 
 
 def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
