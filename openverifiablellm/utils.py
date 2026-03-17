@@ -336,9 +336,7 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                             _save_checkpoint(checkpoint_path, pages_written, input_path)
     except KeyboardInterrupt:
         _save_checkpoint(checkpoint_path, pages_written, input_path)
-        logger.warning(
-            "Interrupted by user after %d pages. Run again to resume.", pages_written
-        )
+        logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
         raise
     except Exception:
         # Save progress before propagating the exception so the next run can resume
