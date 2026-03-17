@@ -9,7 +9,7 @@ the previously recorded manifest exactly.
 Now includes cryptographic chain verification of manifests.
 
 Usage (CLI):
-    python -m openverifiablellm.verify <input_dump> [--manifest <path>] [--previous-manifest <path>]
+    python scripts/verify_dataset.py <input_dump> [--manifest <path>] [--previous-manifest <path>]
 
 Usage (Python):
     from openverifiablellm.verify import verify_preprocessing
@@ -482,11 +482,12 @@ def verify_preprocessing(
                 pythonpath_entries.append(existing_pythonpath)
             env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath_entries))
 
+            script_path = Path(repo_root) / "scripts" / "preprocess_dump.py"
+
             subprocess.run(
                 [
                     sys.executable,
-                    "-m",
-                    "openverifiablellm.utils",
+                    str(script_path),
                     str(input_dump),
                 ],
                 cwd=tmp_dir,
