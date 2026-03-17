@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import defusedxml.ElementTree as ET
 
 from openverifiablellm.environment import generate_environment_fingerprint
+from openverifiablellm.manifest_chain import get_parent_manifest_hash
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -311,6 +312,13 @@ def generate_manifest(raw_path, processed_path, contamination_metadata=None):
             f"Processed file not found at {processed_path}. Run preprocessing first."
         )
 
+    project_root = Path.cwd()
+    manifest_path = project_root / "data" / "dataset_manifest.json"
+
+    # ===== NEW: Compute parent_manifest_hash before creating new manifest =====
+    parent_manifest_hash = get_parent_manifest_hash(manifest_path)
+    # ========================================================================
+
     manifest = {
         "wikipedia_dump": raw_path.name,
         "dump_date": extract_dump_date(raw_path.name),
@@ -324,9 +332,12 @@ def generate_manifest(raw_path, processed_path, contamination_metadata=None):
         ),
         "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
+        #  Add parent_manifest_hash to link to previous manifest
+        "parent_manifest_hash": parent_manifest_hash,
         "preprocessing_version": "v1",
         "python_version": platform.python_version(),
     }
+
     env_data = generate_environment_fingerprint()
     manifest.update(
         {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
@@ -344,6 +355,9 @@ def generate_manifest(raw_path, processed_path, contamination_metadata=None):
         json.dump(manifest, f, indent=2)
 
     logger.info("Manifest written to %s", manifest_path)
+    logger.info(
+        "Manifest parent hash: %s", parent_manifest_hash if parent_manifest_hash else "(first run)"
+    )
 
 
 def export_merkle_proof(

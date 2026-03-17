@@ -126,7 +126,6 @@ def test_file_not_found():
 
 
 def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
-
     xml_content = """<?xml version="1.0"?>
     <mediawiki>
       <page>
@@ -153,7 +152,6 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
 
 def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
-
     xml_content = """<?xml version="1.0"?>
     <mediawiki>
       <page>
