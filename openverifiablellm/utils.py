@@ -485,22 +485,7 @@ def compute_sha256(
 
     Exactly one of `data` or `file_path` must be provided.
     """
-
-    if (data is None) == (file_path is None):
-        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
-
-    sha256 = hashlib.sha256()
-
-    if data is not None:
-        sha256.update(data)
-        return sha256.hexdigest()
-
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
+    return compute_sha256_bytes(data=data, file_path=file_path).hex()
 
 
 def extract_dump_date(filename: str):
