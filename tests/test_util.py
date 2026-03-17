@@ -1,8 +1,10 @@
 import bz2
 import hashlib
-import pytest
-from openverifiablellm import utils
 import json
+
+import pytest
+
+from openverifiablellm import utils
 
 """
 Unit and integration tests for OpenVerifiableLLM preprocessing pipeline.
@@ -13,6 +15,7 @@ Run with:
 """
 
 # --------------- clean_wikitext tests ------------------------------------
+
 
 def test_clean_wikitext_removes_templates_and_refs():
     text = "Hello {{Infobox}} <ref>cite</ref> world"
@@ -31,7 +34,9 @@ def test_clean_wikitext_collapses_whitespace():
     cleaned = utils.clean_wikitext(text)
     assert cleaned == "Hello world test"
 
+
 # --------------- extract_dump_date tests ------------------------------------
+
 
 def test_extract_dump_date_valid():
     filename = "simplewiki-20260201-pages-articles.xml.bz2"
@@ -42,7 +47,9 @@ def test_extract_dump_date_invalid():
     filename = "no-date-file.xml.bz2"
     assert utils.extract_dump_date(filename) == "unknown"
 
+
 # --------------- generate manifest ------------------------------------
+
 
 def test_generate_manifest_raises_if_processed_missing(tmp_path):
     raw_file = tmp_path / "raw.txt"
@@ -52,6 +59,7 @@ def test_generate_manifest_raises_if_processed_missing(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         utils.generate_manifest(raw_file, missing_file)
+
 
 def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -67,7 +75,23 @@ def test_generate_manifest_runs_if_file_exists(tmp_path, monkeypatch):
     manifest_file = tmp_path / "data/dataset_manifest.json"
     assert manifest_file.exists()
 
+
 # --------------- compute_sha256 ------------------------------------
+
+
+def test_compute_sha256_bytes(tmp_path):
+    file = tmp_path / "sample.txt"
+    content = b"hello wikipedia"
+    file.write_bytes(content)
+
+    expected = hashlib.sha256(content).digest()
+
+    actual_data = utils.compute_sha256_bytes(data=content)
+    actual_file = utils.compute_sha256_bytes(file_path=file)
+
+    assert actual_data == expected
+    assert actual_file == expected
+
 
 def test_correct_sha256_output(tmp_path):
     file = tmp_path / "sample.txt"
@@ -96,10 +120,11 @@ def test_file_not_found():
     with pytest.raises(FileNotFoundError):
         utils.compute_sha256(file_path="non_existent_file.txt")
 
+
 # --------------- extract_text_from_xml tests ------------------------------------
 
-def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
+def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
     xml_content = """<?xml version="1.0"?>
     <mediawiki>
       <page>
@@ -126,7 +151,6 @@ def test_extract_text_from_xml_end_to_end(tmp_path, monkeypatch):
 
 
 def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
-
     xml_content = """<?xml version="1.0"?>
     <mediawiki>
       <page>
@@ -152,7 +176,9 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
 
     assert "Hello Uncompressed" in processed_file.read_text()
 
+
 # --------------- manifest includes merkle fields ------------------------------------
+
 
 def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
@@ -172,7 +198,9 @@ def test_manifest_contains_merkle_fields(tmp_path, monkeypatch):
     assert "processed_merkle_root" in manifest
     assert "chunk_size_bytes" in manifest
 
+
 # --------------- compute_merkle_root ------------------------------------
+
 
 def test_merkle_root_deterministic(tmp_path):
     file = tmp_path / "data.txt"
@@ -219,7 +247,30 @@ def test_merkle_root_empty_file(tmp_path):
 
     assert root == expected
 
+
+def test_compute_merkle_root_multi_chunk_hardcoded(tmp_path):
+    file = tmp_path / "data.txt"
+    # 3 chunks of 8 bytes each
+    chunk1 = b"chunk__1"
+    chunk2 = b"chunk__2"
+    chunk3 = b"chunk__3"
+    file.write_bytes(chunk1 + chunk2 + chunk3)
+
+    h1 = hashlib.sha256(chunk1).digest()
+    h2 = hashlib.sha256(chunk2).digest()
+    h3 = hashlib.sha256(chunk3).digest()
+
+    h12 = hashlib.sha256(h1 + h2).digest()
+    h33 = hashlib.sha256(h3 + h3).digest()
+
+    expected_root = hashlib.sha256(h12 + h33).hexdigest()
+
+    actual_root = utils.compute_merkle_root(file, chunk_size=8)
+    assert actual_root == expected_root
+
+
 # --------------- Merkle proof generation ------------------------------------
+
 
 def test_merkle_proof_verification(tmp_path):
     file = tmp_path / "data.txt"
@@ -254,12 +305,7 @@ def test_export_and_load_merkle_proof(tmp_path):
 
     proof_file = tmp_path / "proof.json"
 
-    utils.export_merkle_proof(
-        proof,
-        chunk_index=1,
-        chunk_size=8,
-        output_path=proof_file
-    )
+    utils.export_merkle_proof(proof, chunk_index=1, chunk_size=8, output_path=proof_file)
 
     with file.open("rb") as f:
         f.seek(8)

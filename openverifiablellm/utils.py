@@ -1,15 +1,21 @@
+import argparse
 import bz2
-import re
-import defusedxml.ElementTree as ET
-from pathlib import Path
-import sys
 import hashlib
-import logging
 import json
+import logging
+import os
 import platform
-from typing import Union, Optional, Dict, Any, List, Tuple
-from openverifiablellm.environment import generate_environment_fingerprint
+import re
+import sys
+import time
+import tracemalloc
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import defusedxml.ElementTree as ET
+
+from openverifiablellm.environment import generate_environment_fingerprint
+from openverifiablellm.manifest_chain import get_parent_manifest_hash
 
 logger = logging.getLogger(__name__)
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024  # 1MB
@@ -22,8 +28,38 @@ RE_LINK_PIPE = re.compile(r"\[\[.*?\|(.*?)\]\]")
 RE_LINK = re.compile(r"\[\[(.*?)\]\]")
 RE_WHITESPACE = re.compile(r"\s+")
 
+
+# helpers: New helper to compute SHA256 and return raw bytes directly
+def compute_sha256_bytes(
+    *,
+    data: Optional[Union[bytes, bytearray]] = None,
+    file_path: Optional[Union[str, Path]] = None,
+) -> bytes:
+    """
+    Compute SHA256 hash of a file OR raw bytes, returning raw bytes.
+    This avoids the overhead of converting to a hex string and back.
+    """
+    if (data is None) == (file_path is None):
+        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
+
+    sha256 = hashlib.sha256()
+
+    if data is not None:
+        sha256.update(data)
+        return sha256.digest()
+
+    path = Path(file_path)
+    with path.open("rb") as f:
+        while chunk := f.read(8192):
+            sha256.update(chunk)
+
+    return sha256.digest()
+
+
 # Merkle Tree Chunk-Level Hashing for Large Files
-def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES) -> str:
+def compute_merkle_root(
+    file_path: Union[str, Path], chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+) -> str:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
@@ -32,9 +68,9 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
 
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            # reuse compute_sha256
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            # use new helper to directly get bytes
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         return compute_sha256(data=b"")
@@ -46,17 +82,16 @@ def compute_merkle_root(file_path: Union[str, Path], chunk_size: int = MERKLE_CH
             right = leaves[i + 1] if i + 1 < len(leaves) else left
 
             combined = left + right
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         leaves = next_level
 
     return leaves[0].hex()
 
+
 def generate_merkle_proof(
-    file_path: Union[str, Path],
-    chunk_index: int,
-    chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
+    file_path: Union[str, Path], chunk_index: int, chunk_size: int = MERKLE_CHUNK_SIZE_BYTES
 ):
     """
     Generate Merkle proof for a specific chunk index.
@@ -74,8 +109,8 @@ def generate_merkle_proof(
     # Build leaf level
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
-            leaf_hex = compute_sha256(data=chunk)
-            leaves.append(bytes.fromhex(leaf_hex))
+            leaf_bytes = compute_sha256_bytes(data=chunk)
+            leaves.append(leaf_bytes)
 
     if not leaves:
         raise ValueError("Cannot generate proof for empty file")
@@ -101,24 +136,21 @@ def generate_merkle_proof(
         next_level = []
         for i in range(0, len(leaves), 2):
             combined = leaves[i] + leaves[i + 1]
-            parent_hex = compute_sha256(data=combined)
-            next_level.append(bytes.fromhex(parent_hex))
+            parent_bytes = compute_sha256_bytes(data=combined)
+            next_level.append(parent_bytes)
 
         index //= 2
         leaves = next_level
 
     return proof
 
-def verify_merkle_proof(
-    chunk_bytes: bytes,
-    proof,
-    merkle_root: str
-) -> bool:
+
+def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
     """
     Verify a Merkle proof for given chunk bytes.
     """
     try:
-        current_hash = bytes.fromhex(compute_sha256(data=chunk_bytes))
+        current_hash = compute_sha256_bytes(data=chunk_bytes)
         expected_root = bytes.fromhex(merkle_root)
     except (TypeError, ValueError):
         return False
@@ -149,13 +181,79 @@ def verify_merkle_proof(
         else:
             combined = current_hash + sibling
 
-        parent_hex = compute_sha256(data=combined)
-        current_hash = bytes.fromhex(parent_hex)
+        current_hash = compute_sha256_bytes(data=combined)
 
     return current_hash == expected_root
 
+
 # extract clean wikipage from actual wikipage
-def extract_text_from_xml(input_path):
+CHECKPOINT_INTERVAL = 1_000  # Save checkpoint every N pages
+
+
+def _checkpoint_path(output_dir: Path) -> Path:
+    return output_dir / "wiki_clean.checkpoint.json"
+
+
+def _compute_input_identity(input_path: Path) -> str:
+    """Return a stable identity for the input file."""
+    return compute_sha256(file_path=input_path)
+
+
+def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
+    """Load checkpoint safely and validate resume conditions."""
+    if not checkpoint_path.exists():
+        return {"pages_processed": 0}
+
+    try:
+        with checkpoint_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        pages_processed = data.get("pages_processed")
+        stored_identity = data.get("input_identity")
+
+        current_identity = _compute_input_identity(input_path)
+
+        if not isinstance(pages_processed, int) or pages_processed < 0:
+            raise ValueError("Invalid pages_processed value")
+
+        if stored_identity != current_identity:
+            raise ValueError("Input file changed since checkpoint")
+
+        if pages_processed > 0 and not output_path.exists():
+            raise ValueError("Output file missing; cannot safely resume")
+
+        logger.info("Resuming from checkpoint: %d pages already processed", pages_processed)
+
+        return data
+
+    except Exception as e:
+        logger.warning("Checkpoint invalid (%s) — starting fresh.", e)
+        return {"pages_processed": 0}
+
+
+def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str) -> None:
+    """Atomically save checkpoint with input identity."""
+    tmp = checkpoint_path.with_suffix(".tmp")
+
+    try:
+        checkpoint_data = {
+            "pages_processed": pages_processed,
+            "input_identity": input_identity,
+        }
+
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(checkpoint_data, f)
+
+        tmp.replace(checkpoint_path)
+
+        logger.debug("Checkpoint saved at %d pages", pages_processed)
+
+    except Exception as e:
+        logger.warning("Failed to save checkpoint: %s", e)
+        tmp.unlink(missing_ok=True)
+
+
+def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
 
@@ -165,6 +263,12 @@ def extract_text_from_xml(input_path):
 
     The processed output is saved to:
         data/processed/wiki_clean.txt
+
+    Supports resuming interrupted runs via a checkpoint file
+    (data/processed/wiki_clean.checkpoint.json). If the checkpoint
+    exists, already-processed pages are skipped and new pages are
+    appended to the existing output. Delete the checkpoint file to
+    force a full reprocessing from scratch.
 
     Parameters
     ----------
@@ -184,6 +288,14 @@ def extract_text_from_xml(input_path):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / "wiki_clean.txt"
+    checkpoint_path = _checkpoint_path(output_dir)
+
+    # Load checkpoint — tells us how many pages were already written
+    checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
+    pages_already_done = checkpoint["pages_processed"]
+
+    # If resuming, append to existing output; otherwise start fresh
+    write_mode = "a" if pages_already_done > 0 else "w"
 
     # Auto-detect file type using magic bytes separation
     with open(input_path, "rb") as test_f:
@@ -191,22 +303,58 @@ def extract_text_from_xml(input_path):
 
     open_func = bz2.open if is_bz2 else open
 
-    with open_func(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
+    pages_seen = 0
+    pages_written = pages_already_done
 
-        with open(output_path, "w", encoding="utf-8") as out:
-            for _, elem in context:
-                if elem.tag.endswith("page"):
-                    text_elem = elem.find(".//{*}text")
+    try:
+        with open_func(input_path, "rb") as f:
+            context = ET.iterparse(f, events=("end",))
 
-                    if text_elem is not None and text_elem.text:
-                        cleaned = clean_wikitext(text_elem.text)
-                        if cleaned:
-                            out.write(cleaned + "\n\n")
+            with open(output_path, write_mode, encoding="utf-8") as out:
+                for _, elem in context:
+                    if elem.tag.endswith("page"):
+                        pages_seen += 1
 
-                    elem.clear()
-    logger.info("Preprocessing complete. Output saved to %s", output_path)
-    generate_manifest(input_path,output_path)
+                        # Skip pages already processed in a previous run
+                        if pages_seen <= pages_already_done:
+                            elem.clear()
+                            continue
+
+                        text_elem = elem.find(".//{*}text")
+
+                        if text_elem is not None and text_elem.text:
+                            cleaned = clean_wikitext(text_elem.text)
+                            if cleaned:
+                                out.write(cleaned + "\n\n")
+
+                        pages_written += 1
+                        elem.clear()
+
+                        # Flush output and save checkpoint periodically
+                        if pages_written % CHECKPOINT_INTERVAL == 0:
+                            out.flush()
+                            _save_checkpoint(checkpoint_path, pages_written, input_path)
+    except KeyboardInterrupt:
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
+        raise
+    except Exception:
+        # Save progress before propagating the exception so the next run can resume
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
+        raise
+
+    # Processing finished successfully — remove checkpoint so a fresh
+    # re-run (if ever needed) starts from the beginning
+    if write_manifest:
+        generate_manifest(input_path, output_path)
+    checkpoint_path.unlink(missing_ok=True)
+    logger.info(
+        "Preprocessing complete. %d pages processed. Output saved to %s",
+        pages_written,
+        output_path,
+    )
+
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
@@ -218,40 +366,49 @@ def generate_manifest(raw_path, processed_path):
             f"Processed file not found at {processed_path}. Run preprocessing first."
         )
 
+    project_root = Path.cwd()
+    manifest_path = project_root / "data" / "dataset_manifest.json"
+
+    # ===== NEW: Compute parent_manifest_hash before creating new manifest =====
+    parent_manifest_hash = get_parent_manifest_hash(manifest_path)
+    # ========================================================================
+
     manifest = {
         "wikipedia_dump": raw_path.name,
         "dump_date": extract_dump_date(raw_path.name),
         "raw_sha256": compute_sha256(file_path=raw_path),
         "processed_sha256": compute_sha256(file_path=processed_path),
-
         # ---------------- ADDED FIELDS ----------------
         "raw_merkle_root": compute_merkle_root(raw_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
-        "processed_merkle_root": compute_merkle_root(processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES),
+        "processed_merkle_root": compute_merkle_root(
+            processed_path, chunk_size=MERKLE_CHUNK_SIZE_BYTES
+        ),
         "chunk_size_bytes": MERKLE_CHUNK_SIZE_BYTES,
         # ---------------------------------------------------------------
-
+        #  Add parent_manifest_hash to link to previous manifest
+        "parent_manifest_hash": parent_manifest_hash,
         "preprocessing_version": "v1",
-        "python_version": platform.python_version()
+        "python_version": platform.python_version(),
     }
+
     env_data = generate_environment_fingerprint()
-    manifest.update({
-        "environment": env_data["environment"],
-        "environment_hash": env_data["environment_hash"]
-    })
-    project_root = Path.cwd()
-    manifest_path = project_root / "data" / "dataset_manifest.json"
+    manifest.update(
+        {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
+    )
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
     logger.info("Manifest written to %s", manifest_path)
+    logger.info(
+        "Manifest parent hash: %s",
+        parent_manifest_hash if parent_manifest_hash else "(first run)",
+    )
+
 
 def export_merkle_proof(
-    proof: List[Tuple[str, bool]],
-    chunk_index: int,
-    chunk_size: int,
-    output_path: Union[str, Path]
+    proof: List[Tuple[str, bool]], chunk_index: int, chunk_size: int, output_path: Union[str, Path]
 ) -> None:
     """
     Export Merkle proof to a JSON file for portable verification.
@@ -276,9 +433,8 @@ def export_merkle_proof(
     with output_path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-def load_merkle_proof(
-    proof_path: Union[str, Path]
-) -> Dict[str, Any]:
+
+def load_merkle_proof(proof_path: Union[str, Path]) -> Dict[str, Any]:
     """
     Load Merkle proof from a JSON file.
     """
@@ -288,12 +444,8 @@ def load_merkle_proof(
         return json.load(f)
 
 
-# Content before line 270 remains unchanged
-# Entire function definition from lines 270-314 should be deleted
 def verify_merkle_proof_from_file(
-    proof_file_path: Union[str, Path],
-    chunk_data: bytes,
-    expected_root: str
+    proof_file_path: Union[str, Path], chunk_data: bytes, expected_root: str
 ) -> bool:
     proof_file_path = Path(proof_file_path)
 
@@ -317,6 +469,7 @@ def verify_merkle_proof_from_file(
 
     return verify_merkle_proof(chunk_data, proof, expected_root)
 
+
 # helpers:Update compute_sha256() to support bytes input directly.
 def compute_sha256(
     *,
@@ -332,24 +485,8 @@ def compute_sha256(
 
     Exactly one of `data` or `file_path` must be provided.
     """
+    return compute_sha256_bytes(data=data, file_path=file_path).hex()
 
-    if (data is None) == (file_path is None):
-        raise ValueError(
-            "Exactly one of 'data' or 'file_path' must be provided."
-        )
-
-    sha256 = hashlib.sha256()
-
-    if data is not None:
-        sha256.update(data)
-        return sha256.hexdigest()
-
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
 
 def extract_dump_date(filename: str):
     parts = filename.split("-")
@@ -357,6 +494,7 @@ def extract_dump_date(filename: str):
         if part.isdigit() and len(part) == 8:
             return f"{part[:4]}-{part[4:6]}-{part[6:]}"
     return "unknown"
+
 
 def clean_wikitext(text: str) -> str:
     """
@@ -381,13 +519,90 @@ def clean_wikitext(text: str) -> str:
     text = RE_WHITESPACE.sub(" ", text)
     return text.strip()
 
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python -m openverifiablellm.utils <input_dump>")
+
+def run_benchmark(file_path: str, chunk_size: int = 1024 * 1024):
+    logger.info("--- Starting Benchmark ---")
+
+    if not os.path.exists(file_path):
+        logger.error(f"Error: File not found at {file_path}")
         sys.exit(1)
 
-    logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s - %(message)s"
+    size_mb = os.path.getsize(file_path) / (1024 * 1024)
+
+    logger.info(f"Benchmarking file: {file_path}")
+    logger.info(f"File size: {size_mb:.2f} MB")
+
+    try:
+        tracemalloc.start()
+
+        # Benchmark compute_merkle_root
+        start_time = time.perf_counter()
+        root_hex = compute_merkle_root(file_path, chunk_size=chunk_size)
+        end_time = time.perf_counter()
+
+        _current_mem, peak_mem = tracemalloc.get_traced_memory()
+
+        root_time = end_time - start_time
+        mins, secs = divmod(root_time, 60)
+        logger.info(f"compute_merkle_root ({size_mb:.2f} MB file): {int(mins)}m {secs:.3f}s")
+        logger.info(f"Peak Memory Usage: {peak_mem / 10**6:.3f} MB")
+        logger.info(f"Merkle Root: {root_hex}")
+
+        tracemalloc.reset_peak()
+
+        # Benchmark generate_merkle_proof
+        start_time = time.perf_counter()
+
+        file_size_bytes = os.path.getsize(file_path)
+        if file_size_bytes == 0:
+            logger.info("Skipping proof benchmark for empty file")
+        else:
+            chunk_count = (file_size_bytes + chunk_size - 1) // chunk_size
+            chunk_index = min(10, chunk_count - 1)
+
+            _ = generate_merkle_proof(file_path, chunk_index=chunk_index, chunk_size=chunk_size)
+            end_time = time.perf_counter()
+
+            _, peak_mem_proof = tracemalloc.get_traced_memory()
+
+            proof_time = end_time - start_time
+            pmins, psecs = divmod(proof_time, 60)
+            logger.info(
+                f"generate_merkle_proof ({size_mb:.2f} MB file, chunk {chunk_index}): {int(pmins)}m {psecs:.3f}s"
+            )
+            logger.info(f"Peak Memory Usage for proof: {peak_mem_proof / 10**6:.3f} MB")
+
+        logger.info("--- Benchmark Complete ---")
+        tracemalloc.stop()
+
+    except Exception:
+        logger.exception("An error occurred during benchmarking")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="OpenVerifiableLLM Preprocessing")
+    parser.add_argument("input_dump", help="Path to the Wikipedia XML dump file")
+    parser.add_argument(
+        "--BENCHMARK_MODE",
+        type=str,
+        choices=["TRUE", "FALSE"],
+        default="FALSE",
+        help="Run in benchmark mode",
     )
-    extract_text_from_xml(sys.argv[1])
+    parser.add_argument(
+        "--chunk_size",
+        type=int,
+        default=MERKLE_CHUNK_SIZE_BYTES,
+        help="Chunk size in bytes for Merkle hashing",
+    )
+    parser.add_argument("--no-manifest", action="store_true", help="Skip manifest generation")
+
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
+
+    if args.BENCHMARK_MODE == "TRUE":
+        run_benchmark(args.input_dump, args.chunk_size)
+    else:
+        extract_text_from_xml(args.input_dump, write_manifest=not args.no_manifest)
