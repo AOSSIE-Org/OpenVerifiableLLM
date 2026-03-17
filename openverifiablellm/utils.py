@@ -187,6 +187,72 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
 
 
 # extract clean wikipage from actual wikipage
+CHECKPOINT_INTERVAL = 1_000  # Save checkpoint every N pages
+
+
+def _checkpoint_path(output_dir: Path) -> Path:
+    return output_dir / "wiki_clean.checkpoint.json"
+
+
+def _compute_input_identity(input_path: Path) -> str:
+    """Return a stable identity for the input file."""
+    return compute_sha256(file_path=input_path)
+
+
+def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
+    """Load checkpoint safely and validate resume conditions."""
+    if not checkpoint_path.exists():
+        return {"pages_processed": 0}
+
+    try:
+        with checkpoint_path.open("r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        pages_processed = data.get("pages_processed")
+        stored_identity = data.get("input_identity")
+
+        current_identity = _compute_input_identity(input_path)
+
+        if not isinstance(pages_processed, int) or pages_processed < 0:
+            raise ValueError("Invalid pages_processed value")
+
+        if stored_identity != current_identity:
+            raise ValueError("Input file changed since checkpoint")
+
+        if pages_processed > 0 and not output_path.exists():
+            raise ValueError("Output file missing; cannot safely resume")
+
+        logger.info("Resuming from checkpoint: %d pages already processed", pages_processed)
+
+        return data
+
+    except Exception as e:
+        logger.warning("Checkpoint invalid (%s) — starting fresh.", e)
+        return {"pages_processed": 0}
+
+
+def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str) -> None:
+    """Atomically save checkpoint with input identity."""
+    tmp = checkpoint_path.with_suffix(".tmp")
+
+    try:
+        checkpoint_data = {
+            "pages_processed": pages_processed,
+            "input_identity": input_identity,
+        }
+
+        with tmp.open("w", encoding="utf-8") as f:
+            json.dump(checkpoint_data, f)
+
+        tmp.replace(checkpoint_path)
+
+        logger.debug("Checkpoint saved at %d pages", pages_processed)
+
+    except Exception as e:
+        logger.warning("Failed to save checkpoint: %s", e)
+        tmp.unlink(missing_ok=True)
+
+
 def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     """
     Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
@@ -197,6 +263,12 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
     The processed output is saved to:
         data/processed/wiki_clean.txt
+
+    Supports resuming interrupted runs via a checkpoint file
+    (data/processed/wiki_clean.checkpoint.json). If the checkpoint
+    exists, already-processed pages are skipped and new pages are
+    appended to the existing output. Delete the checkpoint file to
+    force a full reprocessing from scratch.
 
     Parameters
     ----------
@@ -216,6 +288,14 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     output_dir.mkdir(parents=True, exist_ok=True)
 
     output_path = output_dir / "wiki_clean.txt"
+    checkpoint_path = _checkpoint_path(output_dir)
+
+    # Load checkpoint — tells us how many pages were already written
+    checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
+    pages_already_done = checkpoint["pages_processed"]
+
+    # If resuming, append to existing output; otherwise start fresh
+    write_mode = "a" if pages_already_done > 0 else "w"
 
     # Auto-detect file type using magic bytes separation
     with open(input_path, "rb") as test_f:
@@ -223,23 +303,57 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
     open_func = bz2.open if is_bz2 else open
 
-    with open_func(input_path, "rb") as f:
-        context = ET.iterparse(f, events=("end",))
+    pages_seen = 0
+    pages_written = pages_already_done
 
-        with open(output_path, "w", encoding="utf-8") as out:
-            for _, elem in context:
-                if elem.tag.endswith("page"):
-                    text_elem = elem.find(".//{*}text")
+    try:
+        with open_func(input_path, "rb") as f:
+            context = ET.iterparse(f, events=("end",))
 
-                    if text_elem is not None and text_elem.text:
-                        cleaned = clean_wikitext(text_elem.text)
-                        if cleaned:
-                            out.write(cleaned + "\n\n")
+            with open(output_path, write_mode, encoding="utf-8") as out:
+                for _, elem in context:
+                    if elem.tag.endswith("page"):
+                        pages_seen += 1
 
-                    elem.clear()
-    logger.info("Preprocessing complete. Output saved to %s", output_path)
+                        # Skip pages already processed in a previous run
+                        if pages_seen <= pages_already_done:
+                            elem.clear()
+                            continue
+
+                        text_elem = elem.find(".//{*}text")
+
+                        if text_elem is not None and text_elem.text:
+                            cleaned = clean_wikitext(text_elem.text)
+                            if cleaned:
+                                out.write(cleaned + "\n\n")
+
+                        pages_written += 1
+                        elem.clear()
+
+                        # Flush output and save checkpoint periodically
+                        if pages_written % CHECKPOINT_INTERVAL == 0:
+                            out.flush()
+                            _save_checkpoint(checkpoint_path, pages_written, input_path)
+    except KeyboardInterrupt:
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
+        raise
+    except Exception:
+        # Save progress before propagating the exception so the next run can resume
+        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
+        raise
+
+    # Processing finished successfully — remove checkpoint so a fresh
+    # re-run (if ever needed) starts from the beginning
     if write_manifest:
         generate_manifest(input_path, output_path)
+    checkpoint_path.unlink(missing_ok=True)
+    logger.info(
+        "Preprocessing complete. %d pages processed. Output saved to %s",
+        pages_written,
+        output_path,
+    )
 
 
 # generate data manifest
@@ -281,8 +395,6 @@ def generate_manifest(raw_path, processed_path):
     manifest.update(
         {"environment": env_data["environment"], "environment_hash": env_data["environment_hash"]}
     )
-    project_root = Path.cwd()
-    manifest_path = project_root / "data" / "dataset_manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(manifest_path, "w") as f:
@@ -290,7 +402,8 @@ def generate_manifest(raw_path, processed_path):
 
     logger.info("Manifest written to %s", manifest_path)
     logger.info(
-        "Manifest parent hash: %s", parent_manifest_hash if parent_manifest_hash else "(first run)"
+        "Manifest parent hash: %s",
+        parent_manifest_hash if parent_manifest_hash else "(first run)",
     )
 
 
@@ -372,22 +485,7 @@ def compute_sha256(
 
     Exactly one of `data` or `file_path` must be provided.
     """
-
-    if (data is None) == (file_path is None):
-        raise ValueError("Exactly one of 'data' or 'file_path' must be provided.")
-
-    sha256 = hashlib.sha256()
-
-    if data is not None:
-        sha256.update(data)
-        return sha256.hexdigest()
-
-    path = Path(file_path)
-    with path.open("rb") as f:
-        while chunk := f.read(8192):
-            sha256.update(chunk)
-
-    return sha256.hexdigest()
+    return compute_sha256_bytes(data=data, file_path=file_path).hex()
 
 
 def extract_dump_date(filename: str):
