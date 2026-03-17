@@ -367,10 +367,11 @@ class TestLegacyManifest(TmpMixin):
 
     def test_merkle_checks_are_skipped(self):
         r = verify_preprocessing(self.dump, project_root=self.tmp)
-        for name in ("raw_merkle_root", "processed_merkle_root"):
+        for name in ("raw_merkle_root", "processed_merkle_root", "manifest_chunk_size_bytes"):
             c = next((x for x in r.checks if x.name == name), None)
             self.assertIsNotNone(c, f"check '{name}' not found")
             self.assertEqual(c.status, CheckStatus.SKIP)
+            self.assertIn("Field absent from manifest (older version)", c.detail)
 
     def test_other_checks_still_pass(self):
         r = verify_preprocessing(self.dump, project_root=self.tmp)

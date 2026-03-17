@@ -316,3 +316,27 @@ def test_export_and_load_merkle_proof(tmp_path):
         chunk_data=chunk,
         expected_root=root,
     )
+
+
+def test_extract_text_from_xml_malformed_xml(tmp_path, monkeypatch):
+    import defusedxml.ElementTree as ET
+
+    malformed_xml_content = """<?xml version="1.0"?>
+    <mediawiki>
+      <page>
+        <revision>
+          <text>Hello [[Malformed]]
+        </revision>
+      </page>
+    </mediawiki>
+    """
+
+    input_file = tmp_path / "simplewiki-20260201-pages-malformed.xml"
+
+    with open(input_file, "w", encoding="utf-8") as f:
+        f.write(malformed_xml_content)
+
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(ET.ParseError):
+        utils.extract_text_from_xml(input_file)
