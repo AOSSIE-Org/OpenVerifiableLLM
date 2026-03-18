@@ -1,6 +1,11 @@
+import warnings
 from pathlib import Path
 
-import sentencepiece as spm
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=DeprecationWarning)
+    # SWIG-generated modules (like sentencepiece on python 3.11+) emit deprecation warnings
+    # scoping the suppression here prevents it from spamming our test output
+    import sentencepiece as spm
 
 from .base import BaseTokenizer
 

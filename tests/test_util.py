@@ -340,3 +340,35 @@ def test_extract_text_from_xml_malformed_xml(tmp_path, monkeypatch):
 
     with pytest.raises(ET.ParseError):
         utils.extract_text_from_xml(input_file)
+
+
+# --------------- load_merkle_proof tests ------------------------------------
+
+
+def test_load_merkle_proof_valid_file(tmp_path):
+    proof_data = {
+        "chunk_index": 1,
+        "chunk_size": 8,
+        "proof": [["00" * 32, True]],
+    }
+    proof_file = tmp_path / "proof.json"
+    proof_file.write_text(json.dumps(proof_data))
+
+    loaded_proof = utils.load_merkle_proof(proof_file)
+
+    assert loaded_proof == proof_data
+
+
+def test_load_merkle_proof_missing_file(tmp_path):
+    proof_file = tmp_path / "missing.json"
+
+    with pytest.raises(FileNotFoundError):
+        utils.load_merkle_proof(proof_file)
+
+
+def test_load_merkle_proof_invalid_json(tmp_path):
+    proof_file = tmp_path / "invalid.json"
+    proof_file.write_text("{invalid json}")
+
+    with pytest.raises(json.JSONDecodeError):
+        utils.load_merkle_proof(proof_file)

@@ -3,9 +3,12 @@ import json
 import pytest
 
 from openverifiablellm.tokenizer import (
+    create_tokenizer,
     hash_tokenizer_config,
     train_tokenizer,
 )
+from openverifiablellm.tokenizer.bpe_tokenizer import BPETokenizer
+from openverifiablellm.tokenizer.sentencepiece_tokenizer import SentencePieceTokenizer
 
 
 @pytest.fixture
@@ -166,3 +169,26 @@ def test_hash_tokenizer_missing_merges(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         hash_tokenizer_config(tokenizer_path)
+
+
+# ---------------------------------------------------------------------
+# create_tokenizer Tests
+# ---------------------------------------------------------------------
+
+
+def test_create_tokenizer_bpe():
+    """Test that create_tokenizer returns a BPETokenizer for 'bpe'."""
+    tokenizer = create_tokenizer("bpe", vocab_size=1000, min_frequency=2)
+    assert isinstance(tokenizer, BPETokenizer)
+
+
+def test_create_tokenizer_sentencepiece():
+    """Test that create_tokenizer returns a SentencePieceTokenizer for 'sentencepiece'."""
+    tokenizer = create_tokenizer("sentencepiece", vocab_size=1000, min_frequency=2)
+    assert isinstance(tokenizer, SentencePieceTokenizer)
+
+
+def test_create_tokenizer_invalid():
+    """Test that create_tokenizer raises a ValueError for invalid types."""
+    with pytest.raises(ValueError, match="Unsupported tokenizer: invalid"):
+        create_tokenizer("invalid", vocab_size=1000, min_frequency=2)
