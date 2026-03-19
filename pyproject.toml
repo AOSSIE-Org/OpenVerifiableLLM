@@ -14,7 +14,7 @@ requires-python = ">=3.9"
 dependencies = [
     "defusedxml",
     "sentencepiece",
-    "tokenizers==0.15.2"
+    "tokenizers>=0.21.0,<1.0.0",
 ]
 
 [tool.setuptools.packages.find]
