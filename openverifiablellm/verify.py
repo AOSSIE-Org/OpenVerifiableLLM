@@ -232,6 +232,7 @@ def verify_preprocessing(
     VerificationReport
         Structured report with per-check pass/fail results.
     """
+    input_dump_original = str(input_dump)
     input_dump = Path(input_dump).resolve()
     root = project_root or Path.cwd()
 
@@ -244,7 +245,7 @@ def verify_preprocessing(
         previous_manifest_path = Path(previous_manifest_path).resolve()
 
     report = VerificationReport(
-        input_dump=str(input_dump),
+        input_dump=input_dump_original,
         manifest_path=str(manifest_path),
         previous_manifest_path=str(previous_manifest_path) if previous_manifest_path else None,
     )
