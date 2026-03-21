@@ -100,6 +100,33 @@ def test_uniform_model_perplexity_equals_vocab_size():
     assert abs(ppl - vocab_size) < 1e-6
 
 
+def test_compute_sequence_perplexity_short_matches_sentence():
+    """For sequences shorter than stride, both methods must agree."""
+    vocab_size = 100
+    model = PerplexityEvaluator.uniform_model(vocab_size=vocab_size)
+    token_ids = list(range(10))
+    ppl_sentence = PerplexityEvaluator.compute_sentence_perplexity(model, token_ids)
+    ppl_sequence = PerplexityEvaluator.compute_sequence_perplexity(model, token_ids, stride=512)
+    assert abs(ppl_sentence - ppl_sequence) < 1e-6
+
+
+def test_compute_sequence_perplexity_long_sequence_finite():
+    """A sequence longer than stride must yield a finite, correct perplexity."""
+    vocab_size = 100
+    model = PerplexityEvaluator.uniform_model(vocab_size=vocab_size)
+    # 50 tokens with stride=10 → 5 windows
+    token_ids = list(range(50))
+    ppl = PerplexityEvaluator.compute_sequence_perplexity(model, token_ids, stride=10)
+    assert math.isfinite(ppl)
+    # Uniform model → PPL must equal vocab_size regardless of windowing
+    assert abs(ppl - vocab_size) < 1e-6
+
+
+def test_compute_sequence_perplexity_single_token_returns_inf():
+    model = PerplexityEvaluator.uniform_model(vocab_size=10)
+    assert PerplexityEvaluator.compute_sequence_perplexity(model, [0], stride=512) == float("inf")
+
+
 # ---------------------------------------------------------------------------
 # WinoBiasEvaluator — initialisation
 # ---------------------------------------------------------------------------
