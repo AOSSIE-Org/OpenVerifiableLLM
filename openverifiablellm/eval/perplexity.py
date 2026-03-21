@@ -36,10 +36,12 @@ class PerplexityEvaluator(BaseEvaluator):
         benchmark: str = "wikitext",
         n_samples: Optional[int] = 50,
         stride: int = 512,
+        split: Optional[str] = None,
     ):
         self.benchmark = benchmark
         self.n_samples = n_samples
         self.stride = stride
+        self.split = split
 
     # ------------------------------------------------------------------
     # Mock helpers
@@ -200,7 +202,21 @@ class PerplexityEvaluator(BaseEvaluator):
         """
         import datasets as hf_datasets  # deferred; runtime dep
 
-        ds = hf_datasets.load_dataset(self.benchmark, split="test", streaming=True)
+        if self.split is not None:
+            ds = hf_datasets.load_dataset(self.benchmark, split=self.split, streaming=True)
+        else:
+            _splits_to_try = ("test", "validation", "train")
+            for _s in _splits_to_try:
+                try:
+                    ds = hf_datasets.load_dataset(self.benchmark, split=_s, streaming=True)
+                    break
+                except Exception:
+                    continue
+            else:
+                raise ValueError(
+                    f"Dataset {self.benchmark!r} has none of the expected splits: "
+                    f"{_splits_to_try}. Pass split= explicitly."
+                )
         scores = []
         for row in ds:
             text = row.get("text", "")

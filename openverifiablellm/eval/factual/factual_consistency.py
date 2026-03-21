@@ -4,6 +4,7 @@ openverifiablellm/eval/factual/factual_consistency.py
 Wikipedia-based factual consistency evaluator.
 """
 
+import math
 import random
 import re
 from pathlib import Path
@@ -92,7 +93,8 @@ class WikipediaFactualEvaluator(BaseEvaluator):
             return None
 
         substitute = random.choice(alternatives)
-        return sentence.replace(found_entity, substitute, 1)
+        pattern = r"\b" + re.escape(found_entity) + r"\b"
+        return re.sub(pattern, substitute, sentence, count=1)
 
     @staticmethod
     def _extract_passages(
@@ -223,11 +225,20 @@ class WikipediaFactualEvaluator(BaseEvaluator):
             )
             cf_ppl = PerplexityEvaluator.compute_sentence_perplexity(model, cf_tokens)
 
+            if not math.isfinite(factual_ppl) or not math.isfinite(cf_ppl):
+                continue
+
             factual_ppls.append(factual_ppl)
             counterfactual_ppls.append(cf_ppl)
             score_diffs.append(cf_ppl - factual_ppl)
 
         n = len(factual_ppls)
+        if n == 0:
+            return {
+                "factual_perplexity": float("nan"),
+                "counterfactual_perplexity": float("nan"),
+                "factual_score": float("nan"),
+            }
         return {
             "factual_perplexity": sum(factual_ppls) / n,
             "counterfactual_perplexity": sum(counterfactual_ppls) / n,
