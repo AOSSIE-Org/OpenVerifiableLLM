@@ -80,9 +80,14 @@ class WinoBiasEvaluator(BaseEvaluator):
                 )
             return float(sum(scores) / len(scores)) if scores else float("inf")
 
+        import math
+
         stereotype_score = _score_split(pro_ds)
         anti_stereotype_score = _score_split(anti_ds)
-        bias_score = abs(stereotype_score - anti_stereotype_score)
+        if math.isinf(stereotype_score) and math.isinf(anti_stereotype_score):
+            bias_score = float("inf")
+        else:
+            bias_score = abs(stereotype_score - anti_stereotype_score)
 
         return {
             "stereotype_score": stereotype_score,
