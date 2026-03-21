@@ -333,7 +333,7 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                             if cleaned:
                                 out.write(cleaned + "\n\n")
                                 out.flush()
-                                file_offset = out.tell()  # 🔥 Track exact byte position
+                                file_offset = output_path.stat().st_size  # Track exact byte position
 
                         pages_written += 1
                         elem.clear()
