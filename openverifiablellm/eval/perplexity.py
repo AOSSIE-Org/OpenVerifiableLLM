@@ -102,6 +102,12 @@ class PerplexityEvaluator(BaseEvaluator):
 
         logits_batch = model(inputs)  # shape: (n-1, vocab_size)
 
+        if len(logits_batch) != len(targets):
+            raise ValueError(
+                f"Model returned {len(logits_batch)} logit vectors but expected "
+                f"{len(targets)} (one per target token)."
+            )
+
         nll_sum = 0.0
         for logits, target in zip(logits_batch, targets):
             # numerically-stable log-softmax
@@ -157,6 +163,11 @@ class PerplexityEvaluator(BaseEvaluator):
             inputs = window[:-1]
             targets = window[1:]
             logits_batch = model(inputs)
+            if len(logits_batch) != len(targets):
+                raise ValueError(
+                    f"Model returned {len(logits_batch)} logit vectors but expected "
+                    f"{len(targets)} (one per target token)."
+                )
             for logits, target in zip(logits_batch, targets):
                 max_l = max(logits)
                 exp_shifted = [math.exp(v - max_l) for v in logits]
@@ -191,12 +202,12 @@ class PerplexityEvaluator(BaseEvaluator):
 
         ds = hf_datasets.load_dataset(self.benchmark, split="test", streaming=True)
         scores = []
-        for i, row in enumerate(ds):
-            if self.n_samples is not None and i >= self.n_samples:
-                break
+        for row in ds:
             text = row.get("text", "")
             if not text.strip():
                 continue
+            if self.n_samples is not None and len(scores) >= self.n_samples:
+                break
             token_ids = tokenizer.encode(text)
             scores.append(self.compute_sequence_perplexity(model, token_ids, self.stride))
 

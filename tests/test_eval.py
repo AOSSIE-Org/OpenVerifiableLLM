@@ -43,12 +43,22 @@ ANTI_SENTENCES = [
 
 
 def _patch_load_dataset(pro_data, anti_data):
-    """Patch ``datasets.load_dataset`` to return pre-built lists."""
+    """Patch ``datasets.load_dataset`` to return pre-built lists.
+
+    Raises ``ValueError`` for any unexpected name, config, or split so
+    integration bugs are not silently hidden by a catch-all fallback.
+    """
 
     def _load(name, config=None, split=None):
+        if name != "wino_bias" or split != "test":
+            raise ValueError(
+                f"Unexpected load_dataset call: name={name!r}, config={config!r}, split={split!r}"
+            )
         if config == "type1_pro":
             return pro_data
-        return anti_data
+        if config == "type1_anti":
+            return anti_data
+        raise ValueError(f"Unexpected config: {config!r}")
 
     return patch("datasets.load_dataset", side_effect=_load)
 
