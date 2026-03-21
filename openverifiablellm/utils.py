@@ -202,7 +202,11 @@ def _compute_input_identity(input_path: Path) -> str:
 def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
     """Load checkpoint safely and validate resume conditions."""
     if not checkpoint_path.exists():
-        return {"pages_processed": 0}
+        return {
+            "pages_processed": 0,
+            "input_identity": _compute_input_identity(input_path),
+            "file_offset": 0,
+        }
 
     try:
         with checkpoint_path.open("r", encoding="utf-8") as f:
@@ -231,7 +235,7 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
         return {"pages_processed": 0}
 
 
-def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str) -> None:
+def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str, file_offset: int,) -> None:
     """Atomically save checkpoint with input identity."""
     tmp = checkpoint_path.with_suffix(".tmp")
 
@@ -239,6 +243,7 @@ def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity
         checkpoint_data = {
             "pages_processed": pages_processed,
             "input_identity": input_identity,
+            "file_offset": file_offset,
         }
 
         with tmp.open("w", encoding="utf-8") as f:
@@ -298,26 +303,31 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     output_path = output_dir / "wiki_clean.txt"
     checkpoint_path = _checkpoint_path(output_dir)
 
+    # Load checkpoint
     checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
-    pages_already_done = checkpoint["pages_processed"]
+    pages_already_done = checkpoint.get("pages_processed", 0)
+    input_identity = checkpoint.get("input_identity")
+    file_offset = checkpoint.get("file_offset", 0)
 
     # ================== FIX FOR ISSUE #76 ==================
-    written_pages = count_written_pages(output_path)
+    # Ensure output file matches checkpoint state using byte offset
+    if output_path.exists() and file_offset > 0:
+        with output_path.open("rb+") as f:
+            f.seek(0, os.SEEK_END)
+            current_size = f.tell()
 
-    if written_pages > pages_already_done:
-        logger.warning(
-            "Output file ahead of checkpoint (%d > %d). Truncating...",
-            written_pages,
-            pages_already_done,
-        )
-        truncate_output_to_pages(output_path, pages_already_done)
+            if current_size > file_offset:
+                logger.warning(
+                    "Output file ahead of checkpoint (%d > %d). Truncating...",
+                    current_size,
+                    file_offset,
+                )
+                f.truncate(file_offset)
     # ======================================================
 
     write_mode = "a" if pages_already_done > 0 else "w"
 
-    # FIX: correct input identity usage
-    input_identity = _compute_input_identity(input_path)
-
+    # Detect file type
     with open(input_path, "rb") as test_f:
         is_bz2 = test_f.read(3) == b"BZh"
 
@@ -331,6 +341,10 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
             context = ET.iterparse(f, events=("end",))
 
             with open(output_path, write_mode, encoding="utf-8") as out:
+                # Move pointer to correct position when resuming
+                if write_mode == "a":
+                    out.seek(0, os.SEEK_END)
+
                 for _, elem in context:
                     if elem.tag.endswith("page"):
                         pages_seen += 1
@@ -345,22 +359,28 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                             cleaned = clean_wikitext(text_elem.text)
                             if cleaned:
                                 out.write(cleaned + "\n\n")
+                                out.flush()
+                                file_offset = out.tell()  # 🔥 Track exact byte position
 
                         pages_written += 1
                         elem.clear()
 
-                        # More frequent checkpointing (safer)
-                        if pages_written % 100 == 0:
-                            out.flush()
-                            _save_checkpoint(checkpoint_path, pages_written, input_identity)
+                        # Save checkpoint periodically
+                        if pages_written % CHECKPOINT_INTERVAL == 0:
+                            _save_checkpoint(
+                                checkpoint_path,
+                                pages_written,
+                                input_identity,
+                                file_offset,
+                            )
 
     except KeyboardInterrupt:
-        _save_checkpoint(checkpoint_path, pages_written, input_identity)
+        _save_checkpoint(checkpoint_path, pages_written, input_identity, file_offset)
         logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
         raise
 
     except Exception:
-        _save_checkpoint(checkpoint_path, pages_written, input_identity)
+        _save_checkpoint(checkpoint_path, pages_written, input_identity, file_offset)
         logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
         raise
 
@@ -374,7 +394,6 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
         pages_written,
         output_path,
     )
-
 
 # generate data manifest
 def generate_manifest(raw_path, processed_path):
