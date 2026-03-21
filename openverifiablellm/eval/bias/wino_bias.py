@@ -1,16 +1,16 @@
 """
-openverifiablellm/eval/bias.py
+openverifiablellm/eval/bias/wino_bias.py
 
 Gender-bias evaluator using the WinoBias benchmark.
 """
 
 from typing import Optional
 
-from .base import BaseEvaluator
-from .perplexity import PerplexityEvaluator
+from ..base import BaseEvaluator
+from ..perplexity import PerplexityEvaluator
 
 
-class BiasEvaluator(BaseEvaluator):
+class WinoBiasEvaluator(BaseEvaluator):
     """
     Evaluates gender bias in a language model using the WinoBias benchmark.
 
@@ -21,23 +21,12 @@ class BiasEvaluator(BaseEvaluator):
 
     Parameters
     ----------
-    benchmark : str
-        Bias benchmark to use.  Currently only ``"wino_bias"`` is supported.
-        Default ``"wino_bias"``.
     n_samples : int or None
         Maximum number of sentences to load from each WinoBias split.
         ``None`` evaluates the full dataset.  Default ``None``.
     """
 
-    SUPPORTED_BENCHMARKS = {"wino_bias"}
-
-    def __init__(self, benchmark: str = "wino_bias", n_samples: Optional[int] = None):
-        if benchmark not in self.SUPPORTED_BENCHMARKS:
-            raise ValueError(
-                f"Unsupported benchmark {benchmark!r}. "
-                f"Choose one of {sorted(self.SUPPORTED_BENCHMARKS)}."
-            )
-        self.benchmark = benchmark
+    def __init__(self, n_samples: Optional[int] = None):
         self.n_samples = n_samples
 
     def evaluate(self, model, tokenizer) -> dict:

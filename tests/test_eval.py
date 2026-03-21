@@ -1,7 +1,7 @@
 """
 tests/test_eval.py
 
-Tests for the evaluator module (BiasEvaluator, PerplexityEvaluator).
+Tests for the evaluator module (WinoBiasEvaluator, PerplexityEvaluator).
 
 Run with:
     pytest tests/test_eval.py -v
@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 import pytest
 
-from openverifiablellm.eval.bias import BiasEvaluator
+from openverifiablellm.eval.bias import WinoBiasEvaluator
 from openverifiablellm.eval.perplexity import PerplexityEvaluator
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ def mock_tokenizer():
 
 @pytest.fixture
 def bias_evaluator():
-    return BiasEvaluator(n_samples=2)
+    return WinoBiasEvaluator(n_samples=2)
 
 
 # ---------------------------------------------------------------------------
@@ -101,27 +101,17 @@ def test_uniform_model_perplexity_equals_vocab_size():
 
 
 # ---------------------------------------------------------------------------
-# BiasEvaluator — initialisation
+# WinoBiasEvaluator — initialisation
 # ---------------------------------------------------------------------------
 
 
-def test_bias_evaluator_invalid_benchmark_raises():
-    with pytest.raises(ValueError):
-        BiasEvaluator(benchmark="nonexistent_benchmark")
-
-
-def test_bias_evaluator_valid_init():
-    ev = BiasEvaluator()
-    assert ev.benchmark == "wino_bias"
-
-
 def test_bias_evaluator_n_samples_stored():
-    ev = BiasEvaluator(n_samples=5)
+    ev = WinoBiasEvaluator(n_samples=5)
     assert ev.n_samples == 5
 
 
 # ---------------------------------------------------------------------------
-# BiasEvaluator.evaluate() — patched load_dataset
+# WinoBiasEvaluator.evaluate() — patched load_dataset
 # ---------------------------------------------------------------------------
 
 
@@ -179,7 +169,7 @@ def test_n_samples_limits_dataset(mock_model, mock_tokenizer):
     pro = _make_dataset(PRO_SENTENCES + bad_rows)
     anti = _make_dataset(ANTI_SENTENCES + bad_rows)
 
-    ev = BiasEvaluator(n_samples=len(PRO_SENTENCES))  # == 2
+    ev = WinoBiasEvaluator(n_samples=len(PRO_SENTENCES))  # == 2
 
     with _patch_load_dataset(pro, anti):
         result = ev.evaluate(mock_model, mock_tokenizer)
