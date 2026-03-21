@@ -1,0 +1,14 @@
+<mediawiki>
+  <page>
+    <title>Test1</title>
+    <revision>
+      <text>This is [[sample]] text</text>
+    </revision>
+  </page>
+  <page>
+    <title>Test2</title>
+    <revision>
+      <text>Another {{template}} example</text>
+    </revision>
+  </page>
+</mediawiki>

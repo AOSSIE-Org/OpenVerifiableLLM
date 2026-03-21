@@ -252,37 +252,45 @@ def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity
         logger.warning("Failed to save checkpoint: %s", e)
         tmp.unlink(missing_ok=True)
 
+def count_written_pages(output_path: Path) -> int:
+    """
+    Count number of processed pages based on output file.
+    Assumes each page is separated by double newline.
+    """
+    if not output_path.exists():
+        return 0
+
+    with output_path.open("r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    if not content:
+        return 0
+
+    return len(content.split("\n\n"))
+
+
+def truncate_output_to_pages(output_path: Path, max_pages: int) -> None:
+    """
+    Truncate output file to match checkpoint page count.
+    """
+    with output_path.open("r", encoding="utf-8") as f:
+        content = f.read().strip()
+
+    if not content:
+        return
+
+    pages = content.split("\n\n")
+
+    with output_path.open("w", encoding="utf-8") as f:
+        if pages[:max_pages]:
+            f.write("\n\n".join(pages[:max_pages]) + "\n\n")
+        else:
+            f.write("")
+
 
 def extract_text_from_xml(input_path, *, write_manifest: bool = False):
-    """
-    Process a Wikipedia XML dump (compressed or uncompressed) into cleaned plain text.
-
-    Each <page> element is parsed, its revision text is extracted,
-    cleaned using `clean_wikitext()`, and appended to a single
-    output text file.
-
-    The processed output is saved to:
-        data/processed/wiki_clean.txt
-
-    Supports resuming interrupted runs via a checkpoint file
-    (data/processed/wiki_clean.checkpoint.json). If the checkpoint
-    exists, already-processed pages are skipped and new pages are
-    appended to the existing output. Delete the checkpoint file to
-    force a full reprocessing from scratch.
-
-    Parameters
-    ----------
-    input_path : str or Path
-        Path to the Wikipedia XML dump file.
-
-    Output
-    ------
-    Creates:
-        data/processed/wiki_clean.txt
-    """
     input_path = Path(input_path)
 
-    # Fixed output path
     project_root = Path.cwd()
     output_dir = project_root / "data" / "processed"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -290,14 +298,26 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     output_path = output_dir / "wiki_clean.txt"
     checkpoint_path = _checkpoint_path(output_dir)
 
-    # Load checkpoint — tells us how many pages were already written
     checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
     pages_already_done = checkpoint["pages_processed"]
 
-    # If resuming, append to existing output; otherwise start fresh
+    # ================== FIX FOR ISSUE #76 ==================
+    written_pages = count_written_pages(output_path)
+
+    if written_pages > pages_already_done:
+        logger.warning(
+            "Output file ahead of checkpoint (%d > %d). Truncating...",
+            written_pages,
+            pages_already_done,
+        )
+        truncate_output_to_pages(output_path, pages_already_done)
+    # ======================================================
+
     write_mode = "a" if pages_already_done > 0 else "w"
 
-    # Auto-detect file type using magic bytes separation
+    # FIX: correct input identity usage
+    input_identity = _compute_input_identity(input_path)
+
     with open(input_path, "rb") as test_f:
         is_bz2 = test_f.read(3) == b"BZh"
 
@@ -315,7 +335,6 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                     if elem.tag.endswith("page"):
                         pages_seen += 1
 
-                        # Skip pages already processed in a previous run
                         if pages_seen <= pages_already_done:
                             elem.clear()
                             continue
@@ -330,25 +349,26 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                         pages_written += 1
                         elem.clear()
 
-                        # Flush output and save checkpoint periodically
-                        if pages_written % CHECKPOINT_INTERVAL == 0:
+                        # More frequent checkpointing (safer)
+                        if pages_written % 100 == 0:
                             out.flush()
-                            _save_checkpoint(checkpoint_path, pages_written, input_path)
+                            _save_checkpoint(checkpoint_path, pages_written, input_identity)
+
     except KeyboardInterrupt:
-        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        _save_checkpoint(checkpoint_path, pages_written, input_identity)
         logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
         raise
+
     except Exception:
-        # Save progress before propagating the exception so the next run can resume
-        _save_checkpoint(checkpoint_path, pages_written, input_path)
+        _save_checkpoint(checkpoint_path, pages_written, input_identity)
         logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
         raise
 
-    # Processing finished successfully — remove checkpoint so a fresh
-    # re-run (if ever needed) starts from the beginning
     if write_manifest:
         generate_manifest(input_path, output_path)
+
     checkpoint_path.unlink(missing_ok=True)
+
     logger.info(
         "Preprocessing complete. %d pages processed. Output saved to %s",
         pages_written,
