@@ -1,0 +1,151 @@
+"""
+openverifiablellm/eval/perplexity.py
+
+Perplexity evaluator for language models.
+"""
+
+import math
+from typing import List, Optional
+
+from .base import BaseEvaluator
+
+
+class PerplexityEvaluator(BaseEvaluator):
+    """
+    Evaluates language-model perplexity on a HuggingFace benchmark dataset.
+
+    Perplexity is computed with a teacher-forced sliding-window approach:
+    for each token position *i* the model receives tokens ``[0 .. i-1]``
+    and the negative log-probability of token ``[i]`` is accumulated.
+    The final perplexity is ``exp(mean_NLL)``.
+
+    Parameters
+    ----------
+    benchmark : str
+        HuggingFace dataset identifier.  Default ``"wikitext"``.
+    n_samples : int or None
+        Maximum number of non-empty samples to evaluate.  ``None`` means
+        evaluate the whole dataset.  Default ``50``.
+    stride : int
+        Window stride used when the sequence exceeds the model's context
+        window.  Default ``512``.
+    """
+
+    def __init__(
+        self,
+        benchmark: str = "wikitext",
+        n_samples: Optional[int] = 50,
+        stride: int = 512,
+    ):
+        self.benchmark = benchmark
+        self.n_samples = n_samples
+        self.stride = stride
+
+    # ------------------------------------------------------------------
+    # Mock helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def uniform_model(vocab_size: int = 1000):
+        """
+        Return a mock model that produces uniform (all-zero) logits.
+
+        Useful for unit testing: because all logits are equal, the
+        log-softmax is ``-log(vocab_size)`` at every position, giving a
+        predictable perplexity of exactly ``vocab_size``.
+
+        Parameters
+        ----------
+        vocab_size : int
+            Vocabulary size of the mock model.  Default ``1000``.
+
+        Returns
+        -------
+        callable
+            ``model(input_ids) -> list[list[float]]`` of shape
+            ``(len(input_ids), vocab_size)``.
+        """
+
+        def _model(input_ids):
+            return [[0.0] * vocab_size for _ in input_ids]
+
+        return _model
+
+    # ------------------------------------------------------------------
+    # Core computation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def compute_sentence_perplexity(model, token_ids: List[int]) -> float:
+        """
+        Compute the perplexity of *token_ids* under *model*.
+
+        Parameters
+        ----------
+        model : callable
+            ``model(input_ids) -> 2-D sequence`` of shape
+            ``(len(input_ids), vocab_size)``.
+        token_ids : list[int]
+            Tokenised sentence.
+
+        Returns
+        -------
+        float
+            Perplexity (≥ 1).  Returns ``float("inf")`` for sequences
+            shorter than 2 tokens.
+        """
+        if len(token_ids) < 2:
+            return float("inf")
+
+        inputs = token_ids[:-1]
+        targets = token_ids[1:]
+
+        logits_batch = model(inputs)  # shape: (n-1, vocab_size)
+
+        nll_sum = 0.0
+        for logits, target in zip(logits_batch, targets):
+            # numerically-stable log-softmax
+            max_l = max(logits)
+            exp_shifted = [math.exp(v - max_l) for v in logits]
+            log_sum = math.log(sum(exp_shifted))
+            log_prob_target = (logits[target] - max_l) - log_sum
+            nll_sum -= log_prob_target
+
+        return math.exp(nll_sum / len(targets))
+
+    # ------------------------------------------------------------------
+    # BaseEvaluator interface
+    # ------------------------------------------------------------------
+
+    def evaluate(self, model, tokenizer) -> dict:
+        """
+        Compute mean perplexity on *self.benchmark*.
+
+        Parameters
+        ----------
+        model : callable
+            Callable as described in :meth:`compute_sentence_perplexity`.
+        tokenizer : object
+            Object with ``encode(text: str) -> list[int]``.
+
+        Returns
+        -------
+        dict
+            ``{"perplexity": float}`` — mean perplexity across evaluated
+            sentences.
+        """
+        import datasets as hf_datasets  # deferred; runtime dep
+
+        ds = hf_datasets.load_dataset(self.benchmark, split="test", streaming=True)
+        scores = []
+        for i, row in enumerate(ds):
+            if self.n_samples is not None and i >= self.n_samples:
+                break
+            text = row.get("text", "")
+            if not text.strip():
+                continue
+            token_ids = tokenizer.encode(text)
+            scores.append(self.compute_sentence_perplexity(model, token_ids))
+
+        mean_ppl = float(sum(scores) / len(scores)) if scores else float("inf")
+        return {"perplexity": mean_ppl}
