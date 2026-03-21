@@ -17,6 +17,12 @@ dependencies = [
     "tokenizers==0.15.2"
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.15.4",
+]
+
 [tool.setuptools.packages.find]
 include = ["openverifiablellm*"]
 
