@@ -187,7 +187,7 @@ def verify_merkle_proof(chunk_bytes: bytes, proof, merkle_root: str) -> bool:
 
 
 # extract clean wikipage from actual wikipage
-CHECKPOINT_INTERVAL = 1_000  # Save checkpoint every N pages
+CHECKPOINT_INTERVAL = 100  # Save checkpoint every N pages
 
 
 def _checkpoint_path(output_dir: Path) -> Path:
@@ -228,11 +228,19 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
 
         logger.info("Resuming from checkpoint: %d pages already processed", pages_processed)
 
-        return data
+        return {
+            "pages_processed": pages_processed,
+            "input_identity": stored_identity,
+            "file_offset": data.get("file_offset", 0),
+        }
 
     except Exception as e:
         logger.warning("Checkpoint invalid (%s) — starting fresh.", e)
-        return {"pages_processed": 0}
+        return {
+            "pages_processed": 0,
+            "input_identity": _compute_input_identity(input_path),
+            "file_offset": 0,
+        }
 
 
 def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str, file_offset: int,) -> None:
@@ -256,41 +264,6 @@ def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity
     except Exception as e:
         logger.warning("Failed to save checkpoint: %s", e)
         tmp.unlink(missing_ok=True)
-
-def count_written_pages(output_path: Path) -> int:
-    """
-    Count number of processed pages based on output file.
-    Assumes each page is separated by double newline.
-    """
-    if not output_path.exists():
-        return 0
-
-    with output_path.open("r", encoding="utf-8") as f:
-        content = f.read().strip()
-
-    if not content:
-        return 0
-
-    return len(content.split("\n\n"))
-
-
-def truncate_output_to_pages(output_path: Path, max_pages: int) -> None:
-    """
-    Truncate output file to match checkpoint page count.
-    """
-    with output_path.open("r", encoding="utf-8") as f:
-        content = f.read().strip()
-
-    if not content:
-        return
-
-    pages = content.split("\n\n")
-
-    with output_path.open("w", encoding="utf-8") as f:
-        if pages[:max_pages]:
-            f.write("\n\n".join(pages[:max_pages]) + "\n\n")
-        else:
-            f.write("")
 
 
 def extract_text_from_xml(input_path, *, write_manifest: bool = False):
@@ -342,7 +315,7 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
 
             with open(output_path, write_mode, encoding="utf-8") as out:
                 # Move pointer to correct position when resuming
-                if write_mode == "a":
+                if write_mode == "a" and output_path.exists():
                     out.seek(0, os.SEEK_END)
 
                 for _, elem in context:
