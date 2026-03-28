@@ -39,7 +39,9 @@ def main():
     )
 
     print(f"Finetune run hash: {ft_hash}")
-    print(f"Finetune run hash (again): {hash_file(ft_ckpt)}   FINE MATCH")
+    actual_hash = hash_file(ft_ckpt)
+    status = "FINE MATCH" if actual_hash == ft_hash else "MISMATCH"
+    print(f"Finetune run hash (again): {actual_hash}   {status}")
 
 
 if __name__ == "__main__":
