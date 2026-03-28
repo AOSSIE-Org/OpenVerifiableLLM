@@ -17,7 +17,7 @@ def main():
 
     model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
 
-    model.load_state_dict(torch.load(base_ckpt, weights_only=True))
+    model.load_state_dict(torch.load(base_ckpt, map_location="cpu", weights_only=True, weights_only=True))
     base_hash = hash_file(base_ckpt)
 
     with torch.no_grad():
@@ -38,7 +38,9 @@ def main():
     )
 
     print(f"Finetune run hash: {ft_hash}")
-    print(f"Finetune run hash (again): {hash_file(ft_ckpt)}   FINE MATCH")
+    actual_hash = hash_file(ft_ckpt)
+    status = "FINE MATCH" if actual_hash == ft_hash else "MISMATCH"
+    print(f"Finetune run hash (again): {actual_hash}   {status}")
 
 
 if __name__ == "__main__":
