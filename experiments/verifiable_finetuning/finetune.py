@@ -18,7 +18,7 @@ def main():
     model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
 
     base_ckpt = "base_checkpoint.pt"
-    model.load_state_dict(torch.load(base_ckpt))
+    model.load_state_dict(torch.load(base_ckpt, map_location="cpu", weights_only=True))
     base_hash = hash_file(base_ckpt)
 
     with torch.no_grad():
