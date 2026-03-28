@@ -2,11 +2,13 @@ import hashlib
 import json
 import os
 import random
+
 import numpy as np
 import torch
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 os.chdir(SCRIPT_DIR)
+
 
 def set_seed(seed=99):
     random.seed(seed)
