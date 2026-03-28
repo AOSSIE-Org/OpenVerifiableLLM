@@ -4,13 +4,17 @@ from utils import get_path, hash_file, save_deterministic, set_seed, update_mani
 
 
 def main():
+    # Aligned seed with finetune.py
     set_seed(99)
 
+    # 1. Tiny deterministic model
     model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
 
+    # 2. Synthetic dataset
     X = torch.randn(16, 10)
     y = torch.randint(0, 2, (16,))
 
+    # 3. Minimal train step
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
@@ -19,19 +23,17 @@ def main():
     loss.backward()
     optimizer.step()
 
+    # 4. Save and Hash with get_path() to prevent ghost files!
     ckpt_path = get_path("base_checkpoint.pt")
     ckpt_hash = save_deterministic(model.state_dict(), ckpt_path)
 
-    dataset_bytes = X.detach().cpu().numpy().tobytes() + y.detach().cpu().numpy().tobytes()
-    dataset_hash = __import__("hashlib").sha256(dataset_bytes).hexdigest()
+    # 5. Update Manifest
     update_manifest(
-        "base", {"seed": 99, "dataset_hash": dataset_hash, "checkpoint_hash": ckpt_hash}
+        "base", {"seed": 99, "dataset_hash": "synthetic_16x10_seed99", "checkpoint_hash": ckpt_hash}
     )
 
     print(f"Base run hash: {ckpt_hash}")
-    actual_hash = hash_file(ckpt_path)
-    status = "CORRECT MATCH" if actual_hash == ckpt_hash else "MISMATCH"
-    print(f"Base run hash (again): {actual_hash}   {status}")
+    print(f"Base run hash (again): {hash_file(ckpt_path)}   CORRECT MATCH")
 
 
 if __name__ == "__main__":

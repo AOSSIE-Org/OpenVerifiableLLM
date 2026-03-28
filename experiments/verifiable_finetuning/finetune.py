@@ -17,7 +17,8 @@ def main():
 
     model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
 
-    model.load_state_dict(torch.load(base_ckpt, map_location="cpu", weights_only=True, weights_only=True))
+    # FIXED: Removed the duplicate weights_only=True
+    model.load_state_dict(torch.load(base_ckpt, map_location="cpu", weights_only=True))
     base_hash = hash_file(base_ckpt)
 
     with torch.no_grad():
