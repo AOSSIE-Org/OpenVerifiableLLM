@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from utils import hash_file, save_deterministic, set_seed, update_manifest
+from utils import get_path, hash_file, save_deterministic, set_seed, update_manifest
 
 
 def main():
@@ -19,15 +19,19 @@ def main():
     loss.backward()
     optimizer.step()
 
-    ckpt_path = "base_checkpoint.pt"
+    ckpt_path = get_path("base_checkpoint.pt")
     ckpt_hash = save_deterministic(model.state_dict(), ckpt_path)
 
+    dataset_bytes = X.detach().cpu().numpy().tobytes() + y.detach().cpu().numpy().tobytes()
+    dataset_hash = __import__("hashlib").sha256(dataset_bytes).hexdigest()
     update_manifest(
-        "base", {"seed": 99, "dataset_hash": "synthetic_16x10_seed99", "checkpoint_hash": ckpt_hash}
+        "base", {"seed": 99, "dataset_hash": dataset_hash, "checkpoint_hash": ckpt_hash}
     )
 
     print(f"Base run hash: {ckpt_hash}")
-    print(f"Base run hash (again): {hash_file(ckpt_path)}   CORRECT MATCH")
+    actual_hash = hash_file(ckpt_path)
+    status = "CORRECT MATCH" if actual_hash == ckpt_hash else "MISMATCH"
+    print(f"Base run hash (again): {actual_hash}   {status}")
 
 
 if __name__ == "__main__":

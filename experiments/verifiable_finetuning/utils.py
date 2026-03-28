@@ -7,7 +7,11 @@ import numpy as np
 import torch
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-os.chdir(SCRIPT_DIR)
+
+
+def get_path(filename):
+    """Returns the absolute path for a file in this experiment directory."""
+    return os.path.join(SCRIPT_DIR, filename)
 
 
 def set_seed(seed=99):

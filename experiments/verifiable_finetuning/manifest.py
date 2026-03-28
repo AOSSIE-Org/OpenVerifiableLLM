@@ -1,27 +1,26 @@
 import json
 import os
 
-from utils import hash_file
+from utils import get_path, hash_file
 
 
 def verify():
-    if not os.path.exists("manifest.json"):
+    if not os.path.exists(get_path("manifest.json")):
         print("Run train_base.py and finetune.py first.")
         return
 
-    with open("manifest.json", "r") as f:
+    with open(get_path("manifest.json"), "r") as f:
         manifest = json.load(f)
 
     print(" End to End Plipeline Verification \n")
 
-    base_actual = hash_file("base_checkpoint.pt")
+    base_actual = hash_file(get_path("base_checkpoint.pt"))
     base_expected = manifest["base"]["checkpoint_hash"]
     base_match = "BINGO" if base_actual == base_expected else "NUH-UH"
     print(f"Base expected: {base_expected}")
     print(f"Base actual  : {base_actual} {base_match}\n")
 
-    # Verify Finetune
-    ft_actual = hash_file("finetuned_checkpoint.pt")
+    ft_actual = hash_file(get_path("finetuned_checkpoint.pt"))
     ft_expected = manifest["finetune"]["checkpoint_hash"]
     ft_match = "BINGO" if ft_actual == ft_expected else "NUH-UH"
     print(f"Finetune expected: {ft_expected}")
