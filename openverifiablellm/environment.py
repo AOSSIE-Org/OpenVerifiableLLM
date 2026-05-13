@@ -1,17 +1,10 @@
 import hashlib
-import json
 import platform
 import subprocess
 import sys
 from typing import Any, Dict
 
-
-def _canonical_json(obj: Any) -> str:
-    """
-    Serialize object into canonical JSON format.
-    Ensures stable hashing across runs.
-    """
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"))
+from openverifiablellm._hashing import _canonical_json
 
 
 def compute_object_hash(obj: Any) -> str:
