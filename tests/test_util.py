@@ -102,6 +102,7 @@ def test_correct_sha256_output(tmp_path):
 
     # Hash using your function
     actual = utils.compute_sha256(file_path=str(file))
+    actual = utils.compute_sha256(file_path=str(file))
 
     assert actual == expected
 
@@ -114,13 +115,13 @@ def test_different_content_different_hash(tmp_path):
     file2.write_text("Content B", encoding="utf-8")
 
     assert utils.compute_sha256(file_path=file1) != utils.compute_sha256(file_path=file2)
+    assert utils.compute_sha256(file_path=file1) != utils.compute_sha256(file_path=file2)
 
 
 def test_file_not_found():
     with pytest.raises(FileNotFoundError):
         utils.compute_sha256(file_path="non_existent_file.txt")
-
-
+        
 # --------------- extract_text_from_xml tests ------------------------------------
 
 

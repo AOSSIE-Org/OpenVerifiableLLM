@@ -13,8 +13,18 @@ requires-python = ">=3.9"
 
 dependencies = [
     "defusedxml",
-    "sentencepiece",
-    "tokenizers==0.15.2"
+    "tokenizers==0.15.2",
+    "sentencepiece"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest"
+]
+contamination = [
+    "datasets",
+    "pyyaml",
+    "rbloom"
 ]
 
 [tool.setuptools.packages.find]
