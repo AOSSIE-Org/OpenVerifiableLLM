@@ -24,6 +24,7 @@ include = ["openverifiablellm*"]
 dev = [
     "pytest>=7.0",
     "ruff>=0.15.4",
+    "numpy",
 ]
 
 [tool.pytest.ini_options]
@@ -40,3 +41,5 @@ target-version = "py39"
 [tool.ruff.lint]
 select = ["E", "F", "I"]
 ignore = ["E501"]
+
+# Removing empty pytest options to avoid duplicate key conflict with main
