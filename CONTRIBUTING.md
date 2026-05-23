@@ -1,258 +1,92 @@
-# Contributing to TODO: Project Name
+# Contributing to OpenVerifiableLLM
 
-⭐ First off, thank you for considering contributing to this project! ⭐
+Thanks for considering a contribution. Whether you're fixing a typo, filing a bug, or building a new feature, you're welcome here. This guide explains how to get started and what a contribution needs to look like.
 
-We welcome contributions from everyone. By participating in this project, you agree to abide by our Code of Conduct.
+This is a verification project, so it has a couple of project-specific standards (around determinism and falsifiability) that are explained below. Everything else is ordinary open-source practice.
 
-## � IMPORTANT: Discord Communication is Mandatory
+## Ways to contribute
 
-**All project communication MUST happen on Discord. We do not pay attention to GitHub notifications.**
+You don't have to write code to be useful:
 
-- Join our [Discord server](https://discord.gg/hjUhu33uAn) before starting any work
-- Post your PR/issue updates in the relevant Discord channel (**MANDATORY**)
-- All discussions, questions, and updates should be on Discord
-- GitHub is for code only - Discord is for communication
+- **Report a bug** or a confusing behavior by opening an issue.
+- **Improve the docs.** Clarifications, fixed examples, and better explanations are genuinely valuable and a great first contribution.
+- **Suggest a feature** by opening an issue to discuss it before building.
+- **Fix or build something.** Pick up an open issue, or open one for what you have in mind.
 
-**PRs without Discord updates will not be reviewed or may face delays.**
+If you're new to the project, issues labeled `good first issue` are a good place to start.
 
-## �📋 Table of Contents
+## Before writing code
 
-- [How Can I Contribute?](#how-can-i-contribute)
-- [Getting Started](#getting-started)
-- [Development Workflow](#development-workflow)
-- [Pull Request Guidelines](#pull-request-guidelines)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Community Guidelines](#community-guidelines)
+For a small fix (a typo, a doc clarification, an obvious bug), feel free to open a pull request directly.
 
-## 🤝 How Can I Contribute?
+For anything larger, **open an issue first** (or comment on an existing one) so the approach can be discussed before you invest time. This is partly courtesy and partly practical: changes that touch determinism, the manifest format, or the verifier have correctness consequences that are much cheaper to discuss up front than to unwind at review. A short conversation saves a large PR that has to be reworked.
 
-### Reporting Bugs
+When you start working on an issue, leave a comment so others know it's taken.
 
-Before creating bug reports, please check existing issues to avoid duplicates. When creating a bug report, include:
+## Project philosophy (worth knowing)
 
-- Clear and descriptive title
-- Steps to reproduce the issue
-- Expected behavior vs actual behavior
-- Screenshots/Video (if applicable)
-- Environment details (OS, browser, versions, etc.)
+Two ideas shape how this codebase is built, and contributions are expected to respect them:
 
-### Suggesting Features
+**Validate assumptions before building on them.** This project exists because a widely-held assumption (that identical training runs produce identical results) turned out to need checking. The same mindset applies throughout: before adding a feature, it's worth confirming the thing it rests on actually holds.
 
-Feature suggestions are welcome! Please:
+**Falsifiability is first-class.** This is verification infrastructure, so a feature that touches training, serialization, or the manifest needs a way to show it *fails when it should*, not only that it passes when everything is correct. In practice that means new verification behavior should extend the falsifiability test suite.
 
-- Check if the feature has already been suggested
-- Provide a clear description of the feature
-- Explain why this feature would be useful
-- Include examples of how it would work
-### Contributing Code
+## Development setup
 
-1. **Submit an Issue First**: For features, bugs, or enhancements, create an issue first
-2. **Get Assigned**: Wait to be assigned before starting work(preferable)
-3. **Submit Your PR**: Once assigned, create a PR addressing the issue
-4. **Unrelated PRs**: Pull requests unrelated to issues may be closed or take longer to review
-
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-TODO: List prerequisites specific to your project
-
-### Setup
-
-1. **Fork the Repository**
-   ```bash
-   # Click the 'Fork' button at the top right of this page
-   ```
-
-2. **Clone Your Fork**
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/TODO.git
-   cd TODO
-   ```
-
-3. **Add Upstream Remote**
-   ```bash
-   git remote add upstream https://github.com/AOSSIE-Org/TODO.git
-   ```
-
-4. **Install Dependencies**
-   ```bash
-   npm install
-   # or yarn install
-   # or pnpm install
-   ```
-
-5. **Run the Project**
-   ```bash
-   npm run dev
-   ```
-
-## 🔄 Development Workflow
-
-### 1. Create a Feature Branch
-
-Always work on a new branch, never on `main` or `dev`:
+Dependencies are pinned and hash-locked. This is deliberate: it's both a reproducibility measure (the project's whole point) and a defense against malicious dependency updates. Use the locked environment rather than installing packages by hand.
 
 ```bash
-git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
+# clone your fork
+git clone https://github.com/<your-username>/OpenVerifiableLLM
+cd OpenVerifiableLLM
+
+# install the exact, locked dependency set
+uv sync
+
+# confirm things work
+pytest tests/falsifiability
+ruff check .
 ```
 
-### 2. Make Your Changes
+If you need to add a dependency, add it through the lockfile so the hash-locked set stays authoritative. An unpinned dependency undermines both reproducibility and the project's supply-chain posture.
 
-- Write clean, readable code
-- Follow the project's code style
-- Add comments where necessary
-- Update documentation if needed
+## Making changes
 
-### 3. Test Your Changes
+**Branches.** Work on a branch off `main`, named for the change, for example `fix/manifest-rng-ordering` or `feat/segment-verifier-cli`.
 
-TODO: Add project-specific testing instructions
+**Commits.** Write clear, present-tense messages that explain why, not just what. Keep commits focused.
 
-```bash
-npm test
-# or
-npm run lint
-```
+**Tests.**
 
-### 4. Commit Your Changes
+- Run the test suite and `ruff` locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
+- Code that changes verification behavior, serialization, RNG/optimizer state handling, or the manifest should include tests for both the success case and the failure case. For verification-affecting changes, extend the falsifiability suite so a clean run passes and the relevant tampered run fails.
+- A change must not silently weaken the bit-exact reproducibility guarantee on the supported single-GPU stack. If a change trades determinism for performance, make that tradeoff explicit and document it.
 
-Write clear, concise commit messages:
+**Docs.** If a change alters behavior, inputs, the manifest format, or the verification contract, update the relevant docs in the same PR. The manifest schema is a versioned contract that other parts of the project depend on, so changes there need maintainer sign-off and a migration note.
 
-```bash
-git add .
-git commit -m "feat: add user authentication"
-# or
-git commit -m "fix: resolve navigation bug"
-```
+## Opening a pull request
 
-**Commit Message Format:**
-- `feat:` for new features
-- `fix:` for bug fixes
-- `docs:` for documentation changes
-- `style:` for formatting changes
-- `refactor:` for code refactoring
-- `test:` for adding tests
-- `chore:` for maintenance tasks
+- Reference the issue it addresses (`Closes #123`) if there is one.
+- Describe what changed and why, and flag anything you'd like reviewers to look at closely.
+- Confirm the test suite and `ruff` pass.
+- Keep each PR to one logical change. Small, focused PRs get reviewed and merged faster than large, multi-purpose ones.
 
-### 5. Keep Your Branch Updated
+Maintainers review on a volunteer basis, so a clear, well-tested, well-scoped PR is the best way to get a quick response. Expect some back-and-forth; review comments are about the work, not about you.
 
-```bash
-git fetch upstream
-git rebase upstream/main
-# or upstream/dev depending on the project
-```
+## Reporting bugs
 
-### 6. Push Your Changes
+A good bug report includes enough to reproduce the problem: the exact command, your environment (OS, and for reproducibility issues the GPU, CUDA, and PyTorch versions, since the stack is usually the cause), what you expected, and what actually happened.
 
-```bash
-git push origin feature/your-feature-name
-```
+For security-relevant issues (for example, a way to make the verifier report a false pass, or a supply-chain concern), please contact the maintainers privately rather than opening a public issue, so it can be addressed before it's widely visible.
 
-## 📤 Pull Request Guidelines
+## Where discussion happens
 
-### Before Submitting
+Project discussion and questions happen in the [AOSSIE community](https://aossie.org) and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
 
-- [ ] Your code follows the project's style guidelines
-- [ ] You've tested your changes thoroughly
-- [ ] You've updated relevant documentation
-- [ ] Your commits are clean and well-organized
-- [ ] You've rebased with the latest upstream changes
+## Code of conduct
 
-### Submitting a Pull Request
+Be respectful and constructive. Technical disagreement is welcome and expected; keep it about the work, and assume good faith from others.
 
-1. Go to the original repository on GitHub
-2. Click "New Pull Request"
-3. Select your fork and branch
-4. Fill out the PR template with:
-   - Clear description of changes
-   - Link to related issue(s)
-   - Screenshots (if UI changes)
-   - Testing steps
+## License
 
-### PR Description Template
-
-```markdown
-## Description
-Brief description of what this PR does
-
-## Related Issue
-Closes #issue_number
-
-
-## Screenshots/Video (if applicable)
-Add screenshots here
-
-## Testing(if applicable)
-Steps to test the changes
-
-## Checklist
-- [ ] Code follows style guidelines
-- [ ] Self-review completed
-- [ ] Documentation updated
-- [ ] Tests added/updated
-```
-
-### After Submission
-
-- Post your PR in the project's Discord channel for visibility(**IMPORTANT**)
-- Respond to review comments promptly
-- Make requested changes in new commits
-- Be patient - maintainers will review when available
-
-## 📝 Code Style Guidelines
-
-TODO: Add project-specific code style guidelines
-
-### General Guidelines
-
-- Use meaningful variable and function names
-- Keep functions small and focused
-- Add comments for complex logic
-- Remove console.logs before committing
-- Avoid code duplication
-
-### JavaScript/TypeScript
-- Use ES6+ syntax
-- Prefer `const` over `let`, avoid `var`
-- Use arrow functions where appropriate
-- Follow ESLint rules
-
-### Python
-- Follow PEP 8 style guide
-- Use type hints where applicable
-- Write docstrings for functions/classes
-
-## 🌟 Community Guidelines
-
-### Communication
-
-- Be respectful and inclusive
-- Provide constructive feedback
-- Help others when you can
-- Ask questions - no question is too small!
-
-### Progress Updates
-
-- If your work is taking longer than expected, comment on the discord with updates
-- Issues should be completed within 5-30 days depending on complexity
-- If you can no longer work on an issue, let maintainers know on discord
-
-### Getting Help
-
-- Check existing documentation first
-- Search closed issues for similar problems
-- Ask in Discord 
-- Tag maintainers if your PR is unattended for 1-2 weeks on discord
-
-## 🎯 Issue Assignment
-
-- One contributor per issue (unless specified otherwise)
-- Wait for assignment before starting work
-- Issues will be reassigned if inactive for extended periods
-- Check for existing PRs before starting to avoid duplication
-
-
-Thank you for contributing to TODO! Your efforts help make this project better for everyone. 🚀
+By contributing, you agree that your contributions are licensed under the project's [LICENSE](LICENSE).
