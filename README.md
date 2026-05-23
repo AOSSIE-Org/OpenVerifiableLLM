@@ -1,293 +1,195 @@
-<!-- Don't delete it -->
-<div name="readme-top"></div>
-
-<!-- Organization Logo -->
-<div align="center" style="display: flex; align-items: center; justify-content: center; gap: 16px;">
-  <img alt="AOSSIE" src="public/aossie-logo.svg" width="175">
-  <img src="public/todo-project-logo.svg" width="175" />
-</div>
-
-&nbsp;
-
-<!-- Organization Name -->
-<div align="center">
-
-[![Static Badge](https://img.shields.io/badge/aossie.org/TODO-228B22?style=for-the-badge&labelColor=FFC517)](https://TODO.aossie.org/)
-
-<!-- Correct deployed url to be added -->
-
-</div>
-
-<!-- Organization/Project Social Handles -->
-<p align="center">
-<!-- Telegram -->
-<a href="https://t.me/StabilityNexus">
-<img src="https://img.shields.io/badge/Telegram-black?style=flat&logo=telegram&logoColor=white&logoSize=auto&color=24A1DE" alt="Telegram Badge"/></a>
-&nbsp;&nbsp;
-<!-- X (formerly Twitter) -->
-<a href="https://x.com/aossie_org">
-<img src="https://img.shields.io/twitter/follow/aossie_org" alt="X (formerly Twitter) Badge"/></a>
-&nbsp;&nbsp;
-<!-- Discord -->
-<a href="https://discord.gg/hjUhu33uAn">
-<img src="https://img.shields.io/discord/1022871757289422898?style=flat&logo=discord&logoColor=white&logoSize=auto&label=Discord&labelColor=5865F2&color=57F287" alt="Discord Badge"/></a>
-&nbsp;&nbsp;
-<!-- Medium -->
-<a href="https://news.stability.nexus/">
-  <img src="https://img.shields.io/badge/Medium-black?style=flat&logo=medium&logoColor=black&logoSize=auto&color=white" alt="Medium Badge"></a>
-&nbsp;&nbsp;
-<!-- LinkedIn -->
-<a href="https://www.linkedin.com/company/aossie/">
-  <img src="https://img.shields.io/badge/LinkedIn-black?style=flat&logo=LinkedIn&logoColor=white&logoSize=auto&color=0A66C2" alt="LinkedIn Badge"></a>
-&nbsp;&nbsp;
-<!-- Youtube -->
-<a href="https://www.youtube.com/@StabilityNexus">
-  <img src="https://img.shields.io/youtube/channel/subscribers/UCZOG4YhFQdlGaLugr_e5BKw?style=flat&logo=youtube&logoColor=white&logoSize=auto&labelColor=FF0000&color=FF0000" alt="Youtube Badge"></a>
-</p>
-
----
-
-<div align="center">
-<h1>TODO: Project Name</h1>
-</div>
-
-[TODO](https://TODO.stability.nexus/) is a ... TODO: Project Description.
-
----
+# OpenVerifiableLLM — Deterministic Training & Verification Infrastructure
 
-## 🚀 Features
-
-TODO: List your main features here:
+A toolkit for training language models whose entire training process is reproducible and independently auditable. Given the same data, configuration, and a fixed hardware stack, this infrastructure produces bit-identical models, and any deviation (corruption, tampering, or an honest mistake) is cryptographically detectable.
 
-- **Feature 1**: Description
-- **Feature 2**: Description
-- **Feature 3**: Description
-- **Feature 4**: Description
+This is the **infrastructure** repository: the generic training-and-verification toolkit. The models trained with it (e.g. the Wikipedia models) live in a separate repository and depend on a pinned version of this one.
 
----
+> **Status:** active development under Google Summer of Code 2026 with [AOSSIE](https://aossie.org). Some components below are proven and merged; others are planned. Each section marks which.
 
-## 💻 Tech Stack
+## The problem
 
-TODO: Update based on your project
+Open-weight models are reproducible in principle but not verifiable in practice. You can download the weights, but you cannot prove what data they were trained on, what configuration produced them, or whether they were modified after training. A model ships with a report, and you trust the report.
 
-### Frontend
-- React / Next.js / Flutter / React Native
-- TypeScript
-- TailwindCSS
+There is no cryptographic link between a set of weights and the process that produced them. Post-training modification (fine-tuning, data injection, weight edits) is, by default, undetectable from the artifact alone.
 
-### Backend
-- Flask / FastAPI / Node.js / Supabase
-- Database: PostgreSQL / SQLite / MongoDB
+This project treats verification as a property of the training pipeline itself rather than a claim bolted on afterward.
 
-### AI/ML (if applicable)
-- LangChain / LangGraph / LlamaIndex
-- Google Gemini / OpenAI / Anthropic Claude
-- Vector Database: Weaviate / Pinecone / Chroma
-- RAG / Prompt Engineering / Agent Frameworks
+## What "verifiable" means here, precisely
 
-### Blockchain (if applicable)
-- Solidity / solana / cardano / ergo Smart Contracts
-- Hardhat / Truffle / foundry
-- Web3.js / Ethers.js / Wagmi
-- OpenZeppelin / alchemy / Infura
+It is worth being exact, because the word is often used loosely.
 
----
+**What this infrastructure proves.** Given a fixed dataset snapshot, a fixed configuration, and the same hardware/software stack, an independent party can reproduce the exact model (bit-identical weights) or detect that a published artifact deviates from what was claimed. The verification is exact (a hash match), not approximate.
 
-## ✅ Project Checklist
+**What it does not prove.** A passing verification confirms that a training segment is *reproducible and internally consistent*. It does not, on its own, prove that training was *honest*, because a determined adversary can construct a checkpoint chain backwards that passes every spot-check (see [Threat model](#threat-model) below). The infrastructure raises the cost of forgery substantially; it does not reduce it to zero. That stronger guarantee requires cryptographic proof-of-training (zkML), which is out of scope at this scale and noted as future work.
 
-TODO: Complete applicable items based on your project type
+This honesty is deliberate. The system is designed around *falsifiability*: its job is to fail reliably when assumptions are violated, not merely to pass when everything is correct.
 
-- [ ] **The protocol** (if applicable):
-   - [ ] has been described and formally specified in a paper.
-   - [ ] has had its main properties mathematically proven.
-   - [ ] has been formally verified.
-- [ ] **The smart contracts** (if applicable):
-   - [ ] were thoroughly reviewed by at least two knights of The Stable Order.
-   - [ ] were deployed to: [Add deployment details]
-- [ ] **The mobile app** (if applicable):
-   - [ ] has an _About_ page containing the Stability Nexus's logo and pointing to the social media accounts of the Stability Nexus.
-   - [ ] is available for download as a release in this repo.
-   - [ ] is available in the relevant app stores.
-- [ ] **The AI/ML components** (if applicable):
-   - [ ] LLM/model selection and configuration are documented.
-   - [ ] Prompts and system instructions are version-controlled.
-   - [ ] Content safety and moderation mechanisms are implemented.
-   - [ ] API keys and rate limits are properly managed.
+## Key technical findings
 
----
+These come from controlled experiments in the [baseline repository](https://github.com/ryoari/Verifiable-LLM-Baseline) and the project's experiment suite. They are the empirical basis for the design.
 
-## 🔗 Repository Links
+### Computational determinism is achievable; representational determinism is the catch
 
-TODO: Update with your repository structure
+When seeds, initialization, data order, and configuration are fixed, the training computation itself is numerically stable. On a fixed single-GPU stack, two independent runs produce bit-identical weights (verified: identical SHA-256, identical final loss to the last digit).
 
-1. [Main Repository](https://github.com/AOSSIE-Org/TODO)
-2. [Frontend](https://github.com/AOSSIE-Org/TODO/tree/main/frontend) (if separate)
-3. [Backend](https://github.com/AOSSIE-Org/TODO/tree/main/backend) (if separate)
+But identical weights do not automatically produce identical files. PyTorch's `.pt` format stores checkpoints as ZIP archives with embedded timestamps and pickle metadata, so the bytes on disk change on every save even when the parameters are identical. This breaks naive file-level hash verification.
 
----
+**The fix:** verify at the *tensor* level, not the file level. Extract weights into a canonical representation, serialize with a byte-stable format ([safetensors](https://huggingface.co/docs/safetensors)), and hash the raw tensor data. This is the difference between a model that is reproducible and a model that is verifiable.
 
-## 🏗️ Architecture Diagram
-
-TODO: Add your system architecture diagram here
-
-```
-[Architecture Diagram Placeholder]
-```
-
-You can create architecture diagrams using:
-- [Draw.io](https://draw.io)
-- [Excalidraw](https://excalidraw.com)
-- [Lucidchart](https://lucidchart.com)
-- [Mermaid](https://mermaid.js.org) (for code-based diagrams)
-
-Example structure to include:
-- Frontend components
-- Backend services
-- Database architecture
-- External APIs/services
-- Data flow between components
-
----
-
-## 🔄 User Flow
-
-TODO: Add user flow diagrams showing how users interact with your application
-
-```
-[User Flow Diagram Placeholder]
-```
-
-### Key User Journeys
-
-TODO: Document main user flows:
-
-1. **User Journey 1**: Description
-   - Step 1
-   - Step 2
-   - Step 3
-
-2. **User Journey 2**: Description
-   - Step 1
-   - Step 2
-   - Step 3
-
-3. **User Journey 3**: Description
-   - Step 1
-   - Step 2
-   - Step 3
-
----
-
-## �🍀 Getting Started
-
-### Prerequisites
-
-TODO: List what developers need installed
-
-- Node.js 18+ / Python 3.9+ / Flutter SDK
-- npm / yarn / pnpm
-- [Any specific tools or accounts needed]
-
-### Installation
-
-TODO: Provide detailed setup instructions
-
-#### 1. Clone the Repository
-
-```bash
-git clone https://github.com/AOSSIE-Org/TODO.git
-cd TODO
-```
-
-#### 2. Install Dependencies
-
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-```
-
-#### 3. Configure Environment Variables(.env.example)
-
-Create a `.env` file in the root directory:
-
-```env
-# Add your environment variables here
-API_KEY=your_api_key
-DATABASE_URL=your_database_url
-```
-
-#### 4. Run the Development Server
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
-
-#### 5. Open your Browser
-
-Navigate to [http://localhost:3000](http://localhost:3000) to see the application.
-
-For detailed setup instructions, please refer to our [Installation Guide](./docs/INSTALL_GUIDE.md) (if you have one).
-
----
-
-## 📱 App Screenshots
-
-TODO: Add screenshots showcasing your application
-
-|  |  |  |
+| Determinism type | Property | Status |
 |---|---|---|
-| Screenshot 1 | Screenshot 2 | Screenshot 3 |
+| Computational | same config → same weight values | Verified (single GPU, fixed stack) |
+| Representational | same weight values → same bytes on disk | Broken with `.pt`, fixed with safetensors |
 
----
-# Developer Setup
-This project uses `uv` for dependency management.
+### Loss-curve verification is insufficient
 
-## Installation
-1. Install [uv](https://github.com/astral-sh/uv).
-2. Run `uv sync` to install dependencies and create a virtual environment.
+Comparing training loss trajectories across runs is not a reliable audit on its own. Two scenarios from the falsifiability suite show why:
 
-## Linting
-We use `ruff` to maintain code quality. 
-- Run checks: `uv run ruff check .`
-- Auto-fix issues: `uv run ruff check . --fix`
+- **Post-training sabotage:** weights mutated *after* training completes. The loss trajectory replays perfectly (the mutation happened after the replayed window). Only the tensor hash catches it.
+- **File-level corruption:** a small corruption produces loss differences around 1e-8, indistinguishable from floating-point noise. Loss check passes; hash check fails.
 
----
+The conclusion: hash-based tensor verification is necessary, not optional. An audit must operate at the tensor-hash level, and trajectory comparison and hashing are *both* needed because each catches failures the other misses.
 
-## 🙌 Contributing
+### Determinism flags vs. seeding
 
-⭐ Don't forget to star this repository if you find it useful! ⭐
+In the current nanoGPT-scale experiments, fixing the RNG seed was the dominant factor; the model reproduced bit-identically even with `torch.use_deterministic_algorithms` off, because the operations it uses (dense matmul, layernorm, attention, embeddings) are already deterministic by default. The flag is kept on regardless: it is a no-op on the current model but a guarantee against silent regression if the architecture later touches a non-deterministic-by-default kernel (scatter/gather with duplicate indices, atomic-accumulation paths, certain convolution backward passes). This assumption is re-tested at larger scale rather than assumed to carry over.
 
-Thank you for considering contributing to this project! Contributions are highly appreciated and welcomed. To ensure smooth collaboration, please refer to our [Contribution Guidelines](./CONTRIBUTING.md).
+## Architecture
 
----
+The pipeline cryptographically links every stage from raw data to final weights.
 
-## ✨ Maintainers
+```
+Dataset (pinned dump)                    ── Merkle root over ordered chunks
+        │
+        ▼
+Tokenization (deterministic BPE/SP)      ── config hash, binary tokens.bin
+        │
+        ▼
+Deterministic training loop              ── full RNG + optimizer state control
+        │
+        ▼
+Verification layer                       ── tensor-level SHA-256, safetensors
+        │
+        ▼
+Signed manifest + transparency log       ── Sigstore / Rekor (planned)
+        │
+        ▼
+Evaluation (factual, bias)               ── hash-linked into the chain
+```
 
-TODO: Add maintainer information
+Each stage records its inputs and outputs into a manifest, and the manifests chain into a single pipeline hash, so any link can be independently checked.
 
-- [Maintainer Name](https://github.com/username)
-- [Maintainer Name](https://github.com/username)
+## The two core deliverables
 
----
+The infrastructure centers on two programs with a shared, versioned contract.
 
-## 📍 License
+### 1. Trainer / chain producer
 
-This project is licensed under the GNU General Public License v3.0.
-See the [LICENSE](LICENSE) file for details.
+```
+train(D, P) → M, [M0, M1, ..., Mn], [D1, ..., Dn]
+```
 
----
+Takes data `D` and parameters `P`, produces the final model `M` and the full sequence of incremental snapshots plus the data split used to produce them. The chain begins at `M0` (the deterministically-seeded initial model, before any training) so that even the first segment is verifiable.
 
-## 💪 Thanks To All Contributors
+Each snapshot is a **full training-state boundary**, not just weights. To allow exact replay of any segment, a snapshot includes:
 
-Thanks a lot for spending your time helping TODO grow. Keep rocking 🥂
+- model weights (safetensors)
+- optimizer state (e.g. Adam moments)
+- complete RNG state (Python, NumPy, torch CPU, torch CUDA)
+- LR-schedule position and step count
+- dataloader position
 
-[![Contributors](https://contrib.rocks/image?repo=AOSSIE-Org/TODO)](https://github.com/AOSSIE-Org/TODO/graphs/contributors)
+This completeness is what makes segment replay reproduce bit-identically; omitting any of it breaks the guarantee.
 
-© 2025 AOSSIE 
+### 2. Segment verifier
+
+```
+verify(P, Mk, D_{k+1}, M_{k+1}) → pass / fail
+```
+
+Takes a boundary snapshot `Mk`, the next data chunk `D_{k+1}`, the configuration `P`, and the claimed next snapshot `M_{k+1}`. It replays that single segment and checks the result.
+
+The default test is a **bit-exact hash match**, valid on the same hardware/software stack, which leaves no tolerance window for a forged or corrupted step to hide in. Cross-hardware verification (where floating-point non-associativity across GPU architectures makes bit-exactness impossible) is available as a separate, explicitly-labeled mode with a documented tolerance. The strong mode is the default; the tolerant mode is opt-in.
+
+This is what makes verification cheap. An auditor verifies any single ~1%-of-training segment at ~1% of the cost, samples a few at random, and gains high confidence without retraining the whole model.
+
+## Falsifiability suite
+
+A model is only as trustworthy as the test that tries to break it. The suite (ported into this repo as a `pytest` harness) provides adversarial coverage. A clean run must pass; every tampered run must fail.
+
+| Scenario | What it tests | How it's caught |
+|---|---|---|
+| Clean audit | end-to-end reproduction | hashes + trajectory match |
+| Bad seed | wrong RNG initialization | trajectory diverges, hash mismatch |
+| Gradient noise | mid-training perturbation | trajectory diverges, hash mismatch |
+| Post-training sabotage | weights edited after training | trajectory passes, **hash catches it** |
+| Broken seal | ~1e-8 file corruption | trajectory passes, **hash catches it** |
+| Prover / auditor split | two-party independent replay | segment replays bit-identically |
+
+The last two scenarios are the point: they are invisible to any loss-curve-only audit.
+
+## Threat model
+
+State this plainly so the guarantees are not overread.
+
+- **Catches:** accidental corruption, drift, post-training weight edits, file-level tampering, configuration mismatch, dataset substitution (the data Merkle root won't match).
+- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain backwards to pass spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), which rebuts the original Proof-of-Learning construction in [Jia et al. 2021](https://arxiv.org/abs/2103.05633)).
+- **Mitigation in scope:** publishing the ordered-dataset Merkle root and a transparency-log timestamp *before* training pins the inputs, so a forger cannot freely choose the data, which substantially raises the forgery bar.
+- **Out of scope:** cryptographic proof of an honest gradient step (zkML). zkML can prove small-model *inference* but not *training* at meaningful scale as of 2026. Noted as future work, not promised.
+
+### Supply-chain posture
+
+The verification secures the model artifact, but the verifier and the training infra are themselves code that people download and run, which is exactly the layer recent supply-chain attacks target. Posture, not a separate workstream:
+
+- dependencies are pinned and hash-locked (`uv` lockfile), which doubles as a defense against malicious mid-stream package updates
+- infra/verifier releases are signed (Sigstore), so an auditor can confirm the verifier they run is the one actually published
+- the small, separately-versioned infra repo has a deliberately minimal attack surface
+
+## Hardware and reproducibility boundary
+
+- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack** (same GPU architecture, CUDA, cuDNN, PyTorch versions). The environment is pinned via the lockfile and recorded in the manifest.
+- **Cross-hardware** (e.g. A100 vs H100), floating-point non-associativity means bit-exactness does not hold. This is measured and documented, not hidden, and is the use case for the verifier's tolerant mode.
+- **Single GPU** is the supported, proven domain. Multi-GPU determinism is harder: the cross-device gradient all-reduce (NCCL) introduces a reduction whose order is not fixed by default. It is controllable for data-parallel training in fp32 with a pinned NCCL algorithm, at a throughput cost, and is treated as a measured experiment rather than an assumption. Tensor/pipeline parallelism is not in scope.
+
+## Tech stack
+
+Python, PyTorch, safetensors, NumPy, CUDA, SHA-256, Merkle trees, `uv`, `ruff`, `pytest`, GitHub Actions, Sigstore (planned), bitsandbytes, lm-evaluation-harness.
+
+## Repository relationship
+
+| Repo | Contains | Cadence |
+|---|---|---|
+| **This (infra)** | trainer, verifier, manifest schema, falsifiability suite, signing | code releases (semver) |
+| **Models** | pinned dump pointers, training configs, published chains, manifests, eval reports | per training run |
+
+The model repo pins an exact version of this infra repo, because a manifest is only meaningful against the exact infra version that produced it. Verification logic never lives in the model repo; it only produces and consumes manifests.
+
+## Getting started
+
+> Setup instructions are stabilizing as the core lands in the main repository. The intended flow:
+
+```bash
+# install (pinned, hash-locked dependencies)
+uv sync
+
+# run the falsifiability suite — clean passes, tampered fails
+pytest tests/falsifiability
+
+# train with a chain of snapshots
+python -m ovllm.train --data <dump> --config <config> --out <dir>
+
+# verify a single segment
+python -m ovllm.verify --params <config> --from Mk --data D_{k+1} --expect M_{k+1}
+```
+
+## Acknowledgments
+
+Developed for AOSSIE under GSoC 2026, with mentorship from the OpenVerifiableLLM team. The dataset, Merkle, manifest, and evaluation foundations were built by the wider project; this repository extends them with the deterministic, verifiable *training* layer.
+
+## References
+
+- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021) — [arXiv:2103.05633](https://arxiv.org/abs/2103.05633)
+- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think* (EuroS&P 2023) — [arXiv:2208.03567](https://arxiv.org/abs/2208.03567)
+- safetensors format — [huggingface.co/docs/safetensors](https://huggingface.co/docs/safetensors)
+- Sigstore model transparency — [github.com/sigstore/model-transparency](https://github.com/sigstore/model-transparency)
+- Baseline prototype — [github.com/ryoari/Verifiable-LLM-Baseline](https://github.com/ryoari/Verifiable-LLM-Baseline)
