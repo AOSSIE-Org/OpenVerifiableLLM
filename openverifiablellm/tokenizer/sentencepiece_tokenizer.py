@@ -11,7 +11,6 @@ class SentencePieceTokenizer(BaseTokenizer):
     """
 
     def train(self, text_file: Path, save_path: Path):
-
         model_prefix = save_path / "spm"
 
         spm.SentencePieceTrainer.train(
