@@ -1,195 +1,160 @@
-# OpenVerifiableLLM — Deterministic Training & Verification Infrastructure
+# OpenVerifiableLLM
 
-A toolkit for training language models whose entire training process is reproducible and independently auditable. Given the same data, configuration, and a fixed hardware stack, this infrastructure produces bit-identical models, and any deviation (corruption, tampering, or an honest mistake) is cryptographically detectable.
+**Deterministic training and independent verification for language models.**
 
-This is the **infrastructure** repository: the generic training-and-verification toolkit. The models trained with it (e.g. the Wikipedia models) live in a separate repository and depend on a pinned version of this one.
+OpenVerifiableLLM is an [AOSSIE](https://aossie.org) project building a training pipeline whose entire process is reproducible and independently auditable. Given the same data, configuration, and a fixed hardware stack, the pipeline produces bit-identical models, and any deviation (corruption, tampering, or an honest mistake) is cryptographically detectable.
 
-> **Status:** active development under Google Summer of Code 2026 with [AOSSIE](https://aossie.org). Some components below are proven and merged; others are planned. Each section marks which.
+The goal is not just to publish a model, but to publish a model whose training process can be verified rather than trusted.
 
-## The problem
+---
 
-Open-weight models are reproducible in principle but not verifiable in practice. You can download the weights, but you cannot prove what data they were trained on, what configuration produced them, or whether they were modified after training. A model ships with a report, and you trust the report.
+## Why this project exists
 
-There is no cryptographic link between a set of weights and the process that produced them. Post-training modification (fine-tuning, data injection, weight edits) is, by default, undetectable from the artifact alone.
+Open-weight models are reproducible in principle but not verifiable in practice. You can download the weights, but you cannot prove what data they were trained on, what configuration produced them, or whether they were modified after release. A model ships with a report, and the report has to be trusted.
 
-This project treats verification as a property of the training pipeline itself rather than a claim bolted on afterward.
+There is no cryptographic link between a set of weights and the process that produced them, which makes post-training modification (fine-tuning, data injection, weight edits) effectively undetectable from the artifact alone.
 
-## What "verifiable" means here, precisely
+OpenVerifiableLLM treats verification as a property of the training pipeline itself rather than something added afterward.
 
-It is worth being exact, because the word is often used loosely.
+## What "verifiable" means here
 
-**What this infrastructure proves.** Given a fixed dataset snapshot, a fixed configuration, and the same hardware/software stack, an independent party can reproduce the exact model (bit-identical weights) or detect that a published artifact deviates from what was claimed. The verification is exact (a hash match), not approximate.
+The term is used precisely in this project.
 
-**What it does not prove.** A passing verification confirms that a training segment is *reproducible and internally consistent*. It does not, on its own, prove that training was *honest*, because a determined adversary can construct a checkpoint chain backwards that passes every spot-check (see [Threat model](#threat-model) below). The infrastructure raises the cost of forgery substantially; it does not reduce it to zero. That stronger guarantee requires cryptographic proof-of-training (zkML), which is out of scope at this scale and noted as future work.
+**What the system proves.** Given a fixed dataset snapshot, a fixed configuration, and the same hardware/software stack, an independent party can reproduce the exact model (bit-identical weights) or detect that a published artifact deviates from what was claimed. Verification is exact (a hash match), not approximate.
 
-This honesty is deliberate. The system is designed around *falsifiability*: its job is to fail reliably when assumptions are violated, not merely to pass when everything is correct.
+**What it does not prove.** A passing verification confirms that a training segment is reproducible and internally consistent. It does not, on its own, prove that training was honest, because a determined adversary can construct a checkpoint chain that passes spot-checks (see [Threat model](#threat-model)). The system substantially raises the cost of forgery; it does not reduce it to zero. The stronger guarantee requires cryptographic proof-of-training (zkML), which is not tractable at this scale and is treated as future work.
 
-## Key technical findings
+This honesty is by design. The system is built around *falsifiability*: it must fail reliably when assumptions are violated, not merely pass when everything is correct.
 
-These come from controlled experiments in the [baseline repository](https://github.com/ryoari/Verifiable-LLM-Baseline) and the project's experiment suite. They are the empirical basis for the design.
-
-### Computational determinism is achievable; representational determinism is the catch
-
-When seeds, initialization, data order, and configuration are fixed, the training computation itself is numerically stable. On a fixed single-GPU stack, two independent runs produce bit-identical weights (verified: identical SHA-256, identical final loss to the last digit).
-
-But identical weights do not automatically produce identical files. PyTorch's `.pt` format stores checkpoints as ZIP archives with embedded timestamps and pickle metadata, so the bytes on disk change on every save even when the parameters are identical. This breaks naive file-level hash verification.
-
-**The fix:** verify at the *tensor* level, not the file level. Extract weights into a canonical representation, serialize with a byte-stable format ([safetensors](https://huggingface.co/docs/safetensors)), and hash the raw tensor data. This is the difference between a model that is reproducible and a model that is verifiable.
-
-| Determinism type | Property | Status |
-|---|---|---|
-| Computational | same config → same weight values | Verified (single GPU, fixed stack) |
-| Representational | same weight values → same bytes on disk | Broken with `.pt`, fixed with safetensors |
-
-### Loss-curve verification is insufficient
-
-Comparing training loss trajectories across runs is not a reliable audit on its own. Two scenarios from the falsifiability suite show why:
-
-- **Post-training sabotage:** weights mutated *after* training completes. The loss trajectory replays perfectly (the mutation happened after the replayed window). Only the tensor hash catches it.
-- **File-level corruption:** a small corruption produces loss differences around 1e-8, indistinguishable from floating-point noise. Loss check passes; hash check fails.
-
-The conclusion: hash-based tensor verification is necessary, not optional. An audit must operate at the tensor-hash level, and trajectory comparison and hashing are *both* needed because each catches failures the other misses.
-
-### Determinism flags vs. seeding
-
-In the current nanoGPT-scale experiments, fixing the RNG seed was the dominant factor; the model reproduced bit-identically even with `torch.use_deterministic_algorithms` off, because the operations it uses (dense matmul, layernorm, attention, embeddings) are already deterministic by default. The flag is kept on regardless: it is a no-op on the current model but a guarantee against silent regression if the architecture later touches a non-deterministic-by-default kernel (scatter/gather with duplicate indices, atomic-accumulation paths, certain convolution backward passes). This assumption is re-tested at larger scale rather than assumed to carry over.
-
-## Architecture
+## How it works
 
 The pipeline cryptographically links every stage from raw data to final weights.
 
 ```
-Dataset (pinned dump)                    ── Merkle root over ordered chunks
-        │
-        ▼
-Tokenization (deterministic BPE/SP)      ── config hash, binary tokens.bin
-        │
-        ▼
-Deterministic training loop              ── full RNG + optimizer state control
-        │
-        ▼
-Verification layer                       ── tensor-level SHA-256, safetensors
-        │
-        ▼
-Signed manifest + transparency log       ── Sigstore / Rekor (planned)
-        │
-        ▼
-Evaluation (factual, bias)               ── hash-linked into the chain
+Dataset (pinned dump)              -- Merkle root over ordered chunks
+        |
+        v
+Tokenization (deterministic)       -- config hash, binary tokens
+        |
+        v
+Deterministic training loop        -- full RNG + optimizer state control
+        |
+        v
+Verification layer                 -- tensor-level SHA-256, safetensors
+        |
+        v
+Signed manifest + transparency log -- Sigstore / Rekor
+        |
+        v
+Evaluation (factual, bias)         -- hash-linked into the chain
 ```
 
-Each stage records its inputs and outputs into a manifest, and the manifests chain into a single pipeline hash, so any link can be independently checked.
+Each stage records its inputs and outputs into a manifest, and the manifests chain into a single pipeline hash so any link can be checked independently.
 
-## The two core deliverables
+### Two core programs
 
-The infrastructure centers on two programs with a shared, versioned contract.
+**Trainer / chain producer.** Takes data and parameters, produces the final model along with a sequence of incremental snapshots and the data split used to produce them. The chain begins at the deterministically-seeded initial model (before any training) so that even the first segment is verifiable. Each snapshot is a complete training-state boundary (weights, optimizer state, full RNG state, schedule position, dataloader position), not just weights, because exact segment replay depends on restoring all of it.
 
-### 1. Trainer / chain producer
+**Segment verifier.** Takes a boundary snapshot, the next data chunk, the configuration, and the claimed next snapshot, then replays that single segment and checks the result. The default test is a bit-exact hash match (valid on the same hardware stack, with no tolerance window for a forged or corrupted step to hide in). Cross-hardware verification is available as a separate, explicitly-labeled mode with a documented tolerance.
 
-```
-train(D, P) → M, [M0, M1, ..., Mn], [D1, ..., Dn]
-```
+This is what makes verification affordable: an auditor can verify any single segment at a small fraction of the full training cost, sample several at random, and gain high confidence without retraining the whole model.
 
-Takes data `D` and parameters `P`, produces the final model `M` and the full sequence of incremental snapshots plus the data split used to produce them. The chain begins at `M0` (the deterministically-seeded initial model, before any training) so that even the first segment is verifiable.
+## Design findings
 
-Each snapshot is a **full training-state boundary**, not just weights. To allow exact replay of any segment, a snapshot includes:
+These observations from the project's controlled experiments inform the architecture.
 
-- model weights (safetensors)
-- optimizer state (e.g. Adam moments)
-- complete RNG state (Python, NumPy, torch CPU, torch CUDA)
-- LR-schedule position and step count
-- dataloader position
+**Computational determinism is achievable; representational determinism is the catch.** With seeds, initialization, data order, and configuration fixed, training computation is numerically stable, and two independent runs on a fixed single-GPU stack produce bit-identical weights. However, identical weights do not produce identical files: PyTorch's `.pt` format embeds timestamps and pickle metadata, so the bytes change on every save. Verification therefore operates at the tensor level using a byte-stable format ([safetensors](https://huggingface.co/docs/safetensors)), not at the file level.
 
-This completeness is what makes segment replay reproduce bit-identically; omitting any of it breaks the guarantee.
+| Determinism type | Property | Status |
+|---|---|---|
+| Computational | same config produces same weight values | achievable (single GPU, fixed stack) |
+| Representational | same weight values produce same bytes on disk | broken with `.pt`, resolved with safetensors |
 
-### 2. Segment verifier
-
-```
-verify(P, Mk, D_{k+1}, M_{k+1}) → pass / fail
-```
-
-Takes a boundary snapshot `Mk`, the next data chunk `D_{k+1}`, the configuration `P`, and the claimed next snapshot `M_{k+1}`. It replays that single segment and checks the result.
-
-The default test is a **bit-exact hash match**, valid on the same hardware/software stack, which leaves no tolerance window for a forged or corrupted step to hide in. Cross-hardware verification (where floating-point non-associativity across GPU architectures makes bit-exactness impossible) is available as a separate, explicitly-labeled mode with a documented tolerance. The strong mode is the default; the tolerant mode is opt-in.
-
-This is what makes verification cheap. An auditor verifies any single ~1%-of-training segment at ~1% of the cost, samples a few at random, and gains high confidence without retraining the whole model.
+**Loss-curve verification is insufficient on its own.** Trajectory comparison misses two important attacks: weights mutated after training completes (the replay window passes, only the hash catches it), and small file corruptions producing loss differences around 1e-8 that are indistinguishable from floating-point noise. Tensor-hash verification is necessary, and trajectory comparison and hashing are both used because each catches failures the other misses.
 
 ## Falsifiability suite
 
-A model is only as trustworthy as the test that tries to break it. The suite (ported into this repo as a `pytest` harness) provides adversarial coverage. A clean run must pass; every tampered run must fail.
+A clean run must pass; every tampered run must fail.
 
 | Scenario | What it tests | How it's caught |
 |---|---|---|
 | Clean audit | end-to-end reproduction | hashes + trajectory match |
 | Bad seed | wrong RNG initialization | trajectory diverges, hash mismatch |
 | Gradient noise | mid-training perturbation | trajectory diverges, hash mismatch |
-| Post-training sabotage | weights edited after training | trajectory passes, **hash catches it** |
-| Broken seal | ~1e-8 file corruption | trajectory passes, **hash catches it** |
+| Post-training sabotage | weights edited after training | trajectory passes, hash catches it |
+| Broken seal | ~1e-8 file corruption | trajectory passes, hash catches it |
 | Prover / auditor split | two-party independent replay | segment replays bit-identically |
-
-The last two scenarios are the point: they are invisible to any loss-curve-only audit.
 
 ## Threat model
 
-State this plainly so the guarantees are not overread.
+Stated plainly so the guarantees are not overread.
 
-- **Catches:** accidental corruption, drift, post-training weight edits, file-level tampering, configuration mismatch, dataset substitution (the data Merkle root won't match).
-- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain backwards to pass spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), which rebuts the original Proof-of-Learning construction in [Jia et al. 2021](https://arxiv.org/abs/2103.05633)).
-- **Mitigation in scope:** publishing the ordered-dataset Merkle root and a transparency-log timestamp *before* training pins the inputs, so a forger cannot freely choose the data, which substantially raises the forgery bar.
-- **Out of scope:** cryptographic proof of an honest gradient step (zkML). zkML can prove small-model *inference* but not *training* at meaningful scale as of 2026. Noted as future work, not promised.
+- **Catches:** accidental corruption, drift, post-training weight edits, file-level tampering, configuration mismatch, and dataset substitution (the data Merkle root will not match).
+- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain that passes spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), rebutting [Jia et al. 2021](https://arxiv.org/abs/2103.05633)).
+- **Mitigation:** publishing the ordered-dataset Merkle root and a transparency-log timestamp before training pins the inputs, so a forger cannot freely choose the data, which raises the forgery bar.
+- **Out of scope:** cryptographic proof of an honest gradient step (zkML), which can prove small-model inference but not training at meaningful scale today.
 
 ### Supply-chain posture
 
-The verification secures the model artifact, but the verifier and the training infra are themselves code that people download and run, which is exactly the layer recent supply-chain attacks target. Posture, not a separate workstream:
+Verification secures the model artifact, but the verifier and training code are themselves software that people download and run. Accordingly: dependencies are pinned and hash-locked, releases of the verification tooling are signed (so an auditor can confirm the tool they run is the one published), and the verification infrastructure is kept small to minimize attack surface.
 
-- dependencies are pinned and hash-locked (`uv` lockfile), which doubles as a defense against malicious mid-stream package updates
-- infra/verifier releases are signed (Sigstore), so an auditor can confirm the verifier they run is the one actually published
-- the small, separately-versioned infra repo has a deliberately minimal attack surface
+## Scope and boundaries
 
-## Hardware and reproducibility boundary
+- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest.
+- **Cross-hardware** reproducibility (e.g. different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; this is measured and documented, and is the use case for the verifier's tolerant mode.
+- **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption. Tensor and pipeline parallelism are out of scope.
 
-- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack** (same GPU architecture, CUDA, cuDNN, PyTorch versions). The environment is pinned via the lockfile and recorded in the manifest.
-- **Cross-hardware** (e.g. A100 vs H100), floating-point non-associativity means bit-exactness does not hold. This is measured and documented, not hidden, and is the use case for the verifier's tolerant mode.
-- **Single GPU** is the supported, proven domain. Multi-GPU determinism is harder: the cross-device gradient all-reduce (NCCL) introduces a reduction whose order is not fixed by default. It is controllable for data-parallel training in fp32 with a pinned NCCL algorithm, at a throughput cost, and is treated as a measured experiment rather than an assumption. Tensor/pipeline parallelism is not in scope.
+## Repository structure
+
+OpenVerifiableLLM is organized as two repositories:
+
+| Repository | Contains |
+|---|---|
+| **Infrastructure** | trainer, verifier, manifest schema, falsifiability suite, signing tooling |
+| **Models** | pinned dataset pointers, training configs, published checkpoint chains, manifests, evaluation reports |
+
+A model repository pins an exact version of the infrastructure, because a manifest is only meaningful against the exact version that produced it. Verification logic lives only in the infrastructure; model repositories produce and consume manifests but do not reimplement verification.
 
 ## Tech stack
 
-Python, PyTorch, safetensors, NumPy, CUDA, SHA-256, Merkle trees, `uv`, `ruff`, `pytest`, GitHub Actions, Sigstore (planned), bitsandbytes, lm-evaluation-harness.
-
-## Repository relationship
-
-| Repo | Contains | Cadence |
-|---|---|---|
-| **This (infra)** | trainer, verifier, manifest schema, falsifiability suite, signing | code releases (semver) |
-| **Models** | pinned dump pointers, training configs, published chains, manifests, eval reports | per training run |
-
-The model repo pins an exact version of this infra repo, because a manifest is only meaningful against the exact infra version that produced it. Verification logic never lives in the model repo; it only produces and consumes manifests.
+Python, PyTorch, safetensors, NumPy, CUDA, SHA-256, Merkle trees, `uv`, `ruff`, `pytest`, GitHub Actions, Sigstore, bitsandbytes, lm-evaluation-harness.
 
 ## Getting started
 
-> Setup instructions are stabilizing as the core lands in the main repository. The intended flow:
+> Setup instructions are stabilizing as the core lands. The intended flow:
 
 ```bash
-# install (pinned, hash-locked dependencies)
+# install pinned, hash-locked dependencies
 uv sync
 
-# run the falsifiability suite — clean passes, tampered fails
+# run the falsifiability suite (clean passes, tampered fails)
 pytest tests/falsifiability
 
-# train with a chain of snapshots
-python -m ovllm.train --data <dump> --config <config> --out <dir>
+# train, producing a chain of verifiable snapshots
+python -m openverifiablellm.train --data <dump> --config <config> --out <dir>
 
 # verify a single segment
-python -m ovllm.verify --params <config> --from Mk --data D_{k+1} --expect M_{k+1}
+python -m openverifiablellm.verify --params <config> --from <Mk> --data <chunk> --expect <Mk+1>
 ```
 
-## Acknowledgments
+## Contributing
 
-Developed for AOSSIE under GSoC 2026, with mentorship from the OpenVerifiableLLM team. The dataset, Merkle, manifest, and evaluation foundations were built by the wider project; this repository extends them with the deterministic, verifiable *training* layer.
+Contributions are welcome. The project favors a research-oriented, assumption-first approach: validate that an abstraction holds before building on top of it, and design features to be falsifiable.
+
+- Discussion happens in the [AOSSIE Discord](https://aossie.org); keep technical decisions public.
+- Open an issue before substantial work so scope can be aligned with maintainers.
+- Run `ruff` and the test suite before submitting; the determinism checks in CI are required to pass.
+- Good first issues are labeled in the issue tracker.
+
+See `CONTRIBUTING.md` for details.
+
+## License
+
+See [`LICENSE`](LICENSE).
 
 ## References
 
-- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021) — [arXiv:2103.05633](https://arxiv.org/abs/2103.05633)
-- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think* (EuroS&P 2023) — [arXiv:2208.03567](https://arxiv.org/abs/2208.03567)
-- safetensors format — [huggingface.co/docs/safetensors](https://huggingface.co/docs/safetensors)
-- Sigstore model transparency — [github.com/sigstore/model-transparency](https://github.com/sigstore/model-transparency)
-- Baseline prototype — [github.com/ryoari/Verifiable-LLM-Baseline](https://github.com/ryoari/Verifiable-LLM-Baseline)
+- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021) -- [arXiv:2103.05633](https://arxiv.org/abs/2103.05633)
+- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think* (EuroS&P 2023) -- [arXiv:2208.03567](https://arxiv.org/abs/2208.03567)
+- safetensors format -- [huggingface.co/docs/safetensors](https://huggingface.co/docs/safetensors)
+- Sigstore model transparency -- [github.com/sigstore/model-transparency](https://github.com/sigstore/model-transparency)
