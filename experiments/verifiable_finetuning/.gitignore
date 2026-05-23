@@ -1,0 +1,7 @@
+
+*.pt
+
+manifest.json
+
+__pycache__/
+*.pyc
