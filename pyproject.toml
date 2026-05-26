@@ -10,6 +10,7 @@ authors = [{name = "OpenVerifiableLLM Contributors"}]
 requires-python = ">=3.10"
 
 dependencies = [
+    "datasets",
     "defusedxml",
     "sentencepiece",
     "tokenizers==0.15.2",
@@ -17,9 +18,19 @@ dependencies = [
     "torch",
 ]
 
+# Intentionally duplicated from [dependency-groups] below.
+# pip uses this section; uv/PEP 735 uses [dependency-groups]. Keep both in sync.
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.15.4",
+]
+
 [tool.setuptools.packages.find]
 include = ["openverifiablellm*"]
 
+# Intentionally duplicated from [project.optional-dependencies] above.
+# uv/PEP 735 uses this section; pip uses [project.optional-dependencies]. Keep both in sync.
 [dependency-groups]
 dev = [
     "pytest>=7.0",
