@@ -44,7 +44,7 @@ class Block(nn.Module):
     def __init__(self, embed_dim, num_heads, max_seq_len, dropout=0.1):
         super().__init__()
         self.ln_1 = nn.LayerNorm(embed_dim)
-        self.attn = CausalSelfAttention(embed_dim, num_heads, max_seq_len)
+        self.attn = CausalSelfAttention(embed_dim, num_heads, max_seq_len, dropout=dropout)
         self.ln_2 = nn.LayerNorm(embed_dim)
         self.mlp = nn.Sequential(
             nn.Linear(embed_dim, 4 * embed_dim),
@@ -61,6 +61,7 @@ class Block(nn.Module):
 class TinyGPT(nn.Module):
     def __init__(self, vocab_size, embed_dim=16, num_heads=2, max_seq_len=32, dropout=0.1):
         super().__init__()
+        self.max_seq_len = max_seq_len
         self.transformer = nn.ModuleDict(dict(
             wte = nn.Embedding(vocab_size, embed_dim),
             wpe = nn.Embedding(max_seq_len, embed_dim),
@@ -71,6 +72,8 @@ class TinyGPT(nn.Module):
     
     def forward(self, idx):
         B, T = idx.size()
+        if T > self.max_seq_len:
+            raise ValueError(f"Input sequence length {T} exceeds maximum sequence length {self.max_seq_len}")
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
 
         # Dictionary access is standard for ModuleDict. 

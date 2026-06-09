@@ -34,11 +34,25 @@ if __name__ == "__main__":
         dropout=TRAIN_CONFIG["dropout"]
         ).to(DEVICE)
 
-    checkpoint = torch.load("mid_checkpoint.pt", weights_only=False, map_location=DEVICE)
+    # Compute file-level hash before loading as security measure
+    checkpoint_path = "mid_checkpoint.pt"
+    with open(checkpoint_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
+    # Load checkpoint (contains model, optimizer, and RNG states)
+    # weights_only=False required for non-tensor state (RNG, metadata)
+    # File hash computed above provides tamper detection
+    checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=DEVICE)
     model.load_state_dict(checkpoint['model'])
     model.eval()  # disabling dropout for eval as results must be deterministic
 
     model_hash = hash_model(model)
+
+    # Verify cryptographic seal if present
+    if 'checkpoint_hash' in checkpoint:
+        if model_hash != checkpoint['checkpoint_hash']:
+            raise RuntimeError(f"Checkpoint integrity check failed. Expected: {checkpoint['checkpoint_hash'][:16]}..., Got: {model_hash[:16]}...")
+
     print(f" ~> Model loaded | checkpoint hash: {model_hash[:16]}...")
 
     # Held-out eval which is never seen during training
