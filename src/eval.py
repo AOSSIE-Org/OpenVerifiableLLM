@@ -64,8 +64,11 @@ if __name__ == "__main__":
     }
     manifest["eval_manifest_hash"] = hash_dict(manifest)
 
-    with open("eval_manifest.json", "w") as f:
+    proofs_dir = os.path.join(os.path.dirname(__file__), "..", "proofs")
+    os.makedirs(proofs_dir, exist_ok=True)
+    manifest_path = os.path.join(proofs_dir, "eval_manifest.json")
+    with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"\n ~> Manifest saved to eval_manifest.json")
+    print(f"\n ~> Manifest saved to {os.path.normpath(manifest_path)}")
     print(json.dumps(manifest, indent=2))
