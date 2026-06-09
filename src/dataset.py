@@ -20,7 +20,7 @@ class TinyDataset:
             raise ValueError(
                 f"block_size must be in [1, {len(self.encoded) - 1}], got {block_size}"
             )
-        `#for` linear model: x = self.encoded[:block_size]
+        # for linear model: x = self.encoded[:block_size]
         x = self.encoded[:block_size].unsqueeze(0)
         # for linearmodel: y = self.encoded[1:block_size+1]
         y = self.encoded[1:block_size+1].unsqueeze(0)
