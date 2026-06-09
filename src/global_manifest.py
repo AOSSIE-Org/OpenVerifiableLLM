@@ -33,9 +33,15 @@ def generate_global_manifest():
     dataset = TinyDataset()
     dataset_hash = hashlib.sha256(dataset.encoded.numpy().tobytes()).hexdigest()
 
-    # 4. Model Hash 
-    with open("mid_checkpoint.pt", "rb") as f:
-        model_hash = hashlib.sha256(f.read()).hexdigest()
+    # 4. Model Hash (checkpoint file hash - must exist and be fully written)
+    checkpoint_path = "mid_checkpoint.pt"
+    if not os.path.exists(checkpoint_path):
+        raise RuntimeError(f"Missing {checkpoint_path}. Please run src/main.py first to generate the checkpoint.")
+    with open(checkpoint_path, "rb") as f:
+        checkpoint_bytes = f.read()
+        if len(checkpoint_bytes) == 0:
+            raise RuntimeError(f"{checkpoint_path} is empty. Checkpoint may not be fully written.")
+        model_hash = hashlib.sha256(checkpoint_bytes).hexdigest()
 
     # 5. Eval Manifest Hash (run eval.py before this script)
     with open("eval_manifest.json", "r") as f:
