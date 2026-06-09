@@ -1,0 +1,316 @@
+
+started with linear model,
+output 1:
+
+# verified that seeds can be set
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/main.py
+seed set to 99
+Tensor X:
+tensor([[ 0.6127, -1.1754, -0.7646],
+        [-0.6666,  0.7444, -0.6453],
+        [-1.3890, -0.2730,  0.9406]])
+Deterministic enabled: True
+Input: tensor([0, 1, 2, 3])
+Target: tensor([1, 2, 3, 0])
+
+output 2:
+
+# verified that hashes match in a linear model
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/main.py
+seed set to 99
+Tensor X:
+tensor([[ 0.6127, -1.1754, -0.7646],
+        [-0.6666,  0.7444, -0.6453],
+        [-1.3890, -0.2730,  0.9406]])
+Deterministic enabled: True
+Input: tensor([0, 1, 2, 3])
+Target: tensor([1, 2, 3, 0])
+Step 0, Loss:1.1843723058700562
+Step 1, Loss:1.0755757093429565
+Step 2, Loss:0.9717903733253479
+Step 3, Loss:0.8734948039054871
+Step 4, Loss:0.7810313105583191
+FINAL MODEL HASH: cb0e3c0a1d3b9a74769e65a057c415354c3d8fe8faa8afb7ba944489a4c6ed24     
+
+output 3:
+
+# added in reproducability_test.py to automate the verification
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility
+Input: tensor([0, 1, 2, 3])
+Target: tensor([1, 2, 3, 0])
+Step 0, Loss:1.676896333694458
+Step 1, Loss:1.5588276386260986
+Step 2, Loss:1.4446043968200684
+Step 3, Loss:1.3343052864074707
+Step 4, Loss:1.2279143333435059
+FINAL MODEL HASH: b02447baea14334d778597b8616c03afdbc8baa1ecc0e734ce2d3e5431ef9de9
+running reproducability test
+seed set to 99
+seed set to 99
+Loss curves identical: True
+Bitwise parameter match: True
+
+Success!: Full deterministic gradient flow verified.
+ ---
+
+upgraded model to NanoGPT,
+output 1:
+
+#verified deterministic gradient for NanoGPT
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility
+Input: tensor([[0, 1, 2, 3]])
+Target: tensor([[1, 2, 3, 0]])
+running reproducability test
+seed set to 99
+seed set to 99
+Loss curves identical: True
+Bitwise parameter match: True
+
+Success!: Full deterministic gradient flow verified.
+
+output 2:
+
+#verified SEGMENTED AUDIT VERIFICATION for NanoGPT
+
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility
+Input: tensor([[0, 1, 2, 3]])
+Target: tensor([[1, 2, 3, 0]])
+
+ SEGMENTED AUDIT VERIFICATION 
+
+[Running Prover: Steps 0 to 10]
+seed set to 99
+ ~> Prover saved checkpoint at step 5
+
+[Running Auditor: Steps 5 to 10 with checkpoint]
+seed set to 99
+ ~> Auditor loaded checkpoint from step 5
+
+[Verifying Telemetry Trajectories]
+Step 5 | Prover Loss: 0.424115 | Auditor Loss: 0.424115 ok
+Step 6 | Prover Loss: 0.339101 | Auditor Loss: 0.339101 ok
+Step 7 | Prover Loss: 0.276479 | Auditor Loss: 0.276479 ok
+Step 8 | Prover Loss: 0.228812 | Auditor Loss: 0.228812 ok
+Step 9 | Prover Loss: 0.192136 | Auditor Loss: 0.192136 ok
+
+ (❁´◡`❁)
+AUDIT PASSED: Segment replay is bitwise deterministic.
+
+Output 3:
+
+#Failure scenarios, prove the deterministic route is on the right path
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility.py
+Input: tensor([[0, 1, 2, 3]])
+Target: tensor([[1, 2, 3, 0]])
+
+ Scenario 1: CLEAN AUDIT
+seed set to 99
+ ~> Prover saved checkpoint at step 5
+ ~> Auditor loaded checkpoint from step 5
+
+[Verifying: CLEAN AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740216 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635828 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757840 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ (❁´◡`❁) CLEAN AUDIT PASSED: Segment replay is bitwise deterministic.
+
+ Scenario 2: BAD SEED
+seed set to 42
+ ~> Tampered auditor loaded checkpoint with BAD seed (42)
+
+[Verifying: BAD SEED AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.45238802 | Δ 1.50e-02 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36516875 | Δ 1.19e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31266588 | Δ 1.49e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25075468 | Δ 2.54e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20944712 | Δ 1.27e-03 FAILED
+
+ (╯°□°）╯︵ ┻━┻  BAD SEED AUDIT FAILED: Trajectories diverged.
+
+ Scenario 3: NOISE INJECTED
+seed set to 99
+ ~> Tampered auditor loaded checkpoint with GOOD seed but will add secret noise to gradients
+
+[Verifying: NOISY WEIGHTS AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46379220 | Δ 3.61e-03 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36285883 | Δ 3.50e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31422427 | Δ 1.34e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25160202 | Δ 3.39e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20851545 | Δ 2.20e-03 FAILED
+
+ (╯°□°）╯︵ ┻━┻  NOISY WEIGHTS AUDIT FAILED: Trajectories diverged.
+
+output 4:
+
+# added scenario 4
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility.py
+Input: tensor([[0, 1, 2, 3]])
+Target: tensor([[1, 2, 3, 0]])
+
+ Scenario 1: CLEAN AUDIT
+seed set to 99
+ ~> Prover saved checkpoint at step 5
+ ~> Auditor loaded checkpoint & RNG states from step 5
+
+[Verifying: CLEAN AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740216 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635828 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757840 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ (❁ ´◡`❁) CLEAN AUDIT PASSED: Segment replay is bitwise deterministic.
+
+ Scenario 2: BAD SEED
+seed set to 42
+ ~> Tampered auditor loaded checkpoint with BAD seed (42)
+
+[Verifying: BAD SEED AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.45238802 | Δ 1.50e-02 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36516875 | Δ 1.19e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31266588 | Δ 1.49e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25075468 | Δ 2.54e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20944712 | Δ 1.27e-03 FAILED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: 275820158c363012 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  BAD SEED AUDIT FAILED: Trajectories diverged.
+
+ Scenario 3: NOISE INJECTED
+seed set to 99
+ ~> Tampered auditor loaded checkpoint with GOOD seed but will add secret noise to gradients
+
+[Verifying: NOISY WEIGHTS AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46379220 | Δ 3.61e-03 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36285883 | Δ 3.50e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31422427 | Δ 1.34e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25160202 | Δ 3.39e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20851545 | Δ 2.20e-03 FAILED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: d9e944f2d70374c5 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  NOISY WEIGHTS AUDIT FAILED: Trajectories diverged.
+
+ Scenario 4: POST-TRAINING WEIGHT SABOTAGE
+ ~> Post-sabotage auditor loaded checkpoint correctly
+ ~> Weights silently mutated after training completed
+
+[Verifying: POST-TRAINING SABOTAGE AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740216 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635828 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757840 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: 03b1c8316eaf2b01 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  POST-TRAINING SABOTAGE AUDIT FAILED: Trajectories diverged.
+
+output 5:
+
+#added global manifest
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/global_manifest.py
+Generating The Global Verification Manifest...
+
+ ༼ つ ◕_◕ ༽つ Global Manifest Sealed:
+{
+  "1_environment_hash": "8196650d82fe04afca4d4348975f612bc6967698b87973cc9e299f58357db470",
+  "2_training_config_hash": "e6ff2b2428cafadb7f570001afa71ea3a6396cc03a0228388a7ec870cd4a6ce6",
+  "3_dataset_hash": "e25dc0179960dcc446a7309b23e341f8218f64d009535cfa7dc692b23c5ea8db", 
+  "4_model_checkpoint_hash": "1abbaa044e36e9835fdb950f652d915df77f2d8db09769c6475870dbd25d91bb",
+  "5_eval_manifest_hash": "0631d96765e2019979b6d10e68dafc7e3f502cbb0857cfe2a8edb99caf390284",
+  "99_GLOBAL_PIPELINE_HASH": "b696f2f6b6143745bb4a71bd43cd5fc187470a3bafc1276b07804541c2304bbf"
+}
+
+output 6:
+
+# added Scenario 5: BROKEN SEAL AUDIT
+
+(detgpt-env) PS C:\Users\ryoar\Desktop\GSOC> & c:\Users\ryoar\Desktop\GSOC\detgpt-env\Scripts\python.exe c:/Users/ryoar/Desktop/GSOC/src/reproducibility.py
+Input: tensor([[0, 1, 2, 3]])
+Target: tensor([[1, 2, 3, 0]])
+
+ Scenario 1: CLEAN AUDIT
+seed set to 99
+ ~> Prover saved checkpoint at step 5
+ ~> Auditor loaded checkpoint & RNG states from step 5
+
+[Verifying: CLEAN AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740216 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635828 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757840 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ (❁ ´◡`❁) CLEAN AUDIT PASSED: Segment replay is bitwise deterministic.
+
+ Scenario 2: BAD SEED
+seed set to 42
+ ~> Tampered auditor loaded checkpoint with BAD seed (42)
+
+[Verifying: BAD SEED AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.45238802 | Δ 1.50e-02 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36516875 | Δ 1.19e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31266588 | Δ 1.49e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25075468 | Δ 2.54e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20944712 | Δ 1.27e-03 FAILED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: 275820158c363012 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  BAD SEED AUDIT FAILED: Trajectories diverged.
+
+ Scenario 3: NOISE INJECTED
+seed set to 99
+ ~> Tampered auditor loaded checkpoint with GOOD seed but will add secret noise to gradients
+
+[Verifying: NOISY WEIGHTS AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46379220 | Δ 3.61e-03 FAILED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36285883 | Δ 3.50e-03 FAILED
+Step 7 | Prover: 0.32757840 | Auditor: 0.31422427 | Δ 1.34e-02 FAILED
+Step 8 | Prover: 0.24821112 | Auditor: 0.25160202 | Δ 3.39e-03 FAILED
+Step 9 | Prover: 0.21071491 | Auditor: 0.20851545 | Δ 2.20e-03 FAILED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: d9e944f2d70374c5 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  NOISY WEIGHTS AUDIT FAILED: Trajectories diverged.
+
+ Scenario 4: POST-TRAINING WEIGHT SABOTAGE
+ ~> Post-sabotage auditor loaded checkpoint correctly
+ ~> Weights silently mutated after training completed
+
+[Verifying: POST-TRAINING SABOTAGE AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740216 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635828 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757840 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: 03b1c8316eaf2b01 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  POST-TRAINING SABOTAGE AUDIT FAILED: Trajectories diverged.
+
+ Scenario 5: MODIFIED CHECKPOINT FILE (BROKEN SEAL)
+ ~> Attacker corrupted weights and saved to corrupted_checkpoint.pt
+ ~> Auditor loaded checkpoint & RNG states from step 5
+
+[Verifying: BROKEN SEAL AUDIT]
+Step 5 | Prover: 0.46740216 | Auditor: 0.46740210 | PASSED
+Step 6 | Prover: 0.36635828 | Auditor: 0.36635825 | PASSED
+Step 7 | Prover: 0.32757840 | Auditor: 0.32757837 | PASSED
+Step 8 | Prover: 0.24821112 | Auditor: 0.24821112 | PASSED
+Step 9 | Prover: 0.21071491 | Auditor: 0.21071491 | PASSED
+
+ Hash mismatch! Prover hash: 0fe9e61625b6c268 // Auditor hash: 5a1b407ed0c82001 [HASH ERROR]
+
+ (╯°□°）╯︵ ┻━┻  BROKEN SEAL AUDIT FAILED: Trajectories diverged.
