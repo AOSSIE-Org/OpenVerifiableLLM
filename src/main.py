@@ -32,13 +32,13 @@ if __name__ == "__main__":
 
     print("Deterministic enabled:", torch.are_deterministic_algorithms_enabled())
 
-from dataset import TinyDataset
+    from dataset import TinyDataset
 
-dataset = TinyDataset()
-x, y = dataset.get_batch()
+    dataset = TinyDataset()
+    x, y = dataset.get_batch()
 
-print("Input:", x)
-print("Target:", y)
+    print("Input:", x)
+    print("Target:", y)
 
 
 #for linear Model
