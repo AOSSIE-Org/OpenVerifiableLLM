@@ -1,0 +1,7 @@
+{
+  "model_checkpoint_hash": "299273af1196e69c7cd64ca27000183990e0b3b3dbf7909cdad7bd5d06291d52",
+  "eval_dataset": "held_out_dummy_text",
+  "eval_loss": 0.4604153,
+  "perplexity": 1.58473,
+  "eval_manifest_hash": "aba5aa0c0a6add82cfd32c7eed9469aafa847bce419e0d572296090cdc60c27f"
+}
