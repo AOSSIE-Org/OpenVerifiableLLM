@@ -1,0 +1,52 @@
+{
+  "device": "cpu",
+  "device_name": "cpu",
+  "torch": "2.12.0+cpu",
+  "cuda": null,
+  "os": "Windows-11-10.0.22621-SP0",
+  "cublas_workspace_config": ":4096:8",
+  "final_loss": 0.2107149064540863,
+  "loss_curves_identical": true,
+  "model_hash_run1": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "model_hash_run2": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "bitwise_reproducible": true
+}
+{
+  "device": "cpu",
+  "device_name": "cpu",
+  "torch": "2.12.0+cpu",
+  "accelerator_version": null,
+  "os": "Windows-11-10.0.22621-SP0",
+  "cublas_workspace_config": ":4096:8",
+  "final_loss": 0.2107149064540863,
+  "loss_curves_identical": true,
+  "model_hash_run1": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "model_hash_run2": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "bitwise_reproducible": true
+}
+{
+  "device": "cpu",
+  "device_name": "cpu",
+  "torch": "2.12.0+cpu",
+  "accelerator_version": null,
+  "os": "Windows-11-10.0.22621-SP0",
+  "cublas_workspace_config": ":4096:8",
+  "final_loss": 0.2107149064540863,
+  "loss_curves_identical": true,
+  "model_hash_run1": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "model_hash_run2": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "bitwise_reproducible": true
+}
+{
+  "device": "cpu",
+  "device_name": "cpu",
+  "torch": "2.12.0+cpu",
+  "accelerator_version": null,
+  "os": "Windows-11-10.0.22621-SP0",
+  "cublas_workspace_config": ":4096:8",
+  "final_loss": 0.2107149064540863,
+  "loss_curves_identical": true,
+  "model_hash_run1": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "model_hash_run2": "0fe9e61625b6c26825256b805aa6c862162df654644609e2e96e2efc672e473d",
+  "bitwise_reproducible": true
+}

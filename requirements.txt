@@ -1,0 +1,8 @@
+torch==2.10.0
+numpy==2.4.3
+tqdm==4.67.3
+
+# This default torch wheel is CPU-only (or CUDA, depending on your platform).
+# For an Intel GPU (Iris Xe / Arc), install the XPU build instead — see README
+# "Locally on an Intel GPU":
+#   pip install torch --index-url https://download.pytorch.org/whl/xpu
