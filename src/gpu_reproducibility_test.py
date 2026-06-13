@@ -3,7 +3,7 @@
 Trains the deterministic NanoGPT twice from scratch, with no checkpoint reuse,
 and asserts that the two runs produce identical loss curves and bitwise-identical
 parameters. On CPU this reproduces the Phase 1 baseline; on a CUDA GPU it is the
-Phase 3 claim — that with a pinned cuBLAS workspace and deterministic cuDNN, the
+Phase 3 claim: with a pinned cuBLAS workspace and deterministic cuDNN, the
 *same* GPU yields the *same bits* run to run.
 
 Run from the ``src`` directory:
@@ -89,9 +89,9 @@ def main():
 
     ok = losses_match and params_match and (hash1 == hash2)
     if ok:
-        print("\n(❁ ´◡`❁) PASSED: same device is bitwise reproducible.")
+        print("\n[PASS] same device is bitwise reproducible.")
     else:
-        print("\n(╯°□°）╯︵ ┻━┻  FAILED: entropy detected on this device.")
+        print("\n[FAIL] entropy detected on this device.")
 
     _write_proof(losses1, losses2, hash1, hash2, ok)
     return ok

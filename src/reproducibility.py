@@ -2,8 +2,6 @@ import torch
 import torch.nn.functional as F
 import json
 import math
-import platform, sys
-import hashlib
 import random
 import numpy as np
 from model import TinyGPT
@@ -12,16 +10,21 @@ from main import set_seed
 from telemetry import TelemetryLogger
 from config import TRAIN_CONFIG
 from device import get_device, accel_rng_state, restore_accel_rng_state, device_name
+from artifacts import (
+    CHECKPOINT_MERKLE_PATH,
+    CHECKPOINT_WEIGHTS_PATH,
+    MERKLE_CHUNK_SIZE_BYTES,
+    model_parameters_sha256,
+    save_model_safetensors,
+    write_merkle_manifest,
+)
 
 # CUDA when available, else CPU. The same code path runs on both; only the
 # floating-point reduction order (the hardware entropy under study) differs.
 DEVICE = get_device()
 
 def hash_model(model):
-    h = hashlib.sha256()
-    for p in model.parameters():
-        h.update(p.data.cpu().numpy().tobytes())
-    return h.hexdigest()
+    return model_parameters_sha256(model)
 
 def run_training_segment(start_step, end_step, checkpoint_path_to_load=None, log_file="audit.jsonl", seed=None, tamper_weights=False):
     
@@ -80,6 +83,20 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None, log
         if not checkpoint_path_to_load and step == (TRAIN_CONFIG["checkpoint_step"] - 1):
 
             current_model_hash = logger.hash_model(model)
+            weights_path = save_model_safetensors(
+                model,
+                CHECKPOINT_WEIGHTS_PATH,
+                metadata={
+                    "format": "pt-state-dict",
+                    "tensor_sha256": current_model_hash,
+                    "checkpoint_step": str(TRAIN_CONFIG["checkpoint_step"]),
+                },
+            )
+            merkle_manifest = write_merkle_manifest(
+                weights_path,
+                CHECKPOINT_MERKLE_PATH,
+                chunk_size=MERKLE_CHUNK_SIZE_BYTES,
+            )
             
             torch.save({
                 'model': model.state_dict(),
@@ -88,9 +105,14 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None, log
                 'accel_rng_state': accel_rng_state(),  # None on CPU; tagged per-backend on GPU
                 'numpy_rng': np.random.get_state(),
                 'python_rng': random.getstate(),
-                'checkpoint_hash': current_model_hash
+                'checkpoint_hash': current_model_hash,
+                'safetensors_path': str(weights_path),
+                'safetensors_sha256': merkle_manifest["sha256"],
+                'safetensors_merkle_root': merkle_manifest["merkle_root"],
+                'merkle_chunk_size_bytes': merkle_manifest["chunk_size_bytes"],
             }, "mid_checkpoint.pt")
             print(f" ~> Prover saved checkpoint at step {TRAIN_CONFIG['checkpoint_step']}")
+            print(f" ~> Stable weights: {weights_path} | Merkle root: {merkle_manifest['merkle_root'][:16]}...")
         
     return model
 
@@ -217,7 +239,7 @@ def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT
     print(f"\n[Verifying: {label}]")
 
     if len(prover_segment) != len(auditor_logs):
-        print(f"Log length mismatch — prover: {len(prover_segment)}, auditor: {len(auditor_logs)}")
+        print(f"Log length mismatch: prover={len(prover_segment)}, auditor={len(auditor_logs)}")
         return False
 
     match = True
@@ -231,7 +253,7 @@ def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT
         if not step_ok:
             match = False
             delta = abs(p['loss'] - a['loss'])
-            print(f"Step {p['step']} | Prover: {p['loss']:.8f} | Auditor: {a['loss']:.8f} | Δ {delta:.2e} FAILED")
+            print(f"Step {p['step']} | Prover: {p['loss']:.8f} | Auditor: {a['loss']:.8f} | delta {delta:.2e} FAILED")
         else:
             print(f"Step {p['step']} | Prover: {p['loss']:.8f} | Auditor: {a['loss']:.8f} | PASSED")
 
@@ -240,9 +262,9 @@ def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT
         print(f"\n Hash mismatch! Prover hash: {prover_hash[:16]} // Auditor hash: {auditor_hash[:16]} [HASH ERROR]")
 
     if match and hash_match:
-        print(f"\n (❁ ´◡`❁) {label} PASSED: Segment replay is bitwise deterministic.")
+        print(f"\n [PASS] {label}: Segment replay is bitwise deterministic.")
     else:
-        print(f"\n (╯°□°）╯︵ ┻━┻  {label} FAILED: Trajectories diverged.")
+        print(f"\n [FAIL] {label}: Trajectories diverged.")
 
     return match
 
@@ -254,7 +276,7 @@ if __name__ == "__main__":
     if DEVICE.type == "cuda":
         print("    Phase 3: strict GPU determinism (cuDNN deterministic + pinned cuBLAS workspace)")
     elif DEVICE.type == "xpu":
-        print("    Phase 3: Intel XPU (oneAPI) — deterministic algorithms enabled (best-effort)")
+        print("    Phase 3: Intel XPU (oneAPI): deterministic algorithms enabled (best-effort)")
 
     # Baseline: should pass
     print("\n Scenario 1: CLEAN AUDIT ")
@@ -341,7 +363,7 @@ if __name__ == "__main__":
     prover_segment = prover_logs[5:10]
 
     if len(prover_segment) != 5 or len(auditor_logs) != 5:
-        print(f"Log length mismatch — prover_segment: {len(prover_segment)}, auditor: {len(auditor_logs)}")
+        print(f"Log length mismatch: prover_segment={len(prover_segment)}, auditor={len(auditor_logs)}")
         print("Cannot verify. Check for crashes or early exits in training.")
     else:
         match = True
@@ -358,9 +380,9 @@ if __name__ == "__main__":
             print(f"Step {p['step']} | Prover Loss: {p['loss']:.6f} | Auditor Loss: {a['loss']:.6f} {status}")
 
         if match:
-            print("\n (❁ ´◡`❁) \nAUDIT PASSED: Segment replay is bitwise deterministic.")
+            print("\n[PASS]\nAUDIT PASSED: Segment replay is bitwise deterministic.")
         else:
-            print("\n (╯°□°）╯︵ ┻━┻ \nAUDIT FAILED: Trajectories diverged.")
+            print("\n[FAIL]\nAUDIT FAILED: Trajectories diverged.")
 
 '''
 #Reproducibility test for tinyGPT without Segment Verification test
