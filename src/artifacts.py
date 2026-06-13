@@ -82,8 +82,10 @@ def build_merkle_manifest(
     path = Path(file_path)
     chunks = []
     offset = 0
+    file_hasher = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
+            file_hasher.update(chunk)
             chunks.append(
                 {
                     "index": len(chunks),
@@ -97,8 +99,8 @@ def build_merkle_manifest(
     leaf_hashes = [chunk["sha256"] for chunk in chunks]
     return {
         "artifact": path.name,
-        "size_bytes": path.stat().st_size,
-        "sha256": compute_sha256(file_path=path),
+        "size_bytes": offset,
+        "sha256": file_hasher.hexdigest(),
         "chunk_size_bytes": chunk_size,
         "chunk_count": len(chunks),
         "merkle_root": merkle_root_from_leaf_hashes(leaf_hashes),
