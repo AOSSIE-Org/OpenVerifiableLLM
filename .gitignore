@@ -14,3 +14,7 @@ __pycache__/
 *.pt
 *.pth
 *.jsonl
+eval_manifest.json
+pipeline_manifest.json
+mid_checkpoint.safetensors
+mid_checkpoint.merkle.json
