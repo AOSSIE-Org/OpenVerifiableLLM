@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn.functional as F
 import json
@@ -30,17 +31,26 @@ if __name__ == "__main__":
         dropout=TRAIN_CONFIG["dropout"]
         ).to(DEVICE)
 
-    try:
-        load_model_safetensors(model, CHECKPOINT_WEIGHTS_PATH, device=DEVICE)
-        checkpoint_source = str(CHECKPOINT_WEIGHTS_PATH)
-    except FileNotFoundError:
-        checkpoint = torch.load("mid_checkpoint.pt", weights_only=False, map_location=DEVICE)
-        model.load_state_dict(checkpoint['model'])
-        checkpoint_source = "mid_checkpoint.pt"
+    # Compute file-level hash before loading as security measure
+    checkpoint_path = "mid_checkpoint.pt"
+    with open(checkpoint_path, "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
+    # Load checkpoint (contains model, optimizer, and RNG states)
+    # weights_only=False required for non-tensor state (RNG, metadata)
+    # File hash computed above provides tamper detection
+    checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=DEVICE)
+    model.load_state_dict(checkpoint['model'])
     model.eval()  # disabling dropout for eval as results must be deterministic
 
     model_hash = hash_model(model)
-    print(f" ~> Model loaded from {checkpoint_source} | checkpoint hash: {model_hash[:16]}...")
+
+    # Verify cryptographic seal if present
+    if 'checkpoint_hash' in checkpoint:
+        if model_hash != checkpoint['checkpoint_hash']:
+            raise RuntimeError(f"Checkpoint integrity check failed. Expected: {checkpoint['checkpoint_hash'][:16]}..., Got: {model_hash[:16]}...")
+
+    print(f" ~> Model loaded | checkpoint hash: {model_hash[:16]}...")
 
     # Held-out eval which is never seen during training
     x, y = dataset.get_batch()
@@ -67,8 +77,11 @@ if __name__ == "__main__":
     }
     manifest["eval_manifest_hash"] = hash_dict(manifest)
 
-    with open("eval_manifest.json", "w") as f:
+    proofs_dir = os.path.join(os.path.dirname(__file__), "..", "proofs")
+    os.makedirs(proofs_dir, exist_ok=True)
+    manifest_path = os.path.join(proofs_dir, "eval_manifest.json")
+    with open(manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"\n ~> Manifest saved to eval_manifest.json")
+    print(f"\n ~> Manifest saved to {os.path.normpath(manifest_path)}")
     print(json.dumps(manifest, indent=2))

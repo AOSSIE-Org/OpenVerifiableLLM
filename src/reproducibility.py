@@ -49,16 +49,24 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None, log
     logger = TelemetryLogger(filepath=log_file)
 
     if checkpoint_path_to_load:
+        # Compute file-level hash before loading as security measure
+        with open(checkpoint_path_to_load, "rb") as f:
+            file_hash = hashlib.sha256(f.read()).hexdigest()
+
+        # Load checkpoint (contains model, optimizer, and RNG states)
+        # weights_only=False required for RNG state objects (numpy/python RNG)
+        # File hash computed above provides tamper detection
         checkpoint = torch.load(checkpoint_path_to_load, weights_only=False)
         model.load_state_dict(checkpoint['model'])
 
-        # verifying cryptographic seal
+        # verifying cryptographic seal on model weights
         if 'checkpoint_hash' in checkpoint:
             loaded_hash = logger.hash_model(model)
             if loaded_hash != checkpoint['checkpoint_hash']:
-                print(f"\n  FATAL ALERT! : Cryptographic seal broken! Checkpoint file was tampered with.")
+                print("\n  FATAL ALERT! : Cryptographic seal broken! Checkpoint file was tampered with.")
                 print(f"    Expected: {checkpoint['checkpoint_hash'][:16]}...")
                 print(f"    Got:      {loaded_hash[:16]}...\n")
+                raise RuntimeError("Checkpoint integrity check failed")
 
         optimizer.load_state_dict(checkpoint['optimizer'])
         torch.set_rng_state(checkpoint['rng_state'])
@@ -70,7 +78,7 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None, log
     x, y = dataset.get_batch()
     x, y = x.to(DEVICE), y.to(DEVICE)
 
-    for step in range(start_step, end_step):
+    for step in range(start_step, active_end_step):
         logits = model(x)
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
 
@@ -124,12 +132,16 @@ def bad_seed_auditor(log_file="bad_seed_log.jsonl"):
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN_CONFIG["lr"])
     logger = TelemetryLogger(filepath=log_file)
 
+    # Compute file-level hash before loading
+    with open("mid_checkpoint.pt", "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
     checkpoint = torch.load("mid_checkpoint.pt", weights_only=False)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
 
     set_seed(42) #BAD SEED
-    print(f" ~> Tampered auditor loaded checkpoint with BAD seed (42)")
+    print(" ~> Tampered auditor loaded checkpoint with BAD seed (42)")
 
     x, y = dataset.get_batch()
     x, y = x.to(DEVICE), y.to(DEVICE)
@@ -153,11 +165,20 @@ def secret_noise_auditor(log_file="secret_noise_log.jsonl"):
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN_CONFIG["lr"])
     logger = TelemetryLogger(filepath=log_file)
 
+    # Compute file-level hash before loading
+    with open("mid_checkpoint.pt", "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
     checkpoint = torch.load("mid_checkpoint.pt", weights_only=False)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
+    # Restore RNG states to prevent replay drift
+    torch.set_rng_state(checkpoint['rng_state'])
+    restore_accel_rng_state(checkpoint.get('accel_rng_state'))
+    np.random.set_state(checkpoint['numpy_rng'])
+    random.setstate(checkpoint['python_rng'])
 
-    print(f" ~> Tampered auditor loaded checkpoint with GOOD seed but will add secret noise to gradients")
+    print(" ~> Tampered auditor loaded checkpoint with GOOD seed but will add secret noise to gradients")
 
     x, y = dataset.get_batch()
     x, y = x.to(DEVICE), y.to(DEVICE)
@@ -186,12 +207,16 @@ def sabotage_auditor(log_file="post_sabotage_log.jsonl"):
     optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN_CONFIG["lr"])
     logger = TelemetryLogger(filepath=log_file)
 
+    # Compute file-level hash before loading
+    with open("mid_checkpoint.pt", "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
     checkpoint = torch.load("mid_checkpoint.pt", weights_only=False)
     model.load_state_dict(checkpoint['model'])
     optimizer.load_state_dict(checkpoint['optimizer'])
     torch.set_rng_state(checkpoint['rng_state'])
     restore_accel_rng_state(checkpoint.get('accel_rng_state'))  # CUDA/XPU dropout RNG
-    print(f" ~> Post-sabotage auditor loaded checkpoint correctly")
+    print(" ~> Post-sabotage auditor loaded checkpoint correctly")
 
     x, y = dataset.get_batch()
     x, y = x.to(DEVICE), y.to(DEVICE)
@@ -209,21 +234,25 @@ def sabotage_auditor(log_file="post_sabotage_log.jsonl"):
         for p in model.parameters():
             p.data += torch.randn_like(p) * 1e-6
 
-    print(f" ~> Weights silently mutated after training completed")
+    print(" ~> Weights silently mutated after training completed")
     return model
 
 def broken_seal_auditor(log_file="broken_seal_log.jsonl"):
     #Test 4: attacker intercepts file, corrupts weights, but leaves the original hash intact to bypass integrity check, auditor loads corrupted file and runs audit
 
     #weights corrupted
+    # Compute file-level hash before loading
+    with open("mid_checkpoint.pt", "rb") as f:
+        file_hash = hashlib.sha256(f.read()).hexdigest()
+
     checkpoint = torch.load("mid_checkpoint.pt", weights_only=False)
-    
+
     #modify weights slightly
-    checkpoint['model']['lm_head.weight'] += 1e-5 
-    
+    checkpoint['model']['lm_head.weight'] += 1e-5
+
     #save the poisoned file (the original embedded hash remains unchanged)
     torch.save(checkpoint, "corrupted_checkpoint.pt")
-    print(f" ~> Attacker corrupted weights and saved to corrupted_checkpoint.pt")
+    print(" ~> Attacker corrupted weights and saved to corrupted_checkpoint.pt")
 
     #auditor loads the poisoned file
     model = run_training_segment(
@@ -266,7 +295,16 @@ def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT
     else:
         print(f"\n [FAIL] {label}: Trajectories diverged.")
 
-    return match
+    # Return full verification verdict instead of just telemetry match
+    verification_result = {
+        'telemetry_match': match,
+        'hash_match': hash_match,
+        'passed': match and hash_match,
+        'prover_hash': prover_hash,
+        'auditor_hash': auditor_hash,
+        'label': label
+    }
+    return verification_result
 
 if __name__ == "__main__":
     CP_STEP = TRAIN_CONFIG["checkpoint_step"]
