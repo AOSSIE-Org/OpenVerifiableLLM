@@ -6,7 +6,7 @@ import platform
 import os
 from pathlib import Path
 from dataset import get_dataset
-from config import TRAIN_CONFIG, get_config_hash
+from config import get_config_hash
 from artifacts import (
     CHECKPOINT_MERKLE_PATH,
     CHECKPOINT_STATE_PATH,

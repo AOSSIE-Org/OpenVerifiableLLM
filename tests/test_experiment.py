@@ -32,7 +32,7 @@ from artifacts import build_merkle_manifest  # noqa: E402  (torch-free)
 try:
     import torch  # noqa: F401
     HAS_TORCH = True
-except Exception:
+except ImportError:
     HAS_TORCH = False
 
 HAS_CUDA = HAS_TORCH and torch.cuda.is_available()

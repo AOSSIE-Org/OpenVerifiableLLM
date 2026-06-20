@@ -21,7 +21,6 @@ single most common reproducibility mistake:
 """
 
 import os
-import platform
 import random
 import time
 from pathlib import Path
@@ -140,6 +139,11 @@ def run_one(model_name, dataset_name="shakespeare", precision="fp32",
     deterministic = _norm_bool(deterministic)
     dev = get_device() if device in (None, "auto") else torch.device(device)
     cfg = model_config(model_name, **(overrides or {}))
+
+    # Validate total_steps
+    if cfg.get("total_steps", 0) < 1:
+        raise ValueError(f"total_steps must be at least 1, got {cfg.get('total_steps')}")
+
     tag = f"{model_name}_{dataset_name}_{precision}_det{'on' if deterministic else 'off'}_s{seed}"
 
     t0 = time.time()

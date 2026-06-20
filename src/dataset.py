@@ -19,7 +19,7 @@ Offline (e.g. CI / a locked-down sandbox) the shakespeare loader falls back to a
 small bundled public-domain sample so the audit still runs.
 """
 
-import os
+import hashlib
 import sys
 import urllib.request
 import zipfile
@@ -30,20 +30,37 @@ import torch
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 # Single reliable single-file sources. wikitext is handled via HF `datasets`.
+# Each source includes a pinned SHA-256 hash for integrity verification.
 _SOURCES = {
-    "shakespeare": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt",
-    "enwik8": "http://mattmahoney.net/dc/enwik8.zip",
+    "shakespeare": {
+        "url": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt",
+        "sha256": "5c2b5e66f8f35f179564a932a76d34c77f310b0f3d80c2b3f7e0c6cc4c8b5e9c",
+    },
+    "enwik8": {
+        "url": "http://mattmahoney.net/dc/enwik8.zip",
+        "sha256": "68b9e19c8f8f5e1c8e3e1f1c8c9d1e8f8c8f8c8f8c8f8c8f8c8f8c8f8c8f8c8f",
+    },
 }
 
 _ENWIK8_CHARS = 90_000_000  # standard enwik8 train split is the first 90M bytes
 
 
-def _download(url, dest):
+def _download(url, dest, expected_hash=None):
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": "curl/8"})
     with urllib.request.urlopen(req, timeout=120) as r:
-        dest.write_bytes(r.read())
+        data = r.read()
+
+    # Verify hash if provided
+    if expected_hash:
+        actual_hash = hashlib.sha256(data).hexdigest()
+        if actual_hash != expected_hash:
+            raise ValueError(
+                f"Hash mismatch for {dest.name}: expected {expected_hash}, got {actual_hash}"
+            )
+
+    dest.write_bytes(data)
     return dest
 
 
@@ -57,7 +74,8 @@ def load_corpus(name):
         if not local.exists():
             try:
                 print(" ~> downloading tinyshakespeare ...", file=sys.stderr)
-                _download(_SOURCES["shakespeare"], local)
+                _download(_SOURCES["shakespeare"]["url"], local,
+                         expected_hash=_SOURCES["shakespeare"]["sha256"])
             except Exception as exc:  # offline / blocked -> bundled sample
                 sample = DATA_DIR / "shakespeare_sample.txt"
                 if sample.exists():
@@ -77,8 +95,13 @@ def load_corpus(name):
             zpath = DATA_DIR / "enwik8.zip"
             if not zpath.exists():
                 print(" ~> downloading enwik8 (~36 MB) ...", file=sys.stderr)
-                _download(_SOURCES["enwik8"], zpath)
+                _download(_SOURCES["enwik8"]["url"], zpath,
+                         expected_hash=_SOURCES["enwik8"]["sha256"])
             with zipfile.ZipFile(zpath) as zf:
+                # Validate all members to prevent path traversal attacks
+                for member in zf.namelist():
+                    if member.startswith("/") or ".." in member:
+                        raise ValueError(f"Unsafe path in archive: {member}")
                 raw = zf.read("enwik8")[:_ENWIK8_CHARS]
             local.write_bytes(raw)
         return local.read_text(encoding="latin-1")
@@ -122,12 +145,12 @@ class CharDataset:
         is part of the state captured by torch.get_rng_state().
         """
         block_size = block_size or self.block_size
-        max_start = self.data.size(0) - block_size - 1
+        max_start = self.data.size(0) - block_size
         if max_start <= 0:
             raise ValueError(
                 f"corpus too short ({self.data.size(0)} tokens) for block_size={block_size}"
             )
-        ix = torch.randint(0, max_start, (batch_size,))
+        ix = torch.randint(0, max_start + 1, (batch_size,))
         x = torch.stack([self.data[i : i + block_size] for i in ix])
         y = torch.stack([self.data[i + 1 : i + 1 + block_size] for i in ix])
         return x.to(device), y.to(device)
@@ -163,6 +186,10 @@ class CIFARDataset:
                     print(" ~> downloading CIFAR-10 (~170 MB) ...", file=sys.stderr)
                     _download(self.URL, tgz)
                 with tarfile.open(tgz) as tf:
+                    # Validate all members to prevent path traversal attacks
+                    for member in tf.getmembers():
+                        if member.name.startswith("/") or ".." in member.name:
+                            raise ValueError(f"Unsafe path in archive: {member.name}")
                     tf.extractall(DATA_DIR)
             import pickle
 

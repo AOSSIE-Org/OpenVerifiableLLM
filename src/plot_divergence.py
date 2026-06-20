@@ -19,8 +19,9 @@ def load_records(path):
 
 
 def divergence_signal(a, b):
-    n = min(len(a), len(b))
-    return [0 if a[i] == b[i] else 1 for i in range(n)]
+    if len(a) != len(b):
+        raise ValueError(f"Mismatched input lengths: a has {len(a)} elements, b has {len(b)} elements")
+    return [0 if a[i] == b[i] else 1 for i in range(len(a))]
 
 
 def first_divergence(signal):

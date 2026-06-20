@@ -72,6 +72,7 @@ def model_config(model_name, **overrides):
     the env/canonical defaults for the keys it defines.
     """
     cfg = effective_config(**overrides)
+    model_name = model_name.lower()
     cfg.update(MODEL_PRESETS.get(model_name, {}))
     cfg.update(overrides)
     cfg["model"] = model_name
@@ -80,7 +81,8 @@ def model_config(model_name, **overrides):
 
 def get_config_hash():
     """Returns a deterministic SHA-256 hash of the canonical configuration dict."""
-    encoded = json.dumps(TRAIN_CONFIG, sort_keys=True).encode()
+    config_bundle = {"TRAIN_CONFIG": TRAIN_CONFIG, "MODEL_PRESETS": MODEL_PRESETS}
+    encoded = json.dumps(config_bundle, sort_keys=True).encode()
     return hashlib.sha256(encoded).hexdigest()
 
 
