@@ -104,7 +104,12 @@ def restore_accel_rng_state(saved):
             f"{saved.get('backend')!r} != current backend {current!r}."
         )
         return
-    accel.set_rng_state_all(saved["state"])
+    # State tensors may have been moved to the accelerator by a checkpoint's
+    # map_location; set_rng_state_all requires CPU ByteTensors.
+    state = saved["state"]
+    if isinstance(state, (list, tuple)):
+        state = [s.cpu() for s in state]
+    accel.set_rng_state_all(state)
 
 
 def configure_determinism(enabled=True, warn_only=False):
