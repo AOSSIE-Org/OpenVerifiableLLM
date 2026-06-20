@@ -4,13 +4,21 @@ import torch
 import sys
 import platform
 import os
+from pathlib import Path
 from dataset import TinyDataset
 from config import TRAIN_CONFIG, get_config_hash
+from artifacts import (
+    CHECKPOINT_MERKLE_PATH,
+    CHECKPOINT_STATE_PATH,
+    CHECKPOINT_WEIGHTS_PATH,
+    build_merkle_manifest,
+    compute_sha256,
+    hash_json,
+)
 
 def hash_dict(d):
     # Sort keys to ensure deterministic JSON stringification
-    encoded = json.dumps(d, sort_keys=True).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return hash_json(d)
 
 def generate_global_manifest():
     if not os.path.exists("eval_manifest.json"):
@@ -54,6 +62,10 @@ def generate_global_manifest():
         "2_training_config_hash": config_hash,
         "3_dataset_hash": dataset_hash,
         "4_model_checkpoint_hash": model_hash,
+        "4_model_checkpoint_artifact": model_artifact,
+        "4_model_checkpoint_merkle_root": model_merkle["merkle_root"],
+        "4_model_checkpoint_chunk_size_bytes": model_merkle["chunk_size_bytes"],
+        "4_model_checkpoint_chunk_count": model_merkle["chunk_count"],
         "5_eval_manifest_hash": eval_hash,
     }
 
@@ -63,7 +75,7 @@ def generate_global_manifest():
     with open("pipeline_manifest.json", "w") as f:
         json.dump(global_manifest, f, indent=2)
 
-    print("\n ༼ つ ◕_◕ ༽つ Global Manifest Sealed:")
+    print("\n Global Manifest Sealed:")
     print(json.dumps(global_manifest, indent=2))
 
 if __name__ == "__main__":

@@ -34,7 +34,4 @@ class TelemetryLogger:
         return record
     
     def hash_model(self, model):
-        h = hashlib.sha256()
-        for p in model.parameters():
-            h.update(p.data.cpu().numpy().tobytes())
-        return h.hexdigest()
+        return model_parameters_sha256(model)

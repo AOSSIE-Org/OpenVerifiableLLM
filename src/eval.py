@@ -9,18 +9,15 @@ from dataset import TinyDataset
 from main import set_seed
 from config import TRAIN_CONFIG
 from device import get_device
+from artifacts import CHECKPOINT_WEIGHTS_PATH, hash_json, load_model_safetensors, model_parameters_sha256
 
 DEVICE = get_device()
 
 def hash_model(model):
-    h = hashlib.sha256()
-    for p in model.parameters():
-        h.update(p.data.cpu().numpy().tobytes())
-    return h.hexdigest()
+    return model_parameters_sha256(model)
 
 def hash_dict(d):
-    encoded = json.dumps(d, sort_keys=True).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return hash_json(d)
 
 if __name__ == "__main__":
     set_seed(TRAIN_CONFIG["seed"])
@@ -70,9 +67,10 @@ if __name__ == "__main__":
 
     eval_data_hash = hashlib.sha256(dataset.encoded.numpy().tobytes()).hexdigest()
 
-    # Build manifest — hash is computed over content, not including itself
+    # Build manifest: hash is computed over content, not including itself.
     manifest = {
         "model_checkpoint_hash": model_hash,
+        "model_checkpoint_source": checkpoint_source,
         "eval_dataset": eval_data_hash,
         "eval_loss": loss.item(),
         "perplexity": perplexity,
