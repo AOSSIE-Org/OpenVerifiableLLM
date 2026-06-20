@@ -181,6 +181,12 @@ def autocast_context(mode, device_type=None):
     if mode in ("bf16", "fp16"):
         dtype = torch.bfloat16 if mode == "bf16" else torch.float16
         device_type = device_type or get_device().type
+        # Guard fp16 autocast on CPU
+        if mode == "fp16" and device_type == "cpu":
+            raise ValueError(
+                "fp16 autocast is not supported on CPU. Use bf16 for reduced precision on CPU, "
+                "or run on a CUDA/XPU device for fp16."
+            )
         return torch.autocast(device_type=device_type, dtype=dtype)
     return nullcontext()
 

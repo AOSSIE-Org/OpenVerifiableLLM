@@ -63,9 +63,11 @@ def load_signing_key():
 
 
 def load_verify_key():
-    """Load the public verify key, generating a keypair on first use."""
+    """Load the public verify key. Raises FileNotFoundError if key does not exist."""
     if not PUBLIC_KEY_PATH.exists():
-        return generate_keypair()[1]
+        raise FileNotFoundError(
+            f"Public key not found at {PUBLIC_KEY_PATH}. Generate keys first using generate_keypair()."
+        )
     return _nacl_signing.VerifyKey(PUBLIC_KEY_PATH.read_bytes())
 
 
@@ -112,11 +114,22 @@ def verified_torch_load(path, *, map_location=None, expect_signature=True):
     in favour of the safe tensor-only loader.
     """
     import torch  # lazy: keep crypto importable without torch
+    from io import BytesIO
 
     path = Path(path)
     if expect_signature:
-        verify_file(path)  # raises SignatureError before any deserialization
-        return torch.load(path, map_location=map_location, weights_only=False)
+        # Read file once, verify signature, then deserialize from same bytes
+        file_bytes = path.read_bytes()
+        verify_key = load_verify_key()
+        sp = sig_path_for(path)
+        if not sp.exists():
+            raise SignatureError(f"no signature found for {path} (expected {sp})")
+        signature = sp.read_bytes()
+        try:
+            verify_key.verify(file_bytes, signature)
+        except BadSignatureError as exc:
+            raise SignatureError(f"signature verification FAILED for {path}") from exc
+        return torch.load(BytesIO(file_bytes), map_location=map_location, weights_only=False)
 
     import warnings
 

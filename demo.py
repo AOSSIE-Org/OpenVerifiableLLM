@@ -131,7 +131,7 @@ def show_merkle(records):
         mb = gpt["artifact_size_bytes"] / 1e6
         print(f"  gpt10m checkpoint: {gpt['num_params']:,} params -> {mb:.1f} MB safetensors")
         print(f"  Merkle leaves (1 MB chunks): {gpt['merkle_chunk_count']}   root: {gpt['merkle_root'][:24]}...")
-        print(f"  (The original 16-char toy was 21 KB -> 1 chunk: the tree was a single hash.")
+        print("  (The original 16-char toy was 21 KB -> 1 chunk: the tree was a single hash.")
         print(f"   At {gpt['merkle_chunk_count']} chunks you can prove ANY chunk against the root.)")
 
 

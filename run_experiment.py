@@ -54,6 +54,12 @@ def main():
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args()
 
+    # Validate model/dataset compatibility
+    if args.model == "cnn" and args.dataset != "cifar":
+        sys.exit(f"Error: model '{args.model}' is only compatible with dataset 'cifar', not '{args.dataset}'")
+    if args.model != "cnn" and args.dataset == "cifar":
+        sys.exit(f"Error: dataset 'cifar' is only compatible with model 'cnn', not '{args.model}'")
+
     overrides = {}
     if args.steps is not None:
         overrides["total_steps"] = args.steps
