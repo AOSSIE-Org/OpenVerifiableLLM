@@ -34,11 +34,11 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 _SOURCES = {
     "shakespeare": {
         "url": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt",
-        "sha256": "5c2b5e66f8f35f179564a932a76d34c77f310b0f3d80c2b3f7e0c6cc4c8b5e9c",
+        "sha256": "86c4e6aa9db7c042ec79f339dcb96d42b0075e16b8fc2e86bf0ca57e2dc565ed",
     },
     "enwik8": {
-        "url": "http://mattmahoney.net/dc/enwik8.zip",
-        "sha256": "68b9e19c8f8f5e1c8e3e1f1c8c9d1e8f8c8f8c8f8c8f8c8f8c8f8c8f8c8f8c8f",
+        "url": "https://mattmahoney.net/dc/enwik8.zip",
+        "sha256": "547994d9980ebed1288380d652999f38a14fe291a6247c157c3d33d4932534bc",
     },
 }
 
@@ -145,12 +145,14 @@ class CharDataset:
         is part of the state captured by torch.get_rng_state().
         """
         block_size = block_size or self.block_size
-        max_start = self.data.size(0) - block_size
-        if max_start <= 0:
+        # y is data[i+1 : i+1+block_size], so the last valid start i satisfies
+        # i + block_size + 1 <= len(data)  ->  max_start = len(data) - block_size - 1.
+        max_start = self.data.size(0) - block_size - 1
+        if max_start < 0:
             raise ValueError(
                 f"corpus too short ({self.data.size(0)} tokens) for block_size={block_size}"
             )
-        ix = torch.randint(0, max_start + 1, (batch_size,))
+        ix = torch.randint(0, max_start + 1, (batch_size,))  # upper bound exclusive
         x = torch.stack([self.data[i : i + block_size] for i in ix])
         y = torch.stack([self.data[i + 1 : i + 1 + block_size] for i in ix])
         return x.to(device), y.to(device)
