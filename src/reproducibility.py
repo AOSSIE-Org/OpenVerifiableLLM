@@ -102,7 +102,9 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None,
                 print(f"    Got:      {loaded_hash[:16]}...\n")
 
         optimizer.load_state_dict(checkpoint["optimizer"])
-        torch.set_rng_state(checkpoint["rng_state"])
+        # map_location moved every checkpoint tensor to DEVICE; the CPU RNG state
+        # must be a CPU ByteTensor, so move it back before restoring.
+        torch.set_rng_state(checkpoint["rng_state"].cpu())
         restore_accel_rng_state(checkpoint.get("accel_rng_state"))  # CUDA/XPU dropout RNG
         np.random.set_state(checkpoint["numpy_rng"])
         random.setstate(checkpoint["python_rng"])
@@ -198,7 +200,7 @@ def secret_noise_auditor(log_file="secret_noise_log.jsonl"):
     checkpoint = verified_torch_load(CHECKPOINT_STATE_FILE, map_location=DEVICE)
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])
-    torch.set_rng_state(checkpoint["rng_state"])
+    torch.set_rng_state(checkpoint["rng_state"].cpu())
     restore_accel_rng_state(checkpoint.get("accel_rng_state"))
     np.random.set_state(checkpoint["numpy_rng"])
     random.setstate(checkpoint["python_rng"])
@@ -232,7 +234,7 @@ def sabotage_auditor(log_file="post_sabotage_log.jsonl"):
     checkpoint = verified_torch_load(CHECKPOINT_STATE_FILE, map_location=DEVICE)
     model.load_state_dict(checkpoint["model"])
     optimizer.load_state_dict(checkpoint["optimizer"])
-    torch.set_rng_state(checkpoint["rng_state"])
+    torch.set_rng_state(checkpoint["rng_state"].cpu())
     restore_accel_rng_state(checkpoint.get("accel_rng_state"))
     np.random.set_state(checkpoint["numpy_rng"])
     random.setstate(checkpoint["python_rng"])
