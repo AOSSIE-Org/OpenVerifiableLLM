@@ -1,27 +1,203 @@
+"""Datasets for OpenVerifiableLLM.
+
+Replaces the 16-char "abcdabcdabcd" toy with real corpora. Two things matter for
+the determinism story:
+
+1. ``get_batch`` draws its indices from the GLOBAL torch RNG (``torch.randint``
+   with no explicit generator). That means the batch sequence is captured by the
+   same ``torch.get_rng_state()`` the checkpoint already saves/restores, so a
+   segmented replay stays bitwise-exact *for free* -- PROVIDED the caller draws
+   the batch as the FIRST statement inside the training loop, before any other
+   RNG consumer (dropout, etc.). reproducibility.py and run_experiment.py do.
+
+2. Model SIZE (not corpus size) drives the safetensors file size and therefore a
+   non-degenerate Merkle tree. Corpus size only affects narrative credibility and
+   how long a divergence takes to show up.
+
+Network: on a RunPod pod (unrestricted) the loaders download the real corpora.
+Offline (e.g. CI / a locked-down sandbox) the shakespeare loader falls back to a
+small bundled public-domain sample so the audit still runs.
+"""
+
+import os
+import sys
+import urllib.request
+import zipfile
+from pathlib import Path
+
 import torch
 
-class TinyDataset:
-    def __init__(self):
-        self.vocab = ['a', 'b', 'c', 'd']
-        self.vocab_size = len(self.vocab)
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
-        self.data = "abcdabcdabcdabcd"
+# Single reliable single-file sources. wikitext is handled via HF `datasets`.
+_SOURCES = {
+    "shakespeare": "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt",
+    "enwik8": "http://mattmahoney.net/dc/enwik8.zip",
+}
 
-        self.stoi = {ch: i for i, ch in enumerate(self.vocab)}
-        self.iots = {i: ch for ch, i in self.stoi.items()}
+_ENWIK8_CHARS = 90_000_000  # standard enwik8 train split is the first 90M bytes
 
-        self.encoded = torch.tensor(
-            [self.stoi[ch] for ch in self.data],
-            dtype=torch.long
-        )
-    
-    def get_batch(self, block_size = 4):
-        if not (1 <= block_size < len(self.encoded)):
+
+def _download(url, dest):
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    req = urllib.request.Request(url, headers={"User-Agent": "curl/8"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        dest.write_bytes(r.read())
+    return dest
+
+
+def load_corpus(name):
+    """Return the raw text for a char-level corpus as a Python str."""
+    name = name.lower()
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    if name == "shakespeare":
+        local = DATA_DIR / "shakespeare.txt"
+        if not local.exists():
+            try:
+                print(" ~> downloading tinyshakespeare ...", file=sys.stderr)
+                _download(_SOURCES["shakespeare"], local)
+            except Exception as exc:  # offline / blocked -> bundled sample
+                sample = DATA_DIR / "shakespeare_sample.txt"
+                if sample.exists():
+                    print(
+                        f" ~> download failed ({type(exc).__name__}); using bundled "
+                        f"offline sample {sample.name}. Determinism results are valid; "
+                        f"for the full 1 MB corpus run on a networked machine.",
+                        file=sys.stderr,
+                    )
+                    return sample.read_text(encoding="utf-8")
+                raise
+        return local.read_text(encoding="utf-8")
+
+    if name == "enwik8":
+        local = DATA_DIR / "enwik8.txt"
+        if not local.exists():
+            zpath = DATA_DIR / "enwik8.zip"
+            if not zpath.exists():
+                print(" ~> downloading enwik8 (~36 MB) ...", file=sys.stderr)
+                _download(_SOURCES["enwik8"], zpath)
+            with zipfile.ZipFile(zpath) as zf:
+                raw = zf.read("enwik8")[:_ENWIK8_CHARS]
+            local.write_bytes(raw)
+        return local.read_text(encoding="latin-1")
+
+    if name == "wikitext":
+        try:
+            from datasets import load_dataset
+        except ImportError as exc:
+            raise RuntimeError(
+                "wikitext requires the HuggingFace `datasets` package: "
+                "`pip install datasets`. (shakespeare and enwik8 need no extra deps.)"
+            ) from exc
+        ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
+        return "\n".join(ds["text"])
+
+    raise ValueError(f"unknown text corpus {name!r}")
+
+
+class CharDataset:
+    """Character-level corpus with replay-exact batch sampling."""
+
+    def __init__(self, name="shakespeare", block_size=128):
+        self.name = name
+        self.block_size = block_size
+
+        text = load_corpus(name)
+        chars = sorted(set(text))
+        self.vocab = chars
+        self.vocab_size = len(chars)
+        self.stoi = {c: i for i, c in enumerate(chars)}
+        self.itos = {i: c for c, i in self.stoi.items()}
+
+        self.data = torch.tensor([self.stoi[c] for c in text], dtype=torch.long)
+        # Back-compat alias: eval.py / global_manifest.py hash dataset.encoded.
+        self.encoded = self.data
+
+    def get_batch(self, batch_size=16, block_size=None, device="cpu"):
+        """Sample a batch. MUST be the first RNG draw in the training loop.
+
+        Uses the global torch RNG (no explicit generator) so the batch sequence
+        is part of the state captured by torch.get_rng_state().
+        """
+        block_size = block_size or self.block_size
+        max_start = self.data.size(0) - block_size - 1
+        if max_start <= 0:
             raise ValueError(
-                f"block_size must be in [1, {len(self.encoded) - 1}], got {block_size}"
+                f"corpus too short ({self.data.size(0)} tokens) for block_size={block_size}"
             )
-        # for linear model: x = self.encoded[:block_size]
-        x = self.encoded[:block_size].unsqueeze(0)
-        # for linearmodel: y = self.encoded[1:block_size+1]
-        y = self.encoded[1:block_size+1].unsqueeze(0)
-        return x, y
+        ix = torch.randint(0, max_start, (batch_size,))
+        x = torch.stack([self.data[i : i + block_size] for i in ix])
+        y = torch.stack([self.data[i + 1 : i + 1 + block_size] for i in ix])
+        return x.to(device), y.to(device)
+
+
+class CIFARDataset:
+    """CIFAR-10 for the CNN row (stretch / different modality).
+
+    Downloads the official python pickle on a networked machine; offline it
+    synthesizes a fixed random tensor dataset with a DEDICATED generator (so the
+    global RNG -- and therefore training determinism -- is untouched). The
+    synthetic path exercises the conv code path; real accuracy needs the download.
+    """
+
+    URL = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
+
+    def __init__(self, image_size=32):
+        self.name = "cifar"
+        self.vocab_size = 10  # num classes; named vocab_size for a uniform API
+        self.num_classes = 10
+        self.image_size = image_size
+        self._images, self._labels = self._load()
+        self.encoded = self._labels  # for manifest hashing
+
+    def _load(self):
+        local_dir = DATA_DIR / "cifar-10-batches-py"
+        try:
+            if not local_dir.exists():
+                import tarfile
+
+                tgz = DATA_DIR / "cifar-10-python.tar.gz"
+                if not tgz.exists():
+                    print(" ~> downloading CIFAR-10 (~170 MB) ...", file=sys.stderr)
+                    _download(self.URL, tgz)
+                with tarfile.open(tgz) as tf:
+                    tf.extractall(DATA_DIR)
+            import pickle
+
+            xs, ys = [], []
+            for i in range(1, 6):
+                with open(local_dir / f"data_batch_{i}", "rb") as f:
+                    d = pickle.load(f, encoding="bytes")
+                xs.append(torch.tensor(d[b"data"], dtype=torch.float32))
+                ys.extend(d[b"labels"])
+            x = torch.cat(xs).view(-1, 3, 32, 32) / 255.0
+            y = torch.tensor(ys, dtype=torch.long)
+            return x, y
+        except Exception as exc:
+            print(
+                f" ~> CIFAR download/parse failed ({type(exc).__name__}); using a fixed "
+                f"synthetic image set (conv path only).",
+                file=sys.stderr,
+            )
+            g = torch.Generator().manual_seed(0)  # dedicated -> global RNG untouched
+            x = torch.randn(2048, 3, 32, 32, generator=g)
+            y = torch.randint(0, 10, (2048,), generator=g)
+            return x, y
+
+    def get_batch(self, batch_size=64, block_size=None, device="cpu"):
+        n = self._images.size(0)
+        ix = torch.randint(0, n, (batch_size,))  # global RNG -> replay-exact
+        return self._images[ix].to(device), self._labels[ix].to(device)
+
+
+def get_dataset(name, block_size=128):
+    """Factory: text corpora -> CharDataset, 'cifar' -> CIFARDataset."""
+    if name.lower() == "cifar":
+        return CIFARDataset()
+    return CharDataset(name=name, block_size=block_size)
+
+
+# get_batch draws from the GLOBAL torch RNG -> replay-exact when called first in-loop
+

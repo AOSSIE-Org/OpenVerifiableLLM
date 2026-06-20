@@ -1,33 +1,36 @@
 """Fresh-vs-fresh bitwise reproducibility test on the active device.
 
-Trains the deterministic NanoGPT twice from scratch, with no checkpoint reuse,
-and asserts that the two runs produce identical loss curves and bitwise-identical
-parameters. On CPU this reproduces the Phase 1 baseline; on a CUDA GPU it is the
-Phase 3 claim: with a pinned cuBLAS workspace and deterministic cuDNN, the
-*same* GPU yields the *same bits* run to run.
+Trains the scaled model twice from scratch (no checkpoint reuse) and asserts that
+the two runs produce identical loss curves and bitwise-identical parameters. On
+CPU this is the Phase 1 baseline; on a CUDA GPU it is the headline Phase 3 claim:
+with a pinned cuBLAS workspace and deterministic cuDNN, the *same* GPU yields the
+*same bits* run to run.
 
-Run from the ``src`` directory:
+    python gpu_reproducibility_test.py            # from src/
 
-    python gpu_reproducibility_test.py
+Fast CPU smoke: OVL_TOTAL_STEPS=10 OVL_BATCH_SIZE=4 OVL_BLOCK_SIZE=64 python gpu_reproducibility_test.py
 
-It also appends a short proof block to ``../proofs/device_determinism_log.txt``.
+Appends a structured proof block to ../proofs/device_determinism_log.txt.
 """
 
-import os
-import json
 import hashlib
+import json
+import os
 import platform
 
 import torch
 import torch.nn.functional as F
 
-from model import TinyGPT
-from dataset import TinyDataset
+from config import model_config
+from dataset import get_dataset
+from device import device_name, get_device
 from main import set_seed
-from config import TRAIN_CONFIG
-from device import get_device, device_name
+from model import build_model
 
 DEVICE = get_device()
+MODEL_NAME = os.environ.get("OVL_MODEL", "gpt10m")
+DATASET_NAME = os.environ.get("OVL_DATASET", "shakespeare")
+CFG = model_config(MODEL_NAME)
 
 
 def hash_model(model):
@@ -39,25 +42,18 @@ def hash_model(model):
 
 def train_once():
     """One full training run from scratch on DEVICE. Returns (model, losses)."""
-    set_seed(TRAIN_CONFIG["seed"])
+    set_seed(CFG["seed"])
 
-    dataset = TinyDataset()
-    model = TinyGPT(
-        vocab_size=dataset.vocab_size,
-        embed_dim=TRAIN_CONFIG["embed_dim"],
-        num_heads=TRAIN_CONFIG["num_heads"],
-        max_seq_len=TRAIN_CONFIG["max_seq_len"],
-        dropout=TRAIN_CONFIG["dropout"],
-    ).to(DEVICE)
-    optimizer = torch.optim.Adam(model.parameters(), lr=TRAIN_CONFIG["lr"])
-
-    x, y = dataset.get_batch()
-    x, y = x.to(DEVICE), y.to(DEVICE)
+    dataset = get_dataset(DATASET_NAME, block_size=CFG["block_size"])
+    model = build_model(MODEL_NAME, dataset.vocab_size, CFG).to(DEVICE)
+    optimizer = torch.optim.Adam(model.parameters(), lr=CFG["lr"])
 
     losses = []
-    for step in range(TRAIN_CONFIG["total_steps"]):
+    for _step in range(CFG["total_steps"]):
+        # First line: replay/run-to-run-exact batch draw off the global RNG.
+        x, y = dataset.get_batch(CFG["batch_size"], CFG["block_size"], device=DEVICE)
         logits = model(x)
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -69,6 +65,8 @@ def train_once():
 def main():
     print(f"\n=== Fresh-vs-fresh determinism on {DEVICE.type.upper()} "
           f"({device_name(DEVICE)}) | torch {torch.__version__} ===")
+    print(f"    {MODEL_NAME} on {DATASET_NAME} | steps {CFG['total_steps']}, "
+          f"batch {CFG['batch_size']}, block {CFG['block_size']}")
 
     model1, losses1 = train_once()
     model2, losses2 = train_once()
@@ -109,6 +107,8 @@ def _write_proof(losses1, losses2, hash1, hash2, ok):
     record = {
         "device": DEVICE.type,
         "device_name": device_name(DEVICE),
+        "model": MODEL_NAME,
+        "dataset": DATASET_NAME,
         "torch": torch.__version__,
         "accelerator_version": accelerator_version,
         "os": platform.platform(),
