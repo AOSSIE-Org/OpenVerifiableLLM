@@ -1,7 +1,6 @@
 import json
-import torch
-import os
-import hashlib
+
+from artifacts import model_parameters_sha256
 
 class TelemetryLogger:
     def __init__(self, filepath="audit_log.jsonl"):

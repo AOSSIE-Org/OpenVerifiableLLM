@@ -104,16 +104,116 @@ def restore_accel_rng_state(saved):
             f"{saved.get('backend')!r} != current backend {current!r}."
         )
         return
-    accel.set_rng_state_all(saved["state"])
+    # State tensors may have been moved to the accelerator by a checkpoint's
+    # map_location; set_rng_state_all requires CPU ByteTensors.
+    state = saved["state"]
+    if isinstance(state, (list, tuple)):
+        state = [s.cpu() for s in state]
+    accel.set_rng_state_all(state)
 
 
-def configure_determinism():
-    """Apply backend-appropriate determinism settings.
+def configure_determinism(enabled=True, warn_only=False):
+    """Apply (or deliberately remove) backend-appropriate determinism settings.
 
-    ``torch.use_deterministic_algorithms(True)`` is backend-agnostic; the cuDNN
-    flags only matter on CUDA, and there is no XPU equivalent.
+    ``enabled=True`` is the control condition. ``enabled=False`` is the
+    "determinism OFF" matrix column: it lets the framework pick fast,
+    nondeterministic kernels (notably atomicAdd in embedding/scatter backward and
+    cuDNN benchmark autotuning) so we can MEASURE run-to-run divergence rather
+    than assume it.
+
+    ``warn_only=True`` (used by the sweep) downgrades "no deterministic kernel for
+    this op" from a hard error to a warning, so a single exotic op can't crash a
+    whole matrix run. The audit's control cell uses ``warn_only=False`` for the
+    strongest possible bitwise claim.
     """
-    torch.use_deterministic_algorithms(True)
-    if torch.cuda.is_available():
-        torch.backends.cudnn.benchmark = False
-        torch.backends.cudnn.deterministic = True
+    if enabled:
+        torch.use_deterministic_algorithms(True, warn_only=warn_only)
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+    else:
+        torch.use_deterministic_algorithms(False)
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = True
+            torch.backends.cudnn.deterministic = False
+
+
+# --------------------------------------------------------------------------- #
+# Precision control (fp32 / tf32 / bf16 / fp16)
+# --------------------------------------------------------------------------- #
+from contextlib import nullcontext  # noqa: E402
+
+VALID_PRECISIONS = ("fp32", "tf32", "bf16", "fp16")
+
+
+def apply_precision(mode):
+    """Configure the matmul backend for a precision mode. Returns the mode.
+
+    * ``fp32``  - true IEEE single precision; TF32 explicitly OFF (the honest
+                  reference).
+    * ``tf32``  - allow TF32 tensor-core matmuls. On Ampere+ GPUs this is the
+                  *default*, which is exactly why it is the "silent killer":
+                  results stop matching the fp32 reference without any visible
+                  code change. On CPU/pre-Ampere this is a no-op (so a tf32 cell
+                  there will read as PASS -- TF32 divergence requires the hardware).
+    * ``bf16`` / ``fp16`` - handled at the op level via :func:`autocast_context`;
+                  here we just leave TF32 off so the only precision change is the
+                  autocast itself.
+    """
+    mode = (mode or "fp32").lower()
+    if mode not in VALID_PRECISIONS:
+        raise ValueError(f"precision must be one of {VALID_PRECISIONS}, got {mode!r}")
+
+    use_tf32 = mode == "tf32"
+    if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
+        torch.backends.cuda.matmul.allow_tf32 = use_tf32
+    if hasattr(torch.backends, "cudnn"):
+        torch.backends.cudnn.allow_tf32 = use_tf32
+    # Newer torch funnels the same knob through this API.
+    try:
+        torch.set_float32_matmul_precision("high" if use_tf32 else "highest")
+    except Exception:
+        pass
+    return mode
+
+
+def autocast_context(mode, device_type=None):
+    """Return the autocast context manager for a precision mode (else nullcontext).
+
+    bf16 autocast works on both CPU and CUDA; fp16 autocast is GPU-oriented.
+    """
+    mode = (mode or "fp32").lower()
+    if mode in ("bf16", "fp16"):
+        dtype = torch.bfloat16 if mode == "bf16" else torch.float16
+        device_type = device_type or get_device().type
+        # Guard fp16 autocast on CPU
+        if mode == "fp16" and device_type == "cpu":
+            raise ValueError(
+                "fp16 autocast is not supported on CPU. Use bf16 for reduced precision on CPU, "
+                "or run on a CUDA/XPU device for fp16."
+            )
+        return torch.autocast(device_type=device_type, dtype=dtype)
+    return nullcontext()
+
+
+def precision_flags():
+    """Snapshot of the current precision-related backend flags (for manifests)."""
+    flags = {}
+    try:
+        flags["cuda_matmul_allow_tf32"] = bool(torch.backends.cuda.matmul.allow_tf32)
+    except Exception:
+        flags["cuda_matmul_allow_tf32"] = None
+    try:
+        flags["cudnn_allow_tf32"] = bool(torch.backends.cudnn.allow_tf32)
+    except Exception:
+        flags["cudnn_allow_tf32"] = None
+    try:
+        flags["float32_matmul_precision"] = torch.get_float32_matmul_precision()
+    except Exception:
+        flags["float32_matmul_precision"] = None
+    flags["deterministic_algorithms"] = torch.are_deterministic_algorithms_enabled()
+    return flags
+
+
+# precision/determinism knobs consumed by experiment.prepare_run and main.set_seed
+

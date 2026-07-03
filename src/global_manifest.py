@@ -5,8 +5,8 @@ import sys
 import platform
 import os
 from pathlib import Path
-from dataset import TinyDataset
-from config import TRAIN_CONFIG, get_config_hash
+from dataset import get_dataset
+from config import get_config_hash
 from artifacts import (
     CHECKPOINT_MERKLE_PATH,
     CHECKPOINT_STATE_PATH,
@@ -38,18 +38,23 @@ def generate_global_manifest():
     config_hash = get_config_hash()
 
     # 3. Dataset Hash
-    dataset = TinyDataset()
+    dataset = get_dataset("shakespeare")
     dataset_hash = hashlib.sha256(dataset.encoded.numpy().tobytes()).hexdigest()
 
-    # 4. Model Hash (checkpoint file hash - must exist and be fully written)
-    checkpoint_path = "mid_checkpoint.pt"
-    if not os.path.exists(checkpoint_path):
-        raise RuntimeError(f"Missing {checkpoint_path}. Please run src/main.py first to generate the checkpoint.")
-    with open(checkpoint_path, "rb") as f:
-        checkpoint_bytes = f.read()
-        if len(checkpoint_bytes) == 0:
-            raise RuntimeError(f"{checkpoint_path} is empty. Checkpoint may not be fully written.")
-        model_hash = hashlib.sha256(checkpoint_bytes).hexdigest()
+    # 4. Model artifact hash. Prefer safetensors because it is byte-stable;
+    # keep the .pt fallback for older runs that only have replay checkpoints.
+    model_artifact_path = Path(
+        CHECKPOINT_WEIGHTS_PATH
+        if os.path.exists(CHECKPOINT_WEIGHTS_PATH)
+        else CHECKPOINT_STATE_PATH
+    )
+    model_artifact = str(model_artifact_path)
+    model_hash = compute_sha256(file_path=model_artifact_path)
+    if os.path.exists(CHECKPOINT_MERKLE_PATH):
+        with open(CHECKPOINT_MERKLE_PATH, "r", encoding="utf-8") as f:
+            model_merkle = json.load(f)
+    else:
+        model_merkle = build_merkle_manifest(model_artifact_path)
 
     # 5. Eval Manifest Hash (run eval.py before this script)
     with open("eval_manifest.json", "r") as f:
