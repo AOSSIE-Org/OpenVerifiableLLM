@@ -8,6 +8,57 @@ The goal is not just to publish a model, but to publish a model whose training p
 
 ---
 
+## The reproducibility matrix (this build)
+
+Earlier versions hashed a checkpoint and called it verified. The sharper claim this
+build is organised around: **training reproducibility is universally assumed and
+rarely verified — it breaks silently, and this tool surfaces the exact conditions
+under which it fails.** The hook is the *failure*, not the success.
+
+A single parametrized runner sweeps a grid of models × conditions and emits one JSON
+record per cell, deliberately mixing reproducible and broken outcomes:
+
+| | fp32 det-on | fp32 det-off | tf32 | bf16 | cross-GPU |
+|---|---|---|---|---|---|
+| **mlp** (control) | PASS | (verify on GPU) | bits≠fp32 (Ampere) | bits≠fp32 | (verify) |
+| **gpt10m** (attention) | PASS | run-to-run FAIL on GPU | bits≠fp32 | bits≠fp32 | DIFF |
+| **lstm** (cuDNN recurrent) | PASS | FAIL on GPU | bits≠fp32 | bits≠fp32 | DIFF |
+
+Two comparisons are kept deliberately separate, because conflating them is the most
+common reproducibility error:
+
+- **Run-to-run** (`reproducible`, `first_divergence_step`): train the *same* config
+  twice on the *same* hardware — identical bits? Broken by nondeterministic kernels
+  (determinism OFF) and by different GPUs.
+- **Agreement with the fp32 reference** (`vs_fp32`): does tf32/bf16 produce the same
+  bits — or merely the same loss to a tolerance — as fp32? TF32/bf16 are perfectly
+  run-to-run reproducible yet silently disagree with fp32.
+
+**The planted debate.** `verify()` accepts losses within `rel_tol=1e-6` but compares
+parameters by *exact* hash, so a run can pass the loss check and fail the bitwise
+check. Is the right verification bar bitwise identity (strong, brittle, hardware-bound)
+or numerical tolerance (portable, but admits silent precision drift)? The matrix
+supplies evidence both ways; the choice defines what "reproducible training" means.
+
+**Security upgrade.** Checkpoints are now ed25519-signed and the signature is verified
+*before* deserialization (`src/signing.py`). The previous path,
+`torch.load(weights_only=False)` followed by a SHA-256 check, executes arbitrary code
+at unpickle time — before the integrity check ever runs. Signing also makes the
+"cryptographically signed" claim true (a SHA-256 is a checksum, not a signature).
+
+### Quickstart
+
+```bash
+pip install -r requirements.txt
+python demo.py                 # full arc on CPU (smoke config); --full on a GPU pod
+python sweep.py --quick        # the matrix, tiny CPU preset
+cd src && python reproducibility.py   # segmented-replay audit (CLEAN AUDIT PASS + scenarios)
+```
+
+See **RUNBOOK.md** for the exact pod commands that populate the GPU-only cells.
+
+---
+
 ## Why this project exists
 
 Open-weight models are reproducible in principle but not verifiable in practice. You can download the weights, but you cannot prove what data they were trained on, what configuration produced them, or whether they were modified after release. A model ships with a report, and the report has to be trusted.

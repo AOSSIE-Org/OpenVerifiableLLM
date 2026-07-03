@@ -1,64 +1,64 @@
-import os
-import torch
-import torch.nn.functional as F
+import hashlib
 import json
 import math
-import hashlib
-from model import TinyGPT
-from dataset import TinyDataset
-from main import set_seed
-from config import TRAIN_CONFIG
+
+import torch
+import torch.nn.functional as F
+
+from config import model_config
+from dataset import get_dataset
 from device import get_device
-from artifacts import CHECKPOINT_WEIGHTS_PATH, hash_json, load_model_safetensors, model_parameters_sha256
+from main import set_seed
+from model import build_model
+from signing import verified_torch_load
+from artifacts import (
+    CHECKPOINT_WEIGHTS_PATH,
+    hash_json,
+    load_model_safetensors,
+    model_parameters_sha256,
+)
 
 DEVICE = get_device()
+MODEL_NAME = "gpt10m"
+DATASET_NAME = "shakespeare"
+CFG = model_config(MODEL_NAME)
+
 
 def hash_model(model):
     return model_parameters_sha256(model)
 
+
 def hash_dict(d):
     return hash_json(d)
 
+
 if __name__ == "__main__":
-    set_seed(TRAIN_CONFIG["seed"])
+    set_seed(CFG["seed"])
 
-    dataset = TinyDataset()
-    model = TinyGPT(
-        vocab_size=dataset.vocab_size,
-        embed_dim=TRAIN_CONFIG["embed_dim"],
-        num_heads=TRAIN_CONFIG["num_heads"],
-        max_seq_len=TRAIN_CONFIG["max_seq_len"],
-        dropout=TRAIN_CONFIG["dropout"]
-        ).to(DEVICE)
+    dataset = get_dataset(DATASET_NAME, block_size=CFG["block_size"])
+    model = build_model(MODEL_NAME, dataset.vocab_size, CFG).to(DEVICE)
 
-    # Compute file-level hash before loading as security measure
-    checkpoint_path = "mid_checkpoint.pt"
-    with open(checkpoint_path, "rb") as f:
-        file_hash = hashlib.sha256(f.read()).hexdigest()
-
-    # Load checkpoint (contains model, optimizer, and RNG states)
-    # weights_only=False required for non-tensor state (RNG, metadata)
-    # File hash computed above provides tamper detection
-    checkpoint = torch.load(checkpoint_path, weights_only=False, map_location=DEVICE)
-    model.load_state_dict(checkpoint['model'])
-    model.eval()  # disabling dropout for eval as results must be deterministic
+    try:
+        # Byte-stable safetensors is the preferred artifact (no pickle, no code-exec).
+        load_model_safetensors(model, CHECKPOINT_WEIGHTS_PATH, device=DEVICE)
+        checkpoint_source = str(CHECKPOINT_WEIGHTS_PATH)
+    except FileNotFoundError:
+        # Fallback to the replay checkpoint -- but verify the signature BEFORE
+        # deserializing (never torch.load(weights_only=False) on unverified bytes).
+        checkpoint = verified_torch_load("mid_checkpoint.pt", map_location=DEVICE)
+        model.load_state_dict(checkpoint["model"])
+        checkpoint_source = "mid_checkpoint.pt"
+    model.eval()  # disable dropout for eval; results must be deterministic
 
     model_hash = hash_model(model)
+    print(f" ~> Model loaded from {checkpoint_source} | checkpoint hash: {model_hash[:16]}...")
 
-    # Verify cryptographic seal if present
-    if 'checkpoint_hash' in checkpoint:
-        if model_hash != checkpoint['checkpoint_hash']:
-            raise RuntimeError(f"Checkpoint integrity check failed. Expected: {checkpoint['checkpoint_hash'][:16]}..., Got: {model_hash[:16]}...")
-
-    print(f" ~> Model loaded | checkpoint hash: {model_hash[:16]}...")
-
-    # Held-out eval which is never seen during training
-    x, y = dataset.get_batch()
-    x, y = x.to(DEVICE), y.to(DEVICE)
+    # Held-out eval batch
+    x, y = dataset.get_batch(CFG["batch_size"], CFG["block_size"], device=DEVICE)
 
     with torch.no_grad():
         logits = model(x)
-        loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
+        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
 
     perplexity = math.exp(loss.item())
 
@@ -67,7 +67,6 @@ if __name__ == "__main__":
 
     eval_data_hash = hashlib.sha256(dataset.encoded.numpy().tobytes()).hexdigest()
 
-    # Build manifest: hash is computed over content, not including itself.
     manifest = {
         "model_checkpoint_hash": model_hash,
         "model_checkpoint_source": checkpoint_source,
@@ -77,11 +76,8 @@ if __name__ == "__main__":
     }
     manifest["eval_manifest_hash"] = hash_dict(manifest)
 
-    proofs_dir = os.path.join(os.path.dirname(__file__), "..", "proofs")
-    os.makedirs(proofs_dir, exist_ok=True)
-    manifest_path = os.path.join(proofs_dir, "eval_manifest.json")
-    with open(manifest_path, "w") as f:
+    with open("eval_manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print(f"\n ~> Manifest saved to {os.path.normpath(manifest_path)}")
+    print("\n ~> Manifest saved to eval_manifest.json")
     print(json.dumps(manifest, indent=2))
