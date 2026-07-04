@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from artifacts import build_merkle_manifest, tensor_mapping_sha256
 
@@ -12,6 +12,9 @@ from artifacts import build_merkle_manifest, tensor_mapping_sha256
 def _tensor_hash(weights: Path) -> Optional[str]:
     try:
         from safetensors.torch import load_file
+        if TYPE_CHECKING:
+            # Make mypy happy, as load_file is dynamically imported
+            from safetensors.torch import load_file as _load_file
     except ImportError:
         return None
     return tensor_mapping_sha256(load_file(str(weights), device="cpu"))
@@ -152,11 +155,41 @@ def sign_model_dir(
 
 
 def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) -> int:
-    cmd = ["huggingface-cli", "upload", repo_id, str(model_dir), "."]
     if dry_run:
-        print(" ".join(cmd))
+        print(f"Native HF Upload: {model_dir} -> {repo_id}")
         return 0
-    return subprocess.run(cmd, check=False).returncode
+
+    try:
+        import importlib
+        import os
+
+        hf_hub = importlib.import_module("huggingface_hub")
+        HfApi = getattr(hf_hub, "HfApi")
+    except ImportError as e:
+        print("huggingface_hub is not installed. Install it to publish to Hugging Face.", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error importing Hugging Face Hub client: {e}", file=sys.stderr)
+        return 1
+
+    try:
+        # Pulls the ambient token mapped into the workflow's environment block
+        token = os.environ.get("HF_TOKEN")
+        api = HfApi(token=token)
+
+        # Automatically creates the model repo if it doesn't exist yet
+        api.create_repo(repo_id=repo_id, repo_type="model", exist_ok=True)
+
+        # Uploads your directory containing weights, signatures, and manifest
+        api.upload_folder(
+            folder_path=str(model_dir),
+            repo_id=repo_id,
+            repo_type="model"
+        )
+        return 0
+    except Exception as e:
+        print(f"Error publishing to Hugging Face natively: {e}", file=sys.stderr)
+        return 1
 
 
 def build_ollama(model_name: str, model_dir: str, *, dry_run: bool = False) -> int:
