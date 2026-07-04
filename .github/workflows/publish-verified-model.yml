@@ -36,7 +36,9 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
 
       - name: Build tiny safetensors artifact
         run: |
@@ -53,7 +55,7 @@ jobs:
 
       - name: Prepare publish directory
         run: |
-          python src/ovllm.py prepare-publish \
+          ovllm prepare-publish \
             --weights openverifiable-smoke.safetensors \
             --out dist/openverifiable-smoke \
             --name "${{ inputs.model_name }}"
@@ -63,13 +65,13 @@ jobs:
           SIGSTORE_IDENTITY: "https://github.com/${{ github.repository }}/.github/workflows/publish-verified-model.yml@${{ github.ref }}"
           SIGSTORE_IDENTITY_PROVIDER: "https://token.actions.githubusercontent.com"
         run: |
-          python src/ovllm.py sign dist/openverifiable-smoke \
+          ovllm sign dist/openverifiable-smoke \
             --identity "$SIGSTORE_IDENTITY" \
             --identity-provider "$SIGSTORE_IDENTITY_PROVIDER" \
             --use-ambient-credentials
 
       - name: Verify signed artifact
-        run: python src/ovllm.py verify dist/openverifiable-smoke --skip-replay
+        run: ovllm verify dist/openverifiable-smoke --skip-replay
 
       - name: Upload signed model directory
         uses: actions/upload-artifact@v4
@@ -82,4 +84,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python src/ovllm.py publish-hf "${{ inputs.hf_repo_id }}" dist/openverifiable-smoke
+          ovllm publish-hf "${{ inputs.hf_repo_id }}" dist/openverifiable-smoke

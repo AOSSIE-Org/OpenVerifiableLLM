@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Any, Dict, Optional
 
 from artifacts import build_merkle_manifest, tensor_mapping_sha256
 
@@ -12,9 +12,6 @@ from artifacts import build_merkle_manifest, tensor_mapping_sha256
 def _tensor_hash(weights: Path) -> Optional[str]:
     try:
         from safetensors.torch import load_file
-        if TYPE_CHECKING:
-            # Make mypy happy, as load_file is dynamically imported
-            from safetensors.torch import load_file as _load_file
     except ImportError:
         return None
     return tensor_mapping_sha256(load_file(str(weights), device="cpu"))
@@ -25,11 +22,27 @@ def build_model_card(name: str, manifest: Dict[str, Any]) -> str:
 
 This model is published with OpenVerifiableLLM verification metadata.
 
+This repo includes:
+
+- safetensors weights
+- `ovllm_manifest.json`
+- Sigstore/model-transparency bundle
+- Merkle metadata
+
 ## Verify
+
+```bash
+ovllm verify <model-ref>
+```
+
+For a local clone of this model repository:
 
 ```bash
 ovllm verify .
 ```
+
+The verifier recomputes raw artifact SHA-256, Merkle chunk metadata, and the
+safetensors tensor hash, then verifies the Sigstore/model-transparency bundle.
 
 ## Artifact Integrity
 
@@ -123,18 +136,11 @@ def sign_model_dir(
     use_ambient_credentials: bool = False,
     dry_run: bool = False,
 ) -> int:
-    model_path = Path(model_dir)
-    signature_path = _resolve_signature_path(model_path, signature)
+    model_path = Path(model_dir).resolve()
+    signature_path = _resolve_signature_path(model_path, signature).resolve()
+    if not signature_path.is_relative_to(model_path):
+        raise ValueError(f"signature path must be inside model directory: {signature_path}")
     signature_path.parent.mkdir(parents=True, exist_ok=True)
-
-    manifest = _load_manifest(model_path)
-    manifest["signature"] = signature_path.name if signature_path.parent == model_path else str(signature_path)
-    if identity:
-        manifest["sigstore_identity"] = identity
-    if identity_provider:
-        manifest["sigstore_identity_provider"] = identity_provider
-    manifest["sigstore_signed_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    _write_manifest(model_path, manifest)
 
     cmd = [
         sys.executable,
@@ -145,13 +151,29 @@ def sign_model_dir(
         str(model_path),
         "--signature",
         str(signature_path),
+        "--ignore-paths",
+        str(signature_path),
     ]
     if use_ambient_credentials:
         cmd.append("--use_ambient_credentials")
     if dry_run:
         print(" ".join(cmd))
         return 0
-    return subprocess.run(cmd, check=False).returncode
+
+    manifest = _load_manifest(model_path)
+    original_manifest = dict(manifest)
+    manifest["signature"] = signature_path.name if signature_path.parent == model_path else str(signature_path)
+    if identity:
+        manifest["sigstore_identity"] = identity
+    if identity_provider:
+        manifest["sigstore_identity_provider"] = identity_provider
+    manifest["sigstore_signed_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _write_manifest(model_path, manifest)
+
+    code = subprocess.run(cmd, check=False).returncode
+    if code != 0:
+        _write_manifest(model_path, original_manifest)
+    return code
 
 
 def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) -> int:

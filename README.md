@@ -25,7 +25,7 @@ The project now has two connected layers:
 The intended midterm story is:
 
 ```bash
-python src/ovllm.py verify <publisher>/<model>
+ovllm verify <publisher>/<model>
 ```
 
 If the artifact is intact and properly signed, the verifier prints green checks
@@ -57,18 +57,22 @@ Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
+ovllm --help
 ```
+
+The editable install exposes the `ovllm` command used throughout this README.
 
 Run the verifier against a prepared local directory:
 
 ```bash
-python src/ovllm.py verify path/to/model-dir
+ovllm verify path/to/model-dir
 ```
 
 For local unsigned smoke tests:
 
 ```bash
-python src/ovllm.py verify path/to/model-dir --allow-unsigned --skip-replay
+ovllm verify path/to/model-dir --allow-unsigned --skip-replay
 ```
 
 Run tests:
@@ -98,7 +102,7 @@ For GPU demo commands and the full matrix, see [RUNBOOK.md](RUNBOOK.md).
 Prepare a publishable model directory from a safetensors checkpoint:
 
 ```bash
-python src/ovllm.py prepare-publish \
+ovllm prepare-publish \
   --weights mid_checkpoint.safetensors \
   --out dist/openverifiable-smoke \
   --name openverifiable-smoke
@@ -117,7 +121,7 @@ that identity should stay private. Prefer the GitHub Actions workflow below for
 public releases.
 
 ```bash
-python src/ovllm.py sign dist/openverifiable-smoke \
+ovllm sign dist/openverifiable-smoke \
   --identity "<expected-signer-identity>" \
   --identity-provider "<expected-identity-provider>"
 ```
@@ -142,21 +146,21 @@ as a GitHub Actions artifact, and can optionally upload it to Hugging Face when
 Upload to Hugging Face:
 
 ```bash
-python src/ovllm.py publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
 ```
 
 Build an Ollama artifact from the generated `Modelfile`:
 
 ```bash
-python src/ovllm.py ollama-build openverifiable-smoke dist/openverifiable-smoke
+ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
 ```
 
 Dry-run wrappers are available for publish/sign commands:
 
 ```bash
-python src/ovllm.py sign dist/openverifiable-smoke --dry-run
-python src/ovllm.py publish-hf <repo-id> dist/openverifiable-smoke --dry-run
-python src/ovllm.py ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
+ovllm sign dist/openverifiable-smoke --dry-run
+ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
+ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
 ```
 
 ## Reproducibility Matrix
@@ -200,6 +204,10 @@ OpenVerifiableLLM uses:
 
 The Merkle manifest is computed in one read pass so file size, file hash, and
 chunk hashes describe the same artifact version.
+
+The verifier depends on the current `model-signing` CLI surface and a modern
+PyYAML wheel, so those versions are pinned in both `requirements.txt` and
+`pyproject.toml` for clean-machine installs.
 
 ## Threat Model
 
@@ -252,8 +260,8 @@ python -m py_compile src/artifacts.py src/verifier.py src/publish.py src/ovllm.p
 Check the verifier locally:
 
 ```bash
-python src/ovllm.py prepare-publish --weights mid_checkpoint.safetensors --out C:\tmp\ovllm-smoke
-python src/ovllm.py verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
+ovllm prepare-publish --weights mid_checkpoint.safetensors --out C:\tmp\ovllm-smoke
+ovllm verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
 ```
 
 ## Scope
