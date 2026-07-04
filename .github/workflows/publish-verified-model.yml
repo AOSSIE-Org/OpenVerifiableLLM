@@ -6,9 +6,9 @@ on:
       model_name:
         description: "Name to put in ovllm_manifest.json"
         required: true
-        default: "openverifiable-smoke"
+        default: "gpt10m-shakespeare"
       hf_repo_id:
-        description: "Optional Hugging Face repo id, e.g. owner/openverifiable-smoke"
+        description: "Optional Hugging Face repo id, e.g. owner/gpt10m-shakespeare"
         required: false
         default: ""
       publish_to_hf:
@@ -40,24 +40,23 @@ jobs:
           python -m pip install -r requirements.txt
           python -m pip install -e .
 
-      - name: Build tiny safetensors artifact
+      - name: Train real model (smoke steps)
         run: |
-          python - <<'PY'
-          import torch
-          from safetensors.torch import save_file
-
-          weights = {
-              "embed.weight": torch.arange(32, dtype=torch.float32).reshape(8, 4),
-              "head.bias": torch.linspace(-1, 1, steps=8, dtype=torch.float32),
-          }
-          save_file(weights, "openverifiable-smoke.safetensors")
-          PY
+          python run_experiment.py \
+            --model gpt10m \
+            --dataset shakespeare \
+            --precision fp32 \
+            --deterministic on \
+            --steps 8 \
+            --batch-size 8 \
+            --block-size 64 \
+            --keep-artifact
 
       - name: Prepare publish directory
         run: |
           ovllm prepare-publish \
-            --weights openverifiable-smoke.safetensors \
-            --out dist/openverifiable-smoke \
+            --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
+            --out dist/gpt10m-shakespeare \
             --name "${{ inputs.model_name }}"
 
       - name: Sign with GitHub Actions OIDC
@@ -65,23 +64,23 @@ jobs:
           SIGSTORE_IDENTITY: "https://github.com/${{ github.repository }}/.github/workflows/publish-verified-model.yml@${{ github.ref }}"
           SIGSTORE_IDENTITY_PROVIDER: "https://token.actions.githubusercontent.com"
         run: |
-          ovllm sign dist/openverifiable-smoke \
+          ovllm sign dist/gpt10m-shakespeare \
             --identity "$SIGSTORE_IDENTITY" \
             --identity-provider "$SIGSTORE_IDENTITY_PROVIDER" \
             --use-ambient-credentials
 
       - name: Verify signed artifact
-        run: ovllm verify dist/openverifiable-smoke --skip-replay
+        run: ovllm verify dist/gpt10m-shakespeare --skip-replay
 
       - name: Upload signed model directory
         uses: actions/upload-artifact@v4
         with:
-          name: openverifiable-smoke-signed
-          path: dist/openverifiable-smoke
+          name: gpt10m-shakespeare-signed
+          path: dist/gpt10m-shakespeare
 
       - name: Publish to Hugging Face
         if: ${{ inputs.publish_to_hf && inputs.hf_repo_id != '' }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          ovllm publish-hf "${{ inputs.hf_repo_id }}" dist/openverifiable-smoke
+          ovllm publish-hf "${{ inputs.hf_repo_id }}" dist/gpt10m-shakespeare

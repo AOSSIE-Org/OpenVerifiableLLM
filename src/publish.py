@@ -104,6 +104,21 @@ def prepare_publish_dir(
         "param_sha256": _tensor_hash(dst),
         "signature": "model.sig",
     }
+    if name == "gpt10m-shakespeare":
+        manifest["segment_replay"] = {
+            "model": "gpt10m",
+            "dataset": "shakespeare",
+            "precision": "fp32",
+            "deterministic": True,
+            "seed": 99,
+            "device": "cpu",
+            "overrides": {
+                "total_steps": 8,
+                "batch_size": 8,
+                "block_size": 64
+            },
+            "expected_param_sha256": manifest["param_sha256"]
+        }
     if manifest_extra:
         manifest.update(manifest_extra)
 
