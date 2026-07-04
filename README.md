@@ -69,6 +69,16 @@ Run the verifier against a prepared local directory:
 ovllm verify path/to/model-dir
 ```
 
+Remote Hugging Face references download into `.ovllm-cache/huggingface` by
+default to avoid permission issues in the global Hugging Face cache. Override
+with `--cache-dir <path>` or `OVLLM_HF_CACHE_DIR`.
+
+If remote verification reports `signature present, but manifest lacks
+sigstore_identity/provider`, the uploaded directory was not the GitHub
+Actions-signed artifact. Re-run the **Publish Verified Model** workflow and
+publish that signed output so the manifest includes the expected Sigstore
+identity metadata.
+
 For local unsigned smoke tests:
 
 ```bash
@@ -115,10 +125,17 @@ This writes:
 - `README.md` model card
 - `Modelfile` for an Ollama build path
 
+Rerun `prepare-publish` whenever the model-card or manifest template changes so
+the publish directory contains the current generated metadata.
+
 Signing for published artifacts is performed by the **Publish Verified Model**
 GitHub Actions workflow, not by a local terminal. The workflow signs with GitHub
 OIDC so the Sigstore identity is tied to this repository/workflow instead of a
 personal local browser session.
+
+Local signing is disabled by default to prevent developers from accidentally signing
+with their personal accounts. If you need to test signing locally, set the environment
+variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="true"` in PowerShell).
 
 Run the workflow with:
 
@@ -145,9 +162,21 @@ as a GitHub Actions artifact, and can optionally upload it to Hugging Face when
 `HF_TOKEN` is configured as a repository secret.
 
 Manual Hugging Face upload is still available if you already have a signed
-directory:
+directory. `ovllm publish-hf` reads `HF_TOKEN` directly and disables Hugging
+Face Xet transfers by default for these small artifacts, which avoids local
+token-cache and Xet-cache permission issues:
 
 ```bash
+# bash/zsh
+export HF_TOKEN=<your-huggingface-write-token>
+export HF_HUB_DISABLE_XET=1
+ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+```
+
+```powershell
+# PowerShell
+$env:HF_TOKEN = "<your-huggingface-write-token>"
+$env:HF_HUB_DISABLE_XET = "1"
 ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
 ```
 
@@ -255,6 +284,11 @@ Run the test suite:
 python -m unittest discover -s tests
 ```
 
+CUDA-only tests (TF32 divergence, determinism-OFF, DDP) self-skip on CPU
+machines. Sigstore signing tests are mocked, so the full suite passes locally
+without GitHub Actions OIDC credentials. The `--allow-unsigned` flag skips the
+live Sigstore bundle check for local development only.
+
 Compile-check touched modules:
 
 ```bash
@@ -267,8 +301,6 @@ Check the verifier locally:
 ovllm prepare-publish --weights mid_checkpoint.safetensors --out C:\tmp\ovllm-smoke
 ovllm verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
 ```
-
-## Scope
 
 - Bit-exact reproducibility is scoped to a fixed hardware/software stack.
 - Cross-GPU reproducibility is measured, not assumed.

@@ -74,10 +74,17 @@ The generated model card should say the repo includes:
 - Sigstore/model-transparency bundle
 - Merkle metadata
 
+Rerun `prepare-publish` after model-card or manifest template changes so the
+publish directory contains the current generated metadata.
+
 Do not locally sign the published artifact. The project-scoped signing path is
 the **Publish Verified Model** GitHub Actions workflow, which uses GitHub OIDC
 so the Sigstore identity points at the workflow, not a personal local browser
 session.
+
+Local signing is disabled by default to prevent developers from accidentally signing
+with their personal accounts. If you need to test signing locally, set the environment
+variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="true"` in PowerShell).
 
 Run the workflow with:
 
@@ -100,10 +107,22 @@ It then verifies the signed directory without `--allow-unsigned`:
 ovllm verify dist/openverifiable-smoke --skip-replay
 ```
 
-If you already have a signed directory, manual Hugging Face upload is:
+If you already have a signed directory, manual Hugging Face upload uses
+`HF_TOKEN` directly and disables Hugging Face Xet transfers by default for these
+small artifacts. This avoids local Hugging Face CLI token-cache and Xet-cache
+permission issues:
 
 ```bash
-huggingface-cli login
+# bash/zsh
+export HF_TOKEN=<your-huggingface-write-token>
+export HF_HUB_DISABLE_XET=1
+ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+```
+
+```powershell
+# PowerShell
+$env:HF_TOKEN = "<your-huggingface-write-token>"
+$env:HF_HUB_DISABLE_XET = "1"
 ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
 ```
 
@@ -112,6 +131,18 @@ Verify by model reference:
 ```bash
 ovllm verify <user-or-org>/openverifiable-smoke --skip-replay
 ```
+
+Remote verification downloads into `.ovllm-cache/huggingface` by default. If a
+machine has cache permission issues or you want a disposable cache, use:
+
+```bash
+ovllm verify <user-or-org>/openverifiable-smoke --skip-replay --cache-dir C:\tmp\ovllm-hf-cache
+```
+
+If hashes pass but `sigstore_bundle` fails with `manifest lacks
+sigstore_identity/provider`, the uploaded repo was not the GitHub Actions-signed
+artifact. Re-run **Publish Verified Model** with `publish_to_hf: true` and verify
+the newly uploaded output.
 
 Clean-machine smoke:
 

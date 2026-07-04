@@ -18,7 +18,15 @@ def _tensor_hash(weights: Path) -> Optional[str]:
 
 
 def build_model_card(name: str, manifest: Dict[str, Any]) -> str:
-    return f"""# {name}
+    return f"""---
+tags:
+- openverifiablellm
+- model-verification
+- sigstore
+- merkle-tree
+---
+
+# {name}
 
 This model is published with OpenVerifiableLLM verification metadata.
 
@@ -142,6 +150,16 @@ def sign_model_dir(
         raise ValueError(f"signature path must be inside model directory: {signature_path}")
     signature_path.parent.mkdir(parents=True, exist_ok=True)
 
+    import os
+    if not dry_run and os.environ.get("GITHUB_ACTIONS") != "true" and os.environ.get("OVLLM_ALLOW_LOCAL_SIGNING") != "true":
+        print(
+            "Error: Local signing is disabled by default because it expects GitHub Actions.\n"
+            "The project-scoped signing path should use the GitHub Actions workflow.\n"
+            "To bypass this check for local testing, set the environment variable: OVLLM_ALLOW_LOCAL_SIGNING=true",
+            file=sys.stderr
+        )
+        return 1
+
     cmd = [
         sys.executable,
         "-m",
@@ -184,6 +202,10 @@ def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) 
     try:
         import importlib
         import os
+
+        # These verifier artifacts are small; disabling Xet avoids Windows cache
+        # permission failures in ~/.cache/huggingface/xet during manual uploads.
+        os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
         hf_hub = importlib.import_module("huggingface_hub")
         HfApi = getattr(hf_hub, "HfApi")
