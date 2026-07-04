@@ -79,11 +79,19 @@ Actions-signed artifact. Re-run the **Publish Verified Model** workflow and
 publish that signed output so the manifest includes the expected Sigstore
 identity metadata.
 
-For local unsigned smoke tests:
+For local unsigned smoke tests (skipping local retraining):
 
 ```bash
 ovllm verify path/to/model-dir --allow-unsigned --skip-replay
 ```
+
+For full end-to-end training verification (including local retraining and parameter hash matching):
+
+```bash
+ovllm verify path/to/model-dir --allow-unsigned
+```
+
+This will automatically execute the local CPU retraining pipeline defined in the manifest's `segment_replay` block, then verify that your locally trained model matches the uploaded model's parameter hash bit-for-bit.
 
 Run tests:
 
@@ -109,13 +117,13 @@ For GPU demo commands and the full matrix, see [RUNBOOK.md](RUNBOOK.md).
 
 ## Publish Loop
 
-Prepare a publishable model directory from a safetensors checkpoint:
+Prepare a publishable model directory from the real trained safetensors checkpoint:
 
 ```bash
 ovllm prepare-publish \
-  --weights mid_checkpoint.safetensors \
-  --out dist/openverifiable-smoke \
-  --name openverifiable-smoke
+  --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
+  --out dist/gpt10m-shakespeare \
+  --name gpt10m-shakespeare
 ```
 
 This writes:
@@ -140,8 +148,8 @@ variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="t
 Run the workflow with:
 
 ```text
-model_name: openverifiable-smoke
-hf_repo_id: <user-or-org>/openverifiable-smoke
+model_name: gpt10m-shakespeare
+hf_repo_id: <user-or-org>/gpt10m-shakespeare
 publish_to_hf: true
 ```
 
@@ -170,27 +178,27 @@ token-cache and Xet-cache permission issues:
 # bash/zsh
 export HF_TOKEN=<your-huggingface-write-token>
 export HF_HUB_DISABLE_XET=1
-ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 ```powershell
 # PowerShell
 $env:HF_TOKEN = "<your-huggingface-write-token>"
 $env:HF_HUB_DISABLE_XET = "1"
-ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 Build an Ollama artifact from the generated `Modelfile`:
 
 ```bash
-ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 Dry-run wrappers are available for non-signing publish/build command-shape checks:
 
 ```bash
-ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
-ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
+ovllm publish-hf <repo-id> dist/gpt10m-shakespeare --dry-run
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare --dry-run
 ```
 
 Signing is intentionally performed by the GitHub Actions workflow, because the

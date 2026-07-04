@@ -58,13 +58,13 @@ publish-hf
 ollama-build
 ```
 
-Prepare a publish directory from a safetensors artifact:
+Prepare a publish directory from the real trained safetensors artifact:
 
 ```bash
 ovllm prepare-publish \
-  --weights mid_checkpoint.safetensors \
-  --out dist/openverifiable-smoke \
-  --name openverifiable-smoke
+  --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
+  --out dist/gpt10m-shakespeare \
+  --name gpt10m-shakespeare
 ```
 
 The generated model card should say the repo includes:
@@ -89,8 +89,8 @@ variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="t
 Run the workflow with:
 
 ```text
-model_name: openverifiable-smoke
-hf_repo_id: <user-or-org>/openverifiable-smoke
+model_name: gpt10m-shakespeare
+hf_repo_id: <user-or-org>/gpt10m-shakespeare
 publish_to_hf: true
 ```
 
@@ -104,7 +104,7 @@ provider: https://token.actions.githubusercontent.com
 It then verifies the signed directory without `--allow-unsigned`:
 
 ```bash
-ovllm verify dist/openverifiable-smoke --skip-replay
+ovllm verify dist/gpt10m-shakespeare --skip-replay
 ```
 
 If you already have a signed directory, manual Hugging Face upload uses
@@ -116,27 +116,31 @@ permission issues:
 # bash/zsh
 export HF_TOKEN=<your-huggingface-write-token>
 export HF_HUB_DISABLE_XET=1
-ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 ```powershell
 # PowerShell
 $env:HF_TOKEN = "<your-huggingface-write-token>"
 $env:HF_HUB_DISABLE_XET = "1"
-ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 Verify by model reference:
 
 ```bash
-ovllm verify <user-or-org>/openverifiable-smoke --skip-replay
+# Verify metadata and signatures only (fast)
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay
+
+# Verify with full local training/replay verification (bit-for-bit parameter match)
+ovllm verify <user-or-org>/gpt10m-shakespeare
 ```
 
 Remote verification downloads into `.ovllm-cache/huggingface` by default. If a
 machine has cache permission issues or you want a disposable cache, use:
 
 ```bash
-ovllm verify <user-or-org>/openverifiable-smoke --skip-replay --cache-dir C:\tmp\ovllm-hf-cache
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay --cache-dir C:\tmp\ovllm-hf-cache
 ```
 
 If hashes pass but `sigstore_bundle` fails with `manifest lacks
@@ -152,20 +156,20 @@ python -m venv .venv
 . .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 pip install -e .
-ovllm verify <user-or-org>/openverifiable-smoke --skip-replay
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay
 ```
 
 Optional Ollama build path:
 
 ```bash
-ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare
 ```
 
 Dry-run wrappers are for non-signing publish/build command-shape checks:
 
 ```bash
-ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
-ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
+ovllm publish-hf <repo-id> dist/gpt10m-shakespeare --dry-run
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare --dry-run
 ```
 
 Do not use local signing dry runs as part of the demo path. Published artifacts
