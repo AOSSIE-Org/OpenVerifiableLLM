@@ -195,7 +195,7 @@ def sign_model_dir(
 
     manifest = _load_manifest(model_path)
     original_manifest = dict(manifest)
-    manifest["signature"] = signature_path.name if signature_path.parent == model_path else str(signature_path)
+    manifest["signature"] = str(signature_path.relative_to(model_path))
     if identity:
         manifest["sigstore_identity"] = identity
     if identity_provider:
