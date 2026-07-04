@@ -215,11 +215,13 @@ def check_sigstore_bundle(
         str(model_dir),
         "--signature",
         str(signature_path),
+        "--ignore-paths",
+        str(signature_path),
         "--identity",
         identity,
         "--identity_provider",
         provider,
-        "--allow_symlinks",  
+        "--allow_symlinks",
     ]
     try:
         completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
@@ -234,6 +236,7 @@ def check_sigstore_bundle(
         PASS if completed.returncode == 0 else FAIL,
         detail or "model_signing verify completed",
     )
+
 
 def check_segment_replay(manifest: Dict[str, Any], *, skip_replay: bool = False) -> CheckResult:
     spec = manifest.get("segment_replay")

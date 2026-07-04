@@ -1,3 +1,4 @@
+import json
 import sys
 import tempfile
 import unittest
@@ -16,7 +17,8 @@ except ImportError:
     HAS_TORCH = False
 
 from publish import prepare_publish_dir, sign_model_dir  # noqa: E402
-from verifier import FAIL, PASS, SKIP, verify_model_reference  # noqa: E402
+from ovllm import main as ovllm_main  # noqa: E402
+from verifier import FAIL, PASS, SKIP, check_sigstore_bundle, verify_model_reference  # noqa: E402
 
 
 @unittest.skipUnless(HAS_TORCH, "torch and safetensors required")
@@ -57,9 +59,10 @@ class VerifierTests(unittest.TestCase):
             self.assertEqual(by_name["artifact_sha256"].status, FAIL)
             self.assertEqual(by_name["merkle_root"].status, FAIL)
 
-    def test_sign_dry_run_updates_manifest_before_signing(self):
+    def test_sign_dry_run_is_read_only_and_ignores_signature_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             model_dir = self._prepared_model_dir(tmp)
+            before = (model_dir / "ovllm_manifest.json").read_text()
             with patch("builtins.print") as mock_print:
                 code = sign_model_dir(
                     str(model_dir),
@@ -72,12 +75,44 @@ class VerifierTests(unittest.TestCase):
             self.assertEqual(code, 0)
             command = mock_print.call_args.args[0]
             self.assertIn("--use_ambient_credentials", command)
-            self.assertIn(str(model_dir / "model.sig"), command)
-            manifest = __import__("json").loads((model_dir / "ovllm_manifest.json").read_text())
-            self.assertEqual(manifest["signature"], "model.sig")
-            self.assertEqual(manifest["sigstore_identity"], "person@example.com")
-            self.assertEqual(manifest["sigstore_identity_provider"], "https://accounts.example.com")
-            self.assertIn("sigstore_signed_at", manifest)
+            self.assertIn("--ignore-paths", command)
+            self.assertIn(str((model_dir / "model.sig").resolve()), command)
+            self.assertEqual((model_dir / "ovllm_manifest.json").read_text(), before)
+
+    def test_sigstore_verify_ignores_signature_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            signature = model_dir / "model.sig"
+            signature.write_bytes(b"fake-bundle")
+            manifest = json.loads((model_dir / "ovllm_manifest.json").read_text())
+            manifest["sigstore_identity"] = "person@example.com"
+            manifest["sigstore_identity_provider"] = "https://accounts.example.com"
+
+            with patch("verifier.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "ok"
+                mock_run.return_value.stderr = ""
+                result = check_sigstore_bundle(model_dir, manifest)
+
+            self.assertEqual(result.status, PASS)
+            command = mock_run.call_args.args[0]
+            self.assertIn("--ignore-paths", command)
+            self.assertIn(str(signature.resolve()), command)
+
+    def test_sign_rejects_signature_path_outside_model_dir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            outside = Path(tmp) / "outside.sig"
+            with self.assertRaises(ValueError):
+                sign_model_dir(str(model_dir), signature=str(outside), dry_run=True)
+
+
+class CliErrorHandlingTests(unittest.TestCase):
+    def test_verify_missing_manifest_returns_red_without_raising(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("builtins.print"):
+                code = ovllm_main(["verify", tmp])
+        self.assertEqual(code, 1)
 
 
 if __name__ == "__main__":

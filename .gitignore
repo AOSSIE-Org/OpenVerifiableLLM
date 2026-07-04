@@ -5,6 +5,9 @@ venv/
 
 __pycache__/
 *.pyc
+build/
+dist/
+*.egg-info/
 
 
 .vscode/
@@ -39,3 +42,13 @@ data/*.zip
 data/*.tar.gz
 data/cifar-10-batches-py/
 !data/shakespeare_sample.txt
+
+# Local smoke tests and temp files
+openverifiable-smoke/
+C:\tmp\*
+
+# Model weights, signatures, and datasets
+*.safetensors
+*.sig
+*.pt
+*.jsonl

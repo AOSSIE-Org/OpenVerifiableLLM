@@ -7,12 +7,17 @@ from verifier import print_report, verify_model_reference
 
 
 def _verify(args) -> int:
-    results = verify_model_reference(
-        args.model_ref,
-        cache_dir=args.cache_dir,
-        allow_unsigned=args.allow_unsigned,
-        skip_replay=args.skip_replay,
-    )
+    try:
+        results = verify_model_reference(
+            args.model_ref,
+            cache_dir=args.cache_dir,
+            allow_unsigned=args.allow_unsigned,
+            skip_replay=args.skip_replay,
+        )
+    except Exception as exc:
+        print(f"[FAIL] verifier_error - {exc}")
+        print("\nVERDICT: RED")
+        return 1
     return 0 if print_report(results) else 1
 
 

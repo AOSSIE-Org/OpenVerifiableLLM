@@ -27,6 +27,108 @@ The first text run auto-downloads tinyshakespeare (~1 MB). For the bigger corpor
 
 ---
 
+## Phase B. Published-model verification loop
+
+This is the midterm deliverable path: publish a small signed model and verify it
+with one command from a clean environment.
+
+Install the repo CLI:
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+ovllm --help
+```
+
+Local CLI install smoke after changing `pyproject.toml` or CLI wiring:
+
+```bash
+pip install -e .
+ovllm --help
+python src/ovllm.py --help   # optional fallback; should show the same subcommands
+```
+
+Expected subcommands:
+
+```text
+verify
+prepare-publish
+sign
+publish-hf
+ollama-build
+```
+
+Prepare a publish directory from a safetensors artifact:
+
+```bash
+ovllm prepare-publish \
+  --weights mid_checkpoint.safetensors \
+  --out dist/openverifiable-smoke \
+  --name openverifiable-smoke
+```
+
+The generated model card should say the repo includes:
+
+- safetensors weights
+- `ovllm_manifest.json`
+- Sigstore/model-transparency bundle
+- Merkle metadata
+
+Sign the directory with Sigstore/model-transparency:
+
+```bash
+ovllm sign dist/openverifiable-smoke \
+  --identity "<expected-signer-identity>" \
+  --identity-provider "<expected-identity-provider>"
+```
+
+Verify the signed local directory. This should be green without
+`--allow-unsigned`:
+
+```bash
+ovllm verify dist/openverifiable-smoke --skip-replay
+```
+
+Publish to Hugging Face:
+
+```bash
+huggingface-cli login
+ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+```
+
+Verify by model reference:
+
+```bash
+ovllm verify <user-or-org>/openverifiable-smoke --skip-replay
+```
+
+Clean-machine smoke:
+
+```bash
+git clone <your repo> && cd OpenVerifiableLLM
+python -m venv .venv
+. .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+ovllm verify <user-or-org>/openverifiable-smoke --skip-replay
+```
+
+Optional Ollama build path:
+
+```bash
+ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
+```
+
+Dry-run wrappers:
+
+```bash
+ovllm sign dist/openverifiable-smoke --dry-run
+ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
+ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
+```
+
+---
+
 ## 1. Headline: the same GPU is bitwise reproducible (and the audit passes)
 
 ```bash

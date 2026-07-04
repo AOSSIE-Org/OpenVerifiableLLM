@@ -4,7 +4,7 @@ tqdm>=4.67,<5.0
 safetensors>=0.4.5,<1.0
 pynacl>=1.5,<2.0          # ed25519 signing (verify-before-load security fix)
 matplotlib>=3.7,<4.0     # divergence-accumulation plot (T7); optional
-model-signing>=0.2.0      # Sigstore/model-transparency signing + verification CLI
+model-signing>=1.1.1      # Sigstore/model-transparency signing + verification CLI
 huggingface_hub>=0.24.0   # fetch/publish Hugging Face model repositories
 # wikitext dataset option additionally needs: pip install datasets
 
