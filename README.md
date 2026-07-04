@@ -115,19 +115,20 @@ This writes:
 - `README.md` model card
 - `Modelfile` for an Ollama build path
 
-Sign the directory with Sigstore/model-transparency. For local development you
-can use browser/OIDC signing, but do not publish a personal email identity if
-that identity should stay private. Prefer the GitHub Actions workflow below for
-public releases.
+Signing for published artifacts is performed by the **Publish Verified Model**
+GitHub Actions workflow, not by a local terminal. The workflow signs with GitHub
+OIDC so the Sigstore identity is tied to this repository/workflow instead of a
+personal local browser session.
 
-```bash
-ovllm sign dist/openverifiable-smoke \
-  --identity "<expected-signer-identity>" \
-  --identity-provider "<expected-identity-provider>"
+Run the workflow with:
+
+```text
+model_name: openverifiable-smoke
+hf_repo_id: <user-or-org>/openverifiable-smoke
+publish_to_hf: true
 ```
 
-For project-scoped signing, run the **Publish Verified Model** workflow in
-GitHub Actions. It signs with GitHub OIDC using this expected identity shape:
+It signs with this expected identity shape:
 
 ```text
 https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@<git-ref>
@@ -143,7 +144,8 @@ The workflow verifies the signed directory without `--allow-unsigned`, uploads i
 as a GitHub Actions artifact, and can optionally upload it to Hugging Face when
 `HF_TOKEN` is configured as a repository secret.
 
-Upload to Hugging Face:
+Manual Hugging Face upload is still available if you already have a signed
+directory:
 
 ```bash
 ovllm publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
@@ -155,13 +157,15 @@ Build an Ollama artifact from the generated `Modelfile`:
 ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
 ```
 
-Dry-run wrappers are available for publish/sign commands:
+Dry-run wrappers are available for non-signing publish/build command-shape checks:
 
 ```bash
-ovllm sign dist/openverifiable-smoke --dry-run
 ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
 ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
 ```
+
+Signing is intentionally performed by the GitHub Actions workflow, because the
+published Sigstore identity should be the repository workflow identity.
 
 ## Reproducibility Matrix
 
