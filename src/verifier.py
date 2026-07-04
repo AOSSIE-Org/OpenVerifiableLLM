@@ -214,6 +214,16 @@ def check_sigstore_bundle(
             "signature present, but manifest lacks sigstore_identity/provider",
         )
 
+    # Verify model_signing is installed in the active python environment
+    import importlib.util
+    if importlib.util.find_spec("model_signing") is None:
+        return CheckResult(
+            "sigstore_bundle",
+            FAIL,
+            f"model_signing module is not installed in the active environment ({sys.executable}). "
+            "Please install it with `pip install model-signing` to enable Sigstore bundle verification.",
+        )
+
     cmd = [
         sys.executable,
         "-m",
