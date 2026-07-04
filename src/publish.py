@@ -1,0 +1,167 @@
+import json
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from artifacts import build_merkle_manifest, tensor_mapping_sha256
+
+
+def _tensor_hash(weights: Path) -> Optional[str]:
+    try:
+        from safetensors.torch import load_file
+    except ImportError:
+        return None
+    return tensor_mapping_sha256(load_file(str(weights), device="cpu"))
+
+
+def build_model_card(name: str, manifest: Dict[str, Any]) -> str:
+    return f"""# {name}
+
+This model is published with OpenVerifiableLLM verification metadata.
+
+## Verify
+
+```bash
+ovllm verify .
+```
+
+## Artifact Integrity
+
+- weights: `{manifest["weights"]}`
+- sha256: `{manifest["sha256"]}`
+- Merkle root: `{manifest["merkle_root"]}`
+- chunk size: `{manifest["chunk_size_bytes"]}`
+- chunks: `{manifest["chunk_count"]}`
+
+## Signature
+
+Sigstore/model-transparency bundle: `{manifest.get("signature", "model.sig")}`
+"""
+
+
+def build_modelfile(name: str, weights_name: str) -> str:
+    return f"""# OpenVerifiableLLM Ollama build file
+# Replace FROM with the nearest compatible base when publishing a real Ollama artifact.
+FROM ./{weights_name}
+PARAMETER temperature 0
+MESSAGE system "Verified OpenVerifiableLLM artifact: {name}"
+"""
+
+
+def prepare_publish_dir(
+    *,
+    weights: str,
+    output_dir: str,
+    name: str = "openverifiable-small",
+    manifest_extra: Optional[Dict[str, Any]] = None,
+) -> Path:
+    src = Path(weights)
+    if not src.exists():
+        raise FileNotFoundError(f"weights not found: {src}")
+
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    dst = out / src.name
+    if src.resolve() != dst.resolve():
+        shutil.copy2(src, dst)
+
+    merkle = build_merkle_manifest(dst)
+    manifest = {
+        "schema": "ovllm.model.v1",
+        "name": name,
+        "weights": dst.name,
+        "sha256": merkle["sha256"],
+        "merkle_root": merkle["merkle_root"],
+        "chunk_size_bytes": merkle["chunk_size_bytes"],
+        "chunk_count": merkle["chunk_count"],
+        "param_sha256": _tensor_hash(dst),
+        "signature": "model.sig",
+    }
+    if manifest_extra:
+        manifest.update(manifest_extra)
+
+    (out / "ovllm_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (out / "README.md").write_text(build_model_card(name, manifest), encoding="utf-8")
+    (out / "Modelfile").write_text(build_modelfile(name, dst.name), encoding="utf-8")
+    return out
+
+
+def _manifest_path(model_dir: Path) -> Path:
+    return model_dir / "ovllm_manifest.json"
+
+
+def _load_manifest(model_dir: Path) -> Dict[str, Any]:
+    path = _manifest_path(model_dir)
+    if not path.exists():
+        raise FileNotFoundError(f"manifest not found: {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _write_manifest(model_dir: Path, manifest: Dict[str, Any]) -> None:
+    _manifest_path(model_dir).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+
+def _resolve_signature_path(model_dir: Path, signature: str) -> Path:
+    signature_path = Path(signature)
+    if not signature_path.is_absolute():
+        signature_path = model_dir / signature_path
+    return signature_path
+
+
+def sign_model_dir(
+    model_dir: str,
+    signature: str = "model.sig",
+    *,
+    identity: Optional[str] = None,
+    identity_provider: Optional[str] = None,
+    use_ambient_credentials: bool = False,
+    dry_run: bool = False,
+) -> int:
+    model_path = Path(model_dir)
+    signature_path = _resolve_signature_path(model_path, signature)
+    signature_path.parent.mkdir(parents=True, exist_ok=True)
+
+    manifest = _load_manifest(model_path)
+    manifest["signature"] = signature_path.name if signature_path.parent == model_path else str(signature_path)
+    if identity:
+        manifest["sigstore_identity"] = identity
+    if identity_provider:
+        manifest["sigstore_identity_provider"] = identity_provider
+    manifest["sigstore_signed_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _write_manifest(model_path, manifest)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "model_signing",
+        "sign",
+        "sigstore",
+        str(model_path),
+        "--signature",
+        str(signature_path),
+    ]
+    if use_ambient_credentials:
+        cmd.append("--use_ambient_credentials")
+    if dry_run:
+        print(" ".join(cmd))
+        return 0
+    return subprocess.run(cmd, check=False).returncode
+
+
+def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) -> int:
+    cmd = ["huggingface-cli", "upload", repo_id, str(model_dir), "."]
+    if dry_run:
+        print(" ".join(cmd))
+        return 0
+    return subprocess.run(cmd, check=False).returncode
+
+
+def build_ollama(model_name: str, model_dir: str, *, dry_run: bool = False) -> int:
+    cmd = ["ollama", "create", model_name, "-f", str(Path(model_dir) / "Modelfile")]
+    if dry_run:
+        print(" ".join(cmd))
+        return 0
+    return subprocess.run(cmd, check=False).returncode

@@ -52,6 +52,13 @@ def model_parameters_sha256(model: "torch.nn.Module") -> str:
     return h.hexdigest()
 
 
+def tensor_mapping_sha256(tensors: Dict[str, "torch.Tensor"]) -> str:
+    h = hashlib.sha256()
+    for name in sorted(tensors):
+        h.update(tensors[name].detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
 def _merkle_parent(left: bytes, right: bytes) -> bytes:
     return compute_sha256_bytes(data=left + right)
 
@@ -82,8 +89,10 @@ def build_merkle_manifest(
     path = Path(file_path)
     chunks = []
     offset = 0
+    file_hash = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
+            file_hash.update(chunk)
             chunks.append(
                 {
                     "index": len(chunks),
@@ -97,8 +106,8 @@ def build_merkle_manifest(
     leaf_hashes = [chunk["sha256"] for chunk in chunks]
     return {
         "artifact": path.name,
-        "size_bytes": path.stat().st_size,
-        "sha256": compute_sha256(file_path=path),
+        "size_bytes": offset,
+        "sha256": file_hash.hexdigest(),
         "chunk_size_bytes": chunk_size,
         "chunk_count": len(chunks),
         "merkle_root": merkle_root_from_leaf_hashes(leaf_hashes),
