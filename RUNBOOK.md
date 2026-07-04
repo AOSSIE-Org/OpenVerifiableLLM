@@ -74,22 +74,33 @@ The generated model card should say the repo includes:
 - Sigstore/model-transparency bundle
 - Merkle metadata
 
-Sign the directory with Sigstore/model-transparency:
+Do not locally sign the published artifact. The project-scoped signing path is
+the **Publish Verified Model** GitHub Actions workflow, which uses GitHub OIDC
+so the Sigstore identity points at the workflow, not a personal local browser
+session.
 
-```bash
-ovllm sign dist/openverifiable-smoke \
-  --identity "<expected-signer-identity>" \
-  --identity-provider "<expected-identity-provider>"
+Run the workflow with:
+
+```text
+model_name: openverifiable-smoke
+hf_repo_id: <user-or-org>/openverifiable-smoke
+publish_to_hf: true
 ```
 
-Verify the signed local directory. This should be green without
-`--allow-unsigned`:
+The workflow signs with:
+
+```text
+identity: https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@<git-ref>
+provider: https://token.actions.githubusercontent.com
+```
+
+It then verifies the signed directory without `--allow-unsigned`:
 
 ```bash
 ovllm verify dist/openverifiable-smoke --skip-replay
 ```
 
-Publish to Hugging Face:
+If you already have a signed directory, manual Hugging Face upload is:
 
 ```bash
 huggingface-cli login
@@ -119,13 +130,16 @@ Optional Ollama build path:
 ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke
 ```
 
-Dry-run wrappers:
+Dry-run wrappers are for non-signing publish/build command-shape checks:
 
 ```bash
-ovllm sign dist/openverifiable-smoke --dry-run
 ovllm publish-hf <repo-id> dist/openverifiable-smoke --dry-run
 ovllm ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
 ```
+
+Do not use local signing dry runs as part of the demo path. Published artifacts
+are signed by the GitHub Actions workflow so Sigstore records the workflow
+identity.
 
 ---
 
