@@ -12,3 +12,6 @@ huggingface_hub>=0.24.0   # fetch/publish Hugging Face model repositories
 # For an Intel GPU (Iris Xe / Arc), install the XPU build instead — see README
 # "Locally on an Intel GPU":
 #   pip install torch --index-url https://download.pytorch.org/whl/xpu
+
+# Explicitly pin modern PyYAML to bypass legacy Cython compilation errors on newer Python runtimes (like 3.14)
+pyyaml>=6.0.2
