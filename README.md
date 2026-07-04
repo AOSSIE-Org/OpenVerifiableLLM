@@ -1,211 +1,277 @@
 # OpenVerifiableLLM
 
-**Deterministic training and independent verification for language models.**
+**One-command verification for small open model artifacts.**
 
-OpenVerifiableLLM is an [AOSSIE](https://aossie.org) project building a training pipeline whose entire process is reproducible and independently auditable. Given the same data, configuration, and a fixed hardware stack, the pipeline produces bit-identical models, and any deviation (corruption, tampering, or an honest mistake) is cryptographically detectable.
+OpenVerifiableLLM is an AOSSIE project for making model releases independently
+checkable. The goal is simple: a stranger should be able to pull a published
+model, run one verifier command, and see whether the weights, manifest, replay
+claim, and publisher provenance all check out.
 
-The goal is not just to publish a model, but to publish a model whose training process can be verified rather than trusted.
+This repository contains both the research harness that tests training
+reproducibility and the Phase B verifier/publish path that turns those proofs
+into a usable artifact.
 
----
+## Current Status
 
-## The reproducibility matrix (this build)
+The project now has two connected layers:
 
-Earlier versions hashed a checkpoint and called it verified. The sharper claim this
-build is organised around: **training reproducibility is universally assumed and
-rarely verified — it breaks silently, and this tool surfaces the exact conditions
-under which it fails.** The hook is the *failure*, not the success.
+- **Reproducibility experiments:** deterministic training, hardware/precision
+  sweeps, safetensors artifacts, tensor hashes, Merkle chunking, and segmented
+  replay audits.
+- **Verifier and publish loop:** `ovllm verify` checks a local or Hugging Face
+  model directory, recomputes hashes, validates Merkle metadata, optionally runs
+  replay, and verifies Sigstore/model-transparency provenance.
 
-A single parametrized runner sweeps a grid of models × conditions and emits one JSON
-record per cell, deliberately mixing reproducible and broken outcomes:
+The intended midterm story is:
 
-| | fp32 det-on | fp32 det-off | tf32 | bf16 | cross-GPU |
-|---|---|---|---|---|---|
-| **mlp** (control) | PASS | (verify on GPU) | bits≠fp32 (Ampere) | bits≠fp32 | (verify) |
-| **gpt10m** (attention) | PASS | run-to-run FAIL on GPU | bits≠fp32 | bits≠fp32 | DIFF |
-| **lstm** (cuDNN recurrent) | PASS | FAIL on GPU | bits≠fp32 | bits≠fp32 | DIFF |
+```bash
+python src/ovllm.py verify <publisher>/<model>
+```
 
-Two comparisons are kept deliberately separate, because conflating them is the most
-common reproducibility error:
+If the artifact is intact and properly signed, the verifier prints green checks
+and ends with:
 
-- **Run-to-run** (`reproducible`, `first_divergence_step`): train the *same* config
-  twice on the *same* hardware — identical bits? Broken by nondeterministic kernels
-  (determinism OFF) and by different GPUs.
-- **Agreement with the fp32 reference** (`vs_fp32`): does tf32/bf16 produce the same
-  bits — or merely the same loss to a tolerance — as fp32? TF32/bf16 are perfectly
-  run-to-run reproducible yet silently disagree with fp32.
+```text
+VERDICT: GREEN
+```
 
-**The planted debate.** `verify()` accepts losses within `rel_tol=1e-6` but compares
-parameters by *exact* hash, so a run can pass the loss check and fail the bitwise
-check. Is the right verification bar bitwise identity (strong, brittle, hardware-bound)
-or numerical tolerance (portable, but admits silent precision drift)? The matrix
-supplies evidence both ways; the choice defines what "reproducible training" means.
+## What `ovllm verify` Checks
 
-**Security upgrade.** Checkpoints are now ed25519-signed and the signature is verified
-*before* deserialization (`src/signing.py`). The previous path,
-`torch.load(weights_only=False)` followed by a SHA-256 check, executes arbitrary code
-at unpickle time — before the integrity check ever runs. Signing also makes the
-"cryptographically signed" claim true (a SHA-256 is a checksum, not a signature).
+Given a local model directory or Hugging Face model reference, the verifier:
 
-### Quickstart
+1. Resolves the model reference.
+2. Loads `ovllm_manifest.json`.
+3. Finds the `.safetensors` weights.
+4. Recomputes the raw artifact SHA-256.
+5. Rebuilds the Merkle tree over weight chunks.
+6. Recomputes the tensor-level safetensors hash.
+7. Optionally runs a structured segment-replay audit if the manifest includes one.
+8. Verifies the Sigstore/model-transparency bundle as a red/green provenance check.
+
+Missing Sigstore provenance is **red by default**. For local development only,
+use `--allow-unsigned` to turn that check into a skip.
+
+## Quickstart
+
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
-python demo.py                 # full arc on CPU (smoke config); --full on a GPU pod
-python sweep.py --quick        # the matrix, tiny CPU preset
-cd src && python reproducibility.py   # segmented-replay audit (CLEAN AUDIT PASS + scenarios)
 ```
 
-See **RUNBOOK.md** for the exact pod commands that populate the GPU-only cells.
-
----
-
-## Why this project exists
-
-Open-weight models are reproducible in principle but not verifiable in practice. You can download the weights, but you cannot prove what data they were trained on, what configuration produced them, or whether they were modified after release. A model ships with a report, and the report has to be trusted.
-
-There is no cryptographic link between a set of weights and the process that produced them, which makes post-training modification (fine-tuning, data injection, weight edits) effectively undetectable from the artifact alone.
-
-OpenVerifiableLLM treats verification as a property of the training pipeline itself rather than something added afterward.
-
-## What "verifiable" means here
-
-The term is used precisely in this project.
-
-**What the system proves.** Given a fixed dataset snapshot, a fixed configuration, and the same hardware/software stack, an independent party can reproduce the exact model (bit-identical weights) or detect that a published artifact deviates from what was claimed. Verification is exact (a hash match), not approximate.
-
-**What it does not prove.** A passing verification confirms that a training segment is reproducible and internally consistent. It does not, on its own, prove that training was honest, because a determined adversary can construct a checkpoint chain that passes spot-checks (see [Threat model](#threat-model)). The system substantially raises the cost of forgery; it does not reduce it to zero. The stronger guarantee requires cryptographic proof-of-training (zkML), which is not tractable at this scale and is treated as future work.
-
-This honesty is by design. The system is built around *falsifiability*: it must fail reliably when assumptions are violated, not merely pass when everything is correct.
-
-## How it works
-
-The pipeline cryptographically links every stage from raw data to final weights.
-
-```
-Dataset (pinned dump)              -- Merkle root over ordered chunks
-        |
-        v
-Tokenization (deterministic)       -- config hash, binary tokens
-        |
-        v
-Deterministic training loop        -- full RNG + optimizer state control
-        |
-        v
-Verification layer                 -- tensor-level SHA-256, safetensors
-        |
-        v
-Signed manifest + transparency log -- Sigstore / Rekor
-        |
-        v
-Evaluation (factual, bias)         -- hash-linked into the chain
-```
-
-Each stage records its inputs and outputs into a manifest, and the manifests chain into a single pipeline hash so any link can be checked independently.
-
-### Two core programs
-
-**Trainer / chain producer.** Takes data and parameters, produces the final model along with a sequence of incremental snapshots and the data split used to produce them. The chain begins at the deterministically-seeded initial model (before any training) so that even the first segment is verifiable. Each snapshot is a complete training-state boundary (weights, optimizer state, full RNG state, schedule position, dataloader position), not just weights, because exact segment replay depends on restoring all of it.
-
-**Segment verifier.** Takes a boundary snapshot, the next data chunk, the configuration, and the claimed next snapshot, then replays that single segment and checks the result. The default test is a bit-exact hash match (valid on the same hardware stack, with no tolerance window for a forged or corrupted step to hide in). Cross-hardware verification is available as a separate, explicitly-labeled mode with a documented tolerance.
-
-This is what makes verification affordable: an auditor can verify any single segment at a small fraction of the full training cost, sample several at random, and gain high confidence without retraining the whole model.
-
-## Design findings
-
-These observations from the project's controlled experiments inform the architecture.
-
-**Computational determinism is achievable; representational determinism is the catch.** With seeds, initialization, data order, and configuration fixed, training computation is numerically stable, and two independent runs on a fixed single-GPU stack produce bit-identical weights. However, identical weights do not produce identical files: PyTorch's `.pt` format embeds timestamps and pickle metadata, so the bytes change on every save. Verification therefore operates at the tensor level using a byte-stable format ([safetensors](https://huggingface.co/docs/safetensors)), not at the file level.
-
-| Determinism type | Property | Status |
-|---|---|---|
-| Computational | same config produces same weight values | achievable (single GPU, fixed stack) |
-| Representational | same weight values produce same bytes on disk | broken with `.pt`, resolved with safetensors |
-
-**Loss-curve verification is insufficient on its own.** Trajectory comparison misses two important attacks: weights mutated after training completes (the replay window passes, only the hash catches it), and small file corruptions producing loss differences around 1e-8 that are indistinguishable from floating-point noise. Tensor-hash verification is necessary, and trajectory comparison and hashing are both used because each catches failures the other misses.
-
-## Falsifiability suite
-
-A clean run must pass; every tampered run must fail.
-
-| Scenario | What it tests | How it's caught |
-|---|---|---|
-| Clean audit | end-to-end reproduction | hashes + trajectory match |
-| Bad seed | wrong RNG initialization | trajectory diverges, hash mismatch |
-| Gradient noise | mid-training perturbation | trajectory diverges, hash mismatch |
-| Post-training sabotage | weights edited after training | trajectory passes, hash catches it |
-| Broken seal | ~1e-8 file corruption | trajectory passes, hash catches it |
-| Prover / auditor split | two-party independent replay | segment replays bit-identically |
-
-## Threat model
-
-Stated plainly so the guarantees are not overread.
-
-- **Catches:** accidental corruption, drift, post-training weight edits, file-level tampering, configuration mismatch, and dataset substitution (the data Merkle root will not match).
-- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain that passes spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), rebutting [Jia et al. 2021](https://arxiv.org/abs/2103.05633)).
-- **Mitigation:** publishing the ordered-dataset Merkle root and a transparency-log timestamp before training pins the inputs, so a forger cannot freely choose the data, which raises the forgery bar.
-- **Out of scope:** cryptographic proof of an honest gradient step (zkML), which can prove small-model inference but not training at meaningful scale today.
-
-### Supply-chain posture
-
-Verification secures the model artifact, but the verifier and training code are themselves software that people download and run. Accordingly: dependencies are pinned and hash-locked, releases of the verification tooling are signed (so an auditor can confirm the tool they run is the one published), and the verification infrastructure is kept small to minimize attack surface.
-
-## Scope and boundaries
-
-- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest.
-- **Cross-hardware** reproducibility (e.g. different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; this is measured and documented, and is the use case for the verifier's tolerant mode.
-- **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption. Tensor and pipeline parallelism are out of scope.
-
-## Repository structure
-
-OpenVerifiableLLM is organized as two repositories:
-
-| Repository | Contains |
-|---|---|
-| **Infrastructure** | trainer, verifier, manifest schema, falsifiability suite, signing tooling |
-| **Models** | pinned dataset pointers, training configs, published checkpoint chains, manifests, evaluation reports |
-
-A model repository pins an exact version of the infrastructure, because a manifest is only meaningful against the exact version that produced it. Verification logic lives only in the infrastructure; model repositories produce and consume manifests but do not reimplement verification.
-
-## Tech stack
-
-Python, PyTorch, safetensors, NumPy, CUDA, SHA-256, Merkle trees, `uv`, `ruff`, `pytest`, GitHub Actions, Sigstore, bitsandbytes, lm-evaluation-harness.
-
-## Getting started
-
-> Setup instructions are stabilizing as the core lands. The intended flow:
+Run the verifier against a prepared local directory:
 
 ```bash
-# install pinned, hash-locked dependencies
-uv sync
-
-# run the falsifiability suite (clean passes, tampered fails)
-pytest tests/falsifiability
-
-# train, producing a chain of verifiable snapshots
-python -m openverifiablellm.train --data <dump> --config <config> --out <dir>
-
-# verify a single segment
-python -m openverifiablellm.verify --params <config> --from <Mk> --data <chunk> --expect <Mk+1>
+python src/ovllm.py verify path/to/model-dir
 ```
 
-## Contributing
+For local unsigned smoke tests:
 
-Contributions are welcome. The project favors a research-oriented, assumption-first approach: validate that an abstraction holds before building on top of it, and design features to be falsifiable.
+```bash
+python src/ovllm.py verify path/to/model-dir --allow-unsigned --skip-replay
+```
 
-- Discussion happens in the [AOSSIE Discord](https://aossie.org); keep technical decisions public.
-- Open an issue before substantial work so scope can be aligned with maintainers.
-- Run `ruff` and the test suite before submitting; the determinism checks in CI are required to pass.
-- Good first issues are labeled in the issue tracker.
+Run tests:
 
-See `CONTRIBUTING.md` for details.
+```bash
+python -m unittest discover -s tests
+```
 
-## License
+Run the CPU demo arc:
 
-See [`LICENSE`](LICENSE).
+```bash
+python demo.py
+```
+
+Run the segmented replay/falsifiability smoke test:
+
+```bash
+cd src
+python reproducibility.py
+cd ..
+```
+
+For GPU demo commands and the full matrix, see [RUNBOOK.md](RUNBOOK.md).
+
+## Publish Loop
+
+Prepare a publishable model directory from a safetensors checkpoint:
+
+```bash
+python src/ovllm.py prepare-publish \
+  --weights mid_checkpoint.safetensors \
+  --out dist/openverifiable-smoke \
+  --name openverifiable-smoke
+```
+
+This writes:
+
+- `model.safetensors` or the original safetensors filename
+- `ovllm_manifest.json`
+- `README.md` model card
+- `Modelfile` for an Ollama build path
+
+Sign the directory with Sigstore/model-transparency. For local development you
+can use browser/OIDC signing, but do not publish a personal email identity if
+that identity should stay private. Prefer the GitHub Actions workflow below for
+public releases.
+
+```bash
+python src/ovllm.py sign dist/openverifiable-smoke \
+  --identity "<expected-signer-identity>" \
+  --identity-provider "<expected-identity-provider>"
+```
+
+For project-scoped signing, run the **Publish Verified Model** workflow in
+GitHub Actions. It signs with GitHub OIDC using this expected identity shape:
+
+```text
+https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@<git-ref>
+```
+
+and this provider:
+
+```text
+https://token.actions.githubusercontent.com
+```
+
+The workflow verifies the signed directory without `--allow-unsigned`, uploads it
+as a GitHub Actions artifact, and can optionally upload it to Hugging Face when
+`HF_TOKEN` is configured as a repository secret.
+
+Upload to Hugging Face:
+
+```bash
+python src/ovllm.py publish-hf <user-or-org>/openverifiable-smoke dist/openverifiable-smoke
+```
+
+Build an Ollama artifact from the generated `Modelfile`:
+
+```bash
+python src/ovllm.py ollama-build openverifiable-smoke dist/openverifiable-smoke
+```
+
+Dry-run wrappers are available for publish/sign commands:
+
+```bash
+python src/ovllm.py sign dist/openverifiable-smoke --dry-run
+python src/ovllm.py publish-hf <repo-id> dist/openverifiable-smoke --dry-run
+python src/ovllm.py ollama-build openverifiable-smoke dist/openverifiable-smoke --dry-run
+```
+
+## Reproducibility Matrix
+
+The experiment harness tests when "same code + same seed" really means "same
+model." It separates two ideas that are often conflated:
+
+- **Run-to-run reproducibility:** train the same config twice on the same
+  hardware. Do the final bits match?
+- **Agreement with fp32 reference:** does a lower-precision run match fp32, or
+  only produce a similar loss?
+
+Example commands:
+
+```bash
+python run_experiment.py --model gpt10m --precision fp32 --deterministic on --device cuda
+python run_experiment.py --model gpt10m --precision tf32 --deterministic on --device cuda
+python run_experiment.py --model gpt10m --precision fp32 --deterministic off --device cuda --track-divergence
+python sweep.py --device cuda --track-divergence
+```
+
+The matrix records:
+
+- final loss
+- tensor hash
+- Merkle root
+- first divergence step
+- reproducible true/false
+- hardware and precision metadata
+
+## Artifact Integrity
+
+OpenVerifiableLLM uses:
+
+- **safetensors** for stable weight bytes.
+- **tensor SHA-256** for semantic model equality.
+- **raw artifact SHA-256** for file integrity.
+- **Merkle chunking** for scalable partial verification.
+- **Sigstore/model-transparency** for publisher identity and transparency-log
+  provenance.
+
+The Merkle manifest is computed in one read pass so file size, file hash, and
+chunk hashes describe the same artifact version.
+
+## Threat Model
+
+OpenVerifiableLLM catches:
+
+- accidental corruption
+- modified weights
+- manifest/weight mismatch
+- dataset or config drift when encoded in the manifest
+- unsigned or wrongly signed published artifacts
+- replay-window divergence when segment replay metadata is present
+
+It does **not** prove that every training step was honest. A determined publisher
+could construct a fraudulent but internally consistent checkpoint chain. This is
+a known limitation of proof-of-learning style systems. The practical goal here is
+falsifiability: make tampering and drift easy to detect, make claims reproducible,
+and expose the exact assumptions under which verification holds.
+
+## Repository Map
+
+| Path | Purpose |
+|---|---|
+| `src/ovllm.py` | Verifier/publish CLI |
+| `src/verifier.py` | Local/HF model verification checks |
+| `src/publish.py` | Publish directory, Sigstore, HF, and Ollama helpers |
+| `src/artifacts.py` | SHA-256, tensor hashing, safetensors, Merkle helpers |
+| `src/experiment.py` | Shared experiment runner |
+| `src/reproducibility.py` | Segmented replay and falsifiability scenarios |
+| `src/signing.py` | Legacy/local Ed25519 verify-before-load helper |
+| `run_experiment.py` | Run one matrix cell |
+| `sweep.py` | Run the reproducibility matrix |
+| `demo.py` | Narrative demo |
+| `tests/` | Artifact, verifier, signing, and determinism tests |
+| `RUNBOOK.md` | Demo-day commands and GPU run instructions |
+
+## Development
+
+Run the test suite:
+
+```bash
+python -m unittest discover -s tests
+```
+
+Compile-check touched modules:
+
+```bash
+python -m py_compile src/artifacts.py src/verifier.py src/publish.py src/ovllm.py
+```
+
+Check the verifier locally:
+
+```bash
+python src/ovllm.py prepare-publish --weights mid_checkpoint.safetensors --out C:\tmp\ovllm-smoke
+python src/ovllm.py verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
+```
+
+## Scope
+
+- Bit-exact reproducibility is scoped to a fixed hardware/software stack.
+- Cross-GPU reproducibility is measured, not assumed.
+- Single-GPU deterministic training is the primary supported baseline.
+- Multi-GPU determinism remains experimental.
+- Sigstore signing requires a real OIDC/auth environment for the deployed path.
 
 ## References
 
-- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021) -- [arXiv:2103.05633](https://arxiv.org/abs/2103.05633)
-- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think* (EuroS&P 2023) -- [arXiv:2208.03567](https://arxiv.org/abs/2208.03567)
-- safetensors format -- [huggingface.co/docs/safetensors](https://huggingface.co/docs/safetensors)
-- Sigstore model transparency -- [github.com/sigstore/model-transparency](https://github.com/sigstore/model-transparency)
+- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021)
+- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think*
+  (EuroS&P 2023)
+- [safetensors](https://huggingface.co/docs/safetensors)
+- [Sigstore model-transparency](https://github.com/sigstore/model-transparency)
+
+## License
+
+See [LICENSE](LICENSE).
