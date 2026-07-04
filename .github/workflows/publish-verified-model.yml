@@ -82,5 +82,4 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          huggingface-cli login --token "$HF_TOKEN"
           python src/ovllm.py publish-hf "${{ inputs.hf_repo_id }}" dist/openverifiable-smoke
