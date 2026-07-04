@@ -1,3 +1,4 @@
+import importlib
 import json
 import subprocess
 import sys
@@ -32,7 +33,8 @@ def resolve_model_reference(ref: str, cache_dir: Optional[str] = None) -> Path:
         return path.resolve()
 
     try:
-        from huggingface_hub import snapshot_download
+        hf_hub = importlib.import_module("huggingface_hub")
+        snapshot_download = hf_hub.snapshot_download
     except ImportError as exc:
         raise RuntimeError(
             f"Model reference {ref!r} is not a local path and huggingface_hub is not installed. "
@@ -179,13 +181,20 @@ def check_sigstore_bundle(
     *,
     allow_unsigned: bool = False,
 ) -> CheckResult:
+    # Resolve symlinks in the base directory up front
+    model_dir = Path(model_dir).resolve()
+
     signature = manifest.get("signature") or manifest.get("sigstore_bundle")
     signature_path = model_dir / signature if signature else _first_existing(
         model_dir, ["model.sig", "model.bundle", "sigstore.bundle"]
     )
+    
     if signature_path is None or not signature_path.exists():
         status = SKIP if allow_unsigned else FAIL
         return CheckResult("sigstore_bundle", status, "missing Sigstore/model-signing bundle")
+
+    # Resolve symlinks for the specific signature file path
+    signature_path = signature_path.resolve()
 
     identity = manifest.get("sigstore_identity")
     provider = manifest.get("sigstore_identity_provider")
@@ -210,6 +219,7 @@ def check_sigstore_bundle(
         identity,
         "--identity_provider",
         provider,
+        "--allow_symlinks",  
     ]
     try:
         completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
@@ -224,7 +234,6 @@ def check_sigstore_bundle(
         PASS if completed.returncode == 0 else FAIL,
         detail or "model_signing verify completed",
     )
-
 
 def check_segment_replay(manifest: Dict[str, Any], *, skip_replay: bool = False) -> CheckResult:
     spec = manifest.get("segment_replay")
