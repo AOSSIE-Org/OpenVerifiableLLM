@@ -100,7 +100,8 @@ def load_corpus(name):
             with zipfile.ZipFile(zpath) as zf:
                 # Validate all members to prevent path traversal attacks
                 for member in zf.namelist():
-                    if member.startswith("/") or ".." in member:
+                    target_path = (DATA_DIR / member).resolve()
+                    if not target_path.is_relative_to(DATA_DIR.resolve()):
                         raise ValueError(f"Unsafe path in archive: {member}")
                 raw = zf.read("enwik8")[:_ENWIK8_CHARS]
             local.write_bytes(raw)
@@ -190,7 +191,8 @@ class CIFARDataset:
                 with tarfile.open(tgz) as tf:
                     # Validate all members to prevent path traversal attacks
                     for member in tf.getmembers():
-                        if member.name.startswith("/") or ".." in member.name:
+                        target_path = (DATA_DIR / member.name).resolve()
+                        if not target_path.is_relative_to(DATA_DIR.resolve()):
                             raise ValueError(f"Unsafe path in archive: {member.name}")
                     tf.extractall(DATA_DIR)
             import pickle
