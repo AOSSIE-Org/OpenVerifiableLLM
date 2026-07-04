@@ -8,6 +8,7 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+.ovllm-cache/
 
 
 .vscode/
@@ -45,10 +46,3 @@ data/cifar-10-batches-py/
 
 # Local smoke tests and temp files
 openverifiable-smoke/
-C:\tmp\*
-
-# Model weights, signatures, and datasets
-*.safetensors
-*.sig
-*.pt
-*.jsonl

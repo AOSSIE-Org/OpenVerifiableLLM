@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -16,9 +17,16 @@ try:
 except ImportError:
     HAS_TORCH = False
 
-from publish import prepare_publish_dir, sign_model_dir  # noqa: E402
+from publish import build_model_card, prepare_publish_dir, publish_huggingface, sign_model_dir  # noqa: E402
 from ovllm import main as ovllm_main  # noqa: E402
-from verifier import FAIL, PASS, SKIP, check_sigstore_bundle, verify_model_reference  # noqa: E402
+from verifier import (  # noqa: E402
+    FAIL,
+    PASS,
+    SKIP,
+    check_sigstore_bundle,
+    resolve_model_reference,
+    verify_model_reference,
+)
 
 
 @unittest.skipUnless(HAS_TORCH, "torch and safetensors required")
@@ -106,6 +114,23 @@ class VerifierTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 sign_model_dir(str(model_dir), signature=str(outside), dry_run=True)
 
+    def test_local_signing_fails_without_github_actions_or_bypass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("sys.stderr") as mock_stderr:
+                    code = sign_model_dir(str(model_dir), dry_run=False)
+                    self.assertEqual(code, 1)
+
+    def test_local_signing_allows_bypass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            with patch("publish.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                with patch.dict("os.environ", {"OVLLM_ALLOW_LOCAL_SIGNING": "true"}):
+                    code = sign_model_dir(str(model_dir), dry_run=False)
+                    self.assertEqual(code, 0)
+
 
 class CliErrorHandlingTests(unittest.TestCase):
     def test_verify_missing_manifest_returns_red_without_raising(self):
@@ -113,6 +138,85 @@ class CliErrorHandlingTests(unittest.TestCase):
             with patch("builtins.print"):
                 code = ovllm_main(["verify", tmp])
         self.assertEqual(code, 1)
+
+
+class PublishTests(unittest.TestCase):
+    def test_model_card_has_hf_yaml_metadata(self):
+        card = build_model_card(
+            "smoke",
+            {
+                "weights": "model.safetensors",
+                "sha256": "abc",
+                "merkle_root": "def",
+                "chunk_size_bytes": 1024,
+                "chunk_count": 1,
+            },
+        )
+
+        self.assertTrue(card.startswith("---\n"))
+        self.assertIn("openverifiablellm", card)
+
+    def test_publish_huggingface_disables_xet_by_default(self):
+        class FakeApi:
+            def __init__(self, token=None):
+                self.token = token
+
+            def create_repo(self, **_kwargs):
+                return None
+
+            def upload_folder(self, **_kwargs):
+                return None
+
+        class FakeHub:
+            HfApi = FakeApi
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {}, clear=True):
+                with patch("importlib.import_module", return_value=FakeHub):
+                    code = publish_huggingface("Ryoari/openverifiable-smoke", tmp)
+                    self.assertEqual(code, 0)
+                    self.assertEqual(os.environ["HF_HUB_DISABLE_XET"], "1")
+
+
+class RemoteResolutionTests(unittest.TestCase):
+    def test_remote_refs_default_to_local_ovllm_cache(self):
+        class FakeHub:
+            @staticmethod
+            def snapshot_download(**kwargs):
+                self_cache = Path(kwargs["cache_dir"])
+                return str(self_cache / "snapshot")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("os.environ", {}, clear=True):
+                with patch.dict("sys.modules", {"huggingface_hub": FakeHub}):
+                    with patch("verifier.Path.cwd", return_value=Path(tmp)):
+                        resolved = resolve_model_reference("Ryoari/openverifiable-smoke")
+
+                self.assertEqual(os.environ["HF_HUB_DISABLE_XET"], "1")
+
+            self.assertEqual(
+                resolved,
+                Path(tmp) / ".ovllm-cache" / "huggingface" / "snapshot",
+            )
+
+    def test_remote_refs_honor_explicit_cache_dir(self):
+        class FakeHub:
+            @staticmethod
+            def snapshot_download(**kwargs):
+                return str(Path(kwargs["cache_dir"]) / "snapshot")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.dict("sys.modules", {"huggingface_hub": FakeHub}):
+                with patch("verifier.Path.cwd", return_value=Path(tmp)):
+                    resolved = resolve_model_reference(
+                        "Ryoari/openverifiable-smoke",
+                        cache_dir=str(Path(tmp) / "custom-cache"),
+                    )
+
+            self.assertEqual(
+                resolved,
+                Path(tmp) / "custom-cache" / "snapshot",
+            )
 
 
 if __name__ == "__main__":

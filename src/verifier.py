@@ -1,5 +1,6 @@
 import importlib
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -40,6 +41,13 @@ def resolve_model_reference(ref: str, cache_dir: Optional[str] = None) -> Path:
             f"Model reference {ref!r} is not a local path and huggingface_hub is not installed. "
             "Install it with `pip install huggingface_hub` or pass a local directory."
         ) from exc
+
+    if cache_dir is None:
+        cache_dir = os.environ.get("OVLLM_HF_CACHE_DIR") or str(
+            Path.cwd() / ".ovllm-cache" / "huggingface"
+        )
+    Path(cache_dir).mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
     return Path(
         snapshot_download(
