@@ -1,0 +1,8 @@
+name: Publish Verified Model
+on:
+  workflow_dispatch:
+jobs:
+  placeholder-job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "This is just a temporary placeholder"
