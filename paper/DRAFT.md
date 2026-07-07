@@ -223,8 +223,12 @@ it, and extending verification into bf16/fp16 flash training is open work.
 
 (1) **Small-delta/long-segment forgeries** evade replay-free detection and are
 caught only with probability k/N per audit. (2) **Pre-commitment data
-poisoning** is out of scope. (3) **DDP**: NCCL all-reduce ordering is the known
-next cliff; our probe is implemented but unmeasured (2-GPU stock). (4)
+poisoning** is out of scope. (3) **DDP**: measured positive at one topology —
+on 2× RTX 3090 with NCCL and deterministic per-rank kernels, training was
+bitwise identical run-to-run and across ranks (`proofs/ddp_2x3090/`). NCCL does
+not guarantee a fixed reduction order, so this qualifies a specific (world
+size, node, NCCL version) configuration rather than DDP in general;
+per-topology qualification is the deployment requirement. (4)
 **bf16/fp16 and FlashAttention** are outside the verified envelope. (5)
 **Reproducibility decay**: the auditor must reconstruct the pinned software
 stack years later; environment archival is part of the threat model. (6) The
