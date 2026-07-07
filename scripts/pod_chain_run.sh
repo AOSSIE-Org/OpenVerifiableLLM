@@ -19,8 +19,14 @@ log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$OUT/status.txt"; }
 
 log "SETUP starting"
 nvidia-smi >"$OUT/nvidia.txt" 2>&1
-pip install -r "$REPO/requirements.txt" >"$OUT/pip.log" 2>&1
-log "SETUP done rc=$?"
+# Ubuntu 24.04 images mark the system python externally-managed (PEP 668);
+# use a venv. requirements pins torch>=2.10 so it is (re)installed regardless.
+python3 -m venv /workspace/venv >"$OUT/pip.log" 2>&1 \
+    && . /workspace/venv/bin/activate \
+    && pip install -r "$REPO/requirements.txt" >>"$OUT/pip.log" 2>&1
+rc=$?
+log "SETUP done rc=$rc"
+if [ "$rc" -ne 0 ]; then log "FATAL setup failed"; sleep infinity; fi
 
 MODEL="${OVL_CHAIN_MODEL:-gpt120m}"
 DATASET="${OVL_CHAIN_DATASET:-enwik8}"
@@ -34,7 +40,9 @@ log "TRAIN starting: $MODEL/$DATASET ${SEGMENTS}x${SEGMENT_STEPS}"
 python chain.py train --model "$MODEL" --dataset "$DATASET" \
     --segments "$SEGMENTS" --segment-steps "$SEGMENT_STEPS" --device cuda \
     >"$OUT/train.log" 2>&1
-log "TRAIN done rc=$?"
+rc=$?
+log "TRAIN done rc=$rc"
+if [ "$rc" -ne 0 ]; then log "FATAL train failed"; sleep infinity; fi
 
 log "AUDIT starting: k=$K"
 python - "$K" >"$OUT/audit.log" 2>&1 <<'PY'
