@@ -37,12 +37,14 @@ from dataset import get_dataset
 from device import accel_rng_state, device_name, get_device, restore_accel_rng_state
 from main import set_seed
 from model import build_model, count_params
-from signing import SignatureError, sign_file, signed_torch_save, verified_torch_load
+from signing import SignatureError, sig_path_for, sign_file, signed_torch_save, verified_torch_load
 from telemetry import TelemetryLogger
 from artifacts import (
     CHECKPOINT_MERKLE_PATH,
+    CHECKPOINT_STATE_PATH,
     CHECKPOINT_WEIGHTS_PATH,
     MERKLE_CHUNK_SIZE_BYTES,
+    RUNS_DIR,
     model_parameters_sha256,
     save_model_safetensors,
     write_merkle_manifest,
@@ -61,7 +63,13 @@ CP_STEP = CFG["checkpoint_step"]
 TOT_STEP = CFG["total_steps"]
 BATCH = CFG["batch_size"]
 BLOCK = CFG["block_size"]
-CHECKPOINT_STATE_FILE = "mid_checkpoint.pt"
+# All generated outputs (checkpoint, signatures, telemetry logs) go under the
+# gitignored RUNS_DIR, regardless of the launch directory.
+CHECKPOINT_STATE_FILE = CHECKPOINT_STATE_PATH
+
+
+def _run_path(name):
+    return RUNS_DIR / name
 
 
 def hash_model(model):
@@ -84,7 +92,7 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None,
         set_seed(active_seed)
 
     dataset, model, optimizer = _build()
-    logger = TelemetryLogger(filepath=log_file)
+    logger = TelemetryLogger(filepath=_run_path(log_file))
 
     if checkpoint_path_to_load:
         # SECURITY: verify the ed25519 signature over the raw bytes BEFORE any
@@ -151,7 +159,9 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None,
                     "numpy_rng": np.random.get_state(),
                     "python_rng": random.getstate(),
                     "checkpoint_hash": current_model_hash,
-                    "safetensors_path": str(weights_path),
+                    # File NAME only: the signed checkpoint must not embed a
+                    # machine-specific absolute path.
+                    "safetensors_path": weights_path.name,
                     "safetensors_sha256": merkle_manifest["sha256"],
                     "safetensors_merkle_root": merkle_manifest["merkle_root"],
                     "merkle_chunk_size_bytes": merkle_manifest["chunk_size_bytes"],
@@ -169,7 +179,7 @@ def run_training_segment(start_step, end_step, checkpoint_path_to_load=None,
 def bad_seed_auditor(log_file="bad_seed_log.jsonl"):
     """Test 1: correct checkpoint, WRONG seed -> batches and dropout diverge."""
     dataset, model, optimizer = _build()
-    logger = TelemetryLogger(filepath=log_file)
+    logger = TelemetryLogger(filepath=_run_path(log_file))
 
     checkpoint = verified_torch_load(CHECKPOINT_STATE_FILE, map_location=DEVICE)
     model.load_state_dict(checkpoint["model"])
@@ -196,7 +206,7 @@ def secret_noise_auditor(log_file="secret_noise_log.jsonl"):
     from a clean replay is the injected noise -- isolating its effect.
     """
     dataset, model, optimizer = _build()
-    logger = TelemetryLogger(filepath=log_file)
+    logger = TelemetryLogger(filepath=_run_path(log_file))
 
     checkpoint = verified_torch_load(CHECKPOINT_STATE_FILE, map_location=DEVICE)
     model.load_state_dict(checkpoint["model"])
@@ -231,7 +241,7 @@ def sabotage_auditor(log_file="post_sabotage_log.jsonl"):
     identity; this scenario is why the hash, not the loss, is the verdict.
     """
     dataset, model, optimizer = _build()
-    logger = TelemetryLogger(filepath=log_file)
+    logger = TelemetryLogger(filepath=_run_path(log_file))
 
     checkpoint = verified_torch_load(CHECKPOINT_STATE_FILE, map_location=DEVICE)
     model.load_state_dict(checkpoint["model"])
@@ -266,9 +276,9 @@ def broken_seal_auditor(log_file="broken_seal_log.jsonl"):
     signature no longer matches the mutated bytes, so verified_torch_load raises
     and the malicious file never reaches the unpickler. Returns (model, secure).
     """
-    corrupted = "corrupted_checkpoint.pt"
+    corrupted = _run_path("corrupted_checkpoint.pt")
     shutil.copy(CHECKPOINT_STATE_FILE, corrupted)
-    shutil.copy(CHECKPOINT_STATE_FILE + ".sig", corrupted + ".sig")  # stale signature
+    shutil.copy(sig_path_for(CHECKPOINT_STATE_FILE), sig_path_for(corrupted))  # stale signature
     # Flip a run of bytes in the middle of the artifact (true file tampering).
     with open(corrupted, "r+b") as f:
         f.seek(2048)
@@ -353,9 +363,9 @@ if __name__ == "__main__":
                                          checkpoint_path_to_load=CHECKPOINT_STATE_FILE,
                                          log_file="auditor_log.jsonl")
 
-    with open("prover_log.jsonl") as f:
+    with open(_run_path("prover_log.jsonl")) as f:
         prover_logs = [json.loads(line) for line in f]
-    with open("auditor_log.jsonl") as f:
+    with open(_run_path("auditor_log.jsonl")) as f:
         auditor_logs = [json.loads(line) for line in f]
 
     clean_ok = verify(prover_logs[CP_STEP:TOT_STEP], auditor_logs,
@@ -364,7 +374,7 @@ if __name__ == "__main__":
     # Test 1: Bad seed -> must FAIL
     print("\n Scenario 2: BAD SEED")
     bad_model = bad_seed_auditor()
-    with open("bad_seed_log.jsonl") as f:
+    with open(_run_path("bad_seed_log.jsonl")) as f:
         tampered_logs = [json.loads(line) for line in f]
     bad_seed_ok = verify(prover_logs[CP_STEP:TOT_STEP], tampered_logs,
                          hash_model(prover_model), hash_model(bad_model),
@@ -373,7 +383,7 @@ if __name__ == "__main__":
     # Test 2: Gradient noise -> must FAIL
     print("\n Scenario 3: NOISE INJECTED")
     noisy_model = secret_noise_auditor()
-    with open("secret_noise_log.jsonl") as f:
+    with open(_run_path("secret_noise_log.jsonl")) as f:
         noisy_logs = [json.loads(line) for line in f]
     noise_ok = verify(prover_logs[CP_STEP:TOT_STEP], noisy_logs,
                       hash_model(prover_model), hash_model(noisy_model),
@@ -382,7 +392,7 @@ if __name__ == "__main__":
     # Test 3: Post-training sabotage -> trajectory matches, hash differs, must FAIL
     print("\n Scenario 4: POST-TRAINING WEIGHT SABOTAGE")
     sabotage_model = sabotage_auditor()
-    with open("post_sabotage_log.jsonl") as f:
+    with open(_run_path("post_sabotage_log.jsonl")) as f:
         post_sabotage_logs = [json.loads(line) for line in f]
     sabotage_ok = verify(prover_logs[CP_STEP:TOT_STEP], post_sabotage_logs,
                          hash_model(prover_model), hash_model(sabotage_model),

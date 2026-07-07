@@ -29,6 +29,7 @@ keys/*.key
 # generated experiment outputs and swept artifacts
 results/
 artifacts/
+runs/
 
 # session/context scratch — never commit
 repo_prompt.md

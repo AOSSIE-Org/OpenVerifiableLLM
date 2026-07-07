@@ -12,7 +12,9 @@ from main import set_seed
 from model import build_model
 from signing import verified_torch_load
 from artifacts import (
+    CHECKPOINT_STATE_PATH,
     CHECKPOINT_WEIGHTS_PATH,
+    RUNS_DIR,
     hash_json,
     load_model_safetensors,
     model_parameters_sha256,
@@ -41,13 +43,13 @@ if __name__ == "__main__":
     try:
         # Byte-stable safetensors is the preferred artifact (no pickle, no code-exec).
         load_model_safetensors(model, CHECKPOINT_WEIGHTS_PATH, device=DEVICE)
-        checkpoint_source = str(CHECKPOINT_WEIGHTS_PATH)
+        checkpoint_source = CHECKPOINT_WEIGHTS_PATH.name  # name only: keep manifests machine-portable
     except FileNotFoundError:
         # Fallback to the replay checkpoint -- but verify the signature BEFORE
         # deserializing (never torch.load(weights_only=False) on unverified bytes).
-        checkpoint = verified_torch_load("mid_checkpoint.pt", map_location=DEVICE)
+        checkpoint = verified_torch_load(CHECKPOINT_STATE_PATH, map_location=DEVICE)
         model.load_state_dict(checkpoint["model"])
-        checkpoint_source = "mid_checkpoint.pt"
+        checkpoint_source = CHECKPOINT_STATE_PATH.name
     model.eval()  # disable dropout for eval; results must be deterministic
 
     model_hash = hash_model(model)
@@ -76,8 +78,10 @@ if __name__ == "__main__":
     }
     manifest["eval_manifest_hash"] = hash_dict(manifest)
 
-    with open("eval_manifest.json", "w") as f:
+    eval_manifest_path = RUNS_DIR / "eval_manifest.json"
+    eval_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(eval_manifest_path, "w") as f:
         json.dump(manifest, f, indent=2)
 
-    print("\n ~> Manifest saved to eval_manifest.json")
+    print(f"\n ~> Manifest saved to {eval_manifest_path}")
     print(json.dumps(manifest, indent=2))
