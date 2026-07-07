@@ -186,6 +186,13 @@ for Adam, roughly 3× the weight size per checkpoint. Segment length is therefor
 tunable trade: shorter segments mean cheaper individual audits and finer forgery
 localization but more storage; longer segments the reverse.
 
+**Measured, not asserted** (evidence in `proofs/chain_a40/`, commands in RUNBOOK §8):
+a 116M-param model trained 20 × 500 steps on enwik8 on an A40 in strict
+deterministic fp32 produced a chain whose k=3 sampled audit replayed bit-exactly,
+at a measured cost ratio of 0.173 against the theoretical k/N = 0.15 (the gap is
+per-replay setup: checkpoint load + hashing). Chain storage measured 1.36 GB per
+boundary, matching the 3×-weights prediction for Adam.
+
 **Open question (research direction).** Whether a single forged transition — a
 jump from a genuine trajectory onto a target model — is statistically detectable
 *without* replaying it (step-norm outliers, update direction vs. plausible

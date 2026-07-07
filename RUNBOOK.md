@@ -177,6 +177,16 @@ chain storage (`du -sh runs/chain`), and `min_forgery_detection_probability`.
 a 3-step segment). The k/N economics only hold when segment compute dominates that
 overhead; the mid-scale run is what demonstrates the crossover.
 
+**Measured (2026-07-07, RunPod secure A40, torch 2.11.0+cu128 — evidence in
+`proofs/chain_a40/`):** gpt120m (116,343,808 params) on enwik8, 20 × 500 steps,
+strict deterministic fp32. All 20 segments sealed at a steady ~63.6 s; the k=3
+audit (segments 4, 10, 12, audit_seed=7) replayed **bit-exactly** — GPU bitwise
+determinism holds at 116M params through full save/restore boundaries. Auditor
+274.5 s vs prover 1589.0 s → **measured cost ratio 0.173 vs theoretical k/N =
+0.15** (replay overhead ≈ 1.44× a prover segment: checkpoint load + hash vs
+checkpoint save). Chain storage: 28.5 GB for 21 boundaries ≈ 1.36 GB/boundary
+(fp32 weights 465 MB + Adam moments 2×). Total pod cost ≈ $0.32.
+
 Tamper drill (any byte edit to a boundary file fails its segment before
 deserialization; a manifest edit fails the audit immediately):
 

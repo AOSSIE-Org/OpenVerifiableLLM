@@ -1,0 +1,23 @@
+seed set to 99 (deterministic=True)
+[chain] gpt120m (116,343,808 params) on enwik8 | 20 segments x 500 steps | cuda (NVIDIA A40)
+  segment   0 sealed | loss 2.660155 | hash e6b98473a85b | 64.43s
+  segment   1 sealed | loss 2.670326 | hash 154aad1e295f | 63.73s
+  segment   2 sealed | loss 2.690987 | hash 87d2be291347 | 63.81s
+  segment   3 sealed | loss 3.121176 | hash 6c7154d2a5b7 | 63.78s
+  segment   4 sealed | loss 2.955368 | hash 68594e6e76ee | 63.71s
+  segment   5 sealed | loss 3.169854 | hash 6e74ebe9afcb | 63.68s
+  segment   6 sealed | loss 3.044567 | hash 7c0c2c00ca19 | 63.6s
+  segment   7 sealed | loss 3.004391 | hash 918384b8a66a | 63.79s
+  segment   8 sealed | loss 3.213262 | hash 105d8e700e13 | 63.62s
+  segment   9 sealed | loss 3.092935 | hash 14989993d75a | 63.68s
+  segment  10 sealed | loss 2.988122 | hash 14a671a5d775 | 63.56s
+  segment  11 sealed | loss 2.990674 | hash b66da9ce4923 | 63.62s
+  segment  12 sealed | loss 3.106730 | hash 8101289471f2 | 63.6s
+  segment  13 sealed | loss 3.102586 | hash 9fa66e057589 | 63.57s
+  segment  14 sealed | loss 3.349689 | hash dd304649b09d | 63.63s
+  segment  15 sealed | loss 3.158023 | hash d7d377e72c85 | 63.55s
+  segment  16 sealed | loss 2.968158 | hash 16aa60b316a9 | 63.53s
+  segment  17 sealed | loss 3.029244 | hash c32dabd6e1b5 | 63.51s
+  segment  18 sealed | loss 3.015780 | hash 1bad111145f5 | 63.47s
+  segment  19 sealed | loss 3.127929 | hash 7f38320bee2b | 63.63s
+[chain] sealed 20-segment chain in 1589.0s -> /workspace/repo/runs/chain
