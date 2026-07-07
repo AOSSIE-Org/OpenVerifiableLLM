@@ -226,7 +226,7 @@ class TinyCNN(nn.Module):
 # --------------------------------------------------------------------------- #
 # Factory + helpers
 # --------------------------------------------------------------------------- #
-_GPT_ALIASES = {"gpt", "gpt10m", "gpt50m", "tinygpt"}
+_GPT_ALIASES = {"gpt", "gpt10m", "gpt50m", "gpt120m", "tinygpt"}
 
 
 def build_model(name, vocab_size, cfg):
