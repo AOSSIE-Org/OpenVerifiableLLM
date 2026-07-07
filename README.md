@@ -233,10 +233,26 @@ segments and cleanly flagged at 100 and below — shorter segments tighten the
 reachability envelope a fixed-size forgery must hide inside. Second, honest
 limits: small gaussian edits evade these detectors at scale (they are also
 near-useless to an attacker, and remain caught by sampled replay and — for the
-final model — by the manifest hash directly), and all results assume the lazy
-forger who keeps genuine optimizer moments; forging bit-consistent moments
-without running the committed training is the hard problem determinism creates,
-but it is not proven impossible. The sound guarantee remains the replay.
+final model — by the manifest hash directly). The sound guarantee remains the
+replay.
+
+**The arms race (smart forgers who forge the moments too).** Three escalations
+were tested at the same scale and segment lengths (evidence in
+`proofs/smartforger_l40s/`, zero false positives throughout): *sf-aligned* sets
+moments perfectly anti-aligned with its fake delta — it defeats a one-sided
+moment check, so the envelope is two-sided (too consistent is as damning as too
+little), and it is flagged at every segment length. *sf-calibrated* engineers
+its moment cosine into the genuine envelope and copies the genuine second
+moments — its moment forging *works* (no moment flag at S=200/100), but the
+weight-side detectors catch the splice anyway, and at S=10 the moment-continuity
+envelope flags it too. *sf-freshv* fabricates second moments from scratch and
+trips a **hard invariant**: Adam's v-update adds a non-negative term each step,
+so `v_{k+1} ≥ β₂^S·v_k` elementwise for *any* genuine trajectory (β₂ = 0.999
+keeps 82% of v across even 200 steps) — a necessary condition, not a heuristic,
+that fabricated moments must satisfy at every one of ~10⁸ coordinates. The clean
+separation: **moment forging only buys the attacker anything when the weight
+delta is also small, and small-delta forgeries at long segments are exactly the
+residual hole that sampled replay and shorter segments close.**
 
 ### Supply-chain posture
 
