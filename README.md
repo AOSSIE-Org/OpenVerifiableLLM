@@ -34,11 +34,15 @@ common reproducibility error:
   bits — or merely the same loss to a tolerance — as fp32? TF32/bf16 are perfectly
   run-to-run reproducible yet silently disagree with fp32.
 
-**The planted debate.** `verify()` accepts losses within `rel_tol=1e-6` but compares
-parameters by *exact* hash, so a run can pass the loss check and fail the bitwise
-check. Is the right verification bar bitwise identity (strong, brittle, hardware-bound)
-or numerical tolerance (portable, but admits silent precision drift)? The matrix
-supplies evidence both ways; the choice defines what "reproducible training" means.
+**The verification bar (resolved).** `verify()` compares losses within `rel_tol=1e-6`
+as a *diagnostic* (it localizes the first divergent step), but the verdict is the
+exact parameter hash: a run that matches every loss to 1e-6 and differs by one bit
+fails. Tolerance-based acceptance is precisely the loophole that broke
+proof-of-learning ([Fang et al. 2023](https://arxiv.org/abs/2208.03567)) — forged
+transitions hide inside the tolerance window, and bit-exact replay closes it. The
+cost of that choice is hardware-boundedness: tf32/bf16 runs are run-to-run
+reproducible yet bitwise disagree with fp32, so the bitwise bar is only defined
+within a pinned hardware/software stack — which is exactly what the matrix measures.
 
 **Security upgrade.** Checkpoints are now ed25519-signed and the signature is verified
 *before* deserialization (`src/signing.py`). The previous path,
@@ -141,9 +145,47 @@ A clean run must pass; every tampered run must fail.
 Stated plainly so the guarantees are not overread.
 
 - **Catches:** accidental corruption, drift, post-training weight edits, file-level tampering, configuration mismatch, and dataset substitution (the data Merkle root will not match).
-- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain that passes spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), rebutting [Jia et al. 2021](https://arxiv.org/abs/2103.05633)).
+- **Raises the cost of, but does not cryptographically prevent:** a determined forger constructing a checkpoint chain that passes spot-checks. This is a known limitation of checkpoint-replay verification (see Fang et al. 2023, ["Proof-of-Learning Is Currently More Broken Than You Think"](https://arxiv.org/abs/2208.03567), rebutting [Jia et al. 2021](https://arxiv.org/abs/2103.05633)) — but see the audit arithmetic below for what determinism changes about it.
 - **Mitigation:** publishing the ordered-dataset Merkle root and a transparency-log timestamp before training pins the inputs, so a forger cannot freely choose the data, which raises the forgery bar.
 - **Out of scope:** cryptographic proof of an honest gradient step (zkML), which can prove small-model inference but not training at meaningful scale today.
+
+### What a spot-check audit buys
+
+The soundness of segment-replay verification can be stated precisely rather than
+qualitatively. Setup: training is published as a chain of **N** segments; every
+input that determines the trajectory (ordered-dataset Merkle root, configuration,
+seed, initialization) is committed to a transparency log *before* training; replay
+is bit-exact on the pinned stack.
+
+**Why determinism changes the game.** Every attack in Fang et al. forges checkpoint
+transitions that are not real training steps but land *within the verifier's
+tolerance window*. Under bit-exact replay the window is zero: with all inputs
+committed, the entire trajectory is a deterministic function of the commitment, so
+a published model that differs from that function must contain at least one segment
+transition that does not replay — and there is no tolerance for it to hide in. A
+segment either reproduces the exact hash or it fails. The adversary's remaining
+moves are (a) choosing malicious inputs *before* commitment (data poisoning — a
+real but separate problem), and (b) hoping the forged segment is never sampled.
+
+**The sampling bound.** An auditor who replays *k* of the *N* segments, chosen
+uniformly at random, catches a chain containing *b* invalid segments with
+probability 1 − C(N−b, k) / C(N, k). For the minimal forgery (b = 1) this is
+exactly **k/N**. With *m* independent auditors each sampling *k* segments and
+publishing their results to the transparency log, detection probability is at
+least 1 − (1 − k/N)^m. Stated honestly: a single-bad-segment forgery survives one
+k-sample audit with probability 1 − k/N; confidence comes from audit *volume*,
+which is why audit results belong in a public log.
+
+**The cost model.** Auditor compute ≈ (k/N) × full training cost, plus downloading
+k + 1 boundary checkpoints. Publisher storage ≈ N × (weights + optimizer state) —
+for Adam, roughly 3× the weight size per checkpoint. Segment length is therefore a
+tunable trade: shorter segments mean cheaper individual audits and finer forgery
+localization but more storage; longer segments the reverse.
+
+**Open question (research direction).** Whether a single forged transition — a
+jump from a genuine trajectory onto a target model — is statistically detectable
+*without* replaying it (step-norm outliers, update direction vs. plausible
+gradients). A positive result would push effective soundness from k/N toward 1.
 
 ### Supply-chain posture
 

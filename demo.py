@@ -81,9 +81,9 @@ def print_verdict_table(records, cross_gpu_results=None):
 
 
 def show_debate_hook(records):
-    section("THE DEBATE HOOK  -- is the right bar bitwise identity or numerical tolerance?")
-    print("verify() accepts losses within rel_tol=1e-6 but compares parameters by EXACT hash.")
-    print("So a run can PASS the loss check yet FAIL the bitwise check:\n")
+    section("THE VERIFICATION BAR  -- bitwise identity, with loss-tolerance as diagnostic only")
+    print("verify() compares losses at rel_tol=1e-6 as a diagnostic, but the VERDICT is the")
+    print("exact parameter hash: a run can match every loss to 1e-6 and still FAIL --\n")
     hooks = [r for r in records if r["vs_fp32_bitwise"] is False and r["vs_fp32_losstol"] is True]
     diffs = [r for r in records if r["vs_fp32_bitwise"] is False]
     shown = hooks or diffs
@@ -98,8 +98,10 @@ def show_debate_hook(records):
               f"   bits vs fp32: DIFFER   hash={r['param_sha256'][:16]}")
     if hooks:
         print("\n  ^ These cells are the exhibit: the loss test says 'reproduced', the hash says 'no'.")
-    print("\n  Research framing: bitwise identity is a strong, brittle bar; loss-tolerance is a")
-    print("  weak, forgiving one. Verifiable training has to pick a bar and defend it.")
+    print("\n  Research framing: tolerance-based acceptance is the loophole that broke")
+    print("  proof-of-learning (Fang et al. 2023) -- forged steps hide inside the window.")
+    print("  This project's bar is bitwise identity; the cost is hardware-boundedness,")
+    print("  and these cells measure exactly where that boundary sits.")
 
 
 def show_security():
