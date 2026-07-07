@@ -1,0 +1,123 @@
+{
+  "model": "gpt10m",
+  "dataset": "shakespeare",
+  "steps": 300,
+  "device": "NVIDIA L40S",
+  "torch": "2.11.0+cu128",
+  "cells": [
+    {
+      "variant": "eager_manual",
+      "deterministic": true,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "7639c4adba3db8b2deb9741ff07c85b83efd58667e7fb4acb77b6dbdeb4ad6b7",
+      "final_loss": 2.002201557159424,
+      "vs_eager_manual_bitwise": true,
+      "wall_time_s": 30.45
+    },
+    {
+      "variant": "eager_manual",
+      "deterministic": false,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "7639c4adba3db8b2deb9741ff07c85b83efd58667e7fb4acb77b6dbdeb4ad6b7",
+      "final_loss": 2.002201557159424,
+      "vs_eager_manual_bitwise": true,
+      "wall_time_s": 25.2
+    },
+    {
+      "variant": "eager_sdpa_math",
+      "deterministic": true,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "27fbb4d1e9a9ed54b4a7cea67d6add4e5510c0d78cfa43387cfd8de180f55b01",
+      "final_loss": 2.001838207244873,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 28.9
+    },
+    {
+      "variant": "eager_sdpa_math",
+      "deterministic": false,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "27fbb4d1e9a9ed54b4a7cea67d6add4e5510c0d78cfa43387cfd8de180f55b01",
+      "final_loss": 2.001838207244873,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 27.42
+    },
+    {
+      "variant": "eager_sdpa_flash",
+      "deterministic": true,
+      "ok": false,
+      "error": "RuntimeError: No available kernel. Aborting execution.",
+      "wall_time_s": 0.5
+    },
+    {
+      "variant": "eager_sdpa_flash",
+      "deterministic": false,
+      "ok": false,
+      "error": "RuntimeError: No available kernel. Aborting execution.",
+      "wall_time_s": 0.32
+    },
+    {
+      "variant": "eager_sdpa_efficient",
+      "deterministic": true,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "bea8263ee9252b6bbb73342cdd001c7de3f494821768768b5d5d7f636cc435b3",
+      "final_loss": 2.0080089569091797,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 21.36
+    },
+    {
+      "variant": "eager_sdpa_efficient",
+      "deterministic": false,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "d4e23316dcfe77bf05d48ecccb30850e19a4d36abe23459366e3d7eaf0a01b74",
+      "final_loss": 2.0079143047332764,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 20.67
+    },
+    {
+      "variant": "compiled_manual",
+      "deterministic": true,
+      "ok": true,
+      "reproducible": true,
+      "param_sha256": "d11499411205f1ed09699828b0584c0b2821ab2342d9cdf56b9ba544ce65ed72",
+      "final_loss": 2.001983404159546,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 33.63
+    },
+    {
+      "variant": "compiled_manual",
+      "deterministic": false,
+      "ok": true,
+      "reproducible": false,
+      "param_sha256": "ec59cd2addfd49a20743fc5ed7a410d7d21f804c6ddce69bc2d3ebacb0909091",
+      "final_loss": 2.0020508766174316,
+      "vs_eager_manual_bitwise": false,
+      "wall_time_s": 29.1
+    },
+    {
+      "variant": "compiled_sdpa_flash",
+      "deterministic": true,
+      "ok": false,
+      "error": "TorchRuntimeError: RuntimeError when making fake tensor call\n  Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function scaled_dot_product_attention>(*(FakeTensor(..., device='cuda:0', size=(16, 6, 128, 64),\n               grad_fn=<TransposeBackward0>), FakeTenso",
+      "wall_time_s": 0.57
+    },
+    {
+      "variant": "compiled_sdpa_flash",
+      "deterministic": false,
+      "ok": false,
+      "error": "TorchRuntimeError: RuntimeError when making fake tensor call\n  Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function scaled_dot_product_attention>(*(FakeTensor(..., device='cuda:0', size=(16, 6, 128, 64),\n               grad_fn=<TransposeBackward0>), FakeTenso",
+      "wall_time_s": 0.48
+    }
+  ],
+  "compiled_chain_audit": {
+    "name": "compiled_flash_chain_audit",
+    "ok": false,
+    "error": "TorchRuntimeError: RuntimeError when making fake tensor call\n  Explanation: Dynamo failed to run FX node with fake tensors: call_function <built-in function scaled_dot_product_attention>(*(FakeTensor(..., device='cuda:0', size=(16, 6, 128, 64),\n               grad_fn=<TransposeBackward0>), FakeTenso"
+  },
+  "timestamp": "2026-07-07T09:03:58"
+}

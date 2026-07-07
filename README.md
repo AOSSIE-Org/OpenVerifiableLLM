@@ -262,7 +262,39 @@ Verification secures the model artifact, but the verifier and training code are 
 
 - **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest. Measured at 116M params: the equivalence class is the *GPU model plus software stack*, not the physical machine — a chain trained on one RTX A4000 verified bit-exactly on a different RTX A4000 in a different pod (`proofs/chain_cross/`).
 - **Cross-hardware** reproducibility (different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; measured at 116M params (Ampere-trained chain audited on Ada: every replayed segment fails on the closing hash). This is the use case for the verifier's tolerant mode.
-- **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption. Tensor and pipeline parallelism are out of scope.
+- **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption (`src/ddp_repro.py` is the ready-to-run probe). Tensor and pipeline parallelism are out of scope.
+
+### The execution-variant envelope (measured)
+
+Real training uses fused attention and compilation. Measured on an L40S
+(gpt10m, 300 steps, dropout 0, twin runs per cell; evidence in
+`proofs/envelope_l40s/`):
+
+| Variant | Run-to-run (det on) | Run-to-run (det off) | Bits vs eager/manual |
+|---|---|---|---|
+| eager manual attention | reproducible | reproducible | reference |
+| SDPA math backend | reproducible | reproducible | **differ** |
+| SDPA efficient backend | reproducible | reproducible | **differ** |
+| SDPA flash backend | *no fp32 kernel* | *no fp32 kernel* | n/a |
+| torch.compile (manual) | reproducible | **NOT reproducible** | **differ** |
+
+Four consequences. (1) **Every execution variant is its own bit-universe**: even
+the SDPA *math* backend, nominally the same arithmetic, produces different bits
+than manual attention — so the execution variant (`attn_impl`, `sdpa_backend`,
+`compile`) is part of the committed config, and the auditor must replay with the
+producer's exact variant (the chain format already enforces this: the variant
+rides in the signed manifest). (2) **torch.compile is compatible with
+verification**: compiled training is bit-exact run-to-run under strict
+determinism, and a checkpoint chain trained with `compile: true` in its
+commitment **passes the full segment audit bit-exactly**
+(`proofs/envelope_l40s/compiled_chain_audit.json`). Compile without determinism
+flags breaks run-to-run reproducibility — the flags are load-bearing, not
+ceremonial. (3) **FlashAttention is outside the fp32 envelope entirely** (no
+fp32 kernel exists); flash-based training lives in bf16/fp16, where bitwise
+agreement with an fp32 reference is already off the table — extending the
+verified envelope there is open work. (4) Deterministic-mode kernel *refusals*
+are themselves audit-relevant data: a variant that strict mode rejects cannot
+promise a replayable trajectory.
 
 ## Repository structure
 
