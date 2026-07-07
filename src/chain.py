@@ -66,18 +66,29 @@ def _resolve_device(device):
     return get_device() if device in (None, "auto") else torch.device(device)
 
 
-def _train_steps(model, optimizer, dataset, steps, batch_size, block_size, dev):
-    for _ in range(steps):
-        # FIRST statement in the loop: the batch draw consumes the global torch
-        # RNG, which the boundary checkpoint saves/restores -- this is what keeps
-        # segment replay bitwise-exact.
-        x, y = dataset.get_batch(batch_size, block_size, device=dev)
-        logits = model(x)
-        loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+def _train_steps(model, optimizer, dataset, steps, batch_size, block_size, dev,
+                 sdpa_backend=None):
+    from device import sdpa_context
+    with sdpa_context(sdpa_backend):
+        for _ in range(steps):
+            # FIRST statement in the loop: the batch draw consumes the global
+            # torch RNG, which the boundary checkpoint saves/restores -- this is
+            # what keeps segment replay bitwise-exact.
+            x, y = dataset.get_batch(batch_size, block_size, device=dev)
+            logits = model(x)
+            loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
     return loss.item()
+
+
+def _forward_module(model, cfg):
+    """The callable used for training steps: torch.compile'd when the COMMITTED
+    config says so (execution variant is part of the commitment; the auditor
+    must replay with the same one). State/hashes always come from the raw
+    module, which shares parameters with the compiled wrapper."""
+    return torch.compile(model) if cfg.get("compile") else model
 
 
 def _save_boundary(chain_dir, index, step, model, optimizer, wall_time_s):
@@ -131,10 +142,12 @@ def train_chain(model_name="gpt10m", dataset_name="shakespeare",
     boundaries = [_save_boundary(chain_dir, 0, 0, model, optimizer, 0.0)]
 
     bs, blk = cfg["batch_size"], cfg["block_size"]
+    fwd = _forward_module(model, cfg)
     t_start = time.time()
     for seg in range(num_segments):
         t0 = time.time()
-        loss = _train_steps(model, optimizer, dataset, segment_steps, bs, blk, dev)
+        loss = _train_steps(fwd, optimizer, dataset, segment_steps, bs, blk, dev,
+                            sdpa_backend=cfg.get("sdpa_backend"))
         boundaries.append(
             _save_boundary(chain_dir, seg + 1, (seg + 1) * segment_steps,
                            model, optimizer, time.time() - t0))
@@ -202,8 +215,9 @@ def _replay_segment(chain_dir, manifest, seg_index, dev):
             result.update(ok=False, reason="opening boundary hash mismatch")
             return result
 
-        _train_steps(model, optimizer, dataset, c["segment_steps"],
-                     cfg["batch_size"], cfg["block_size"], dev)
+        _train_steps(_forward_module(model, cfg), optimizer, dataset,
+                     c["segment_steps"], cfg["batch_size"], cfg["block_size"], dev,
+                     sdpa_backend=cfg.get("sdpa_backend"))
         got = model_parameters_sha256(model)
         result.update(got=got, ok=(got == closing["param_sha256"]),
                       reason=None if got == closing["param_sha256"] else "closing hash mismatch")

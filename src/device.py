@@ -217,3 +217,16 @@ def precision_flags():
 
 # precision/determinism knobs consumed by experiment.prepare_run and main.set_seed
 
+
+
+def sdpa_context(backend=None):
+    """Context selecting the scaled-dot-product-attention backend by name
+    ("math" / "flash" / "efficient"); no-op when backend is falsy."""
+    if not backend:
+        from contextlib import nullcontext
+        return nullcontext()
+    from torch.nn.attention import SDPBackend, sdpa_kernel
+    mapping = {"math": SDPBackend.MATH,
+               "flash": SDPBackend.FLASH_ATTENTION,
+               "efficient": SDPBackend.EFFICIENT_ATTENTION}
+    return sdpa_kernel([mapping[backend]])
