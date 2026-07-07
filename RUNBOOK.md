@@ -235,6 +235,17 @@ scale (caught only by sampled replay / the final-model hash). Genuine
 moment-cosine range rises from [0.013, 0.050] at S=200 to [0.052, 0.128] at S=10,
 confirming the correlation-decay mechanism.
 
+**Smart-forger escalation (same day, second L40S sweep, evidence in
+`proofs/smartforger_l40s/`):** all three moment-forging attackers detected AND
+localized at every segment length, zero false positives. sf-aligned (cos=1
+moments) caught by the two-sided moment envelope everywhere; sf-calibrated
+(moments engineered into the genuine envelope, genuine v copied) evades the
+moment checks at S=200/100 but is caught by weight-side reach/norm — and at S=10
+the moment envelope flags it as well; sf-freshv (fabricated v) trips the
+elementwise hard invariant v_{k+1} >= beta2^S * v_k at every S. Net: moment
+forging pays only when the weight delta is also small; that small-delta/long-S
+hole is what shorter segments and sampled replay close.
+
 ---
 
 ## Troubleshooting
