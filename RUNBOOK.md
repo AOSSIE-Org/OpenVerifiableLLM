@@ -187,6 +187,18 @@ determinism holds at 116M params through full save/restore boundaries. Auditor
 checkpoint save). Chain storage: 28.5 GB for 21 boundaries ≈ 1.36 GB/boundary
 (fp32 weights 465 MB + Adam moments 2×). Total pod cost ≈ $0.32.
 
+**Cross-hardware controls (2026-07-07, evidence in `proofs/chain_cross/`):** the
+same gpt120m chain (5 × 200 steps, enwik8, trained on a secure RTX A4000) was
+audited with identical sampled segments (1 and 2, audit_seed=7) from three
+positions: the training pod itself (**PASS**, ratio 0.460), a second RTX A4000
+pod on a different physical GPU (**PASS**, bit-exact, ratio 0.461), and an L4 pod
+in a different datacenter (**FAIL**, closing hash mismatch on both segments;
+opening hashes matched, so the divergence is replay arithmetic, not transfer
+corruption). Auditors pulled the 7.5 GB chain over plain HTTP; ed25519 signatures
+established integrity. Conclusion: the verification equivalence class is (GPU
+model, software stack) — an auditor needs the same GPU model, not the same
+machine. Three-pod total cost ≈ $0.20.
+
 Tamper drill (any byte edit to a boundary file fails its segment before
 deserialization; a manifest edit fails the audit immediately):
 

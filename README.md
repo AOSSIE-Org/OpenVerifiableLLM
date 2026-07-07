@@ -193,6 +193,24 @@ at a measured cost ratio of 0.173 against the theoretical k/N = 0.15 (the gap is
 per-replay setup: checkpoint load + hashing). Chain storage measured 1.36 GB per
 boundary, matching the 3×-weights prediction for Adam.
 
+**The hardware equivalence class, measured** (evidence in `proofs/chain_cross/`):
+the same 116M-param chain (trained on an RTX A4000) was audited from three
+positions with the identical sampled segments —
+
+| Auditor | Relation to prover | Verdict |
+|---|---|---|
+| same pod | same physical GPU | **PASS** (bit-exact) |
+| second RTX A4000 pod | same GPU model, different physical GPU | **PASS** (bit-exact) |
+| L4 pod, different datacenter | different architecture (Ampere → Ada) | **FAIL** (closing hash mismatch, both segments) |
+
+Two load-bearing details: verification is portable across *instances* of the same
+GPU model — an auditor needs the prover's GPU model and software stack, not the
+prover's machine — and in the cross-architecture failure the *opening* boundary
+hashes matched while the *closing* hashes diverged, isolating the divergence to
+replay arithmetic rather than transfer corruption. The auditors fetched the chain
+over plain untrusted HTTP; the ed25519 signatures over the manifest and every
+boundary are what established integrity.
+
 **Open question (research direction).** Whether a single forged transition — a
 jump from a genuine trajectory onto a target model — is statistically detectable
 *without* replaying it (step-norm outliers, update direction vs. plausible
@@ -204,8 +222,8 @@ Verification secures the model artifact, but the verifier and training code are 
 
 ## Scope and boundaries
 
-- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest.
-- **Cross-hardware** reproducibility (e.g. different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; this is measured and documented, and is the use case for the verifier's tolerant mode.
+- **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest. Measured at 116M params: the equivalence class is the *GPU model plus software stack*, not the physical machine — a chain trained on one RTX A4000 verified bit-exactly on a different RTX A4000 in a different pod (`proofs/chain_cross/`).
+- **Cross-hardware** reproducibility (different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; measured at 116M params (Ampere-trained chain audited on Ada: every replayed segment fails on the closing hash). This is the use case for the verifier's tolerant mode.
 - **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption. Tensor and pipeline parallelism are out of scope.
 
 ## Repository structure
