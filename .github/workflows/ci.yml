@@ -36,3 +36,11 @@ jobs:
           OVL_BATCH_SIZE: "4"
           OVL_BLOCK_SIZE: "64"
         run: python reproducibility.py
+
+      # k-of-N chain audit smoke: train a signed 4-segment chain, sample 2
+      # segments, replay bit-exactly. Exits nonzero on any failed segment.
+      - name: Chain audit smoke (k-of-N)
+        working-directory: src
+        run: |
+          python chain.py train --model mlp --segments 4 --segment-steps 3 --batch-size 4 --block-size 48
+          python chain.py audit --k 2 --audit-seed 7

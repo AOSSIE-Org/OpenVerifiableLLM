@@ -30,6 +30,7 @@ MODEL_PRESETS = {
     "mlp":    {"embed_dim": 384, "hidden_dim": 1024, "num_layers": 2},  # control: no cross-token mixing
     "gpt10m": {"embed_dim": 384, "num_heads": 6,  "num_layers": 6},     # attention + embedding atomics (~11M)
     "gpt50m": {"embed_dim": 768, "num_heads": 12, "num_layers": 8},     # scale axis (~57M)
+    "gpt120m": {"embed_dim": 896, "num_heads": 14, "num_layers": 12},   # mid-scale chain-audit run (~116M)
     "lstm":   {"embed_dim": 384, "hidden_dim": 512, "num_layers": 2},   # cuDNN recurrent caveats
     "cnn":    {"channels": 64, "num_classes": 10},                      # cuDNN conv nondeterminism
 }

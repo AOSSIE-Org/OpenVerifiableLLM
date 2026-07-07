@@ -143,6 +143,50 @@ on stage. Keep `results/results.jsonl` from a good run as a static backup for th
 
 ---
 
+## 8. The k-of-N chain audit (mid-scale evidence run)
+
+The mechanism behind the README's "What a spot-check audit buys": a prover seals a
+signed full-state boundary checkpoint every S steps; an auditor samples k of the N
+segments, replays each bit-exactly, and the report measures the realized audit-cost
+ratio instead of asserting it.
+
+CPU smoke (~a minute, proves the plumbing):
+
+```bash
+cd src
+python chain.py train --model mlp --segments 4 --segment-steps 3 --batch-size 4 --block-size 48
+python chain.py audit --k 2 --audit-seed 7          # exit 0 iff every sampled segment verifies
+cd ..
+```
+
+Pod scale — the run the write-up hangs on (gpt120m ≈ 116M params, enwik8):
+
+```bash
+cd src
+python chain.py train --model gpt120m --dataset enwik8 --segments 20 --segment-steps 500 --device cuda
+python chain.py audit --k 3 --audit-seed 7 --device cuda
+cd ..
+```
+
+Numbers to record from the audit report: `cost_ratio` (auditor wall time / prover
+wall time — should approach k/N as segment compute grows), per-segment wall times,
+chain storage (`du -sh runs/chain`), and `min_forgery_detection_probability`.
+
+**Known caveat (measured, not hidden):** at smoke scale the cost ratio EXCEEDS k/N
+(fixed per-segment overhead — model build, dataset load, checkpoint I/O — dominates
+a 3-step segment). The k/N economics only hold when segment compute dominates that
+overhead; the mid-scale run is what demonstrates the crossover.
+
+Tamper drill (any byte edit to a boundary file fails its segment before
+deserialization; a manifest edit fails the audit immediately):
+
+```bash
+printf '\xff' | dd of=runs/chain/boundary_0001.pt bs=1 seek=1024 conv=notrunc
+python src/chain.py audit --segments 1   # -> FAIL (signature), exit 1
+```
+
+---
+
 ## Troubleshooting
 
 - **"deterministic algorithm not available"** on an exotic op: the sweep already runs

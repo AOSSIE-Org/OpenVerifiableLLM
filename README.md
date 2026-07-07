@@ -57,6 +57,10 @@ pip install -r requirements.txt
 python demo.py                 # full arc on CPU (smoke config); --full on a GPU pod
 python sweep.py --quick        # the matrix, tiny CPU preset
 cd src && python reproducibility.py   # segmented-replay audit (CLEAN AUDIT PASS + scenarios)
+
+# k-of-N chain audit: train a signed N-segment chain, then spot-check it
+cd src && python chain.py train --model mlp --segments 4 --segment-steps 3 \
+    --batch-size 4 --block-size 48 && python chain.py audit --k 2
 ```
 
 See **RUNBOOK.md** for the exact pod commands that populate the GPU-only cells.

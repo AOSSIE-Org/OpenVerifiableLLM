@@ -17,6 +17,7 @@ while the determinism tests self-skip when torch / a CUDA GPU is absent:
     * T9 DDP all-reduce ordering (needs >=2 GPUs)
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -130,6 +131,72 @@ class VerifyVerdictTests(unittest.TestCase):
         from reproducibility import verify
         logs = self._logs()
         self.assertFalse(verify(logs, logs[:-1], "hash-a", "hash-a", label="truncated"))
+
+
+# --------------------------------------------------------------------------- #
+# k-of-N chain audit (torch; CPU is fine)
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required")
+class ChainAuditTests(unittest.TestCase):
+    """Train a tiny signed chain once, then audit it clean and tampered."""
+
+    CHAIN_OVERRIDES = dict(batch_size=4, block_size=48)
+
+    @classmethod
+    def setUpClass(cls):
+        from chain import train_chain
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.chain_dir = Path(cls.tmp.name) / "chain"
+        cls.manifest = train_chain("mlp", "shakespeare", out_dir=cls.chain_dir,
+                                   num_segments=3, segment_steps=2, device="cpu",
+                                   overrides=cls.CHAIN_OVERRIDES)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_clean_chain_full_audit_passes(self):
+        from chain import audit_chain
+        report = audit_chain(self.chain_dir, k=3, device="cpu")
+        self.assertTrue(report["ok"])
+        self.assertTrue(report["dataset_ok"])
+        self.assertEqual(report["min_forgery_detection_probability"], 1.0)
+
+    def test_sampled_audit_reports_kn_detection(self):
+        from chain import audit_chain
+        report = audit_chain(self.chain_dir, k=1, audit_seed=7, device="cpu")
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["k"], 1)
+        self.assertAlmostEqual(report["min_forgery_detection_probability"], 1 / 3, places=4)
+
+    def test_tampered_boundary_fails_audit(self):
+        from chain import audit_chain
+        # Attacker edits a boundary checkpoint on disk; the stale ed25519
+        # signature must fail the segment BEFORE deserialization.
+        target = self.chain_dir / self.manifest["boundaries"][1]["file"]
+        original = target.read_bytes()
+        try:
+            with open(target, "r+b") as f:
+                f.seek(1024)
+                f.write(b"\xff" * 16)
+            report = audit_chain(self.chain_dir, device="cpu", segments=[1])
+            self.assertFalse(report["ok"])
+            self.assertIn("signature", report["results"][0]["reason"])
+        finally:
+            target.write_bytes(original)
+
+    def test_tampered_manifest_is_rejected(self):
+        from chain import audit_chain
+        manifest_path = self.chain_dir / "chain_manifest.json"
+        original = manifest_path.read_bytes()
+        try:
+            forged = json.loads(original)
+            forged["boundaries"][-1]["param_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(forged, indent=2), encoding="utf-8")
+            with self.assertRaises(signing.SignatureError):
+                audit_chain(self.chain_dir, k=1, device="cpu")
+        finally:
+            manifest_path.write_bytes(original)
 
 
 # --------------------------------------------------------------------------- #
