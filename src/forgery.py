@@ -69,8 +69,13 @@ DEFAULT_OUT = RUNS_DIR / "forgery_report.json"
 # --------------------------------------------------------------------------- #
 # Chain loading: pair each parameter with its Adam exp_avg, flattened
 # --------------------------------------------------------------------------- #
+ADAM_BETA1 = 0.9    # torch.optim.Adam defaults; chain.py constructs Adam with them
+ADAM_BETA2 = 0.999
+
+
 def _flat_states(chain_dir, manifest):
-    """Return per-boundary (weights, exp_avg) flat vectors, parameter-aligned.
+    """Return per-boundary (weights, exp_avg, exp_avg_sq) flat vectors,
+    parameter-aligned.
 
     Optimizer state indices follow model.parameters() order (Adam was built
     from it), so the pairing is reconstructed by building the model from the
@@ -89,9 +94,12 @@ def _flat_states(chain_dir, manifest):
         if state:  # boundary 0 has no moments yet
             m = torch.cat([state[i]["exp_avg"].reshape(-1).float()
                            for i in range(len(param_names))])
+            v = torch.cat([state[i]["exp_avg_sq"].reshape(-1).float()
+                           for i in range(len(param_names))])
         else:
             m = torch.zeros_like(w)
-        boundaries.append({"w": w, "m": m})
+            v = torch.zeros_like(w)
+        boundaries.append({"w": w, "m": m, "v": v})
     return boundaries
 
 
@@ -100,15 +108,29 @@ def _flat_states(chain_dir, manifest):
 # --------------------------------------------------------------------------- #
 def segment_scores(states, segment_steps, lr):
     """Per-segment replay-free statistics for a chain of flat states."""
+    decay2 = ADAM_BETA2 ** segment_steps
     scores = []
     for k in range(len(states) - 1):
         dw = states[k + 1]["w"] - states[k]["w"]
         m = states[k + 1]["m"]
+        # Hard invariant, not a heuristic: Adam's v-update adds a non-negative
+        # term each step, so v_{k+1} >= beta2^S * v_k ELEMENTWISE for any
+        # genuine trajectory. The (1 - 1e-4) slack absorbs S float32 roundings.
+        v_prev, v_next = states[k]["v"], states[k + 1]["v"]
+        v_viol = (v_next < decay2 * v_prev * (1 - 1e-4)).float().mean().item()
+        # Moment autocorrelation: m_{k+1} carries beta1^S * m_k, so consecutive
+        # moments correlate at short segments; undefined out of boundary 0.
+        if states[k]["m"].abs().sum() > 0:
+            m_autocorr = F.cosine_similarity(states[k]["m"], m, dim=0).item()
+        else:
+            m_autocorr = None
         scores.append({
             "segment": k,
             "reach": (dw.abs().max() / (segment_steps * lr)).item(),
             "norm": dw.norm().item(),
             "moment_cos": F.cosine_similarity(dw, -m, dim=0).item(),
+            "v_continuity_viol": v_viol,
+            "m_autocorr": m_autocorr,
         })
     # Robust profile: median/MAD, not mean/std -- a single spliced transition
     # inflates the plain std enough to partially mask its own z-score.
@@ -122,29 +144,50 @@ def segment_scores(states, segment_steps, lr):
 
 
 def flag_segments(scores, thresholds):
-    """Zero-false-positive flags: score beyond the genuine chain's envelope."""
+    """Flags: hard-invariant violations, plus scores beyond the genuine
+    chain's (two-sided) envelope. Two-sided matters: a smart forger who sets
+    moments PERFECTLY anti-aligned with the fake delta produces a moment_cos
+    far ABOVE the genuine range -- too consistent is as damning as too little."""
     flags = []
     for s in scores:
         reasons = []
+        if s["v_continuity_viol"] > 1e-6:
+            reasons.append("v-invariant")
         if s["reach"] > thresholds["reach_max"]:
             reasons.append("reach")
         if abs(s["norm_z"]) > thresholds["norm_z_max"]:
             reasons.append("norm")
-        if s["moment_cos"] < thresholds["moment_cos_min"]:
+        if not (thresholds["moment_cos_lo"] <= s["moment_cos"]
+                <= thresholds["moment_cos_hi"]):
             reasons.append("moment")
+        if s["m_autocorr"] is not None and thresholds["m_autocorr_lo"] is not None:
+            if not (thresholds["m_autocorr_lo"] <= s["m_autocorr"]
+                    <= thresholds["m_autocorr_hi"]):
+                reasons.append("m-continuity")
         if reasons:
             flags.append({"segment": s["segment"], "reasons": reasons})
     return flags
 
 
+def _band(values, widen_frac=0.5, widen_abs=0.02):
+    lo, hi = min(values), max(values)
+    pad = max((hi - lo) * widen_frac, widen_abs)
+    return lo - pad, hi + pad
+
+
 def genuine_thresholds(scores, margin=1.25):
     """Detection envelope from the genuine chain, widened by a safety margin
     so a genuine chain never self-flags (zero false positives by construction)."""
+    cos_lo, cos_hi = _band([s["moment_cos"] for s in scores])
+    autos = [s["m_autocorr"] for s in scores if s["m_autocorr"] is not None]
+    auto_lo, auto_hi = _band(autos) if autos else (None, None)
     return {
         "reach_max": max(s["reach"] for s in scores) * margin,
         "norm_z_max": max(abs(s["norm_z"]) for s in scores) * margin,
-        "moment_cos_min": min(s["moment_cos"] for s in scores)
-        - (1 - min(s["moment_cos"] for s in scores)) * (margin - 1),
+        "moment_cos_lo": cos_lo,
+        "moment_cos_hi": cos_hi,
+        "m_autocorr_lo": auto_lo,
+        "m_autocorr_hi": auto_hi,
     }
 
 
@@ -152,9 +195,11 @@ def genuine_thresholds(scores, margin=1.25):
 # Forgery constructors (operate on flat states; lazy forger keeps moments)
 # --------------------------------------------------------------------------- #
 def forge_splice(states, donor_states, k):
-    """Boundary k+1 replaced by the alt-seed twin's boundary k+1."""
+    """Boundary k+1 replaced by the alt-seed twin's boundary k+1 (lazy: keeps
+    the genuine moments)."""
     forged = [dict(s) for s in states]
-    forged[k + 1] = {"w": donor_states[k + 1]["w"], "m": states[k + 1]["m"]}
+    forged[k + 1] = {"w": donor_states[k + 1]["w"],
+                     "m": states[k + 1]["m"], "v": states[k + 1]["v"]}
     return forged
 
 
@@ -162,7 +207,8 @@ def forge_interp(states, target_w, alpha):
     """Every boundary (except the committed init) moved alpha toward target."""
     forged = [dict(states[0])]
     for s in states[1:]:
-        forged.append({"w": (1 - alpha) * s["w"] + alpha * target_w, "m": s["m"]})
+        forged.append({"w": (1 - alpha) * s["w"] + alpha * target_w,
+                       "m": s["m"], "v": s["v"]})
     return forged
 
 
@@ -172,7 +218,52 @@ def forge_edit(states, k, sigma_rel, seed=0):
     g = torch.Generator().manual_seed(seed)
     w = states[k + 1]["w"]
     noise = torch.randn(w.shape, generator=g) * (w.std() * sigma_rel)
-    forged[k + 1] = {"w": w + noise, "m": states[k + 1]["m"]}
+    forged[k + 1] = {"w": w + noise, "m": states[k + 1]["m"], "v": states[k + 1]["v"]}
+    return forged
+
+
+# --------------------------------------------------------------------------- #
+# Smart forgers: know the detectors, forge the moments too
+# --------------------------------------------------------------------------- #
+def forge_smart_aligned(states, donor_states, k):
+    """Splice whose moments are set PERFECTLY anti-aligned with the fake delta
+    (cos(dW, -m) = 1), norm-matched to the genuine moments. Defeats a one-sided
+    moment check; a two-sided envelope flags it as too consistent."""
+    forged = [dict(s) for s in states]
+    w_new = donor_states[k + 1]["w"]
+    dw = w_new - states[k]["w"]
+    m_new = -dw / dw.norm() * states[k + 1]["m"].norm()
+    forged[k + 1] = {"w": w_new, "m": m_new, "v": states[k + 1]["v"]}
+    return forged
+
+
+def forge_smart_calibrated(states, donor_states, k, target_cos, seed=3):
+    """Splice whose moments are engineered to land moment_cos INSIDE the
+    genuine envelope (component along -dW plus calibrated orthogonal noise,
+    norm-matched), with the genuine v copied so the v-invariant holds. The
+    strongest lazy-adjacent forger against these detectors."""
+    forged = [dict(s) for s in states]
+    w_new = donor_states[k + 1]["w"]
+    dw = w_new - states[k]["w"]
+    dwh = dw / dw.norm()
+    g = torch.Generator().manual_seed(seed)
+    r = torch.randn(dw.shape, generator=g)
+    r = r - (r @ dwh) * dwh
+    rh = r / r.norm()
+    m_hat = target_cos * (-dwh) + (1 - target_cos ** 2) ** 0.5 * rh
+    forged[k + 1] = {"w": w_new, "m": m_hat * states[k + 1]["m"].norm(),
+                     "v": states[k + 1]["v"]}
+    return forged
+
+
+def forge_fresh_moments(states, donor_states, k, target_cos, seed=4):
+    """Calibrated splice that also fabricates v from scratch (plausible scale,
+    no history). Must violate the elementwise v-continuity invariant
+    v_{k+1} >= beta2^S * v_k somewhere -- the hard check exists for this forger."""
+    forged = forge_smart_calibrated(states, donor_states, k, target_cos, seed=seed)
+    g = torch.Generator().manual_seed(seed + 1)
+    v_gen = states[k + 1]["v"]
+    forged[k + 1]["v"] = torch.rand(v_gen.shape, generator=g) * v_gen.mean() * 2
     return forged
 
 
@@ -211,12 +302,19 @@ def run_experiment(model_name="mlp", dataset_name="shakespeare", num_segments=4,
 
     mid = num_segments // 2
     target_w = donor[-1]["w"]
+    # The calibrated smart forger aims moment_cos at the genuine median.
+    med_cos = sorted(s["moment_cos"] for s in genuine_scores)[len(genuine_scores) // 2]
     forgeries = {
         f"splice@{mid}": (forge_splice(states, donor, mid), [mid, mid + 1]),
         "interp@0.10": (forge_interp(states, target_w, 0.10), None),
         "interp@0.03": (forge_interp(states, target_w, 0.03), None),
         f"edit@{mid}_sigma1e-2": (forge_edit(states, mid, 1e-2), [mid, mid + 1]),
         f"edit@{mid}_sigma1e-4": (forge_edit(states, mid, 1e-4), [mid, mid + 1]),
+        f"sf-aligned@{mid}": (forge_smart_aligned(states, donor, mid), [mid, mid + 1]),
+        f"sf-calibrated@{mid}": (
+            forge_smart_calibrated(states, donor, mid, med_cos), [mid, mid + 1]),
+        f"sf-freshv@{mid}": (
+            forge_fresh_moments(states, donor, mid, med_cos), [mid, mid + 1]),
     }
     # A splice/edit at boundary k+1 corrupts BOTH adjacent transitions (into and
     # out of the forged boundary); either flag counts as detection + localization.
