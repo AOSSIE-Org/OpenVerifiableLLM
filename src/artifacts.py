@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
@@ -8,9 +9,16 @@ if TYPE_CHECKING:
 
 MERKLE_CHUNK_SIZE_BYTES = 1024 * 1024
 
-CHECKPOINT_STATE_PATH = "mid_checkpoint.pt"
-CHECKPOINT_WEIGHTS_PATH = "mid_checkpoint.safetensors"
-CHECKPOINT_MERKLE_PATH = "mid_checkpoint.merkle.json"
+# All generated artifacts (checkpoints, signatures, telemetry logs, manifests)
+# land under RUNS_DIR, anchored at the repo root so the location is the same
+# no matter which directory a script is launched from. Gitignored; override
+# with OVL_RUNS_DIR for scratch/CI layouts.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+RUNS_DIR = Path(os.environ.get("OVL_RUNS_DIR", REPO_ROOT / "runs"))
+
+CHECKPOINT_STATE_PATH = RUNS_DIR / "mid_checkpoint.pt"
+CHECKPOINT_WEIGHTS_PATH = RUNS_DIR / "mid_checkpoint.safetensors"
+CHECKPOINT_MERKLE_PATH = RUNS_DIR / "mid_checkpoint.merkle.json"
 
 
 def hash_json(data: Any) -> str:
@@ -114,6 +122,7 @@ def write_merkle_manifest(
 ) -> Dict[str, Any]:
     manifest = build_merkle_manifest(file_path, chunk_size=chunk_size)
     output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
     return manifest
@@ -207,6 +216,7 @@ def save_model_safetensors(
         ) from exc
 
     output = Path(output_path)
+    output.parent.mkdir(parents=True, exist_ok=True)
     save_file(_stable_cpu_state_dict(model), str(output), metadata=metadata)
     return output
 

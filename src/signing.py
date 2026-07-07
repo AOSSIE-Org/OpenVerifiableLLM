@@ -145,6 +145,7 @@ def signed_torch_save(obj, path, signing_key=None):
     import torch
 
     path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(obj, path)
     sign_file(path, signing_key=signing_key)
     return path
