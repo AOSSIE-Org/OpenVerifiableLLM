@@ -110,10 +110,14 @@ def segment_scores(states, segment_steps, lr):
             "norm": dw.norm().item(),
             "moment_cos": F.cosine_similarity(dw, -m, dim=0).item(),
         })
+    # Robust profile: median/MAD, not mean/std -- a single spliced transition
+    # inflates the plain std enough to partially mask its own z-score.
     norms = torch.tensor([s["norm"] for s in scores])
-    mu, sd = norms.mean(), norms.std().clamp_min(1e-12)
+    med = norms.median()
+    mad = (norms - med).abs().median() * 1.4826
+    scale = torch.clamp(mad, min=med.abs() * 1e-6 + 1e-12)
     for s in scores:
-        s["norm_z"] = ((s["norm"] - mu) / sd).item()
+        s["norm_z"] = ((s["norm"] - med) / scale).item()
     return scores
 
 
