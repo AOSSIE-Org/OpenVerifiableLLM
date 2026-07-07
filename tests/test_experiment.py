@@ -200,6 +200,47 @@ class ChainAuditTests(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+# Replay-free forgery detectors (torch; CPU is fine)
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required")
+class ForgeryDetectorTests(unittest.TestCase):
+    """Cheap boundary statistics must flag splices without replay, and must
+    never flag the genuine chain (thresholds are its widened envelope)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from forgery import run_experiment
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name)
+        cls.report = run_experiment(
+            "mlp", "shakespeare", num_segments=4, segment_steps=3, device="cpu",
+            overrides=dict(batch_size=4, block_size=48),
+            out_path=root / "report.json",
+            chain_dir=root / "genuine", donor_dir=root / "donor")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_genuine_chain_has_zero_false_positives(self):
+        self.assertEqual(self.report["false_positives"], 0)
+
+    def test_splice_detected_and_localized(self):
+        splice = next(v for k, v in self.report["forgeries"].items()
+                      if k.startswith("splice"))
+        self.assertTrue(splice["detected"])
+        self.assertTrue(splice["localized"])
+
+    def test_gradual_interpolation_detected(self):
+        self.assertTrue(self.report["forgeries"]["interp@0.03"]["detected"])
+
+    def test_large_edit_detected(self):
+        edit = next(v for k, v in self.report["forgeries"].items()
+                    if "sigma1e-2" in k)
+        self.assertTrue(edit["detected"])
+
+
+# --------------------------------------------------------------------------- #
 # Determinism (torch; CPU is fine)
 # --------------------------------------------------------------------------- #
 SMOKE = dict(total_steps=6, batch_size=4, block_size=48)
