@@ -1,0 +1,42 @@
+{
+  "chain_dir": "/workspace/repo/runs/chain",
+  "num_segments": 20,
+  "sampled_segments": [
+    4,
+    10,
+    12
+  ],
+  "k": 3,
+  "dataset_ok": true,
+  "results": [
+    {
+      "segment": 4,
+      "expected": "68594e6e76eefdd51675b6115d33e16379c4ecb7ebc654f8a305e12e961cc377",
+      "got": "68594e6e76eefdd51675b6115d33e16379c4ecb7ebc654f8a305e12e961cc377",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 92.5
+    },
+    {
+      "segment": 10,
+      "expected": "14a671a5d775e715e3347125083bfb8b647236b7496ae5e19cb21a5c0abae5f4",
+      "got": "14a671a5d775e715e3347125083bfb8b647236b7496ae5e19cb21a5c0abae5f4",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 91.77
+    },
+    {
+      "segment": 12,
+      "expected": "8101289471f24b314d287e2aff9ff44162a0ecd25462661cc4821e0f8e7c0f5d",
+      "got": "8101289471f24b314d287e2aff9ff44162a0ecd25462661cc4821e0f8e7c0f5d",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 90.27
+    }
+  ],
+  "audit_wall_time_s": 274.54,
+  "prover_wall_time_s": 1589.03,
+  "cost_ratio": 0.1728,
+  "min_forgery_detection_probability": 0.15,
+  "ok": true
+}
