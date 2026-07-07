@@ -251,3 +251,12 @@ and zero trust in the prover.
 arXiv:2103.05633.
 [2] Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think*,
 EuroS&P 2023. arXiv:2208.03567.
+[3] Choi, Shavit, Duvenaud, *Tools for Verifying Neural Models' Training Data*,
+2023. arXiv:2307.00682. — Proof-of-Training-Data via heuristic spot-checks with
+tolerances; the nearest neighbor to this work. We differ in demanding bit-exact
+replay (no tolerance for attacks to inhabit), full-optimizer-state boundaries
+(enabling the moment invariants of §6), and committed execution variants.
+[4] *Unlearning at Scale* (2025). arXiv:2508.12220. — uses deterministic
+logging and bit-identical replay for machine unlearning; independent evidence
+that bit-exact training infrastructure is buildable and useful beyond
+verification.
