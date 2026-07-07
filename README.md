@@ -211,10 +211,32 @@ replay arithmetic rather than transfer corruption. The auditors fetched the chai
 over plain untrusted HTTP; the ed25519 signatures over the manifest and every
 boundary are what established integrity.
 
-**Open question (research direction).** Whether a single forged transition — a
-jump from a genuine trajectory onto a target model — is statistically detectable
-*without* replaying it (step-norm outliers, update direction vs. plausible
-gradients). A positive result would push effective soundness from k/N toward 1.
+**Replay-free forgery detection (first results).** Because boundaries are full
+training states, a forged transition must be consistent not just with the weights
+but with the Adam moments it carries — and that consistency is checkable in
+O(params) without any replay (`src/forgery.py`: Adam-reachability of the weight
+delta, robust delta-norm profile, moment-direction consistency). Flagged segments
+get replayed first, pushing effective detection above the k/N floor. Measured at
+116M params on an L40S (evidence in `proofs/forgery_l40s/`, zero false positives
+in every condition):
+
+| Forgery | S=200 | S=100 | S=10 |
+|---|---|---|---|
+| alt-seed splice (classic PoL spoof) | detected+localized | detected+localized | detected+localized |
+| interpolation toward target, α=0.10 | detected+localized | detected+localized | detected+localized |
+| interpolation toward target, α=0.03 | missed | detected+localized | detected+localized |
+| gaussian weight edit, σ=1e-2 rel. | missed | missed | missed |
+
+Two findings. First, **segment length is a detectability dial, not just a
+storage/audit-cost dial**: the stealthy 3% splice is invisible at 200-step
+segments and cleanly flagged at 100 and below — shorter segments tighten the
+reachability envelope a fixed-size forgery must hide inside. Second, honest
+limits: small gaussian edits evade these detectors at scale (they are also
+near-useless to an attacker, and remain caught by sampled replay and — for the
+final model — by the manifest hash directly), and all results assume the lazy
+forger who keeps genuine optimizer moments; forging bit-consistent moments
+without running the committed training is the hard problem determinism creates,
+but it is not proven impossible. The sound guarantee remains the replay.
 
 ### Supply-chain posture
 
