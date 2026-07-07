@@ -21,8 +21,13 @@ log "SETUP starting"
 nvidia-smi >"$OUT/nvidia.txt" 2>&1
 # Ubuntu 24.04 images mark the system python externally-managed (PEP 668);
 # use a venv. requirements pins torch>=2.10 so it is (re)installed regardless.
+# torch must come from the wheel index matching the pod's driver (default
+# cu128, matching the runpod/pytorch cu1281 image) -- the default PyPI wheel
+# targets a newer CUDA than the host driver and fails at init.
+TORCH_INDEX="${OVL_TORCH_INDEX:-https://download.pytorch.org/whl/cu128}"
 python3 -m venv /workspace/venv >"$OUT/pip.log" 2>&1 \
     && . /workspace/venv/bin/activate \
+    && pip install "torch>=2.10,<3.0" --index-url "$TORCH_INDEX" >>"$OUT/pip.log" 2>&1 \
     && pip install -r "$REPO/requirements.txt" >>"$OUT/pip.log" 2>&1
 rc=$?
 log "SETUP done rc=$rc"
