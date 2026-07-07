@@ -262,7 +262,7 @@ Verification secures the model artifact, but the verifier and training code are 
 
 - **Bit-exact reproducibility is guaranteed on an identical hardware/software stack.** The environment is pinned and recorded in the manifest. Measured at 116M params: the equivalence class is the *GPU model plus software stack*, not the physical machine — a chain trained on one RTX A4000 verified bit-exactly on a different RTX A4000 in a different pod (`proofs/chain_cross/`).
 - **Cross-hardware** reproducibility (different GPU architectures) does not hold bit-exactly due to floating-point non-associativity; measured at 116M params (Ampere-trained chain audited on Ada: every replayed segment fails on the closing hash). This is the use case for the verifier's tolerant mode.
-- **Single GPU** is the supported, validated domain. Multi-GPU determinism is harder because the cross-device gradient all-reduce introduces a reduction whose order is not fixed by default; it is controllable for data-parallel training under specific conditions and is treated as a measured experiment rather than an assumption (`src/ddp_repro.py` is the ready-to-run probe). Tensor and pipeline parallelism are out of scope.
+- **Single GPU** is the supported, validated domain. **DDP, measured** (`proofs/ddp_2x3090/`): on 2× RTX 3090 with NCCL and deterministic per-rank kernels, gpt10m training was **bitwise identical run-to-run and across ranks**. This is a measured data point for one topology (2 ranks, single node, fixed NCCL version), not a general guarantee — NCCL does not promise a fixed reduction order, so each topology must be qualified before the audit's guarantees extend to it. Tensor and pipeline parallelism remain out of scope.
 
 ### The execution-variant envelope (measured)
 
