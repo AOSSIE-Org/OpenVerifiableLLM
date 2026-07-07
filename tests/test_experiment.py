@@ -239,6 +239,26 @@ class ForgeryDetectorTests(unittest.TestCase):
                     if "sigma1e-2" in k)
         self.assertTrue(edit["detected"])
 
+    def test_smart_aligned_forger_caught_by_two_sided_envelope(self):
+        # Perfectly anti-aligned moments defeat a one-sided check; the
+        # two-sided envelope must flag them as too consistent.
+        sf = next(v for k, v in self.report["forgeries"].items()
+                  if k.startswith("sf-aligned"))
+        self.assertTrue(sf["detected"])
+
+    def test_fabricated_v_violates_hard_invariant(self):
+        # v_{k+1} >= beta2^S * v_k elementwise is a necessary condition for
+        # genuine Adam; fresh fabricated v must trip it.
+        sf = next(v for k, v in self.report["forgeries"].items()
+                  if k.startswith("sf-freshv"))
+        self.assertTrue(sf["detected"])
+        reasons = {r for f in sf["flags"] for r in f["reasons"]}
+        self.assertIn("v-invariant", reasons)
+
+    def test_genuine_chain_satisfies_v_invariant_exactly(self):
+        for s in self.report["genuine_scores"]:
+            self.assertLessEqual(s["v_continuity_viol"], 1e-6)
+
 
 # --------------------------------------------------------------------------- #
 # Determinism (torch; CPU is fine)
