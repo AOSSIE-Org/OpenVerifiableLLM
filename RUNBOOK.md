@@ -209,6 +209,34 @@ python src/chain.py audit --segments 1   # -> FAIL (signature), exit 1
 
 ---
 
+## 9. Replay-free forgery detectors (segment-length sweep)
+
+`src/forgery.py` trains a genuine chain plus an alt-seed donor, plants forgeries
+(splice, gradual interpolation, gaussian edits), and scores three O(params)
+replay-free detectors against the genuine chain's envelope. CPU smoke:
+
+```bash
+cd src && python forgery.py --model mlp --segments 4 --segment-steps 3 \
+    --batch-size 4 --block-size 48
+```
+
+Pod scale (use a fast Ada card — L40S ran gpt120m at ~14 s per 200-step segment):
+
+```bash
+OVL_FORGE_SEGMENTS=10 OVL_FORGE_SEGMENT_STEPS=100 bash scripts/pod_forgery_run.sh
+```
+
+**Measured (2026-07-07, L40S, gpt120m/enwik8, evidence in `proofs/forgery_l40s/`):**
+zero false positives in every condition; alt-seed splice and α=0.10 interpolation
+detected+localized at all segment lengths; the stealthy α=0.03 interpolation is
+missed at S=200 but detected+localized at S=100 and S=10 — segment length is a
+replay-free detectability dial. σ=1e-2 gaussian edits evade the detectors at this
+scale (caught only by sampled replay / the final-model hash). Genuine
+moment-cosine range rises from [0.013, 0.050] at S=200 to [0.052, 0.128] at S=10,
+confirming the correlation-decay mechanism.
+
+---
+
 ## Troubleshooting
 
 - **"deterministic algorithm not available"** on an exotic op: the sweep already runs
