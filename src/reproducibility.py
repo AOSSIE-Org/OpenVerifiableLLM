@@ -26,6 +26,7 @@ import math
 import os
 import random
 import shutil
+import sys
 
 import numpy as np
 import torch
@@ -224,9 +225,10 @@ def secret_noise_auditor(log_file="secret_noise_log.jsonl"):
 def sabotage_auditor(log_file="post_sabotage_log.jsonl"):
     """Test 3: correct replay, but weights silently mutated AFTER training ends.
 
-    The logged trajectory matches the prover (clean replay), so the loss check
-    PASSES -- but the final parameter hash differs. This is exactly the gap the
-    debate hook is about: telemetry agreement does not imply bitwise identity.
+    The logged trajectory matches the prover (clean replay), so telemetry alone
+    would accept it -- the final parameter hash is what catches the edit, and
+    verify() fails the audit on it. Telemetry agreement does not imply bitwise
+    identity; this scenario is why the hash, not the loss, is the verdict.
     """
     dataset, model, optimizer = _build()
     logger = TelemetryLogger(filepath=log_file)
@@ -288,13 +290,17 @@ def broken_seal_auditor(log_file="broken_seal_log.jsonl"):
 
 
 def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT"):
-    """Shared verification logic with drift quantification and a cryptographic anchor.
+    """Segment verification. The exact parameter-hash comparison is the verdict;
+    the telemetry comparison is a diagnostic that localizes divergence.
 
-    NOTE (the planted debate hook): losses are compared with rel_tol=1e-6 but the
-    parameter hash is compared EXACTLY. A run can therefore pass the loss check and
-    fail the hash check. verify() returns the *loss/telemetry* verdict; the hash
-    mismatch is reported but does not flip the return value -- which is precisely
-    the ambiguity worth arguing about.
+    Losses/grad norms are compared with rel_tol=1e-6, but tolerance never decides
+    the audit. Accepting "close enough" is exactly the loophole that broke
+    proof-of-learning (Fang et al. 2023): forged transitions hide inside the
+    tolerance window. Bit-exact replay makes the window zero, so a run whose
+    trajectory matches to 1e-6 but whose bits differ (post-training weight edit,
+    ~1e-8 file corruption) FAILS. The trajectory check earns its keep the other
+    way around: on failure it reports the first step where the replay diverged,
+    which the final hash alone cannot.
     """
     print(f"\n[Verifying: {label}]")
 
@@ -320,17 +326,17 @@ def verify(prover_segment, auditor_logs, prover_hash, auditor_hash, label="AUDIT
 
     hash_match = prover_hash == auditor_hash
     if not hash_match:
-        print(f"\n Hash mismatch! Prover: {prover_hash[:16]} // Auditor: {auditor_hash[:16]} "
-              f"[HASH ERROR -- loss check may still PASS: that is the debate]")
+        print(f"\n Hash mismatch! Prover: {prover_hash[:16]} // Auditor: {auditor_hash[:16]}")
 
     if match and hash_match:
         print(f"\n [PASS] {label}: Segment replay is bitwise deterministic.")
     elif match and not hash_match:
-        print(f"\n [LOSS-PASS / HASH-FAIL] {label}: trajectory matches but bits differ.")
+        print(f"\n [FAIL] {label}: trajectory matches to 1e-6 but bits differ -- "
+              f"tampering after the last logged step. The hash is the verdict.")
     else:
         print(f"\n [FAIL] {label}: Trajectories diverged.")
 
-    return match
+    return match and hash_match
 
 
 if __name__ == "__main__":
@@ -355,36 +361,53 @@ if __name__ == "__main__":
     clean_ok = verify(prover_logs[CP_STEP:TOT_STEP], auditor_logs,
                       hash_model(prover_model), hash_model(auditor_model), label="CLEAN AUDIT")
 
-    # Test 1: Bad seed -> should FAIL
+    # Test 1: Bad seed -> must FAIL
     print("\n Scenario 2: BAD SEED")
     bad_model = bad_seed_auditor()
     with open("bad_seed_log.jsonl") as f:
         tampered_logs = [json.loads(line) for line in f]
-    verify(prover_logs[CP_STEP:TOT_STEP], tampered_logs,
-           hash_model(prover_model), hash_model(bad_model), label="BAD SEED AUDIT")
+    bad_seed_ok = verify(prover_logs[CP_STEP:TOT_STEP], tampered_logs,
+                         hash_model(prover_model), hash_model(bad_model),
+                         label="BAD SEED AUDIT")
 
-    # Test 2: Gradient noise -> should FAIL
+    # Test 2: Gradient noise -> must FAIL
     print("\n Scenario 3: NOISE INJECTED")
     noisy_model = secret_noise_auditor()
     with open("secret_noise_log.jsonl") as f:
         noisy_logs = [json.loads(line) for line in f]
-    verify(prover_logs[CP_STEP:TOT_STEP], noisy_logs,
-           hash_model(prover_model), hash_model(noisy_model), label="NOISY WEIGHTS AUDIT")
+    noise_ok = verify(prover_logs[CP_STEP:TOT_STEP], noisy_logs,
+                      hash_model(prover_model), hash_model(noisy_model),
+                      label="NOISY WEIGHTS AUDIT")
 
-    # Test 3: Post-training sabotage -> loss PASS, hash FAIL (the debate)
+    # Test 3: Post-training sabotage -> trajectory matches, hash differs, must FAIL
     print("\n Scenario 4: POST-TRAINING WEIGHT SABOTAGE")
     sabotage_model = sabotage_auditor()
     with open("post_sabotage_log.jsonl") as f:
         post_sabotage_logs = [json.loads(line) for line in f]
-    verify(prover_logs[CP_STEP:TOT_STEP], post_sabotage_logs,
-           hash_model(prover_model), hash_model(sabotage_model),
-           label="POST-TRAINING SABOTAGE AUDIT")
+    sabotage_ok = verify(prover_logs[CP_STEP:TOT_STEP], post_sabotage_logs,
+                         hash_model(prover_model), hash_model(sabotage_model),
+                         label="POST-TRAINING SABOTAGE AUDIT")
 
     # Test 4: Tampered checkpoint file -> rejected before deserialization
     print("\n Scenario 5: MODIFIED CHECKPOINT FILE (BROKEN SEAL)")
     _, secure = broken_seal_auditor()
 
+    # Falsifiability contract: the clean run must pass; every tampered run must
+    # fail. Any violation is a suite failure (nonzero exit for CI).
+    expectations = [
+        ("CLEAN AUDIT passes", clean_ok),
+        ("BAD SEED fails", not bad_seed_ok),
+        ("NOISE INJECTION fails", not noise_ok),
+        ("POST-TRAINING SABOTAGE fails", not sabotage_ok),
+        ("BROKEN SEAL rejected before deserialization", secure),
+    ]
+    suite_ok = all(ok for _, ok in expectations)
+
     print("\n" + "=" * 72)
-    print(f" CLEAN AUDIT: {'PASS' if clean_ok else 'FAIL'} | "
-          f"BROKEN-SEAL REJECTED BEFORE LOAD: {'YES' if secure else 'NO'}")
+    print(" FALSIFIABILITY SUITE -- clean must pass; every tampered run must fail")
+    for name, ok in expectations:
+        print(f"   [{'PASS' if ok else 'FAIL'}] {name}")
+    print("-" * 72)
+    print(f" SUITE: {'PASS' if suite_ok else 'FAIL'}")
     print("=" * 72)
+    sys.exit(0 if suite_ok else 1)

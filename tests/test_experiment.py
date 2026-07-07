@@ -93,6 +93,46 @@ class MerkleNonDegenerateTests(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+# verify(): the hash is the verdict, telemetry is a diagnostic
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required (reproducibility imports torch)")
+class VerifyVerdictTests(unittest.TestCase):
+    """Matching telemetry must never rescue differing bits: tolerance-based
+    acceptance is the loophole that broke proof-of-learning (Fang et al. 2023)."""
+
+    @staticmethod
+    def _logs(n=3):
+        return [{"step": i, "loss": 1.0 / (i + 1), "grad_norm": 0.5, "param_norm": 2.0}
+                for i in range(n)]
+
+    def test_clean_replay_passes(self):
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertTrue(verify(logs, [dict(entry) for entry in logs],
+                               "hash-a", "hash-a", label="clean"))
+
+    def test_hash_mismatch_fails_even_when_trajectory_matches(self):
+        # The post-training-sabotage / broken-seal shape: every logged value
+        # agrees to 1e-6, but the final bits differ. This must FAIL.
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertFalse(verify(logs, [dict(entry) for entry in logs],
+                                "hash-a", "hash-b", label="sabotage"))
+
+    def test_diverged_trajectory_fails(self):
+        from reproducibility import verify
+        logs = self._logs()
+        tampered = [dict(entry) for entry in logs]
+        tampered[-1]["loss"] *= 1.01
+        self.assertFalse(verify(logs, tampered, "hash-a", "hash-a", label="diverged"))
+
+    def test_log_length_mismatch_fails(self):
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertFalse(verify(logs, logs[:-1], "hash-a", "hash-a", label="truncated"))
+
+
+# --------------------------------------------------------------------------- #
 # Determinism (torch; CPU is fine)
 # --------------------------------------------------------------------------- #
 SMOKE = dict(total_steps=6, batch_size=4, block_size=48)
