@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openverifiablellm"
+version = "0.1.0"
+description = "One-command verification for small open model artifacts."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "torch>=2.10.0,<3.0",
+  "numpy>=2.4,<3.0",
+  "tqdm>=4.67,<5.0",
+  "safetensors>=0.4.5,<1.0",
+  "pynacl>=1.5,<2.0",
+  "matplotlib>=3.7,<4.0",
+  "model-signing>=1.1.1",
+  "huggingface_hub>=0.24.0",
+  "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+ovllm = "ovllm:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+py-modules = [
+  "artifacts",
+  "config",
+  "dataset",
+  "device",
+  "eval",
+  "experiment",
+  "global_manifest",
+  "gpu_reproducibility_test",
+  "main",
+  "model",
+  "ovllm",
+  "plot_divergence",
+  "publish",
+  "reproducibility",
+  "signing",
+  "telemetry",
+  "verifier",
+]

@@ -41,7 +41,13 @@ from device import (
 from model import build_model, count_params, is_vision_model
 from dataset import get_dataset
 from config import model_config
-from artifacts import build_merkle_manifest, model_parameters_sha256, save_model_safetensors
+from artifacts import (
+    _stable_cpu_state_dict,
+    build_merkle_manifest,
+    model_parameters_sha256,
+    save_model_safetensors,
+    tensor_mapping_sha256,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "results"
@@ -98,7 +104,7 @@ def _single_train(model_name, dataset_name, precision, deterministic, seed, dev,
         if track_full:
             step_hashes.append(model_parameters_sha256(model))
 
-    return model, losses, model_parameters_sha256(model), step_hashes
+    return model, losses, tensor_mapping_sha256(_stable_cpu_state_dict(model)), step_hashes
 
 
 def _first_divergence(losses_a, losses_b, hashes_a=None, hashes_b=None):

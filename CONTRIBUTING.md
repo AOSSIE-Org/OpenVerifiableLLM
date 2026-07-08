@@ -40,12 +40,12 @@ Dependencies are pinned and hash-locked. This is deliberate: it's both a reprodu
 git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
 
-# install the exact, locked dependency set
-uv sync
+# install dependencies and the editable CLI
+pip install -r requirements.txt
+pip install -e .
 
 # confirm things work
-pytest tests/falsifiability
-ruff check .
+python -m unittest discover -s tests
 ```
 
 If you need to add a dependency, add it through the lockfile so the hash-locked set stays authoritative. An unpinned dependency undermines both reproducibility and the project's supply-chain posture.
@@ -58,8 +58,8 @@ If you need to add a dependency, add it through the lockfile so the hash-locked 
 
 **Tests.**
 
-- Run the test suite and `ruff` locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
-- Code that changes verification behavior, serialization, RNG/optimizer state handling, or the manifest should include tests for both the success case and the failure case. For verification-affecting changes, extend the falsifiability suite so a clean run passes and the relevant tampered run fails.
+- Run the test suite (`python -m unittest discover -s tests`) locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
+- Code that changes verification behavior, serialization, RNG/optimizer state handling, or the manifest should include tests for both the success case and the failure case. For verification-affecting changes, extend the test suite so a clean run passes and the relevant tampered run fails.
 - A change must not silently weaken the bit-exact reproducibility guarantee on the supported single-GPU stack. If a change trades determinism for performance, make that tradeoff explicit and document it.
 
 **Docs.** If a change alters behavior, inputs, the manifest format, or the verification contract, update the relevant docs in the same PR. The manifest schema is a versioned contract that other parts of the project depend on, so changes there need maintainer sign-off and a migration note.
@@ -68,7 +68,7 @@ If you need to add a dependency, add it through the lockfile so the hash-locked 
 
 - Reference the issue it addresses (`Closes #123`) if there is one.
 - Describe what changed and why, and flag anything you'd like reviewers to look at closely.
-- Confirm the test suite and `ruff` pass.
+- Confirm the test suite passes.
 - Keep each PR to one logical change. Small, focused PRs get reviewed and merged faster than large, multi-purpose ones.
 
 Maintainers review on a volunteer basis, so a clear, well-tested, well-scoped PR is the best way to get a quick response. Expect some back-and-forth; review comments are about the work, not about you.
