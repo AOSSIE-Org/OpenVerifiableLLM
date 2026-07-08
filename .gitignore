@@ -5,6 +5,10 @@ venv/
 
 __pycache__/
 *.pyc
+build/
+dist/
+*.egg-info/
+.ovllm-cache/
 
 
 .vscode/
@@ -39,3 +43,6 @@ data/*.zip
 data/*.tar.gz
 data/cifar-10-batches-py/
 !data/shakespeare_sample.txt
+
+# Local smoke tests and temp files
+openverifiable-smoke/

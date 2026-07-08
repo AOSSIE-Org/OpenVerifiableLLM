@@ -1,8 +1,86 @@
 name: Publish Verified Model
+
 on:
   workflow_dispatch:
+    inputs:
+      model_name:
+        description: "Name to put in ovllm_manifest.json"
+        required: true
+        default: "gpt10m-shakespeare"
+      hf_repo_id:
+        description: "Optional Hugging Face repo id, e.g. owner/gpt10m-shakespeare"
+        required: false
+        default: ""
+      publish_to_hf:
+        description: "Upload the signed directory to Hugging Face"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
-  placeholder-job:
+  sign-and-verify:
     runs-on: ubuntu-latest
+
     steps:
-      - run: echo "This is just a temporary placeholder"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      - name: Train real model (smoke steps)
+        run: |
+          python run_experiment.py \
+            --model gpt10m \
+            --dataset shakespeare \
+            --precision fp32 \
+            --deterministic on \
+            --steps 8 \
+            --batch-size 8 \
+            --block-size 64 \
+            --keep-artifact
+
+      - name: Prepare publish directory
+        run: |
+          ovllm prepare-publish \
+            --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
+            --out dist/gpt10m-shakespeare \
+            --name "${{ inputs.model_name }}"
+
+      - name: Sign with GitHub Actions OIDC
+        env:
+          SIGSTORE_IDENTITY: "https://github.com/${{ github.repository }}/.github/workflows/publish-verified-model.yml@${{ github.ref }}"
+          SIGSTORE_IDENTITY_PROVIDER: "https://token.actions.githubusercontent.com"
+        run: |
+          ovllm sign dist/gpt10m-shakespeare \
+            --identity "$SIGSTORE_IDENTITY" \
+            --identity-provider "$SIGSTORE_IDENTITY_PROVIDER" \
+            --use-ambient-credentials
+
+      - name: Verify signed artifact
+        run: ovllm verify dist/gpt10m-shakespeare --skip-replay
+
+      - name: Upload signed model directory
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpt10m-shakespeare-signed
+          path: dist/gpt10m-shakespeare
+
+      - name: Publish to Hugging Face
+        if: ${{ inputs.publish_to_hf && inputs.hf_repo_id != '' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          ovllm publish-hf "${{ inputs.hf_repo_id }}" dist/gpt10m-shakespeare
