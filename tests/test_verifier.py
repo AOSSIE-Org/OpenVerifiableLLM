@@ -232,6 +232,18 @@ class ReportFormattingTests(unittest.TestCase):
             CheckResult("<script>alert(1)</script>", PASS, "some <tag> here", expected="<expected>", actual="<actual>"),
         ]
         
+        # Test Text formatting
+        with tempfile.TemporaryDirectory() as tmp:
+            text_path = Path(tmp) / "report.txt"
+            with patch("builtins.print"):
+                print_report(results, format_type="text", output_path=str(text_path), ref="dummy-ref")
+            text_content = text_path.read_text(encoding="utf-8")
+            self.assertIn("VERDICT: RED", text_content)
+            self.assertIn("[PASS] test_pass", text_content)
+            self.assertIn("[FAIL] test_fail", text_content)
+            self.assertIn("expected: 123", text_content)
+            self.assertIn("actual  : 456", text_content)
+
         # Test Markdown formatting
         with tempfile.TemporaryDirectory() as tmp:
             md_path = Path(tmp) / "report.md"
