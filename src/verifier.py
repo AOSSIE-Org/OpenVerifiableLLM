@@ -1,3 +1,4 @@
+import html
 import importlib
 import json
 import os
@@ -339,6 +340,11 @@ def get_system_diagnostics() -> Dict[str, str]:
     return diag
 
 
+def escape_markdown_cell(val: str) -> str:
+    """Escapes markdown pipe characters to prevent breaking table structure."""
+    return val.replace("|", "\\|")
+
+
 def generate_markdown_report(results: List[CheckResult], ok: bool, ref: str, diag: Dict[str, str]) -> str:
     verdict_str = "🟢 **GREEN** (Passed)" if ok else "🔴 **RED** (Failed)"
     md = []
@@ -352,10 +358,11 @@ def generate_markdown_report(results: List[CheckResult], ok: bool, ref: str, dia
     md.append("| :--- | :--- | :--- | :--- | :--- |")
     for r in results:
         status_icon = "✅ PASS" if r.status == PASS else ("❌ FAIL" if r.status == FAIL else "⚠️ SKIP")
-        expected_val = f"`{r.expected}`" if r.expected else "-"
-        actual_val = f"`{r.actual}`" if r.actual else "-"
-        detail_val = r.detail.replace("\n", " ") if r.detail else ""
-        md.append(f"| {status_icon} | **{r.name}** | {expected_val} | {actual_val} | {detail_val} |")
+        name_val = escape_markdown_cell(r.name)
+        expected_val = f"`{escape_markdown_cell(r.expected)}`" if r.expected else "-"
+        actual_val = f"`{escape_markdown_cell(r.actual)}`" if r.actual else "-"
+        detail_val = escape_markdown_cell(r.detail.replace("\n", " ")) if r.detail else ""
+        md.append(f"| {status_icon} | **{name_val}** | {expected_val} | {actual_val} | {detail_val} |")
     
     md.append("\n## System Diagnostics\n")
     for k, v in diag.items():
@@ -371,13 +378,13 @@ def generate_html_report(results: List[CheckResult], ok: bool, ref: str, diag: D
     rows = []
     for r in results:
         status_class = f"status-{r.status.lower()}"
-        expected_val = f"<code>{r.expected}</code>" if r.expected else "-"
-        actual_val = f"<code>{r.actual}</code>" if r.actual else "-"
-        detail_val = r.detail.replace("\n", "<br>") if r.detail else ""
+        expected_val = f"<code>{html.escape(r.expected)}</code>" if r.expected else "-"
+        actual_val = f"<code>{html.escape(r.actual)}</code>" if r.actual else "-"
+        detail_val = html.escape(r.detail).replace("\n", "<br>") if r.detail else ""
         rows.append(f"""
         <tr>
-            <td><span class="status-badge {status_class}">{r.status}</span></td>
-            <td><strong>{r.name}</strong></td>
+            <td><span class="status-badge {status_class}">{html.escape(r.status)}</span></td>
+            <td><strong>{html.escape(r.name)}</strong></td>
             <td class="mono">{expected_val}</td>
             <td class="mono">{actual_val}</td>
             <td>{detail_val}</td>
@@ -389,13 +396,13 @@ def generate_html_report(results: List[CheckResult], ok: bool, ref: str, diag: D
     for k, v in diag.items():
         diag_items.append(f"""
         <div class="diag-item">
-            <span class="diag-key">{k}</span>
-            <span class="diag-val">{v}</span>
+            <span class="diag-key">{html.escape(k)}</span>
+            <span class="diag-val">{html.escape(v)}</span>
         </div>
         """)
     diag_html = "\n".join(diag_items)
     
-    html = f"""<!DOCTYPE html>
+    report_html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -586,7 +593,7 @@ def generate_html_report(results: List[CheckResult], ok: bool, ref: str, diag: D
                 </div>
                 <div class="meta-item">
                     <span class="meta-label">Model Reference</span>
-                    <span class="meta-val">{ref}</span>
+                    <span class="meta-val">{html.escape(ref)}</span>
                 </div>
                 <div class="meta-item">
                     <span class="meta-label">Timestamp</span>
@@ -623,7 +630,7 @@ def generate_html_report(results: List[CheckResult], ok: bool, ref: str, diag: D
 </body>
 </html>
 """
-    return html
+    return report_html
 
 
 def time_ref() -> str:
@@ -670,5 +677,7 @@ def print_report(
             Path(output_path).write_text(html_str, encoding="utf-8")
         else:
             print(html_str, end="")
+    else:
+        raise ValueError(f"Unknown format_type: {format_type!r}")
             
     return ok

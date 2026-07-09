@@ -228,6 +228,8 @@ class ReportFormattingTests(unittest.TestCase):
         results = [
             CheckResult("test_pass", PASS, "Pass detail"),
             CheckResult("test_fail", FAIL, "Fail detail", expected="123", actual="456"),
+            CheckResult("test_pipe|", PASS, "detail | contains | pipes", expected="a|b", actual="c|d"),
+            CheckResult("<script>alert(1)</script>", PASS, "some <tag> here", expected="<expected>", actual="<actual>"),
         ]
         
         # Test Markdown formatting
@@ -241,29 +243,45 @@ class ReportFormattingTests(unittest.TestCase):
             self.assertIn("test_fail", md_content)
             self.assertIn("123", md_content)
             self.assertIn("456", md_content)
+            # Verify pipe escaping in Markdown
+            self.assertIn("test_pipe\\|", md_content)
+            self.assertIn("a\\|b", md_content)
+            self.assertIn("c\\|d", md_content)
+            self.assertIn("detail \\| contains \\| pipes", md_content)
 
         # Test HTML formatting
         with tempfile.TemporaryDirectory() as tmp:
             html_path = Path(tmp) / "report.html"
-            print_report(results, format_type="html", output_path=str(html_path), ref="dummy-ref")
+            print_report(results, format_type="html", output_path=str(html_path), ref="dummy-ref<script>")
             html_content = html_path.read_text(encoding="utf-8")
             self.assertIn("<!DOCTYPE html>", html_content)
             self.assertIn("OpenVerifiableLLM Report", html_content)
             self.assertIn("VERDICT: RED", html_content)
             self.assertIn("test_fail", html_content)
             self.assertIn("status-fail", html_content)
+            # Verify HTML XSS escaping
+            self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", html_content)
+            self.assertIn("some &lt;tag&gt; here", html_content)
+            self.assertIn("&lt;expected&gt;", html_content)
+            self.assertIn("&lt;actual&gt;", html_content)
+            self.assertIn("dummy-ref&lt;script&gt;", html_content)
+
+        # Test error handling for invalid format type
+        with self.assertRaises(ValueError):
+            print_report(results, format_type="invalid_format")
 
         # Test CLI arguments verify execution for formats
-        with tempfile.TemporaryDirectory() as tmp:
-            weights = Path(tmp) / "model.safetensors"
-            save_file({"layer.weight": torch.arange(8, dtype=torch.float32).reshape(2, 4)}, str(weights))
-            model_dir = prepare_publish_dir(weights=str(weights), output_dir=str(Path(tmp) / "publish"))
-            
-            md_path = Path(tmp) / "cli_report.md"
-            code = ovllm_main(["verify", str(model_dir), "--allow-unsigned", "--skip-replay", "--format", "markdown", "--output", str(md_path)])
-            self.assertEqual(code, 0)
-            self.assertTrue(md_path.exists())
-            self.assertIn("# OpenVerifiableLLM Verification Report", md_path.read_text(encoding="utf-8"))
+        if HAS_TORCH:
+            with tempfile.TemporaryDirectory() as tmp:
+                weights = Path(tmp) / "model.safetensors"
+                save_file({"layer.weight": torch.arange(8, dtype=torch.float32).reshape(2, 4)}, str(weights))
+                model_dir = prepare_publish_dir(weights=str(weights), output_dir=str(Path(tmp) / "publish"))
+                
+                md_path = Path(tmp) / "cli_report.md"
+                code = ovllm_main(["verify", str(model_dir), "--allow-unsigned", "--skip-replay", "--format", "markdown", "--output", str(md_path)])
+                self.assertEqual(code, 0)
+                self.assertTrue(md_path.exists())
+                self.assertIn("# OpenVerifiableLLM Verification Report", md_path.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
