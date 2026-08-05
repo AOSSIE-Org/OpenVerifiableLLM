@@ -12,6 +12,18 @@ compare hashes across ranks.
 A NEGATIVE result (cannot get bitwise-identical run-to-run under DDP) is the honest,
 interesting outcome -- it is the open problem, not a bug to hide. Keep this last; do
 not let it become the main thrust.
+
+Distributed Determinism Roadmap & Mitigation Strategies:
+---------------------------------------------------------
+1. FP64 Gradient Accumulation:
+   Accumulating gradients in FP64 before applying optimizer steps reduces the
+   nondeterministic precision discrepancies introduced by varying floating-point
+   reduction orders in NCCL all-reduce operations.
+2. Deterministic Communication Backends / Wrappers:
+   Forcing a deterministic reduction tree (such as sorting elements or forcing
+   a single reduction order) ensures that averaged gradients are mathematically
+   and bitwise identical across all parallel nodes/ranks, at the cost of some
+   inter-GPU communication overhead.
 """
 import hashlib
 import os
@@ -83,6 +95,9 @@ def main():
         if not run_to_run_same:
             print("[DDP] NCCL all-reduce ordering breaks bitwise reproducibility even with "
                   "deterministic per-rank kernels -- this is the open problem, present it as one.")
+            print("\n[DDP] Distributed Determinism Roadmap mitigations to consider:")
+            print("  1. FP64 Gradient Accumulation: Accumulating gradients in FP64 reduces order-of-operation precision discrepancies.")
+            print("  2. Deterministic Communication Wrappers: Force a deterministic reduction order across nodes/ranks.")
 
     dist.destroy_process_group()
 
