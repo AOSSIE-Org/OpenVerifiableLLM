@@ -60,15 +60,26 @@ def model_parameters_sha256(model: "torch.nn.Module") -> str:
     return h.hexdigest()
 
 
+def tensor_mapping_sha256(tensors: Dict[str, "torch.Tensor"]) -> str:
+    h = hashlib.sha256()
+    for name in sorted(tensors):
+        h.update(tensors[name].detach().cpu().contiguous().numpy().tobytes())
+    return h.hexdigest()
+
+
+def _merkle_leaf(leaf_hash: bytes) -> bytes:
+    return compute_sha256_bytes(data=b"\x00" + leaf_hash)
+
+
 def _merkle_parent(left: bytes, right: bytes) -> bytes:
-    return compute_sha256_bytes(data=left + right)
+    return compute_sha256_bytes(data=b"\x01" + left + right)
 
 
 def merkle_root_from_leaf_hashes(leaf_hashes: List[str]) -> str:
     if not leaf_hashes:
         return compute_sha256(data=b"")
 
-    level = [bytes.fromhex(leaf) for leaf in leaf_hashes]
+    level = [_merkle_leaf(bytes.fromhex(leaf)) for leaf in leaf_hashes]
     while len(level) > 1:
         next_level = []
         for i in range(0, len(level), 2):
@@ -90,8 +101,10 @@ def build_merkle_manifest(
     path = Path(file_path)
     chunks = []
     offset = 0
+    file_hash = hashlib.sha256()
     with path.open("rb") as f:
         while chunk := f.read(chunk_size):
+            file_hash.update(chunk)
             chunks.append(
                 {
                     "index": len(chunks),
@@ -105,8 +118,8 @@ def build_merkle_manifest(
     leaf_hashes = [chunk["sha256"] for chunk in chunks]
     return {
         "artifact": path.name,
-        "size_bytes": path.stat().st_size,
-        "sha256": compute_sha256(file_path=path),
+        "size_bytes": offset,
+        "sha256": file_hash.hexdigest(),
         "chunk_size_bytes": chunk_size,
         "chunk_count": len(chunks),
         "merkle_root": merkle_root_from_leaf_hashes(leaf_hashes),
@@ -140,7 +153,7 @@ def generate_merkle_proof(
     if chunk_index < 0 or chunk_index >= manifest["chunk_count"]:
         raise IndexError("chunk_index out of range")
 
-    level = [bytes.fromhex(chunk["sha256"]) for chunk in manifest["chunks"]]
+    level = [_merkle_leaf(bytes.fromhex(chunk["sha256"])) for chunk in manifest["chunks"]]
     proof = []
     index = chunk_index
     while len(level) > 1:
@@ -169,7 +182,8 @@ def verify_merkle_proof(
     expected_root: str,
 ) -> bool:
     try:
-        current = compute_sha256_bytes(data=chunk_bytes)
+        raw_hash = compute_sha256_bytes(data=chunk_bytes)
+        current = _merkle_leaf(raw_hash)
         expected = bytes.fromhex(expected_root)
     except (TypeError, ValueError):
         return False

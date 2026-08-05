@@ -27,6 +27,157 @@ The first text run auto-downloads tinyshakespeare (~1 MB). For the bigger corpor
 
 ---
 
+## Phase B. Published-model verification loop
+
+This is the midterm deliverable path: publish a small signed model and verify it
+with one command from a clean environment.
+
+Install the repo CLI:
+
+```bash
+pip install -r requirements.txt
+pip install -e .
+ovllm --help
+```
+
+Local CLI install smoke after changing `pyproject.toml` or CLI wiring:
+
+```bash
+pip install -e .
+ovllm --help
+python src/ovllm.py --help   # optional fallback; should show the same subcommands
+```
+
+Expected subcommands:
+
+```text
+verify
+prepare-publish
+sign
+publish-hf
+ollama-build
+```
+
+Prepare a publish directory from the real trained safetensors artifact:
+
+```bash
+ovllm prepare-publish \
+  --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
+  --out dist/gpt10m-shakespeare \
+  --name gpt10m-shakespeare
+```
+
+The generated model card should say the repo includes:
+
+- safetensors weights
+- `ovllm_manifest.json`
+- Sigstore/model-transparency bundle
+- Merkle metadata
+
+Rerun `prepare-publish` after model-card or manifest template changes so the
+publish directory contains the current generated metadata.
+
+Do not locally sign the published artifact. The project-scoped signing path is
+the **Publish Verified Model** GitHub Actions workflow, which uses GitHub OIDC
+so the Sigstore identity points at the workflow, not a personal local browser
+session.
+
+Local signing is disabled by default to prevent developers from accidentally signing
+with their personal accounts. If you need to test signing locally, set the environment
+variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="true"` in PowerShell).
+
+Run the workflow with:
+
+```text
+model_name: gpt10m-shakespeare
+hf_repo_id: <user-or-org>/gpt10m-shakespeare
+publish_to_hf: true
+```
+
+The workflow signs with:
+
+```text
+identity: https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@<git-ref>
+provider: https://token.actions.githubusercontent.com
+```
+
+It then verifies the signed directory without `--allow-unsigned`:
+
+```bash
+ovllm verify dist/gpt10m-shakespeare --skip-replay
+```
+
+If you already have a signed directory, manual Hugging Face upload uses
+`HF_TOKEN` directly and disables Hugging Face Xet transfers by default for these
+small artifacts. This avoids local Hugging Face CLI token-cache and Xet-cache
+permission issues:
+
+```bash
+# bash/zsh
+export HF_TOKEN=<your-huggingface-write-token>
+export HF_HUB_DISABLE_XET=1
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
+```
+
+```powershell
+# PowerShell
+$env:HF_TOKEN = "<your-huggingface-write-token>"
+$env:HF_HUB_DISABLE_XET = "1"
+ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
+```
+
+Verify by model reference:
+
+```bash
+# Verify metadata and signatures only (fast)
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay
+
+# Verify with full local training/replay verification (bit-for-bit parameter match)
+ovllm verify <user-or-org>/gpt10m-shakespeare
+```
+
+Remote verification downloads into `.ovllm-cache/huggingface` by default. If a
+machine has cache permission issues or you want a disposable cache, use:
+
+```bash
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay --cache-dir C:\tmp\ovllm-hf-cache
+```
+
+If hashes pass but `sigstore_bundle` fails with `manifest lacks
+sigstore_identity/provider`, the uploaded repo was not the GitHub Actions-signed
+artifact. Re-run **Publish Verified Model** with `publish_to_hf: true` and verify
+the newly uploaded output.
+
+Clean-machine smoke:
+
+```bash
+git clone <your repo> && cd OpenVerifiableLLM
+python -m venv .venv
+. .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay
+```
+
+Optional Ollama build path:
+
+```bash
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare
+```
+
+Dry-run wrappers are for non-signing publish/build command-shape checks:
+
+```bash
+ovllm publish-hf <repo-id> dist/gpt10m-shakespeare --dry-run
+ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare --dry-run
+```
+
+Do not use local signing dry runs as part of the demo path. Published artifacts
+are signed by the GitHub Actions workflow so Sigstore records the workflow
+identity.
+
+---
+
 ## 1. Headline: the same GPU is bitwise reproducible (and the audit passes)
 
 ```bash
