@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  falsifiability:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies (CPU torch)
+        run: |
+          python -m pip install --upgrade pip
+          # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+      # The falsifiability contract, enforced: reproducibility.py exits nonzero
+      # if the clean audit fails OR any tampered scenario (bad seed, gradient
+      # noise, post-training sabotage, broken seal) passes verification.
+      - name: Falsifiability suite (clean must pass, tampered must fail)
+        working-directory: src
+        env:
+          OVL_TOTAL_STEPS: "10"
+          OVL_CHECKPOINT_STEP: "5"
+          OVL_BATCH_SIZE: "4"
+          OVL_BLOCK_SIZE: "64"
+        run: python reproducibility.py
+
+      # k-of-N chain audit smoke: train a signed 4-segment chain, sample 2
+      # segments, replay bit-exactly. Exits nonzero on any failed segment.
+      - name: Chain audit smoke (k-of-N)
+        working-directory: src
+        run: |
+          python chain.py train --model mlp --segments 4 --segment-steps 3 --batch-size 4 --block-size 48
+          python chain.py audit --k 2 --audit-seed 7

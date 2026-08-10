@@ -1,0 +1,33 @@
+{
+  "chain_dir": "/workspace/repo/runs/chain",
+  "num_segments": 5,
+  "sampled_segments": [
+    1,
+    2
+  ],
+  "k": 2,
+  "dataset_ok": true,
+  "results": [
+    {
+      "segment": 1,
+      "expected": "846592fdf45d4bef04c706e793a3aeb079c29d11f2e55b23c18d5b584a3e25aa",
+      "got": "cebcde30947d3fc2bd238ad6d406af30e1ae95ff939d573990763be15c25ab8f",
+      "ok": false,
+      "reason": "closing hash mismatch",
+      "wall_time_s": 59.43
+    },
+    {
+      "segment": 2,
+      "expected": "214dbc6114671cc22a8f1d40ec63687b949d22e668d69fd03347bed6a95bef2f",
+      "got": "427fcba6a3fd9d8ca775e4abb465f294e87e285ba940cfd8b1bdce3858645676",
+      "ok": false,
+      "reason": "closing hash mismatch",
+      "wall_time_s": 58.96
+    }
+  ],
+  "audit_wall_time_s": 118.39,
+  "prover_wall_time_s": 303.73,
+  "cost_ratio": 0.3898,
+  "min_forgery_detection_probability": 0.4,
+  "ok": false
+}

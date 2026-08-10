@@ -1,0 +1,78 @@
+{
+  "commitment": {
+    "model": "gpt120m",
+    "dataset": "enwik8",
+    "dataset_sha256": "3e13a803ca216f70c45c7092ba8b19cc21358bdc7d19a5171f4c1a1bc5cad25f",
+    "config": {
+      "embed_dim": 896,
+      "num_heads": 14,
+      "num_layers": 12,
+      "max_seq_len": 256,
+      "block_size": 128,
+      "batch_size": 16,
+      "dropout": 0.1,
+      "lr": 0.001,
+      "optimizer": "Adam",
+      "seed": 99,
+      "total_steps": 200,
+      "checkpoint_step": 100,
+      "model": "gpt120m"
+    },
+    "config_sha256": "f7512f63dc51104f19294e548f4a4d1a2596e68b05536df9e4b6a723f7eebec4",
+    "seed": 99,
+    "num_segments": 5,
+    "segment_steps": 200
+  },
+  "environment": {
+    "torch": "2.11.0+cu128",
+    "device": "cuda",
+    "device_name": "NVIDIA RTX A4000"
+  },
+  "num_params": 116343808,
+  "final_param_sha256": "f4e3f3b511104c227e12f0d751ba2faa7bbe5bae2a22664d2c6934bd42d0cab4",
+  "prover_wall_time_s": 303.73,
+  "boundaries": [
+    {
+      "index": 0,
+      "step": 0,
+      "param_sha256": "9b551dcfa9fff105ddba0118c4c1fabb34854abecd58a2dd298b246a8e2d957e",
+      "file": "boundary_0000.pt",
+      "segment_wall_time_s": 0.0
+    },
+    {
+      "index": 1,
+      "step": 200,
+      "param_sha256": "82b3295ea67c3337acc5ab35c6d7092f46d170412ec62e7a006b65cad9501838",
+      "file": "boundary_0001.pt",
+      "segment_wall_time_s": 43.89
+    },
+    {
+      "index": 2,
+      "step": 400,
+      "param_sha256": "846592fdf45d4bef04c706e793a3aeb079c29d11f2e55b23c18d5b584a3e25aa",
+      "file": "boundary_0002.pt",
+      "segment_wall_time_s": 44.52
+    },
+    {
+      "index": 3,
+      "step": 600,
+      "param_sha256": "214dbc6114671cc22a8f1d40ec63687b949d22e668d69fd03347bed6a95bef2f",
+      "file": "boundary_0003.pt",
+      "segment_wall_time_s": 44.75
+    },
+    {
+      "index": 4,
+      "step": 800,
+      "param_sha256": "2d6259fa86f1ed89914fcd6a757d76fb9693733c808d06b0c7552b197f21ea3d",
+      "file": "boundary_0004.pt",
+      "segment_wall_time_s": 44.77
+    },
+    {
+      "index": 5,
+      "step": 1000,
+      "param_sha256": "f4e3f3b511104c227e12f0d751ba2faa7bbe5bae2a22664d2c6934bd42d0cab4",
+      "file": "boundary_0005.pt",
+      "segment_wall_time_s": 44.81
+    }
+  ]
+}

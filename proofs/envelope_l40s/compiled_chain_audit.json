@@ -1,0 +1,42 @@
+{
+  "chain_dir": "/workspace/out/envchain2",
+  "num_segments": 3,
+  "sampled_segments": [
+    0,
+    1,
+    2
+  ],
+  "k": 3,
+  "dataset_ok": true,
+  "results": [
+    {
+      "segment": 0,
+      "expected": "9d6f949654b00a0aefe409dd96bbd10ca69f83cb3908d89d8892279128077777",
+      "got": "9d6f949654b00a0aefe409dd96bbd10ca69f83cb3908d89d8892279128077777",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 4.37
+    },
+    {
+      "segment": 1,
+      "expected": "47b9eaff8247add027624a673139a5d29d35fa3285dda6d165eb9cff2a8f791a",
+      "got": "47b9eaff8247add027624a673139a5d29d35fa3285dda6d165eb9cff2a8f791a",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 4.79
+    },
+    {
+      "segment": 2,
+      "expected": "d11499411205f1ed09699828b0584c0b2821ab2342d9cdf56b9ba544ce65ed72",
+      "got": "d11499411205f1ed09699828b0584c0b2821ab2342d9cdf56b9ba544ce65ed72",
+      "ok": true,
+      "reason": null,
+      "wall_time_s": 5.1
+    }
+  ],
+  "audit_wall_time_s": 14.26,
+  "prover_wall_time_s": 15.48,
+  "cost_ratio": 0.9212,
+  "min_forgery_detection_probability": 1.0,
+  "ok": true
+}

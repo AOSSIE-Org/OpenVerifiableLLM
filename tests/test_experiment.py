@@ -17,6 +17,7 @@ while the determinism tests self-skip when torch / a CUDA GPU is absent:
     * T9 DDP all-reduce ordering (needs >=2 GPUs)
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -90,6 +91,173 @@ class MerkleNonDegenerateTests(unittest.TestCase):
             manifest = build_merkle_manifest(big)  # default 1 MB chunks
             self.assertGreater(manifest["chunk_count"], 1)
             self.assertNotEqual(manifest["merkle_root"], manifest["chunks"][0]["sha256"])
+
+
+# --------------------------------------------------------------------------- #
+# verify(): the hash is the verdict, telemetry is a diagnostic
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required (reproducibility imports torch)")
+class VerifyVerdictTests(unittest.TestCase):
+    """Matching telemetry must never rescue differing bits: tolerance-based
+    acceptance is the loophole that broke proof-of-learning (Fang et al. 2023)."""
+
+    @staticmethod
+    def _logs(n=3):
+        return [{"step": i, "loss": 1.0 / (i + 1), "grad_norm": 0.5, "param_norm": 2.0}
+                for i in range(n)]
+
+    def test_clean_replay_passes(self):
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertTrue(verify(logs, [dict(entry) for entry in logs],
+                               "hash-a", "hash-a", label="clean"))
+
+    def test_hash_mismatch_fails_even_when_trajectory_matches(self):
+        # The post-training-sabotage / broken-seal shape: every logged value
+        # agrees to 1e-6, but the final bits differ. This must FAIL.
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertFalse(verify(logs, [dict(entry) for entry in logs],
+                                "hash-a", "hash-b", label="sabotage"))
+
+    def test_diverged_trajectory_fails(self):
+        from reproducibility import verify
+        logs = self._logs()
+        tampered = [dict(entry) for entry in logs]
+        tampered[-1]["loss"] *= 1.01
+        self.assertFalse(verify(logs, tampered, "hash-a", "hash-a", label="diverged"))
+
+    def test_log_length_mismatch_fails(self):
+        from reproducibility import verify
+        logs = self._logs()
+        self.assertFalse(verify(logs, logs[:-1], "hash-a", "hash-a", label="truncated"))
+
+
+# --------------------------------------------------------------------------- #
+# k-of-N chain audit (torch; CPU is fine)
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required")
+class ChainAuditTests(unittest.TestCase):
+    """Train a tiny signed chain once, then audit it clean and tampered."""
+
+    CHAIN_OVERRIDES = dict(batch_size=4, block_size=48)
+
+    @classmethod
+    def setUpClass(cls):
+        from chain import train_chain
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.chain_dir = Path(cls.tmp.name) / "chain"
+        cls.manifest = train_chain("mlp", "shakespeare", out_dir=cls.chain_dir,
+                                   num_segments=3, segment_steps=2, device="cpu",
+                                   overrides=cls.CHAIN_OVERRIDES)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_clean_chain_full_audit_passes(self):
+        from chain import audit_chain
+        report = audit_chain(self.chain_dir, k=3, device="cpu")
+        self.assertTrue(report["ok"])
+        self.assertTrue(report["dataset_ok"])
+        self.assertEqual(report["min_forgery_detection_probability"], 1.0)
+
+    def test_sampled_audit_reports_kn_detection(self):
+        from chain import audit_chain
+        report = audit_chain(self.chain_dir, k=1, audit_seed=7, device="cpu")
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["k"], 1)
+        self.assertAlmostEqual(report["min_forgery_detection_probability"], 1 / 3, places=4)
+
+    def test_tampered_boundary_fails_audit(self):
+        from chain import audit_chain
+        # Attacker edits a boundary checkpoint on disk; the stale ed25519
+        # signature must fail the segment BEFORE deserialization.
+        target = self.chain_dir / self.manifest["boundaries"][1]["file"]
+        original = target.read_bytes()
+        try:
+            with open(target, "r+b") as f:
+                f.seek(1024)
+                f.write(b"\xff" * 16)
+            report = audit_chain(self.chain_dir, device="cpu", segments=[1])
+            self.assertFalse(report["ok"])
+            self.assertIn("signature", report["results"][0]["reason"])
+        finally:
+            target.write_bytes(original)
+
+    def test_tampered_manifest_is_rejected(self):
+        from chain import audit_chain
+        manifest_path = self.chain_dir / "chain_manifest.json"
+        original = manifest_path.read_bytes()
+        try:
+            forged = json.loads(original)
+            forged["boundaries"][-1]["param_sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(forged, indent=2), encoding="utf-8")
+            with self.assertRaises(signing.SignatureError):
+                audit_chain(self.chain_dir, k=1, device="cpu")
+        finally:
+            manifest_path.write_bytes(original)
+
+
+# --------------------------------------------------------------------------- #
+# Replay-free forgery detectors (torch; CPU is fine)
+# --------------------------------------------------------------------------- #
+@unittest.skipUnless(HAS_TORCH, "torch required")
+class ForgeryDetectorTests(unittest.TestCase):
+    """Cheap boundary statistics must flag splices without replay, and must
+    never flag the genuine chain (thresholds are its widened envelope)."""
+
+    @classmethod
+    def setUpClass(cls):
+        from forgery import run_experiment
+        cls.tmp = tempfile.TemporaryDirectory()
+        root = Path(cls.tmp.name)
+        cls.report = run_experiment(
+            "mlp", "shakespeare", num_segments=4, segment_steps=3, device="cpu",
+            overrides=dict(batch_size=4, block_size=48),
+            out_path=root / "report.json",
+            chain_dir=root / "genuine", donor_dir=root / "donor")
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_genuine_chain_has_zero_false_positives(self):
+        self.assertEqual(self.report["false_positives"], 0)
+
+    def test_splice_detected_and_localized(self):
+        splice = next(v for k, v in self.report["forgeries"].items()
+                      if k.startswith("splice"))
+        self.assertTrue(splice["detected"])
+        self.assertTrue(splice["localized"])
+
+    def test_gradual_interpolation_detected(self):
+        self.assertTrue(self.report["forgeries"]["interp@0.03"]["detected"])
+
+    def test_large_edit_detected(self):
+        edit = next(v for k, v in self.report["forgeries"].items()
+                    if "sigma1e-2" in k)
+        self.assertTrue(edit["detected"])
+
+    def test_smart_aligned_forger_caught_by_two_sided_envelope(self):
+        # Perfectly anti-aligned moments defeat a one-sided check; the
+        # two-sided envelope must flag them as too consistent.
+        sf = next(v for k, v in self.report["forgeries"].items()
+                  if k.startswith("sf-aligned"))
+        self.assertTrue(sf["detected"])
+
+    def test_fabricated_v_violates_hard_invariant(self):
+        # v_{k+1} >= beta2^S * v_k elementwise is a necessary condition for
+        # genuine Adam; fresh fabricated v must trip it.
+        sf = next(v for k, v in self.report["forgeries"].items()
+                  if k.startswith("sf-freshv"))
+        self.assertTrue(sf["detected"])
+        reasons = {r for f in sf["flags"] for r in f["reasons"]}
+        self.assertIn("v-invariant", reasons)
+
+    def test_genuine_chain_satisfies_v_invariant_exactly(self):
+        for s in self.report["genuine_scores"]:
+            self.assertLessEqual(s["v_continuity_viol"], 1e-6)
 
 
 # --------------------------------------------------------------------------- #

@@ -11,18 +11,24 @@ from artifacts import (
     CHECKPOINT_MERKLE_PATH,
     CHECKPOINT_STATE_PATH,
     CHECKPOINT_WEIGHTS_PATH,
+    RUNS_DIR,
     build_merkle_manifest,
     compute_sha256,
     hash_json,
 )
+
+EVAL_MANIFEST_PATH = RUNS_DIR / "eval_manifest.json"
+PIPELINE_MANIFEST_PATH = RUNS_DIR / "pipeline_manifest.json"
 
 def hash_dict(d):
     # Sort keys to ensure deterministic JSON stringification
     return hash_json(d)
 
 def generate_global_manifest():
-    if not os.path.exists("eval_manifest.json"):
-        raise RuntimeError("Missing eval_manifest.json. Please run src/eval.py first to generate the evaluation hashes.")
+    if not EVAL_MANIFEST_PATH.exists():
+        raise RuntimeError(
+            f"Missing {EVAL_MANIFEST_PATH}. Please run src/eval.py first to generate the evaluation hashes."
+        )
 
     print("Generating The Global Verification Manifest...")
 
@@ -48,7 +54,8 @@ def generate_global_manifest():
         if os.path.exists(CHECKPOINT_WEIGHTS_PATH)
         else CHECKPOINT_STATE_PATH
     )
-    model_artifact = str(model_artifact_path)
+    # File NAME only: the sealed manifest must not embed a machine-specific path.
+    model_artifact = model_artifact_path.name
     model_hash = compute_sha256(file_path=model_artifact_path)
     if os.path.exists(CHECKPOINT_MERKLE_PATH):
         with open(CHECKPOINT_MERKLE_PATH, "r", encoding="utf-8") as f:
@@ -57,7 +64,7 @@ def generate_global_manifest():
         model_merkle = build_merkle_manifest(model_artifact_path)
 
     # 5. Eval Manifest Hash (run eval.py before this script)
-    with open("eval_manifest.json", "r") as f:
+    with open(EVAL_MANIFEST_PATH, "r") as f:
         eval_manifest = json.load(f)
     eval_hash = hash_dict(eval_manifest)
 
@@ -77,7 +84,8 @@ def generate_global_manifest():
     # 7. Seal the Vault
     global_manifest["99_GLOBAL_PIPELINE_HASH"] = hash_dict(global_manifest)
 
-    with open("pipeline_manifest.json", "w") as f:
+    PIPELINE_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(PIPELINE_MANIFEST_PATH, "w") as f:
         json.dump(global_manifest, f, indent=2)
 
     print("\n Global Manifest Sealed:")
