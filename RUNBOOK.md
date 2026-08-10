@@ -294,6 +294,111 @@ on stage. Keep `results/results.jsonl` from a good run as a static backup for th
 
 ---
 
+## 8. The k-of-N chain audit (mid-scale evidence run)
+
+The mechanism behind the README's "What a spot-check audit buys": a prover seals a
+signed full-state boundary checkpoint every S steps; an auditor samples k of the N
+segments, replays each bit-exactly, and the report measures the realized audit-cost
+ratio instead of asserting it.
+
+CPU smoke (~a minute, proves the plumbing):
+
+```bash
+cd src
+python chain.py train --model mlp --segments 4 --segment-steps 3 --batch-size 4 --block-size 48
+python chain.py audit --k 2 --audit-seed 7          # exit 0 iff every sampled segment verifies
+cd ..
+```
+
+Pod scale — the run the write-up hangs on (gpt120m ≈ 116M params, enwik8):
+
+```bash
+cd src
+python chain.py train --model gpt120m --dataset enwik8 --segments 20 --segment-steps 500 --device cuda
+python chain.py audit --k 3 --audit-seed 7 --device cuda
+cd ..
+```
+
+Numbers to record from the audit report: `cost_ratio` (auditor wall time / prover
+wall time — should approach k/N as segment compute grows), per-segment wall times,
+chain storage (`du -sh runs/chain`), and `min_forgery_detection_probability`.
+
+**Known caveat (measured, not hidden):** at smoke scale the cost ratio EXCEEDS k/N
+(fixed per-segment overhead — model build, dataset load, checkpoint I/O — dominates
+a 3-step segment). The k/N economics only hold when segment compute dominates that
+overhead; the mid-scale run is what demonstrates the crossover.
+
+**Measured (2026-07-07, RunPod secure A40, torch 2.11.0+cu128 — evidence in
+`proofs/chain_a40/`):** gpt120m (116,343,808 params) on enwik8, 20 × 500 steps,
+strict deterministic fp32. All 20 segments sealed at a steady ~63.6 s; the k=3
+audit (segments 4, 10, 12, audit_seed=7) replayed **bit-exactly** — GPU bitwise
+determinism holds at 116M params through full save/restore boundaries. Auditor
+274.5 s vs prover 1589.0 s → **measured cost ratio 0.173 vs theoretical k/N =
+0.15** (replay overhead ≈ 1.44× a prover segment: checkpoint load + hash vs
+checkpoint save). Chain storage: 28.5 GB for 21 boundaries ≈ 1.36 GB/boundary
+(fp32 weights 465 MB + Adam moments 2×). Total pod cost ≈ $0.32.
+
+**Cross-hardware controls (2026-07-07, evidence in `proofs/chain_cross/`):** the
+same gpt120m chain (5 × 200 steps, enwik8, trained on a secure RTX A4000) was
+audited with identical sampled segments (1 and 2, audit_seed=7) from three
+positions: the training pod itself (**PASS**, ratio 0.460), a second RTX A4000
+pod on a different physical GPU (**PASS**, bit-exact, ratio 0.461), and an L4 pod
+in a different datacenter (**FAIL**, closing hash mismatch on both segments;
+opening hashes matched, so the divergence is replay arithmetic, not transfer
+corruption). Auditors pulled the 7.5 GB chain over plain HTTP; ed25519 signatures
+established integrity. Conclusion: the verification equivalence class is (GPU
+model, software stack) — an auditor needs the same GPU model, not the same
+machine. Three-pod total cost ≈ $0.20.
+
+Tamper drill (any byte edit to a boundary file fails its segment before
+deserialization; a manifest edit fails the audit immediately):
+
+```bash
+printf '\xff' | dd of=runs/chain/boundary_0001.pt bs=1 seek=1024 conv=notrunc
+python src/chain.py audit --segments 1   # -> FAIL (signature), exit 1
+```
+
+---
+
+## 9. Replay-free forgery detectors (segment-length sweep)
+
+`src/forgery.py` trains a genuine chain plus an alt-seed donor, plants forgeries
+(splice, gradual interpolation, gaussian edits), and scores three O(params)
+replay-free detectors against the genuine chain's envelope. CPU smoke:
+
+```bash
+cd src && python forgery.py --model mlp --segments 4 --segment-steps 3 \
+    --batch-size 4 --block-size 48
+```
+
+Pod scale (use a fast Ada card — L40S ran gpt120m at ~14 s per 200-step segment):
+
+```bash
+OVL_FORGE_SEGMENTS=10 OVL_FORGE_SEGMENT_STEPS=100 bash scripts/pod_forgery_run.sh
+```
+
+**Measured (2026-07-07, L40S, gpt120m/enwik8, evidence in `proofs/forgery_l40s/`):**
+zero false positives in every condition; alt-seed splice and α=0.10 interpolation
+detected+localized at all segment lengths; the stealthy α=0.03 interpolation is
+missed at S=200 but detected+localized at S=100 and S=10 — segment length is a
+replay-free detectability dial. σ=1e-2 gaussian edits evade the detectors at this
+scale (caught only by sampled replay / the final-model hash). Genuine
+moment-cosine range rises from [0.013, 0.050] at S=200 to [0.052, 0.128] at S=10,
+confirming the correlation-decay mechanism.
+
+**Smart-forger escalation (same day, second L40S sweep, evidence in
+`proofs/smartforger_l40s/`):** all three moment-forging attackers detected AND
+localized at every segment length, zero false positives. sf-aligned (cos=1
+moments) caught by the two-sided moment envelope everywhere; sf-calibrated
+(moments engineered into the genuine envelope, genuine v copied) evades the
+moment checks at S=200/100 but is caught by weight-side reach/norm — and at S=10
+the moment envelope flags it as well; sf-freshv (fabricated v) trips the
+elementwise hard invariant v_{k+1} >= beta2^S * v_k at every S. Net: moment
+forging pays only when the weight delta is also small; that small-delta/long-S
+hole is what shorter segments and sampled replay close.
+
+---
+
 ## Troubleshooting
 
 - **"deterministic algorithm not available"** on an exotic op: the sweep already runs

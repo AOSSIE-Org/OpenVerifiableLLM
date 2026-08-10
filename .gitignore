@@ -33,9 +33,20 @@ keys/*.key
 # generated experiment outputs and swept artifacts
 results/
 artifacts/
+runs/
 
 # session/context scratch — never commit
 repo_prompt.md
+
+# build and packaging output
+dist/
+*.egg-info/
+
+# local model/dataset download cache
+.ovllm-cache/
+
+# publish smoke-test scratch output
+openverifiable-smoke/
 
 # downloaded corpora (large); keep only the bundled offline sample
 data/*.txt

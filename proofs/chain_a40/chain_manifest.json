@@ -1,0 +1,183 @@
+{
+  "commitment": {
+    "model": "gpt120m",
+    "dataset": "enwik8",
+    "dataset_sha256": "3e13a803ca216f70c45c7092ba8b19cc21358bdc7d19a5171f4c1a1bc5cad25f",
+    "config": {
+      "embed_dim": 896,
+      "num_heads": 14,
+      "num_layers": 12,
+      "max_seq_len": 256,
+      "block_size": 128,
+      "batch_size": 16,
+      "dropout": 0.1,
+      "lr": 0.001,
+      "optimizer": "Adam",
+      "seed": 99,
+      "total_steps": 200,
+      "checkpoint_step": 100,
+      "model": "gpt120m"
+    },
+    "config_sha256": "f7512f63dc51104f19294e548f4a4d1a2596e68b05536df9e4b6a723f7eebec4",
+    "seed": 99,
+    "num_segments": 20,
+    "segment_steps": 500
+  },
+  "environment": {
+    "torch": "2.11.0+cu128",
+    "device": "cuda",
+    "device_name": "NVIDIA A40"
+  },
+  "num_params": 116343808,
+  "final_param_sha256": "7f38320bee2b981ef9bc437b822cc01a9b3d2a4f79884c993f5b6ab64e010384",
+  "prover_wall_time_s": 1589.03,
+  "boundaries": [
+    {
+      "index": 0,
+      "step": 0,
+      "param_sha256": "9b551dcfa9fff105ddba0118c4c1fabb34854abecd58a2dd298b246a8e2d957e",
+      "file": "boundary_0000.pt",
+      "segment_wall_time_s": 0.0
+    },
+    {
+      "index": 1,
+      "step": 500,
+      "param_sha256": "e6b98473a85ba9b6a2ba2b8500525b033bedca70b2d488033be94d67c74cab73",
+      "file": "boundary_0001.pt",
+      "segment_wall_time_s": 64.43
+    },
+    {
+      "index": 2,
+      "step": 1000,
+      "param_sha256": "154aad1e295fac41b865b83b32eafa91cef6ef643335eef0530cc1efa6bbb0af",
+      "file": "boundary_0002.pt",
+      "segment_wall_time_s": 63.73
+    },
+    {
+      "index": 3,
+      "step": 1500,
+      "param_sha256": "87d2be2913475a1f02cc6c958c4e0ec121987351eedf519817cdda0bb2685ad9",
+      "file": "boundary_0003.pt",
+      "segment_wall_time_s": 63.81
+    },
+    {
+      "index": 4,
+      "step": 2000,
+      "param_sha256": "6c7154d2a5b700425926112ac0ae9aaa0d51da7897312220d635a322dc0f7258",
+      "file": "boundary_0004.pt",
+      "segment_wall_time_s": 63.78
+    },
+    {
+      "index": 5,
+      "step": 2500,
+      "param_sha256": "68594e6e76eefdd51675b6115d33e16379c4ecb7ebc654f8a305e12e961cc377",
+      "file": "boundary_0005.pt",
+      "segment_wall_time_s": 63.71
+    },
+    {
+      "index": 6,
+      "step": 3000,
+      "param_sha256": "6e74ebe9afcb7c65295021c464a2e65c5a5847c439a39ccb943d1405cc8df7d7",
+      "file": "boundary_0006.pt",
+      "segment_wall_time_s": 63.68
+    },
+    {
+      "index": 7,
+      "step": 3500,
+      "param_sha256": "7c0c2c00ca194f1906f9552fe10e58dac7bda020881c3f064c55b197e236467e",
+      "file": "boundary_0007.pt",
+      "segment_wall_time_s": 63.6
+    },
+    {
+      "index": 8,
+      "step": 4000,
+      "param_sha256": "918384b8a66a41761582deb5b25288d9835552ab39ea43ffaf75b318608df9bf",
+      "file": "boundary_0008.pt",
+      "segment_wall_time_s": 63.79
+    },
+    {
+      "index": 9,
+      "step": 4500,
+      "param_sha256": "105d8e700e13c97dd25e5c5eb5ee5a47486f1c1f9f63071dc8d591a0536f0a33",
+      "file": "boundary_0009.pt",
+      "segment_wall_time_s": 63.62
+    },
+    {
+      "index": 10,
+      "step": 5000,
+      "param_sha256": "14989993d75ace9a6a36ea165c7060b72af2ef7748b7ff88b856c87999cbc459",
+      "file": "boundary_0010.pt",
+      "segment_wall_time_s": 63.68
+    },
+    {
+      "index": 11,
+      "step": 5500,
+      "param_sha256": "14a671a5d775e715e3347125083bfb8b647236b7496ae5e19cb21a5c0abae5f4",
+      "file": "boundary_0011.pt",
+      "segment_wall_time_s": 63.56
+    },
+    {
+      "index": 12,
+      "step": 6000,
+      "param_sha256": "b66da9ce4923942a1e9cec9a54e850f92ecaa9fef60caf6e7405d8dc8c00583d",
+      "file": "boundary_0012.pt",
+      "segment_wall_time_s": 63.62
+    },
+    {
+      "index": 13,
+      "step": 6500,
+      "param_sha256": "8101289471f24b314d287e2aff9ff44162a0ecd25462661cc4821e0f8e7c0f5d",
+      "file": "boundary_0013.pt",
+      "segment_wall_time_s": 63.6
+    },
+    {
+      "index": 14,
+      "step": 7000,
+      "param_sha256": "9fa66e0575898a285e44b047b6eff2f225b4f9521bfa583ff6e4bf63d530ca2d",
+      "file": "boundary_0014.pt",
+      "segment_wall_time_s": 63.57
+    },
+    {
+      "index": 15,
+      "step": 7500,
+      "param_sha256": "dd304649b09df289b8a0fb9ae488aba9b7ddaccf4f5186b42ec50053da56ea78",
+      "file": "boundary_0015.pt",
+      "segment_wall_time_s": 63.63
+    },
+    {
+      "index": 16,
+      "step": 8000,
+      "param_sha256": "d7d377e72c85855606ee9b27e10984878d7ac6eb7c98c1ced1f58fb709de06ab",
+      "file": "boundary_0016.pt",
+      "segment_wall_time_s": 63.55
+    },
+    {
+      "index": 17,
+      "step": 8500,
+      "param_sha256": "16aa60b316a905463e80ebe0d21d566e1ef6f0f98b6cfd8ba64c35ea06ea4d68",
+      "file": "boundary_0017.pt",
+      "segment_wall_time_s": 63.53
+    },
+    {
+      "index": 18,
+      "step": 9000,
+      "param_sha256": "c32dabd6e1b55b1c20e5a71b6dc8197eb2777a353a6f1b8c0b2819f1e8a6f606",
+      "file": "boundary_0018.pt",
+      "segment_wall_time_s": 63.51
+    },
+    {
+      "index": 19,
+      "step": 9500,
+      "param_sha256": "1bad111145f5878515e7ee0f04c2577a0839cc3315cd73b0d6c4d8d95b8f3337",
+      "file": "boundary_0019.pt",
+      "segment_wall_time_s": 63.47
+    },
+    {
+      "index": 20,
+      "step": 10000,
+      "param_sha256": "7f38320bee2b981ef9bc437b822cc01a9b3d2a4f79884c993f5b6ab64e010384",
+      "file": "boundary_0020.pt",
+      "segment_wall_time_s": 63.63
+    }
+  ]
+}

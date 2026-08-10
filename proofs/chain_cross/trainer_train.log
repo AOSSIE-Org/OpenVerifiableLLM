@@ -1,0 +1,9 @@
+ ~> downloading enwik8 (~36 MB) ...
+seed set to 99 (deterministic=True)
+[chain] gpt120m (116,343,808 params) on enwik8 | 5 segments x 200 steps | cuda (NVIDIA RTX A4000)
+  segment   0 sealed | loss 2.780738 | hash 82b3295ea67c | 43.89s
+  segment   1 sealed | loss 2.787459 | hash 846592fdf45d | 44.52s
+  segment   2 sealed | loss 2.811854 | hash 214dbc611467 | 44.75s
+  segment   3 sealed | loss 2.909885 | hash 2d6259fa86f1 | 44.77s
+  segment   4 sealed | loss 2.736757 | hash f4e3f3b51110 | 44.81s
+[chain] sealed 5-segment chain in 303.7s -> /workspace/repo/runs/chain

@@ -1,10 +1,12 @@
 import json
+from pathlib import Path
 
 from artifacts import model_parameters_sha256
 
 class TelemetryLogger:
     def __init__(self, filepath="audit_log.jsonl"):
-        self.filepath = filepath
+        self.filepath = Path(filepath)
+        self.filepath.parent.mkdir(parents=True, exist_ok=True)
 
         open(self.filepath, 'w').close()
 

@@ -53,7 +53,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RESULTS_DIR = REPO_ROOT / "results"
 ARTIFACTS_DIR = REPO_ROOT / "artifacts"
 
-REFERENCE_LOSS_RTOL = 1e-6  # same tolerance verify() uses -> the planted debate hook
+REFERENCE_LOSS_RTOL = 1e-6  # verify()'s telemetry diagnostic tolerance (the verdict is the exact hash)
 
 
 def _norm_bool(value):

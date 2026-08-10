@@ -33,7 +33,8 @@ class CausalSelfAttention(nn.Module):
     # Type hint for the dynamically registered buffer
     bias: torch.Tensor
 
-    def __init__(self, embed_dim, num_heads, max_seq_len, dropout=0.1):
+    def __init__(self, embed_dim, num_heads, max_seq_len, dropout=0.1,
+                 attn_impl="manual"):
         super().__init__()
         assert embed_dim % num_heads == 0
         self.c_attn = nn.Linear(embed_dim, 3 * embed_dim)
@@ -41,6 +42,7 @@ class CausalSelfAttention(nn.Module):
         self.attn_dropout = nn.Dropout(dropout)
         self.n_head = num_heads
         self.n_embd = embed_dim
+        self.attn_impl = attn_impl  # "manual" (explicit q@k softmax) or "sdpa"
 
         self.register_buffer(
             "bias",
@@ -58,21 +60,30 @@ class CausalSelfAttention(nn.Module):
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2)
 
-        att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
-        att = F.softmax(att, dim=-1)
-        att = self.attn_dropout(att)
-
-        y = att @ v
+        if self.attn_impl == "sdpa":
+            # Fused scaled-dot-product attention; backend (math/flash/efficient)
+            # is selected by the caller's sdpa_kernel context.
+            y = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_dropout.p if self.training else 0.0,
+                is_causal=True)
+        else:
+            att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+            att = att.masked_fill(self.bias[:, :, :T, :T] == 0, float("-inf"))
+            att = F.softmax(att, dim=-1)
+            att = self.attn_dropout(att)
+            y = att @ v
         y = y.transpose(1, 2).contiguous().view(B, T, C)
         return self.c_proj(y)
 
 
 class Block(nn.Module):
-    def __init__(self, embed_dim, num_heads, max_seq_len, dropout=0.1):
+    def __init__(self, embed_dim, num_heads, max_seq_len, dropout=0.1,
+                 attn_impl="manual"):
         super().__init__()
         self.ln_1 = nn.LayerNorm(embed_dim)
-        self.attn = CausalSelfAttention(embed_dim, num_heads, max_seq_len, dropout)
+        self.attn = CausalSelfAttention(embed_dim, num_heads, max_seq_len, dropout,
+                                        attn_impl=attn_impl)
         self.ln_2 = nn.LayerNorm(embed_dim)
         self.mlp = nn.Sequential(
             nn.Linear(embed_dim, 4 * embed_dim),
@@ -99,6 +110,7 @@ class TinyGPT(nn.Module):
         num_layers=6,
         max_seq_len=256,
         dropout=0.1,
+        attn_impl="manual",
     ):
         super().__init__()
         self.transformer = nn.ModuleDict(
@@ -107,7 +119,8 @@ class TinyGPT(nn.Module):
                 wpe=nn.Embedding(max_seq_len, embed_dim),
                 h=nn.ModuleList(
                     [
-                        Block(embed_dim, num_heads, max_seq_len, dropout)
+                        Block(embed_dim, num_heads, max_seq_len, dropout,
+                              attn_impl=attn_impl)
                         for _ in range(num_layers)
                     ]
                 ),
@@ -226,7 +239,7 @@ class TinyCNN(nn.Module):
 # --------------------------------------------------------------------------- #
 # Factory + helpers
 # --------------------------------------------------------------------------- #
-_GPT_ALIASES = {"gpt", "gpt10m", "gpt50m", "tinygpt"}
+_GPT_ALIASES = {"gpt", "gpt10m", "gpt50m", "gpt120m", "tinygpt"}
 
 
 def build_model(name, vocab_size, cfg):
@@ -244,6 +257,7 @@ def build_model(name, vocab_size, cfg):
             num_layers=cfg["num_layers"],
             max_seq_len=cfg["max_seq_len"],
             dropout=cfg["dropout"],
+            attn_impl=cfg.get("attn_impl", "manual"),
         )
     if name == "mlp":
         return MLPLanguageModel(
