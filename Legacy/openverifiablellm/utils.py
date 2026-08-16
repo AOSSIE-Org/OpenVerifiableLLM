@@ -218,15 +218,24 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
 
         pages_processed = data.get("pages_processed")
         stored_identity = data.get("input_identity")
-        file_offset = data.get("file_offset", 0)
 
         current_identity = _compute_input_identity(input_path)
 
-        if not isinstance(pages_processed, int) or pages_processed < 0:
+        if type(pages_processed) is not int or pages_processed < 0:
             raise ValueError("Invalid pages_processed value")
 
-        if not isinstance(file_offset, int) or file_offset < 0:
-            raise ValueError("Invalid file_offset value")
+        if "file_offset" not in data:
+            # Pre-#76 checkpoints cannot be truncated safely — refuse resume.
+            if pages_processed > 0:
+                raise ValueError("Legacy checkpoint missing file_offset; cannot safely resume")
+            file_offset = 0
+        else:
+            file_offset = data["file_offset"]
+            if type(file_offset) is not int or file_offset < 0:
+                raise ValueError("Invalid file_offset value")
+
+        if pages_processed > 0 and file_offset == 0:
+            raise ValueError("Inconsistent checkpoint: pages_processed > 0 with file_offset == 0")
 
         if stored_identity != current_identity:
             raise ValueError("Input file changed since checkpoint")
