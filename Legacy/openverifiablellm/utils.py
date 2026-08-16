@@ -199,10 +199,18 @@ def _compute_input_identity(input_path: Path) -> str:
     return compute_sha256(file_path=input_path)
 
 
+def _fresh_checkpoint(input_path: Path) -> Dict[str, Any]:
+    return {
+        "pages_processed": 0,
+        "input_identity": _compute_input_identity(input_path),
+        "file_offset": 0,
+    }
+
+
 def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path) -> Dict[str, Any]:
     """Load checkpoint safely and validate resume conditions."""
     if not checkpoint_path.exists():
-        return {"pages_processed": 0}
+        return _fresh_checkpoint(input_path)
 
     try:
         with checkpoint_path.open("r", encoding="utf-8") as f:
@@ -210,11 +218,15 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
 
         pages_processed = data.get("pages_processed")
         stored_identity = data.get("input_identity")
+        file_offset = data.get("file_offset", 0)
 
         current_identity = _compute_input_identity(input_path)
 
         if not isinstance(pages_processed, int) or pages_processed < 0:
             raise ValueError("Invalid pages_processed value")
+
+        if not isinstance(file_offset, int) or file_offset < 0:
+            raise ValueError("Invalid file_offset value")
 
         if stored_identity != current_identity:
             raise ValueError("Input file changed since checkpoint")
@@ -222,23 +234,36 @@ def _load_checkpoint(checkpoint_path: Path, input_path: Path, output_path: Path)
         if pages_processed > 0 and not output_path.exists():
             raise ValueError("Output file missing; cannot safely resume")
 
+        if pages_processed > 0 and output_path.exists() and file_offset > output_path.stat().st_size:
+            raise ValueError("Output shorter than checkpoint file_offset")
+
         logger.info("Resuming from checkpoint: %d pages already processed", pages_processed)
 
-        return data
+        return {
+            "pages_processed": pages_processed,
+            "input_identity": stored_identity,
+            "file_offset": file_offset,
+        }
 
     except Exception as e:
         logger.warning("Checkpoint invalid (%s) — starting fresh.", e)
-        return {"pages_processed": 0}
+        return _fresh_checkpoint(input_path)
 
 
-def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity: str) -> None:
-    """Atomically save checkpoint with input identity."""
+def _save_checkpoint(
+    checkpoint_path: Path,
+    pages_processed: int,
+    input_identity: str,
+    file_offset: int,
+) -> None:
+    """Atomically save checkpoint with input identity and durable output offset."""
     tmp = checkpoint_path.with_suffix(".tmp")
 
     try:
         checkpoint_data = {
             "pages_processed": pages_processed,
             "input_identity": input_identity,
+            "file_offset": file_offset,
         }
 
         with tmp.open("w", encoding="utf-8") as f:
@@ -246,11 +271,34 @@ def _save_checkpoint(checkpoint_path: Path, pages_processed: int, input_identity
 
         tmp.replace(checkpoint_path)
 
-        logger.debug("Checkpoint saved at %d pages", pages_processed)
+        logger.debug("Checkpoint saved at %d pages (offset=%d)", pages_processed, file_offset)
 
     except Exception as e:
         logger.warning("Failed to save checkpoint: %s", e)
         tmp.unlink(missing_ok=True)
+
+
+def _align_output_to_checkpoint(output_path: Path, file_offset: int) -> None:
+    """
+    Truncate output if it grew past the last durable checkpoint.
+
+    Crash between a write and the next checkpoint can leave the output file
+    ahead of `pages_processed`. Resume must truncate to `file_offset` before
+    appending, or reprocessed pages will be duplicated.
+    """
+    if file_offset <= 0 or not output_path.exists():
+        return
+
+    with output_path.open("rb+") as handle:
+        handle.seek(0, os.SEEK_END)
+        current_size = handle.tell()
+        if current_size > file_offset:
+            logger.warning(
+                "Output file ahead of checkpoint (%d > %d). Truncating to checkpoint offset.",
+                current_size,
+                file_offset,
+            )
+            handle.truncate(file_offset)
 
 
 def extract_text_from_xml(input_path, *, write_manifest: bool = False):
@@ -265,10 +313,10 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
         data/processed/wiki_clean.txt
 
     Supports resuming interrupted runs via a checkpoint file
-    (data/processed/wiki_clean.checkpoint.json). If the checkpoint
-    exists, already-processed pages are skipped and new pages are
-    appended to the existing output. Delete the checkpoint file to
-    force a full reprocessing from scratch.
+    (data/processed/wiki_clean.checkpoint.json). Checkpoints store both
+    `pages_processed` and a durable `file_offset` so resume can truncate
+    any output written past the last checkpoint before appending.
+    Delete the checkpoint file to force a full reprocessing from scratch.
 
     Parameters
     ----------
@@ -290,11 +338,15 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     output_path = output_dir / "wiki_clean.txt"
     checkpoint_path = _checkpoint_path(output_dir)
 
-    # Load checkpoint — tells us how many pages were already written
     checkpoint = _load_checkpoint(checkpoint_path, input_path, output_path)
     pages_already_done = checkpoint["pages_processed"]
+    input_identity = checkpoint.get("input_identity") or _compute_input_identity(input_path)
+    file_offset = checkpoint.get("file_offset", 0)
 
-    # If resuming, append to existing output; otherwise start fresh
+    # Keep on-disk output aligned with the last durable checkpoint before append.
+    if pages_already_done > 0:
+        _align_output_to_checkpoint(output_path, file_offset)
+
     write_mode = "a" if pages_already_done > 0 else "w"
 
     # Auto-detect file type using magic bytes separation
@@ -306,11 +358,11 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
     pages_seen = 0
     pages_written = pages_already_done
 
-    try:
-        with open_func(input_path, "rb") as f:
-            context = ET.iterparse(f, events=("end",))
+    with open_func(input_path, "rb") as f:
+        context = ET.iterparse(f, events=("end",))
 
-            with open(output_path, write_mode, encoding="utf-8") as out:
+        with open(output_path, write_mode, encoding="utf-8") as out:
+            try:
                 for _, elem in context:
                     if elem.tag.endswith("page"):
                         pages_seen += 1
@@ -333,16 +385,42 @@ def extract_text_from_xml(input_path, *, write_manifest: bool = False):
                         # Flush output and save checkpoint periodically
                         if pages_written % CHECKPOINT_INTERVAL == 0:
                             out.flush()
-                            _save_checkpoint(checkpoint_path, pages_written, input_path)
-    except KeyboardInterrupt:
-        _save_checkpoint(checkpoint_path, pages_written, input_path)
-        logger.warning("Interrupted by user after %d pages. Run again to resume.", pages_written)
-        raise
-    except Exception:
-        # Save progress before propagating the exception so the next run can resume
-        _save_checkpoint(checkpoint_path, pages_written, input_path)
-        logger.error("Processing interrupted after %d pages. Run again to resume.", pages_written)
-        raise
+                            file_offset = out.tell()
+                            _save_checkpoint(
+                                checkpoint_path,
+                                pages_written,
+                                input_identity,
+                                file_offset,
+                            )
+            except KeyboardInterrupt:
+                out.flush()
+                file_offset = out.tell()
+                _save_checkpoint(
+                    checkpoint_path,
+                    pages_written,
+                    input_identity,
+                    file_offset,
+                )
+                logger.warning(
+                    "Interrupted by user after %d pages. Run again to resume.",
+                    pages_written,
+                )
+                raise
+            except Exception:
+                # Save progress before propagating so the next run can resume
+                out.flush()
+                file_offset = out.tell()
+                _save_checkpoint(
+                    checkpoint_path,
+                    pages_written,
+                    input_identity,
+                    file_offset,
+                )
+                logger.error(
+                    "Processing interrupted after %d pages. Run again to resume.",
+                    pages_written,
+                )
+                raise
 
     # Processing finished successfully — remove checkpoint so a fresh
     # re-run (if ever needed) starts from the beginning
