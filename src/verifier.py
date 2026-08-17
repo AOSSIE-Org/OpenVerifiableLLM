@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from artifacts import build_merkle_manifest, compute_sha256, tensor_mapping_sha256
+from artifacts import (
+    MERKLE_ALG_LEGACY,
+    MERKLE_ALGS,
+    build_merkle_manifest,
+    compute_sha256,
+    tensor_mapping_sha256,
+)
 
 
 PASS = "PASS"
@@ -139,15 +145,40 @@ def check_artifact_hashes(model_dir: Path, manifest: Dict[str, Any]) -> List[Che
         )
     )
 
-    merkle = build_merkle_manifest(weights)
-    expected_root = (
-        manifest.get("merkle_root")
-        or manifest.get("weights_merkle_root")
-        or manifest.get("4_model_checkpoint_merkle_root")
-    )
-    results.append(
-        _check_equal("merkle_root", expected_root, merkle["merkle_root"], "1 MB chunk tree")
-    )
+    # A manifest with no merkle_alg predates the RFC 6962 hardening, so its root
+    # was built with the legacy construction. Recompute with the algorithm the
+    # manifest was actually written under -- otherwise an untampered artifact
+    # reports a root mismatch, which reads as tampering.
+    declared_alg = manifest.get("merkle_alg")
+    alg_known = declared_alg is None or declared_alg in MERKLE_ALGS
+    merkle_alg = declared_alg if declared_alg in MERKLE_ALGS else MERKLE_ALG_LEGACY
+
+    # chunk_count and sha256 are independent of the tree construction, so this
+    # is safe to build even when the declared algorithm is unrecognised.
+    merkle = build_merkle_manifest(weights, alg=merkle_alg)
+
+    if not alg_known:
+        results.append(
+            CheckResult(
+                "merkle_root",
+                FAIL,
+                f"manifest declares unknown merkle_alg {declared_alg!r}",
+                expected=f"one of {', '.join(MERKLE_ALGS)}",
+                actual=str(declared_alg),
+            )
+        )
+    else:
+        expected_root = (
+            manifest.get("merkle_root")
+            or manifest.get("weights_merkle_root")
+            or manifest.get("4_model_checkpoint_merkle_root")
+        )
+        detail = f"1 MB chunk tree ({merkle_alg})"
+        if declared_alg is None:
+            detail += " -- manifest predates merkle_alg; assumed legacy"
+        results.append(
+            _check_equal("merkle_root", expected_root, merkle["merkle_root"], detail)
+        )
 
     expected_chunks = (
         manifest.get("chunk_count")
