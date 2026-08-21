@@ -99,6 +99,7 @@ def prepare_publish_dir(
         "weights": dst.name,
         "sha256": merkle["sha256"],
         "merkle_root": merkle["merkle_root"],
+        "merkle_alg": merkle["merkle_alg"],
         "chunk_size_bytes": merkle["chunk_size_bytes"],
         "chunk_count": merkle["chunk_count"],
         "param_sha256": _tensor_hash(dst),
