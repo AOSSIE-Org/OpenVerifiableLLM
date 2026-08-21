@@ -225,6 +225,17 @@ class VerifierMerkleCompatTests(unittest.TestCase):
             self.assertEqual(by_name["merkle_root"].status, "FAIL")
             self.assertIn("unknown merkle_alg", by_name["merkle_root"].detail)
 
+    def test_explicit_null_merkle_alg_fails(self):
+        """An explicit None/null must not fall back to legacy; only absent key may."""
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._model_dir(tmp)
+            self._rewrite_manifest(
+                model_dir, lambda m: m.update({"merkle_alg": None})
+            )
+            by_name = self._verify(model_dir)
+            self.assertEqual(by_name["merkle_root"].status, "FAIL")
+            self.assertIn("unknown merkle_alg", by_name["merkle_root"].detail)
+
 
 if __name__ == "__main__":
     unittest.main()

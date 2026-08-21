@@ -149,8 +149,10 @@ def check_artifact_hashes(model_dir: Path, manifest: Dict[str, Any]) -> List[Che
     # was built with the legacy construction. Recompute with the algorithm the
     # manifest was actually written under -- otherwise an untampered artifact
     # reports a root mismatch, which reads as tampering.
+    # NOTE: An absent key defaults to legacy; an explicit None is unknown/invalid.
+    alg_key_present = "merkle_alg" in manifest
     declared_alg = manifest.get("merkle_alg")
-    alg_known = declared_alg is None or declared_alg in MERKLE_ALGS
+    alg_known = (not alg_key_present) or (declared_alg in MERKLE_ALGS)
     merkle_alg = declared_alg if declared_alg in MERKLE_ALGS else MERKLE_ALG_LEGACY
 
     # chunk_count and sha256 are independent of the tree construction, so this
@@ -174,7 +176,7 @@ def check_artifact_hashes(model_dir: Path, manifest: Dict[str, Any]) -> List[Che
             or manifest.get("4_model_checkpoint_merkle_root")
         )
         detail = f"1 MB chunk tree ({merkle_alg})"
-        if declared_alg is None:
+        if not alg_key_present:
             detail += " -- manifest predates merkle_alg; assumed legacy"
         results.append(
             _check_equal("merkle_root", expected_root, merkle["merkle_root"], detail)
