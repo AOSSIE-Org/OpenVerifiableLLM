@@ -177,6 +177,114 @@ def test_extract_text_from_xml_uncompressed(tmp_path, monkeypatch):
     assert "Hello Uncompressed" in processed_file.read_text()
 
 
+def test_align_output_to_checkpoint_truncates_ahead_bytes(tmp_path):
+    output = tmp_path / "wiki_clean.txt"
+    output.write_bytes(b"AAAA\n\nBBBB\n\nEXTRA")
+
+    utils._align_output_to_checkpoint(output, 10)
+
+    assert output.read_bytes() == b"AAAA\n\nBBBB"
+
+
+def test_resume_does_not_duplicate_when_output_ahead_of_checkpoint(tmp_path, monkeypatch):
+    """Simulate crash after write but before checkpoint (#76)."""
+    xml_content = """<?xml version="1.0"?>
+    <mediawiki>
+      <page><revision><text>Alpha [[One]]</text></revision></page>
+      <page><revision><text>Beta [[Two]]</text></revision></page>
+      <page><revision><text>Gamma [[Three]]</text></revision></page>
+      <page><revision><text>Delta [[Four]]</text></revision></page>
+    </mediawiki>
+    """
+
+    input_file = tmp_path / "simplewiki-20260201-pages.xml"
+    input_file.write_text(xml_content, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(utils, "CHECKPOINT_INTERVAL", 2)
+
+    # First pass interrupted after 2 durable pages (checkpoint interval).
+    # Raise once after the first periodic save so the KeyboardInterrupt
+    # handler can run and persist the durable checkpoint.
+    original_save = utils._save_checkpoint
+    save_calls = {"n": 0}
+
+    def save_then_interrupt(*args, **kwargs):
+        original_save(*args, **kwargs)
+        save_calls["n"] += 1
+        if save_calls["n"] == 1:
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(utils, "_save_checkpoint", save_then_interrupt)
+
+    with pytest.raises(KeyboardInterrupt):
+        utils.extract_text_from_xml(input_file)
+
+    processed = tmp_path / "data/processed/wiki_clean.txt"
+    checkpoint = tmp_path / "data/processed/wiki_clean.checkpoint.json"
+    assert checkpoint.exists()
+    ckpt = json.loads(checkpoint.read_text())
+    assert ckpt["pages_processed"] == 2
+    assert ckpt["file_offset"] == processed.stat().st_size
+    # Interrupt handler also saved once (periodic + handler).
+    assert save_calls["n"] == 2
+
+    # Simulate crash: pages 3 content written after checkpoint, offset not updated.
+    orphan = utils.clean_wikitext("Gamma [[Three]]") + "\n\n"
+    with processed.open("a", encoding="utf-8") as handle:
+        handle.write(orphan)
+
+    assert processed.read_text().count("Gamma Three") == 1
+
+    # Resume with real checkpoint saver.
+    monkeypatch.setattr(utils, "_save_checkpoint", original_save)
+    utils.extract_text_from_xml(input_file)
+
+    text = processed.read_text()
+    assert text.count("Alpha One") == 1
+    assert text.count("Beta Two") == 1
+    assert text.count("Gamma Three") == 1
+    assert text.count("Delta Four") == 1
+    assert not checkpoint.exists()
+
+
+def test_legacy_checkpoint_without_file_offset_starts_fresh(tmp_path, monkeypatch):
+    """Pre-#76 checkpoints must not resume (would re-duplicate output)."""
+    xml_content = """<?xml version="1.0"?>
+    <mediawiki>
+      <page><revision><text>Alpha [[One]]</text></revision></page>
+      <page><revision><text>Beta [[Two]]</text></revision></page>
+    </mediawiki>
+    """
+
+    input_file = tmp_path / "simplewiki-20260201-pages.xml"
+    input_file.write_text(xml_content, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    processed_dir = tmp_path / "data" / "processed"
+    processed_dir.mkdir(parents=True)
+    processed = processed_dir / "wiki_clean.txt"
+    processed.write_text("stale orphan that would be appended to\n\n", encoding="utf-8")
+
+    checkpoint = processed_dir / "wiki_clean.checkpoint.json"
+    checkpoint.write_text(
+        json.dumps(
+            {
+                "pages_processed": 1,
+                "input_identity": utils._compute_input_identity(input_file),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    utils.extract_text_from_xml(input_file)
+
+    text = processed.read_text()
+    assert "stale orphan" not in text
+    assert text.count("Alpha One") == 1
+    assert text.count("Beta Two") == 1
+    assert not checkpoint.exists()
+
+
 # --------------- manifest includes merkle fields ------------------------------------
 
 
