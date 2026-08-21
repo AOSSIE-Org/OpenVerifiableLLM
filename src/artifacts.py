@@ -67,61 +67,25 @@ def tensor_mapping_sha256(tensors: Dict[str, "torch.Tensor"]) -> str:
     return h.hexdigest()
 
 
-# Merkle tree constructions, named so a manifest is self-describing.
-#
-# "sha256-concat" is the original construction: leaves are the raw chunk
-# digests and a parent is sha256(left + right). It is vulnerable to the
-# classic second-preimage attack -- an internal node can be replayed as a
-# leaf, so a shallower tree can be forged to the same root.
-#
-# "rfc6962-sha256" prefixes leaves with 0x00 and internal nodes with 0x01
-# (Certificate Transparency, RFC 6962 section 2.1), which domain-separates
-# the two and closes that attack.
-#
-# Manifests written before the hardening carry no algorithm field. Readers
-# MUST treat a missing field as MERKLE_ALG_LEGACY: those roots were produced
-# by the old construction, and defaulting to the new one reports an untampered
-# artifact as a hash mismatch.
-MERKLE_ALG_LEGACY = "sha256-concat"
-MERKLE_ALG_RFC6962 = "rfc6962-sha256"
-MERKLE_ALG_DEFAULT = MERKLE_ALG_RFC6962
-MERKLE_ALGS = (MERKLE_ALG_LEGACY, MERKLE_ALG_RFC6962)
-
-
-def _require_merkle_alg(alg: str) -> str:
-    if alg not in MERKLE_ALGS:
-        raise ValueError(f"unknown merkle_alg {alg!r}; expected one of {MERKLE_ALGS}")
-    return alg
-
-
-def _merkle_leaf(leaf_hash: bytes, alg: str = MERKLE_ALG_DEFAULT) -> bytes:
-    if alg == MERKLE_ALG_LEGACY:
-        return leaf_hash
+def _merkle_leaf(leaf_hash: bytes) -> bytes:
     return compute_sha256_bytes(data=b"\x00" + leaf_hash)
 
 
-def _merkle_parent(left: bytes, right: bytes, alg: str = MERKLE_ALG_DEFAULT) -> bytes:
-    if alg == MERKLE_ALG_LEGACY:
-        return compute_sha256_bytes(data=left + right)
+def _merkle_parent(left: bytes, right: bytes) -> bytes:
     return compute_sha256_bytes(data=b"\x01" + left + right)
 
 
-def merkle_root_from_leaf_hashes(
-    leaf_hashes: List[str],
-    *,
-    alg: str = MERKLE_ALG_DEFAULT,
-) -> str:
-    _require_merkle_alg(alg)
+def merkle_root_from_leaf_hashes(leaf_hashes: List[str]) -> str:
     if not leaf_hashes:
         return compute_sha256(data=b"")
 
-    level = [_merkle_leaf(bytes.fromhex(leaf), alg) for leaf in leaf_hashes]
+    level = [_merkle_leaf(bytes.fromhex(leaf)) for leaf in leaf_hashes]
     while len(level) > 1:
         next_level = []
         for i in range(0, len(level), 2):
             left = level[i]
             right = level[i + 1] if i + 1 < len(level) else left
-            next_level.append(_merkle_parent(left, right, alg))
+            next_level.append(_merkle_parent(left, right))
         level = next_level
     return level[0].hex()
 
@@ -130,9 +94,7 @@ def build_merkle_manifest(
     file_path: Union[str, Path],
     *,
     chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
-    alg: str = MERKLE_ALG_DEFAULT,
 ) -> Dict[str, Any]:
-    _require_merkle_alg(alg)
     if chunk_size <= 0:
         raise ValueError("chunk_size must be a positive integer")
 
@@ -160,8 +122,7 @@ def build_merkle_manifest(
         "sha256": file_hash.hexdigest(),
         "chunk_size_bytes": chunk_size,
         "chunk_count": len(chunks),
-        "merkle_alg": alg,
-        "merkle_root": merkle_root_from_leaf_hashes(leaf_hashes, alg=alg),
+        "merkle_root": merkle_root_from_leaf_hashes(leaf_hashes),
         "chunks": chunks,
     }
 
@@ -185,16 +146,14 @@ def generate_merkle_proof(
     chunk_index: int,
     *,
     chunk_size: int = MERKLE_CHUNK_SIZE_BYTES,
-    alg: str = MERKLE_ALG_DEFAULT,
 ) -> List[Dict[str, Any]]:
-    _require_merkle_alg(alg)
-    manifest = build_merkle_manifest(file_path, chunk_size=chunk_size, alg=alg)
+    manifest = build_merkle_manifest(file_path, chunk_size=chunk_size)
     if manifest["chunk_count"] == 0:
         raise ValueError("Cannot generate a Merkle proof for an empty file")
     if chunk_index < 0 or chunk_index >= manifest["chunk_count"]:
         raise IndexError("chunk_index out of range")
 
-    level = [_merkle_leaf(bytes.fromhex(chunk["sha256"]), alg) for chunk in manifest["chunks"]]
+    level = [_merkle_leaf(bytes.fromhex(chunk["sha256"])) for chunk in manifest["chunks"]]
     proof = []
     index = chunk_index
     while len(level) > 1:
@@ -211,7 +170,7 @@ def generate_merkle_proof(
 
         next_level = []
         for i in range(0, len(level), 2):
-            next_level.append(_merkle_parent(level[i], level[i + 1], alg))
+            next_level.append(_merkle_parent(level[i], level[i + 1]))
         index //= 2
         level = next_level
     return proof
@@ -221,13 +180,10 @@ def verify_merkle_proof(
     chunk_bytes: bytes,
     proof: List[Dict[str, Any]],
     expected_root: str,
-    *,
-    alg: str = MERKLE_ALG_DEFAULT,
 ) -> bool:
     try:
-        _require_merkle_alg(alg)
         raw_hash = compute_sha256_bytes(data=chunk_bytes)
-        current = _merkle_leaf(raw_hash, alg)
+        current = _merkle_leaf(raw_hash)
         expected = bytes.fromhex(expected_root)
     except (TypeError, ValueError):
         return False
@@ -242,9 +198,9 @@ def verify_merkle_proof(
         if len(sibling) != hashlib.sha256().digest_size:
             return False
         if position == "left":
-            current = _merkle_parent(sibling, current, alg)
+            current = _merkle_parent(sibling, current)
         elif position == "right":
-            current = _merkle_parent(current, sibling, alg)
+            current = _merkle_parent(current, sibling)
         else:
             return False
 
