@@ -18,7 +18,7 @@ def _verify(args) -> int:
         print(f"[FAIL] verifier_error - {exc}")
         print("\nVERDICT: RED")
         return 1
-    return 0 if print_report(results) else 1
+    return 0 if print_report(results, format_type=args.format, output_path=args.output, ref=args.model_ref) else 1
 
 
 def _prepare_publish(args) -> int:
@@ -56,6 +56,10 @@ def main(argv=None) -> int:
     verify.add_argument("--allow-unsigned", action="store_true",
                         help="treat a missing Sigstore bundle as SKIP instead of FAIL")
     verify.add_argument("--skip-replay", action="store_true")
+    verify.add_argument("--format", choices=["text", "markdown", "html"], default="text",
+                        help="the format of the verification report")
+    verify.add_argument("--output", default=None,
+                        help="path to write the formatted verification report")
     verify.set_defaults(func=_verify)
 
     prep = sub.add_parser("prepare-publish", help="build a publishable model directory")

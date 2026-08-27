@@ -1,6 +1,8 @@
+import html
 import importlib
 import json
 import os
+import platform
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -318,13 +320,364 @@ def verify_model_reference(
     return results
 
 
-def print_report(results: List[CheckResult]) -> bool:
+def get_system_diagnostics() -> Dict[str, str]:
+    diag = {
+        "OS": f"{platform.system()} {platform.release()} ({platform.machine()})",
+        "Python Version": platform.python_version(),
+    }
+    try:
+        import torch
+        diag["PyTorch Version"] = torch.__version__
+        if torch.cuda.is_available():
+            diag["Accelerator"] = f"CUDA ({torch.cuda.get_device_name(0)})"
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            diag["Accelerator"] = f"XPU ({torch.xpu.get_device_name(0)})"
+        else:
+            diag["Accelerator"] = "CPU"
+    except ImportError:
+        diag["PyTorch Version"] = "Not Installed"
+        diag["Accelerator"] = "N/A"
+    return diag
+
+
+def escape_markdown_cell(val: str) -> str:
+    """Escapes markdown pipe characters to prevent breaking table structure."""
+    return val.replace("|", "\\|")
+
+
+def generate_markdown_report(results: List[CheckResult], ok: bool, ref: str, diag: Dict[str, str]) -> str:
+    verdict_str = "🟢 **GREEN** (Passed)" if ok else "🔴 **RED** (Failed)"
+    md = []
+    md.append("# OpenVerifiableLLM Verification Report\n")
+    md.append(f"**Verdict:** {verdict_str}\n")
+    md.append(f"- **Model Reference:** `{ref}`")
+    md.append(f"- **Timestamp:** `{time_ref()}`\n")
+    
+    md.append("## Check Results\n")
+    md.append("| Status | Check Name | Expected | Actual | Details |")
+    md.append("| :--- | :--- | :--- | :--- | :--- |")
+    for r in results:
+        status_icon = "✅ PASS" if r.status == PASS else ("❌ FAIL" if r.status == FAIL else "⚠️ SKIP")
+        name_val = escape_markdown_cell(r.name)
+        expected_val = f"`{escape_markdown_cell(r.expected)}`" if r.expected else "-"
+        actual_val = f"`{escape_markdown_cell(r.actual)}`" if r.actual else "-"
+        detail_val = escape_markdown_cell(r.detail.replace("\n", " ")) if r.detail else ""
+        md.append(f"| {status_icon} | **{name_val}** | {expected_val} | {actual_val} | {detail_val} |")
+    
+    md.append("\n## System Diagnostics\n")
+    for k, v in diag.items():
+        md.append(f"- **{k}:** `{v}`")
+    
+    return "\n".join(md) + "\n"
+
+
+def generate_html_report(results: List[CheckResult], ok: bool, ref: str, diag: Dict[str, str]) -> str:
+    verdict_class = "verdict-green" if ok else "verdict-red"
+    verdict_text = "VERDICT: GREEN" if ok else "VERDICT: RED"
+    
+    rows = []
+    for r in results:
+        status_class = f"status-{r.status.lower()}"
+        expected_val = f"<code>{html.escape(r.expected)}</code>" if r.expected else "-"
+        actual_val = f"<code>{html.escape(r.actual)}</code>" if r.actual else "-"
+        detail_val = html.escape(r.detail).replace("\n", "<br>") if r.detail else ""
+        rows.append(f"""
+        <tr>
+            <td><span class="status-badge {status_class}">{html.escape(r.status)}</span></td>
+            <td><strong>{html.escape(r.name)}</strong></td>
+            <td class="mono">{expected_val}</td>
+            <td class="mono">{actual_val}</td>
+            <td>{detail_val}</td>
+        </tr>
+        """)
+    rows_html = "\n".join(rows)
+    
+    diag_items = []
+    for k, v in diag.items():
+        diag_items.append(f"""
+        <div class="diag-item">
+            <span class="diag-key">{html.escape(k)}</span>
+            <span class="diag-val">{html.escape(v)}</span>
+        </div>
+        """)
+    diag_html = "\n".join(diag_items)
+    
+    report_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>OpenVerifiableLLM Verification Report</title>
+    <style>
+        :root {{
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f1f5f9;
+            --text-muted: #94a3b8;
+            --green: #10b981;
+            --red: #ef4444;
+            --amber: #f59e0b;
+            --border-color: #334155;
+        }}
+        body {{
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            justify-content: center;
+        }}
+        .container {{
+            max-width: 900px;
+            width: 100%;
+        }}
+        header {{
+            background: linear-gradient(135deg, #1e1b4b 0%, #0f172a 100%);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }}
+        h1 {{
+            margin: 0 0 1rem 0;
+            font-size: 2rem;
+            font-weight: 700;
+        }}
+        .meta-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            font-size: 0.95rem;
+        }}
+        .meta-item {{
+            display: flex;
+            flex-direction: column;
+        }}
+        .meta-label {{
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }}
+        .meta-val {{
+            font-weight: 600;
+        }}
+        .verdict-badge {{
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 1.1rem;
+            text-align: center;
+        }}
+        .verdict-green {{
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--green);
+            border: 1px solid var(--green);
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.1);
+        }}
+        .verdict-red {{
+            background-color: rgba(239, 68, 68, 0.15);
+            color: var(--red);
+            border: 1px solid var(--red);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.1);
+        }}
+        .report-section {{
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }}
+        h2 {{
+            margin-top: 0;
+            font-size: 1.35rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.75rem;
+            color: var(--text-color);
+        }}
+        table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            text-align: left;
+        }}
+        th, td {{
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+        }}
+        th {{
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+        }}
+        tr:hover td {{
+            background-color: rgba(255, 255, 255, 0.02);
+        }}
+        .status-badge {{
+            display: inline-block;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-align: center;
+        }}
+        .status-pass {{
+            background-color: rgba(16, 185, 129, 0.15);
+            color: var(--green);
+            border: 1px solid var(--green);
+        }}
+        .status-fail {{
+            background-color: rgba(239, 68, 68, 0.15);
+            color: var(--red);
+            border: 1px solid var(--red);
+        }}
+        .status-skip {{
+            background-color: rgba(245, 158, 11, 0.15);
+            color: var(--amber);
+            border: 1px solid var(--amber);
+        }}
+        .mono code {{
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            background-color: rgba(0, 0, 0, 0.2);
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            word-break: break-all;
+        }}
+        .diag-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }}
+        .diag-item {{
+            display: flex;
+            flex-direction: column;
+            background-color: rgba(0, 0, 0, 0.15);
+            padding: 0.75rem 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }}
+        .diag-key {{
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.25rem;
+        }}
+        .diag-val {{
+            font-weight: 600;
+            font-size: 0.95rem;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OpenVerifiableLLM Report</h1>
+            <div class="meta-grid">
+                <div class="meta-item">
+                    <span class="meta-label">Status</span>
+                    <div><span class="verdict-badge {verdict_class}">{verdict_text}</span></div>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Model Reference</span>
+                    <span class="meta-val">{html.escape(ref)}</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Timestamp</span>
+                    <span class="meta-val">{time_ref()}</span>
+                </div>
+            </div>
+        </header>
+
+        <section class="report-section">
+            <h2>Verification Check Results</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Check Name</th>
+                        <th>Expected</th>
+                        <th>Actual</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+        </section>
+
+        <section class="report-section">
+            <h2>System Diagnostics</h2>
+            <div class="diag-grid">
+                {diag_html}
+            </div>
+        </section>
+    </div>
+</body>
+</html>
+"""
+    return report_html
+
+
+def time_ref() -> str:
+    import time
+    return time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def print_report(
+    results: List[CheckResult],
+    format_type: str = "text",
+    output_path: Optional[str] = None,
+    ref: str = "",
+) -> bool:
+    ok = all(result.ok for result in results)
+    
+    # 1. Generate text output
+    text_lines = []
     for result in results:
         suffix = f" - {result.detail}" if result.detail else ""
-        print(f"[{result.status:<4}] {result.name}{suffix}")
+        text_lines.append(f"[{result.status:<4}] {result.name}{suffix}")
         if result.expected is not None or result.actual is not None:
-            print(f"       expected: {result.expected}")
-            print(f"       actual  : {result.actual}")
-    ok = all(result.ok for result in results)
-    print("\nVERDICT:", "GREEN" if ok else "RED")
+            text_lines.append(f"       expected: {result.expected}")
+            text_lines.append(f"       actual  : {result.actual}")
+    text_lines.append(f"\nVERDICT: {'GREEN' if ok else 'RED'}")
+    text_str = "\n".join(text_lines) + "\n"
+
+    # 2. Gather diagnostics
+    diag = get_system_diagnostics()
+
+    # 3. Handle reporting depending on format
+    if format_type == "text":
+        print(text_str, end="")
+        if output_path:
+            Path(output_path).write_text(text_str, encoding="utf-8")
+    elif format_type == "markdown":
+        md_str = generate_markdown_report(results, ok, ref, diag)
+        if output_path:
+            Path(output_path).write_text(md_str, encoding="utf-8")
+        else:
+            print(md_str, end="")
+    elif format_type == "html":
+        html_str = generate_html_report(results, ok, ref, diag)
+        if output_path:
+            Path(output_path).write_text(html_str, encoding="utf-8")
+        else:
+            print(html_str, end="")
+    else:
+        raise ValueError(f"Unknown format_type: {format_type!r}")
+            
     return ok
