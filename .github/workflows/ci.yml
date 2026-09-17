@@ -19,7 +19,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install --require-hashes -r requirements/preparation.lock
           pip install -r requirements.txt
           pip install -e ".[pipeline]" pytest
 
