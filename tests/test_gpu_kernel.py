@@ -1,6 +1,9 @@
 """CPU checks of shared-kernel behavior; no claim of measured CUDA exactness."""
 import math
 import struct
+import os
+import subprocess
+import sys
 
 import pytest
 import torch
@@ -90,3 +93,38 @@ def test_cuda_initialization_cannot_silently_use_unconfigured_device(monkeypatch
         initialize(recipe(320),device="cuda:0")
     with pytest.raises(EvidenceError,match="unsupported kernel device"):
         initialize(recipe(320),device="cuda:1")
+
+
+@pytest.mark.parametrize("noop", [False, True])
+def test_precision_setters_against_literal_profile_and_noop_rejected(noop):
+    # Execute actual precision setters in a fresh CPU process; fake only CUDA
+    # availability/initialization. This is configuration coverage, not GPU proof.
+    code = '''
+import torch
+from ovl_pipeline import gpu
+from ovl_pipeline.canonical import EvidenceError
+torch.__version__="2.14.0+cu130";torch.version.cuda="13.0"
+torch.cuda.is_initialized=lambda:False;torch.cuda.is_available=lambda:True
+torch.cuda.device_count=lambda:1;torch.cuda.set_device=lambda n:None
+torch.cuda.init=lambda:None;torch.cuda.is_bf16_supported=lambda **k:True
+noop=NOOP
+if noop:
+    torch.backends.cuda.matmul.fp32_precision="tf32"
+    gpu._set_flags=lambda:None
+    try:gpu.configure({"schema":"ovl.gpu-kernel.v1","precision":"bf16"})
+    except EvidenceError as e:assert "declared numerical profile" in str(e)
+    else:raise AssertionError("no-op profile was accepted")
+else:
+    got=gpu.configure({"schema":"ovl.gpu-kernel.v1","precision":"bf16"})
+    assert got=={
+      "fp32_precision":"ieee","matmul_fp32_precision":"ieee","cudnn_fp32_precision":"ieee",
+      "conv_fp32_precision":"ieee","rnn_fp32_precision":"ieee","bf16_reduced_precision":False,
+      "bf16_split_k":False,"fp16_reduced_precision":False,"fp16_split_k":False,
+      "fp16_accumulation":False,"cudnn_benchmark":False,"cudnn_deterministic":True,
+      "deterministic":True,"warn_only":False,"fill_uninitialized_memory":True,
+      "threads":1,"interop_threads":1}
+'''.replace("NOOP", repr(noop))
+    env={**os.environ,"PYTHONHASHSEED":"0","CUBLAS_WORKSPACE_CONFIG":":4096:8","CUDA_VISIBLE_DEVICES":"0",
+         "TOKENIZERS_PARALLELISM":"false","OMP_NUM_THREADS":"1","MKL_NUM_THREADS":"1","OPENBLAS_NUM_THREADS":"1",
+         "USE_PYTORCH_KERNEL_CACHE":"0","NVIDIA_TF32_OVERRIDE":"0","TORCH_ALLOW_TF32_CUBLAS_OVERRIDE":"0"}
+    subprocess.run([sys.executable,"-c",code],env=env,check=True,capture_output=True,text=True)

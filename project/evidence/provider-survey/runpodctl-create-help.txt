@@ -1,0 +1,53 @@
+create a new pod.
+
+you can create a pod either from a template or by specifying an image directly.
+
+examples:
+  # create from template (recommended)
+  runpodctl pod create --template-id runpod-torch-v21 --gpu-id "NVIDIA GeForce RTX 4090"
+
+  # create with custom image
+  runpodctl pod create --image runpod/pytorch:1.0.3-cu1281-torch291-ubuntu2404 --gpu-id "NVIDIA GeForce RTX 4090"
+
+  # create a cpu pod
+  runpodctl pod create --compute-type cpu --image ubuntu:22.04
+
+  # block until the pod's ssh is actually reachable, then print it
+  runpodctl pod create --image runpod/pytorch:1.0.3-cu1281-torch291-ubuntu2404 --gpu-id "NVIDIA GeForce RTX 4090" --wait
+
+  # find templates first
+  runpodctl template search pytorch
+  runpodctl template list --type official
+
+Usage:
+  runpodctl pod create [flags]
+
+Flags:
+      --cloud-type string          cloud type (SECURE or COMMUNITY) (default "SECURE")
+      --compliance string          comma-separated compliance requirements (e.g., HIPAA,SOC_2_TYPE_2)
+      --compute-type string        compute type (GPU or CPU) (default "GPU")
+      --container-disk-in-gb int   container disk size in gb (default 20)
+      --country-code string        limit pod to a specific country (e.g., US, DE)
+      --data-center-ids string     comma-separated list of data center ids
+      --docker-args string         docker cmd arguments
+      --env string                 environment variables as json object
+      --global-networking          enable global networking (secure cloud only)
+      --gpu-count int              number of gpus (default 1)
+      --gpu-id string              gpu id (from 'runpodctl gpu list')
+  -h, --help                       help for create
+      --image string               docker image name (required if no template)
+      --min-cuda-version string    minimum cuda version (e.g., 12.6)
+      --name string                pod name
+      --network-volume-id string   network volume id to attach
+      --ports string               comma-separated list of ports (e.g., '8888/http,22/tcp')
+      --public-ip                  require public ip (community cloud only)
+      --registry-auth-id string    container registry auth id (from 'runpodctl registry list')
+      --ssh                        enable ssh on the pod (default true)
+      --template-id string         template id (use 'runpodctl template search' to find templates)
+      --volume-in-gb int           volume size in gb
+      --volume-mount-path string   volume mount path (default "/workspace")
+      --wait                       block until ssh is reachable (tcp connect to the pod's public port 22 answers with an ssh banner; no key or handshake needed), then print the pod as 'pod get' does. needs a publicly mapped port 22, so community cloud also needs --public-ip
+      --wait-timeout string        max time to wait with --wait, e.g. 90s, 10m, 1h; on timeout the pod is kept and the error carries its id (default "10m")
+
+Global Flags:
+  -o, --output string   output format (json, yaml) (default "json")

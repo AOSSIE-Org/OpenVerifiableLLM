@@ -32,7 +32,8 @@ precision/split-K reductions. See the official [CUDA precision
 notes](https://docs.pytorch.org/docs/2.14/notes/cuda.html),
 [reproducibility notes](https://docs.pytorch.org/docs/2.14/notes/randomness.html) and
 [autocast operation reference](https://docs.pytorch.org/docs/2.14/amp.html).
-Configuration flags alone do not guarantee reproducibility across hardware or
+The setters and every update assert the literal required flag profile; merely
+recording a self-consistent value is insufficient. Configuration flags alone do not guarantee reproducibility across hardware or
 software versions.
 
 After warmup, the environment report records driver/build/device properties,
@@ -95,9 +96,15 @@ counts all target-bearing windows and updates without invoking the training batc
 generator. It binds the stream and recipe digests and includes final short batches.
 It proves a planned count, not completed training coverage.
 
-Cost input `ovl.cost-forecast-input.v2` uses complete `updates`, completed training
+Cost input `ovl.cost-forecast-input.v3` uses complete `updates`, completed training
 and replay update counts, `measured_full_batch_updates`, `measured_ms`, and the
-measurement/recipe/stream/schedule SHA-256 digests for both phases. A pilot must last
+measurement/replay/recipe/stream/schedule SHA-256 digests for both phases. It also
+requires timed-pilot eligibility, all measured updates, checkpoint counts and
+intervals, full production checkpoint counts (including recovery saves), and full
+continuous replay timing. Pilot checkpoint density must cover the complete planned
+production density; setup and boundary-zero costs are reserved separately. Both
+remaining paths use the slower of recording and replay rates. Resume probes and
+fixed-update probes cannot supply this measurement. A pilot must last
 at least ten minutes after warmup with representative checkpoint overhead. Its full
 batch count is the rate denominator; all elapsed work, including short batches,
 remains in the numerator. Charge every production update at this rate, including
@@ -105,8 +112,8 @@ its last short batch, and retain the 25% runtime margin.
 
 Useful-target throughput is also reported, but cannot alone price arbitrary
 short-document padding. An adversarial census test holds targets constant while
-increasing required updates by 16x. Historical v1 arithmetic remains readable but
-must not admit production. Neither version authenticates its input evidence or
+increasing required updates by 16x. Historical v1/v2 arithmetic remains readable but
+must not admit production. No arithmetic version authenticates its input evidence or
 implements a live provider guard. The production controller must bind the actual
 complete census, compatible kernel and real pilot record/replay, reconcile spend,
 reserve setup/reconstruction/export/storage costs, and enforce the $90 operating

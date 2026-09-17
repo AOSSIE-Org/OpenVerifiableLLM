@@ -21,6 +21,14 @@ from . import training
 
 WORKSPACE = ":4096:8"
 _configured = False
+REQUIRED_FLAGS = {
+    "fp32_precision":"ieee", "matmul_fp32_precision":"ieee", "cudnn_fp32_precision":"ieee",
+    "conv_fp32_precision":"ieee", "rnn_fp32_precision":"ieee", "bf16_reduced_precision":False,
+    "bf16_split_k":False, "fp16_reduced_precision":False, "fp16_split_k":False,
+    "fp16_accumulation":False, "cudnn_benchmark":False, "cudnn_deterministic":True,
+    "deterministic":True, "warn_only":False, "fill_uninitialized_memory":True,
+    "threads":1, "interop_threads":1,
+}
 
 
 def validate_config(value):
@@ -86,6 +94,8 @@ def configure(config):
         torch.set_num_interop_threads(1)
     torch.set_num_threads(1)
     _set_flags()
+    if flags() != REQUIRED_FLAGS:
+        raise EvidenceError("GPU runtime did not achieve the declared numerical profile")
     torch.cuda.set_device(0)
     torch.cuda.init()
     if config["precision"] == "bf16" and not torch.cuda.is_bf16_supported(including_emulation=False):
@@ -103,7 +113,7 @@ def initialize(recipe, config):
 
 def update(model, optimizer, batch, control, total, config, *, expected_flags, metrics=None):
     validate_config(config)
-    if (not _configured or flags() != expected_flags or torch.cuda.current_device() != 0
+    if (not _configured or expected_flags != REQUIRED_FLAGS or flags() != REQUIRED_FLAGS or torch.cuda.current_device() != 0
             or next(model.parameters()).device != torch.device("cuda:0")):
         raise EvidenceError("GPU runtime changed after configuration")
     return training.update(model, optimizer, batch, control, total,

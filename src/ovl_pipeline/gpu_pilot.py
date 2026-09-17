@@ -111,6 +111,7 @@ def record(directory, recipe, config, output, *, updates=None, seconds=None, war
     result={"schema":"ovl.gpu-pilot-record.v1","scope":"development-gpu-pilot-only",
             "result":"RECORDED_NOT_REPLAYED","settings":settings,"boundaries":boundaries,
             "updates":count,"measured_full_batch_updates":full_batches,
+            "timed_checkpoints":len(boundaries)-1,
             "measured_targets":measured_targets,"measured_ms":(elapsed_ns+999999)//1000000,
             "setup_including_warmup_ms":(setup_ns+999999)//1000000,
             "warmup_excluded":True,"overhead_included":True,
@@ -121,6 +122,7 @@ def record(directory, recipe, config, output, *, updates=None, seconds=None, war
 
 
 def replay(directory, record_directory, expected_record_sha256, output, *, resume_from=None):
+    setup_started=time.monotonic_ns()
     require_digest(expected_record_sha256)
     value=read_json(confined(record_directory,"record.json"))
     if digest(value)!=expected_record_sha256:raise EvidenceError("pilot record differs from caller-selected digest")
@@ -167,18 +169,32 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
         control=restore(model,opt,md,tensors)
         if control!=b["control"]:raise EvidenceError("resume checkpoint control mismatch")
         position=resume_from;compare()
-    opening=control["global_step"];it=cycling_batches(directory,recipe)
+    opening=control["global_step"]
+    torch.cuda.synchronize();setup_ns=time.monotonic_ns()-setup_started
+    before_compared=len(compared);started=time.monotonic_ns();targets=full_batches=0
+    it=cycling_batches(directory,recipe)
     for index in range(value["updates"]):
         cycle,batch=next(it)
         if index<opening:continue
-        control=advance(model,opt,control,cycle,batch,stream["targets"],config,expected_flags)
+        metrics={}
+        control=advance(model,opt,control,cycle,batch,stream["targets"],config,expected_flags,metrics)
+        targets+=metrics["targets"];full_batches+=int(batch["inputs"].shape[0]==recipe["batch_size"])
         if position<len(boundaries) and control["global_step"]==boundaries[position]["step"]:compare()
     if position!=len(boundaries) or control!=boundaries[-1]["control"]:
         raise EvidenceError("pilot replay incomplete or extra boundaries")
+    torch.cuda.synchronize();elapsed_ns=time.monotonic_ns()-started
+    if resume_from is None and (targets!=value["measured_targets"] or full_batches!=value["measured_full_batch_updates"]
+            or len(compared)-before_compared!=value["timed_checkpoints"]):
+        raise EvidenceError("recomputed pilot work differs from recorded measurement")
     report={"schema":"ovl.gpu-pilot-replay.v1","result":"PASS","record_sha256":digest(value),
             "scope":"fresh-initialization-continuous-pilot-replay" if resume_from is None else "training-resume-continuation-probe",
             "updates_recomputed":value["updates"]-opening,"initial_state_regenerated":True,
             "resume_from":resume_from,"compared":compared,"environment":environment,
+            "measured_targets":targets,"measured_full_batch_updates":full_batches,
+            "timed_checkpoints":len(compared)-before_compared,"measured_ms":(elapsed_ns+999999)//1000000,
+            "setup_including_warmup_ms":(setup_ns+999999)//1000000,
+            "warmup_excluded":True,"overhead_included":True,
+            "eligible_for_forecast_comparison":resume_from is None and value["eligible_duration_for_forecast"] is True,
             "performed_by":"project-operator","independent_third_party":False,
             "production_training_coverage":"NOT_RUN","production_admission":"NOT_RUN"}
     output.mkdir(parents=True,exist_ok=False);write_json(output/"verification.json",report)

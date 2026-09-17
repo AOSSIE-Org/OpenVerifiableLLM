@@ -146,7 +146,8 @@ def run_fixture(source, output, policy_path):
     write_json(policy_path, asdict(policy))
     write_json(output / "registration.json", signed(registration, key))
     dirs = {p: output / "prepared" / p for p in prepared["streams"]}
-    chain = train(registration, policy, dirs, output / "training", key)
+    chain = train(registration, policy, dirs, output / "training", key,
+                  recovery_directory=output.parent / (output.name + "-recovery") / "training")
     # Fresh reconstruction is exercised by verify_fixture below. This first report
     # also establishes export equality from the continuously replayed model.
     report = full_replay(registration, policy, dirs, output / "training")

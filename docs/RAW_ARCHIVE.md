@@ -52,3 +52,11 @@ synthetic SDK responses and supply no public availability evidence. The live hos
 preflight is `project/evidence/source-survey/hf-storage-preflight.json`; its storage
 API does not report a remaining quota. Public hosting is best effort, with a minimum
 90-day owner retention target and no paid add-on authorization.
+
+Upload transport may opt into Hugging Face Xet by setting `HF_HUB_DISABLE_XET=0`
+before launching a fresh upload process. This supports chunked upload without
+changing the committed file inventory. The intent records whether Xet is disabled.
+Download verification still requires Xet disabled and always downloads every file
+anonymously into a fresh directory, then checks complete bytes/decompression.
+The initial non-Xet upload failed with no committed prefix; original intent, failure
+and anonymous remote reconciliation are retained in project/evidence/raw-archive.

@@ -14,7 +14,7 @@ def schedule_counts(directory: Path, recipe):
     validate_stream(directory, stream)  # Includes every file hash and every index row.
     masks = np.memmap(directory / "mask.u8", dtype=np.uint8, mode="r")
     context, batch = recipe["context"], recipe["batch_size"]
-    windows = targets = documents = 0
+    windows = targets = documents = occupied = 0
     # Separate implementation: reshape full context blocks and handle the tail.
     # Do not call batches() or count a prefix of the corpus.
     for doc in rows(directory / "documents.jsonl"):
@@ -24,10 +24,12 @@ def schedule_counts(directory: Path, recipe):
         if full:
             sums = mask[:full * context].reshape(full, context).sum(axis=1)
             windows += int(np.count_nonzero(sums))
+            occupied += int(np.count_nonzero(sums)) * context
             targets += int(sums.sum())
         if tail:
             count = int(mask[full * context:].sum())
             windows += int(count != 0)
+            occupied += tail if count else 0
             targets += count
     if targets != stream["targets"] or documents != stream["documents"] or not windows:
         raise EvidenceError("complete schedule census disagrees with stream")
@@ -37,7 +39,8 @@ def schedule_counts(directory: Path, recipe):
             "documents": documents, "targets": targets, "target_bearing_windows": windows,
             "updates": updates, "full_batch_updates": windows // batch,
             "final_batch_rows": (windows - 1) % batch + 1,
-            "context": context, "batch_size": batch, "padded_positions": windows * context - targets,
+            "context": context, "batch_size": batch, "padded_positions": windows * context - occupied,
+            "masked_context_positions": occupied - targets,
             "training_coverage": "NOT_RUN"}
 
 

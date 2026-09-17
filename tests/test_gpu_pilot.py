@@ -38,9 +38,15 @@ def test_continuous_pilot_replay_and_separately_labeled_resume(cpu_runtime,prepa
         replay=gpu_pilot.replay(directory/phase,tmp_path/"record",digest(record),tmp_path/"replay")
     assert replay["updates_recomputed"]==9 and len(replay["compared"])==len(record["boundaries"])
     assert replay["scope"]=="fresh-initialization-continuous-pilot-replay"
+    assert replay["timed_checkpoints"]==record["timed_checkpoints"]==5
+    assert replay["measured_targets"]==record["measured_targets"]
+    assert replay["measured_full_batch_updates"]==record["measured_full_batch_updates"]
+    assert replay["measured_ms"]>0 and replay["setup_including_warmup_ms"]>0
+    assert replay["eligible_for_forecast_comparison"] is False
     resume=gpu_pilot.replay(directory/phase,tmp_path/"record",digest(record),tmp_path/"resume",resume_from=2)
     assert resume["updates_recomputed"]==5 and resume["scope"]=="training-resume-continuation-probe"
     assert resume["compared"][-1]["state_root"]==replay["compared"][-1]["state_root"]
+    assert resume["eligible_for_forecast_comparison"] is False
     assert replay["independent_third_party"] is False and resume["production_training_coverage"]=="NOT_RUN"
 
 

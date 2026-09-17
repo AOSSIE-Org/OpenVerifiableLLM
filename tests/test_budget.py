@@ -57,3 +57,38 @@ def test_unknown_fields_and_sampled_phase_fail():
     with pytest.raises(EvidenceError):forecast(e)
     e=example();e["phases"]["wikipedia"]["audit_fraction"] = "0.01"
     with pytest.raises(EvidenceError):forecast(e)
+
+
+def representative_example():
+    e=example();e["schema"]="ovl.cost-forecast-input.v3"
+    for p in e["phases"].values():
+        p.pop("targets");p.pop("measured_targets")
+        p.update(updates=1000,measured_full_batch_updates=100,measured_updates=100,
+                 schedule_sha256="d"*64,replay_sha256="e"*64,
+                 eligible_duration_for_forecast=True,replay_measured_ms=1200000,
+                 measured_checkpoints=10,measured_checkpoint_every=10,
+                 production_checkpoint_every=10,production_checkpoints=100)
+    return e
+
+
+def test_slower_complete_replay_prices_both_paths():
+    r=forecast(representative_example())
+    # Two phases * 2000 updates * 12 sec/update * 1.25 = 60000 sec.
+    assert r["remaining_compute_micro_usd"]==20_000_000
+    assert r["schema"]=="ovl.cost-forecast.v3"
+    e=representative_example()
+    for p in e["phases"].values():p["replay_measured_ms"]=300000
+    assert forecast(e)["remaining_compute_micro_usd"]==10_000_000
+
+
+@pytest.mark.parametrize("changes",[
+    {"eligible_duration_for_forecast":False},
+    {"replay_sha256":""}, {"replay_measured_ms":0},
+    {"measured_updates":99}, {"measured_checkpoints":9},
+    {"production_checkpoints":99},
+    {"production_checkpoints":101},  # Extra recovery checkpoint must be priced too.
+    {"measured_checkpoint_every":20,"measured_checkpoints":5},
+])
+def test_unrepresentative_or_incomplete_pilot_evidence_rejected(changes):
+    e=representative_example();e["phases"]["wikipedia"].update(changes)
+    with pytest.raises(EvidenceError):forecast(e)

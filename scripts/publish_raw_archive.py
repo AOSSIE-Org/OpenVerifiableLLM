@@ -14,8 +14,9 @@ import os
 from pathlib import Path
 import re
 
-# Disable Xet chunk-cache reuse for the public download before importing the SDK.
-os.environ["HF_HUB_DISABLE_XET"] = "1"
+# Downloads require Xet disabled. Uploads may explicitly opt into resumable chunk
+# transport before SDK import; this does not change the committed file bytes.
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download, constants
 
 from ovl_pipeline.acquisition import Source, verify_source
@@ -76,6 +77,7 @@ def upload(plan_path, staging, output):
               "prefix":plan["prefix"], "plan_sha256":file_hash(plan_path),
               "files":plan["files"], "operator_started_utc":datetime.now(timezone.utc).isoformat(),
               "publisher_code_sha256":file_hash(Path(__file__)),
+              "xet_disabled":constants.HF_HUB_DISABLE_XET,
               "huggingface_hub_version":importlib.metadata.version("huggingface_hub")}
     write_json(output/"intent.json",intent)
     commit = api.create_commit(REPO, repo_type="dataset", parent_commit=parent,
@@ -142,7 +144,14 @@ def main():
                 result=download(a.plan,a.revision,a.output)
         print(canonical(result).decode())
     except Exception as e:
-        print(canonical({"result":"FAIL","reason":str(e)}).decode())
+        # Preserve diagnostic exception classes without leaking signed URLs or
+        # credentials from nested HTTP errors. The original attempt stays intact.
+        chain=[];current=e
+        while current is not None and len(chain)<12:
+            chain.append(type(current).__module__+"."+type(current).__qualname__)
+            current=current.__cause__ or current.__context__
+        reason=re.sub(r"https?://[^\s]+", "[remote URL redacted]", str(e))
+        print(canonical({"result":"FAIL","reason":reason,"exception_types":chain}).decode())
         return 1
     return 0
 

@@ -455,6 +455,32 @@ def test_per_model_export_is_self_contained(signer_known_bundle,tmp_path):
         assert infer(out)==parse_json((bundle/phase/'inference.json').read_bytes())
 
 
+def test_recovered_fixture_preserves_partial_bytes_outside_release(tmp_path,monkeypatch):
+    import ovl_pipeline.fixture as fixture_module
+    import ovl_pipeline.state as state_module
+    original_save=state_module.save_file
+    calls=0
+    def interrupt(tensors,path):
+        nonlocal calls
+        calls+=1
+        if calls==3:
+            Path(path).write_bytes(b'preserved-partial-state')
+            raise OSError('injected interrupted fixture checkpoint')
+        return original_save(tensors,path)
+    def interrupted_train(*args,**kwargs):
+        with monkeypatch.context() as m:
+            m.setattr(state_module,'save_file',interrupt)
+            with pytest.raises(OSError,match='injected'):
+                train(*args,**kwargs)
+        return train(*args,**kwargs,resume=True)
+    monkeypatch.setattr(fixture_module,'train',interrupted_train)
+    report=run_fixture(SOURCE,tmp_path/'bundle',tmp_path/'policy.json')
+    assert report['result']=='PASS'
+    preserved=list((tmp_path/'bundle-recovery').rglob('state.safetensors'))
+    assert len(preserved)==1 and preserved[0].read_bytes()==b'preserved-partial-state'
+    assert not (tmp_path/'bundle/training-recovery').exists()
+
+
 def test_chain_validation_is_independent_of_working_directory(registered,tmp_path,monkeypatch):
     reg,policy,dirs,key=registered
     chain=train(reg,policy,dirs,tmp_path/'training',key)

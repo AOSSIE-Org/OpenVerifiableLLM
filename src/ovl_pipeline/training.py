@@ -238,7 +238,8 @@ def validate_chain(registration, policy, envelopes, *, complete):
     return previous
 
 
-def train(registration, policy, stream_dirs, output: Path, key: SigningKey, *, stop_after=None, resume=False):
+def train(registration, policy, stream_dirs, output: Path, key: SigningKey, *, stop_after=None, resume=False,
+          recovery_directory=None):
     validate_registration(registration, policy, stream_dirs)
     if bytes(key.verify_key).hex() != policy.run_public_key_hex:
         raise EvidenceError("wrong signing key")
@@ -282,8 +283,11 @@ def train(registration, policy, stream_dirs, output: Path, key: SigningKey, *, s
             else:
                 # Preserve incomplete evidence outside the canonical run; never
                 # delete the only bytes or treat directory existence as completion.
-                recovery = confined(output.parent, output.name + "-recovery")
-                recovery.mkdir(exist_ok=True)
+                recovery = (confined(output.parent, output.name + "-recovery") if recovery_directory is None
+                            else Path(recovery_directory))
+                if recovery.resolve().is_relative_to(output.resolve()):
+                    raise EvidenceError("recovery evidence must be outside the training directory")
+                recovery.mkdir(parents=True, exist_ok=True)
                 destination = recovery / (name + "-" + uuid.uuid4().hex)
                 files = inventory(target, [p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()])
                 shutil.move(str(target), str(destination))

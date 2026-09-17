@@ -59,6 +59,7 @@ def test_mask_only_windows_and_partial_batch_counted_exactly(tmp_path):
     stream_with_masks(tmp_path / "chat", [[0] * 32 + [1] * 33, [0] * 17 + [1]], "conversation")
     c = schedule_counts(tmp_path / "chat", r)
     assert (c["target_bearing_windows"], c["updates"], c["final_batch_rows"], c["targets"]) == (4, 2, 1, 34)
+    assert c["padded_positions"] == 29 and c["masked_context_positions"] == 1
     (tmp_path / "chat/mask.u8").write_bytes(b"\0" * 83)
     with pytest.raises(EvidenceError):schedule_counts(tmp_path / "chat", r)
 

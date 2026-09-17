@@ -1,0 +1,18 @@
+# Candidate Linux CUDA13.0 pilot environment. Not production-frozen or GPU-validated.
+--index-url https://pypi.org/simple
+numpy==2.5.3
+tokenizers==0.23.2
+mwparserfromhell==0.7.2
+defusedxml==0.7.1
+pyarrow==25.0.1
+rfc8785==0.1.4
+torch @ https://download-r2.pytorch.org/whl/cu130/torch-2.14.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl#sha256=9c5693d3ca91743202034094ad3b3df20b5eb1373d5e0bc8a5d976be12c35302
+sigstore==4.5.0
+# Preserve versions already exercised by the local fixture environment.
+filelock==3.32.3
+setuptools==78.1.0
+safetensors==0.8.0
+PyNaCl==1.6.2
+
+# Preserve the originally selected PyTorch-index Triton binary.
+triton @ https://download-r2.pytorch.org/whl/triton-3.8.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl#sha256=07a88b13e4f7e8b1769094238ab75109a5db2a8160a24ddc49c24d2efa44cb58
