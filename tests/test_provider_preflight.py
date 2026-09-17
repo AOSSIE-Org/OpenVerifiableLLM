@@ -79,6 +79,21 @@ def test_local_configuration_absent_empty_and_environment_precedence(tmp_path,mo
     p=tmp_path/'.runpod';p.mkdir();(p/'config.toml').write_text('apikey=""\n')
     with pytest.raises(mod.Refused):mod.credential()
     (p/'config.toml').write_text('apikey="test-config-key"\n')
+    (p/'config.toml').chmod(0o600)
     assert mod.credential()=='test-config-key'
     monkeypatch.setenv('RUNPOD_API_KEY','test-environment-key')
     assert mod.credential()=='test-environment-key'
+
+
+def test_provider_precision_rounds_funds_down_costs_up_for_policy():
+    from ovl_pipeline.budget import money
+    assert mod.policy_amount('100.5079216339',balance=True)=='100.507921'
+    assert mod.policy_amount('0.0000000001',balance=False)=='0.000001'
+    assert mod.policy_amount(Decimal('0.24'),balance=False)=='0.240000'
+    assert money(mod.policy_amount('100.5079216339',balance=True))==100507921
+
+
+def test_publicly_readable_credentials_refused(tmp_path,monkeypatch):
+    monkeypatch.delenv('RUNPOD_API_KEY',raising=False);monkeypatch.setattr(mod.Path,'home',lambda:tmp_path)
+    p=tmp_path/'.runpod';p.mkdir();f=p/'config.toml';f.write_text('apikey="test-only"\n');f.chmod(0o644)
+    with pytest.raises(mod.Refused):mod.credential()

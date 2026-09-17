@@ -107,3 +107,34 @@ immutable copies/public receipts at milestones; keep mutable `goal_state.json`
 separate. Store only deliberately selected nonsecret fields, never complete API
 responses containing credentials. A positive local decision never supplies
 training verification or independent third-party acceptance.
+
+## Operational native-deadline probe
+
+`scripts/probe_provider_deadline.py` is a single-attempt empty-pod test, not a
+production supervisor or admission gate. The authenticated API accepts native
+`terminateAfter`, but currently rejects reading it back on `Pod`. A bounded
+behavior test is therefore needed before drawing any operational conclusion. The
+first test reserves$0.25 (projected conservative ceiling$0.075), uses one quoted
+RTX2000Ada at$0.24/hour, and assumes an all-in upper bound$0.30/hour. Four GB of
+container disk costs$0.10/GB/month under the [provider pricing documentation](https://docs.runpod.io/pods/pricing).
+No volume, model weights, user data or credentials are placed on the pod.
+
+A pinned minimal Ubuntu image sleeps until the requested native ten-minute deadline.
+A systemd user service survives client disconnect and restarts against the same
+creation journal; lingering is enabled. A caller fallback terminates by deadline+120s,
+or earlier on observation/configuration/storage faults. That fallback is local,
+not native provider evidence. Creation is never retried after a recorded intent;
+a lost response is reconciled using its unique pre-request identity. Two actual
+absence observations are required. Billing and residual storage need separate
+reconciliation. API outages can still prevent caller cleanup.
+
+The executable accepts only the fixed original probe journal directory. Its
+`--dry-run` exercises fresh account/quote/clock/budget checks with no mutation.
+A timing match can report only `OBSERVED_TERMINATION_IN_DEADLINE_WINDOW`; alternate
+provider termination causes remain possible. It cannot authorize a later production
+pod, prove scheduler state, or mark G10 passed. Full training and throughput rentals
+remain closed until their own required guards and other trust gates are established.
+
+Provider monetary observations retain their full precision. `policy_amount` floors
+available balances and rounds costs upward to six decimals before integer-microdollar
+budget policy. Never silently round a cost down or available funds up.

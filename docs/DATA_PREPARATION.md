@@ -141,3 +141,22 @@ partial size would leave less than 20% filesystem headroom. This is a lower-boun
 check, not a prediction of full stage growth; production storage must separately
 budget complete preparation, clean reconstruction, and evidence exports. A bound
 failure preserves bytes and requires storage reconciliation before retrying.
+
+The local source-request builder consumes the completed anonymous download directory:
+
+```sh
+TOKENIZERS_PARALLELISM=false PYTHONPATH=src \
+ .ovllm-cache/preparation-venv/bin/python scripts/build_source_request.py \
+ --plan project/publication/raw-plan.json --download-directory FRESH_RAW_DOWNLOAD \
+ --run-id enwiki-20260901-20260918-r1 --attempt-id preparation-1 \
+ --output-directory project/source-commitments
+```
+
+It requires matching completed-download and anonymous fresh-download observations,
+rehashes every archived file, follows source metadata parents, and binds the current
+code/environment, a 32,000-token vocabulary budget and a 16,000,000-byte ordered
+whole-article tokenizer prefix. It does not repeat the download's decompression or
+claim independent verification. It publishes the local request without replacing an
+existing attempt. Commit that single new request through the approved branch so the
+Actions job reconstructs and signs the statement. The builder does not itself sign
+anything or permit training; independently verify and archive the actual anchor.

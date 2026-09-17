@@ -6,7 +6,7 @@ header. Reports contain selected nonsecret observations, never raw HTTP failures
 credentials, pod environments, payment details or provider keys.
 """
 import argparse
-from decimal import Decimal
+from decimal import Decimal, ROUND_FLOOR, ROUND_CEILING
 import hashlib
 import json
 import os
@@ -51,7 +51,7 @@ def credential():
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
         with os.fdopen(fd, "rb") as f:
             info = os.fstat(f.fileno())
-            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_size > 65536:
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_size > 65536 or stat.S_IMODE(info.st_mode) != 0o600:
                 raise Refused("invalid local RunPod configuration file")
             data = tomllib.loads(f.read(65537).decode())
         keys = [v for k,v in data.items() if k.lower() == "apikey"]
@@ -103,6 +103,21 @@ def amount(value):
     if not d.is_finite() or d < 0 or d > 10**12 or abs(d.as_tuple().exponent)>18:
         raise Refused("missing or invalid provider money value")
     return format(d, "f")
+
+
+def policy_amount(value, *, balance):
+    """Normalize observed USD for integer-microdollar policy: funds down, costs up.
+
+    Keep the original full-precision provider observation alongside this value.
+    This is arithmetic, not provider authentication or spend attribution.
+    """
+    if type(value) is str:
+        import re
+        if not re.fullmatch(r"(?:0|[1-9][0-9]*)(?:\.[0-9]{1,18})?",value):raise Refused("invalid observed decimal money")
+        value=Decimal(value)
+    d=Decimal(amount(value))
+    if type(balance) is not bool:raise Refused("explicit rounding direction required")
+    return format(d.quantize(Decimal("0.000001"),rounding=ROUND_FLOOR if balance else ROUND_CEILING),"f")
 
 
 def check(key):
