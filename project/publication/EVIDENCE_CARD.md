@@ -22,7 +22,9 @@ conversation phase. Exact files, revisions, digests, extraction policy and
 initialization will be published before production training. Raw reconstruction
 and continuous exact replay are required before any verified release claim.
 
-Current scope: publication-access check and a place for development evidence.
+Current scope: publicly downloaded/replayed synthetic development evidence,
+publisher identity tests, and raw source archival work. Raw archives, when present,
+are under inventory-addressed `raw/` prefixes with per-archive cards and licenses.
 No final source or production precommitment has been signed or anchored yet.
 
 ## Licensing and retention
