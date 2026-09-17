@@ -36,7 +36,7 @@ jobs:
       - name: Construct restricted development statement
         run: python scripts/anchor_identity_smoke.py
       - name: Sign with ambient GitHub Actions OIDC
-        run: python -m sigstore sign --no-default-files --bundle anchor-smoke/statement.sigstore.json anchor-smoke/statement.json
+        run: python -m sigstore sign --bundle anchor-smoke/statement.sigstore.json anchor-smoke/statement.json
       - name: Verify exact identity, source revision and inclusion
         run: >-
           python -m ovl_pipeline.anchoring
