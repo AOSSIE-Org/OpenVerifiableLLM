@@ -6,6 +6,7 @@ from collections import Counter
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import tempfile
 import xml.etree.ElementTree as ET
@@ -66,6 +67,8 @@ def extract_wikipedia(sources: list[Path], output: Path):
                             raise EvidenceError("expected exactly one current revision per page")
                         rev = revisions[0]
                         pid, rid = val(page, "id"), val(rev, "id")
+                        if any(not re.fullmatch(r"[1-9][0-9]{0,31}", i) for i in (pid, rid)):
+                            raise EvidenceError("invalid Wikipedia page/revision ID")
                         try:
                             db.execute("INSERT INTO ids VALUES (?,?)", (pid, rid))
                         except sqlite3.IntegrityError as e:
@@ -74,6 +77,9 @@ def extract_wikipedia(sources: list[Path], output: Path):
                         record = {"source": source_digest, "source_order": source_no, "ordinal": ordinal,
                                   "page_id": pid, "revision_id": rid, "title": val(page, "title"),
                                   "namespace": int(val(page, "ns")), "timestamp": val(rev, "timestamp"),
+                                  "attribution_url": f"https://en.wikipedia.org/w/index.php?curid={pid}",
+                                  "revision_url": f"https://en.wikipedia.org/w/index.php?oldid={rid}",
+                                  "history_url": f"https://en.wikipedia.org/w/index.php?curid={pid}&action=history",
                                   "raw_text_sha256": sha256(raw.encode("utf-8"))}
                         model = val(rev, "model", required=False)
                         if record["namespace"] != 0:

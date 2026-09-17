@@ -39,6 +39,10 @@ def inputs(tmp_path, monkeypatch):
     status = {"jobs": {"articlesdumprecombine": {"status": "done", "files": {filename: {
         "url": f"/enwiki/{date}/{filename}", "size": len(raw), **spec.upstream_checksums}}}}}
     write_json(wiki/"dumpstatus.json",status)
+    metadata_names = []
+    for suffix in ("index.html", "md5sums.txt", "sha1sums.txt"):
+        name = f"enwiki-{date}-{suffix}";metadata_names.append(name)
+        (wiki/name).write_text("synthetic index" if suffix=="index.html" else spec.upstream_checksums[suffix.split('sums')[0]]+"  "+filename+"\n")
     observed=verify_source(wiki/filename,spec)
     receipt={"schema":"ovl.acquisition-receipt.v1","result":"PASS","requested_url":spec.url,
              "spec_root":digest(spec.object()),"verified":observed,
@@ -53,15 +57,21 @@ def inputs(tmp_path, monkeypatch):
         recorded.append({**e,"upstream_blob_id":hashlib.sha1(b"blob "+str(len(b)).encode()+b"\0"+b).hexdigest(),
                          "upstream_lfs_sha256":e["sha256"] if e["path"].endswith(".parquet") else None})
     write_json(conv/"acquisition.json",{"schema":"ovl.oasst-acquisition-survey.v1","repo":"OpenAssistant/oasst1","revision":"0"*40,"files":recorded})
-    contract = {"schema": "ovl.source-preparation.v1", "scope": "production-source-preparation",
+    archive = ([{**e, "path": "wikipedia/"+e["path"]} for e in inventory(wiki,[filename,"dumpstatus.json",filename+".verified.json","receipt.json",*metadata_names])]
+               + [{**e, "path": "conversation/"+e["path"]} for e in inventory(conv,["LICENSE","README.md",*splits.values(),"acquisition.json"])]
+               + [{"path": n, "bytes": 3, "sha256": hashlib.sha256(b"raw").hexdigest()} for n in ("README.md","LICENSES.md")])
+    contract = {"schema": "ovl.source-preparation.v2", "scope": "production-source-preparation",
                 "run_id": "synthetic-test", "attempt_id": "test-1", "source_revision": "0"*40,
-                "wikipedia": {"date": date, "spec": spec.object(), "inventory": inventory(wiki,[filename]), "official_status_sha256": file_hash(wiki/"dumpstatus.json")},
+                "wikipedia": {"date": date, "spec": spec.object(), "inventory": inventory(wiki,[filename]), "official_status_sha256": file_hash(wiki/"dumpstatus.json"), "metadata_inventory":inventory(wiki,metadata_names)},
                 "conversation": {"repo": "OpenAssistant/oasst1", "revision": "0"*40,
                                  "inventory": inventory(conv,["LICENSE","README.md",*splits.values()]), "splits": splits},
                 "recipe": {"extractor": "main-nonredirect-stripcode-v1", "tokenizer_vocab_size": 320,
                            "tokenizer_sample_bytes": 100000, "conversation_policy": "oasst-en-preferred-path-v1"},
                 "code": preparation_code(), "environment": preparation_environment(),
-                "acquisition_receipts": {"wikipedia": file_hash(wiki/(filename+".verified.json")), "conversation":file_hash(conv/"acquisition.json")}}
+                "acquisition_receipts": {"wikipedia": file_hash(wiki/(filename+".verified.json")), "conversation":file_hash(conv/"acquisition.json")},
+                "archive": {"repo":"AOSSIE/openverifiable-synthetic-evidence", "revision":"1"*40,"prefix":"raw/synthetic",
+                            "inventory":sorted(archive,key=lambda e:e["path"]),"retention_days_target":90,
+                            "retention_policy":"owner-preserve-best-effort-public-host-v1"}}
     return contract,wiki,conv
 
 
@@ -125,5 +135,24 @@ def test_self_consistent_wrong_official_inventory_still_fails(inputs,tmp_path):
     status["jobs"]["articlesdumprecombine"]["status"]="in-progress"
     write_json(wiki/"dumpstatus.json",status)
     contract["wikipedia"]["official_status_sha256"]=file_hash(wiki/"dumpstatus.json")
+    for e in contract["archive"]["inventory"]:
+        if e["path"] == "wikipedia/dumpstatus.json":
+            e.update(bytes=(wiki/"dumpstatus.json").stat().st_size,sha256=file_hash(wiki/"dumpstatus.json"))
     with pytest.raises(EvidenceError,match="completed"):
         build_prepared(contract,wiki,conv,tmp_path/"bad")
+
+
+@pytest.mark.parametrize("change", ["missing", "duplicate", "wrong-checksum"])
+def test_checksum_listing_must_agree_even_if_all_metadata_hashes_are_rebound(inputs,tmp_path,change):
+    contract,wiki,conv=inputs
+    name=f"enwiki-{contract['wikipedia']['date']}-sha1sums.txt"
+    path=wiki/name
+    line=path.read_text()
+    path.write_text("unrelated\n" if change=="missing" else line+line if change=="duplicate" else "0"*40+line[40:])
+    replacement=inventory(wiki,[name])[0]
+    for inv,prefix in ((contract["wikipedia"]["metadata_inventory"],""),(contract["archive"]["inventory"],"wikipedia/")):
+        for e in inv:
+            if e["path"]==prefix+name:e.update({**replacement,"path":prefix+name})
+    with pytest.raises(EvidenceError,match="checksum file disagrees"):
+        build_prepared(contract,wiki,conv,tmp_path/"bad")
+    assert not (tmp_path/"bad").exists()

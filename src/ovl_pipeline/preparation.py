@@ -16,13 +16,14 @@ from .conversations import POLICY as CONVERSATION_POLICY, prepare_oasst
 from .data import extract_wikipedia, prepare_stream, rows, train_tokenizer, validate_stream, wikipedia_documents
 from .schema import fields, integer
 
-PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "preparation.py", "schema.py"]
+PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "preparation.py", "schema.py", "source_commitment.py"]
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
 
 
 def preparation_code():
     return inventory(SOURCE_ROOT, ["src/ovl_pipeline/" + n for n in PREPARATION_FILES]
-                     + ["requirements/preparation.in", "requirements/preparation.lock"])
+                     + ["requirements/preparation.in", "requirements/preparation.lock",
+                        ".github/workflows/anchor-pipeline.yml"])
 
 
 def preparation_environment():
@@ -39,8 +40,8 @@ def preparation_environment():
 
 
 def validate_contract(value):
-    fields(value, "schema scope run_id attempt_id source_revision wikipedia conversation recipe code environment acquisition_receipts", "source contract")
-    if value["schema"] != "ovl.source-preparation.v1" or value["scope"] != "production-source-preparation":
+    fields(value, "schema scope run_id attempt_id source_revision wikipedia conversation recipe code environment acquisition_receipts archive", "source contract")
+    if value["schema"] != "ovl.source-preparation.v2" or value["scope"] != "production-source-preparation":
         raise EvidenceError("not a production source/preparation commitment")
     for name in ("run_id", "attempt_id"):
         if type(value[name]) is not str or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,100}", value[name]):
@@ -48,7 +49,7 @@ def validate_contract(value):
     if type(value["source_revision"]) is not str or not re.fullmatch(r"[0-9a-f]{40}", value["source_revision"]):
         raise EvidenceError("invalid source revision")
     wiki = value["wikipedia"]
-    fields(wiki, "date spec inventory official_status_sha256", "Wikipedia source")
+    fields(wiki, "date spec inventory official_status_sha256 metadata_inventory", "Wikipedia source")
     if type(wiki["date"]) is not str or not re.fullmatch(r"[0-9]{8}", wiki["date"]):
         raise EvidenceError("invalid Wikipedia dump date")
     fields(wiki["spec"], "schema url filename bytes upstream_checksums allowed_hosts compression max_uncompressed_bytes", "download spec")
@@ -68,6 +69,15 @@ def validate_contract(value):
         raise EvidenceError("Wikipedia inventory/spec mismatch")
     require_digest(wiki["inventory"][0]["sha256"])
     require_digest(wiki["official_status_sha256"])
+    metadata_names = {f"enwiki-{wiki['date']}-{n}" for n in ("index.html", "md5sums.txt", "sha1sums.txt")}
+    if type(wiki["metadata_inventory"]) is not list or len(wiki["metadata_inventory"]) != 3:
+        raise EvidenceError("complete official listing/checksum metadata required")
+    if {e.get("path") for e in wiki["metadata_inventory"]} != metadata_names:
+        raise EvidenceError("unexpected official metadata inventory")
+    for e in wiki["metadata_inventory"]:
+        fields(e, "path bytes sha256", "official metadata entry")
+        integer(e["bytes"], 1, 16 * 1024 * 1024, "official metadata length")
+        require_digest(e["sha256"])
     conv = value["conversation"]
     fields(conv, "repo revision inventory splits", "conversation source")
     if conv["repo"] != "OpenAssistant/oasst1" or not re.fullmatch(r"[0-9a-f]{40}", conv["revision"]):
@@ -101,20 +111,44 @@ def validate_contract(value):
     fields(value["acquisition_receipts"], "wikipedia conversation", "acquisition receipt roots")
     for root in value["acquisition_receipts"].values():
         require_digest(root)
+    archive = value["archive"]
+    fields(archive, "repo revision prefix inventory retention_days_target retention_policy", "raw archive")
+    if (type(archive["repo"]) is not str or not re.fullmatch(r"AOSSIE/openverifiable-[a-z0-9-]+-evidence", archive["repo"])
+            or type(archive["revision"]) is not str or not re.fullmatch(r"[0-9a-f]{40}", archive["revision"])
+            or type(archive["prefix"]) is not str or not re.fullmatch(r"raw/[a-z0-9-]+", archive["prefix"])):
+        raise EvidenceError("raw archive must be a pinned approved public dataset")
+    integer(archive["retention_days_target"], 90, 36500, "raw retention target")
+    if archive["retention_policy"] != "owner-preserve-best-effort-public-host-v1":
+        raise EvidenceError("unsupported public retention policy")
+    if type(archive["inventory"]) is not list or not 10 <= len(archive["inventory"]) <= 32:
+        raise EvidenceError("missing raw archive inventory")
+    names = []
+    for e in archive["inventory"]:
+        fields(e, "path bytes sha256", "archive inventory entry")
+        confined(Path("."), e["path"])
+        integer(e["bytes"], 1, 2**40, "archive file length")
+        require_digest(e["sha256"])
+        names.append(e["path"])
+    if names != sorted(set(names)):
+        raise EvidenceError("raw archive inventory must be sorted and unique")
+    recorded = {e["path"]: e for e in archive["inventory"]}
+    for prefix, inv in (("wikipedia/", wiki["inventory"] + wiki["metadata_inventory"]), ("conversation/", conv["inventory"])):
+        for e in inv:
+            if recorded.get(prefix + e["path"]) != {**e, "path": prefix + e["path"]}:
+                raise EvidenceError("archive does not bind the complete raw sources")
+    for name, root in (("wikipedia/dumpstatus.json", wiki["official_status_sha256"]),
+                       ("wikipedia/" + spec.filename + ".verified.json", value["acquisition_receipts"]["wikipedia"]),
+                       ("conversation/acquisition.json", value["acquisition_receipts"]["conversation"])):
+        if recorded.get(name, {}).get("sha256") != root:
+            raise EvidenceError("archive does not bind source metadata")
+    if not {"README.md", "LICENSES.md"} <= recorded.keys():
+        raise EvidenceError("raw archive requires attribution and retention notices")
     return spec
 
 
-def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
-    """Internal transformation kernel, also usable in explicitly labeled tests.
-
-    Production callers must use prepare_committed below. This kernel repeats raw
-    inventory/checksum/decompression checks and never downloads unrecorded data.
-    """
+def validate_source_metadata(value, wiki_raw: Path, conversation_raw: Path):
+    """Validate metadata parent links, not the complete raw bytes or network history."""
     spec = validate_contract(value)
-    if wiki_raw.is_symlink() or conversation_raw.is_symlink() or output.exists():
-        raise EvidenceError("raw roots must not be symlinks; output must be fresh")
-    verify_inventory(wiki_raw, value["wikipedia"]["inventory"])
-    verify_inventory(conversation_raw, value["conversation"]["inventory"])
     # Follow every raw-input metadata/receipt parent before transformation. The
     # receipts remain operator acquisition evidence; their claims are also
     # checked against the actual complete raw bytes below.
@@ -123,6 +157,16 @@ def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
         raise EvidenceError("official status parent hash mismatch")
     if wikipedia_source(read_json(status_path, canonical_required=False), value["wikipedia"]["date"]).object() != spec.object():
         raise EvidenceError("complete official inventory differs from source contract")
+    verify_inventory(wiki_raw, value["wikipedia"]["metadata_inventory"], max_bytes=48 * 1024 * 1024)
+    for kind in ("md5", "sha1"):
+        path = confined(wiki_raw, f"enwiki-{value['wikipedia']['date']}-{kind}sums.txt")
+        matches = []
+        for line in path.read_text().splitlines():
+            parts = line.split()
+            if len(parts) == 2 and parts[1] in (spec.filename, "*" + spec.filename):
+                matches.append(parts[0])
+        if matches != [spec.upstream_checksums[kind]]:
+            raise EvidenceError("official checksum file disagrees with completed inventory")
     result_path = confined(wiki_raw, spec.filename + ".verified.json")
     if file_hash(result_path) != value["acquisition_receipts"]["wikipedia"]:
         raise EvidenceError("Wikipedia acquisition parent hash mismatch")
@@ -139,9 +183,15 @@ def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
             or receipt.get("verified") != acquired["verified"]
             or receipt.get("downloader_code_sha256") != file_hash(Path(__file__).with_name("acquisition.py"))):
         raise EvidenceError("Wikipedia acquisition receipt does not bind declared source/code")
-    verified_source = verify_source(confined(wiki_raw, spec.filename), spec)
-    if verified_source != acquired["verified"] or verified_source["hashes"]["sha256"] != value["wikipedia"]["inventory"][0]["sha256"]:
-        raise EvidenceError("raw acquisition differs from committed SHA-256")
+    verified = acquired["verified"]
+    fields(verified, "bytes hashes decompressed_bytes", "acquired source verification")
+    if (verified["bytes"] != spec.bytes or verified["hashes"] != {
+            **spec.upstream_checksums, "sha256": value["wikipedia"]["inventory"][0]["sha256"]}):
+        raise EvidenceError("acquisition assertion differs from committed source")
+    integer(verified["decompressed_bytes"], 1, spec.max_uncompressed_bytes, "decompressed size assertion")
+    archive = {e["path"]: e for e in value["archive"]["inventory"]}
+    if archive.get("wikipedia/" + acquired["receipt"], {}).get("sha256") != acquired["receipt_sha256"]:
+        raise EvidenceError("archive omits the network receipt parent")
     conversation_receipt = confined(conversation_raw, "acquisition.json")
     if file_hash(conversation_receipt) != value["acquisition_receipts"]["conversation"]:
         raise EvidenceError("conversation acquisition parent hash mismatch")
@@ -165,6 +215,22 @@ def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
                     blob.update(block)
             if blob.hexdigest() != entry.get("upstream_blob_id"):
                 raise EvidenceError("conversation Git blob parent mismatch")
+    return spec, acquired, acquired_conv
+
+
+def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
+    """Internal transformation kernel. Production uses prepare_committed.
+
+    Metadata checks never substitute for complete raw hashing and decompression.
+    """
+    if wiki_raw.is_symlink() or conversation_raw.is_symlink() or output.exists():
+        raise EvidenceError("raw roots must not be symlinks; output must be fresh")
+    spec, acquired, _ = validate_source_metadata(value, wiki_raw, conversation_raw)
+    verify_inventory(wiki_raw, value["wikipedia"]["inventory"])
+    verify_inventory(conversation_raw, value["conversation"]["inventory"])
+    if verify_source(confined(wiki_raw, spec.filename), spec) != acquired["verified"]:
+        raise EvidenceError("raw acquisition differs from committed verification")
+    conv = value["conversation"]
     output.mkdir(parents=True, exist_ok=False)
     corpus = extract_wikipedia([confined(wiki_raw, spec.filename)], output / "corpus")
     recipe = value["recipe"]

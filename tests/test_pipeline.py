@@ -98,6 +98,10 @@ def test_reconstruction_and_tokenizer_marker_roundtrip(prepared, tmp_path):
     assert prepare(SOURCE, tmp_path / "again") == manifest
     assert manifest["corpus"]["record_count"] == 7
     assert manifest["corpus"]["counts"] == {"included": 3, "redirect": 1, "non_main_namespace": 1, "empty_revision_text": 1, "non_wikitext_model": 1}
+    first=next(rows(out / "corpus/articles.jsonl"))
+    assert first["attribution_url"]=="https://en.wikipedia.org/w/index.php?curid=1"
+    assert first["revision_url"]=="https://en.wikipedia.org/w/index.php?oldid=101"
+    assert first["history_url"]=="https://en.wikipedia.org/w/index.php?curid=1&action=history"
     tok = Tokenizer.from_file(str(out / "tokenizer/tokenizer.json"))
     for text in ["<|bos|><|assistant|>", "café 東京 😀\n", "\x00end"]:
         ids = text_ids(tok, text)
@@ -107,7 +111,9 @@ def test_reconstruction_and_tokenizer_marker_roundtrip(prepared, tmp_path):
 
 def test_malformed_duplicate_and_entities_abort(tmp_path):
     good = (SOURCE / "wiki.xml").read_text()
-    cases = [good[:-30], good.replace("<id>2</id>", "<id>1</id>"), '<!DOCTYPE mediawiki [<!ENTITY x SYSTEM "file:///etc/passwd">]><mediawiki>&x;</mediawiki>']
+    cases = [good[:-30], good.replace("<id>2</id>", "<id>1</id>"),
+             good.replace("<id>1</id>", "<id>1&amp;other=value</id>"),
+             '<!DOCTYPE mediawiki [<!ENTITY x SYSTEM "file:///etc/passwd">]><mediawiki>&x;</mediawiki>']
     for i, text in enumerate(cases):
         raw = tmp_path / f"raw{i}.xml"
         raw.write_text(text)
