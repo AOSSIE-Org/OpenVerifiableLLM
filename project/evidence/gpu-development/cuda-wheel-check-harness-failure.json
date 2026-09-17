@@ -1,0 +1,7 @@
+{
+  "scope": "local validation harness failure; no GPU execution",
+  "failure": "AssertionError before fixture",
+  "cause": "called _set_flags directly but omitted configure() thread-count setters; actual threads16/interop32 versus required1/1",
+  "unchanged_core_code": "configure() already sets both thread counts before literal assertion",
+  "next_check": "set actual thread counts then flags in fresh process; execute CPU fixture without claiming CUDA execution"
+}

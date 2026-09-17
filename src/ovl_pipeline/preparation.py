@@ -15,8 +15,9 @@ from .canonical import EvidenceError, canonical, confined, digest, file_hash, in
 from .conversations import POLICY as CONVERSATION_POLICY, prepare_oasst
 from .data import extract_wikipedia, prepare_stream, rows, train_tokenizer, validate_stream, wikipedia_documents
 from .schema import fields, integer
+from .preparation_stages import Stages
 
-PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "preparation.py", "schema.py", "source_commitment.py"]
+PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "preparation.py", "preparation_stages.py", "schema.py", "source_commitment.py"]
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -218,12 +219,12 @@ def validate_source_metadata(value, wiki_raw: Path, conversation_raw: Path):
     return spec, acquired, acquired_conv
 
 
-def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
+def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path, *, resume=False, admission=None, execution_observation=None):
     """Internal transformation kernel. Production uses prepare_committed.
 
     Metadata checks never substitute for complete raw hashing and decompression.
     """
-    if wiki_raw.is_symlink() or conversation_raw.is_symlink() or output.exists():
+    if wiki_raw.is_symlink() or conversation_raw.is_symlink() or (output.exists() and not resume):
         raise EvidenceError("raw roots must not be symlinks; output must be fresh")
     spec, acquired, _ = validate_source_metadata(value, wiki_raw, conversation_raw)
     verify_inventory(wiki_raw, value["wikipedia"]["inventory"])
@@ -231,46 +232,59 @@ def build_prepared(value, wiki_raw: Path, conversation_raw: Path, output: Path):
     if verify_source(confined(wiki_raw, spec.filename), spec) != acquired["verified"]:
         raise EvidenceError("raw acquisition differs from committed verification")
     conv = value["conversation"]
-    output.mkdir(parents=True, exist_ok=False)
-    corpus = extract_wikipedia([confined(wiki_raw, spec.filename)], output / "corpus")
-    recipe = value["recipe"]
-    tokenizer = train_tokenizer(output / "corpus/articles.jsonl", output / "tokenizer",
-                                vocab_size=recipe["tokenizer_vocab_size"], sample_bytes=recipe["tokenizer_sample_bytes"])
-    token_path = output / "tokenizer/tokenizer.json"
-    wiki = prepare_stream(wikipedia_documents(output / "corpus/articles.jsonl"), token_path,
-                          output / "wikipedia", phase="wikipedia")
-    selection = prepare_oasst(conversation_raw, conv["inventory"], conv["splits"], output / "conversation-selection")
-    streams = {"wikipedia": wiki}
-    for split in ("train", "validation"):
-        name = "conversation" if split == "train" else "conversation-validation"
-        streams[name] = prepare_stream(rows(output / f"conversation-selection/{split}.jsonl"),
-                                       token_path, output / name, phase="conversation")
-    for name, stream in streams.items():
-        validate_stream(output / name, stream)
-    result = {"schema": "ovl.complete-preparation.v1", "source_commitment_sha256": digest(value),
-              "corpus": corpus, "tokenizer": tokenizer, "conversation_selection": selection,
-              "streams": streams, "code": value["code"], "environment": value["environment"],
-              "validation_used_for_training": False}
-    write_json(output / "preparation.json", result)
+    stages=Stages(output,digest(value))
+    with stages.lease(resume=resume,admission=admission):
+        corpus = stages.run("corpus",{},lambda p:extract_wikipedia([confined(wiki_raw,spec.filename)],p))
+        recipe = value["recipe"]
+        tokenizer = stages.run("tokenizer",{"corpus":digest(corpus)},lambda p:train_tokenizer(
+            output / "corpus/articles.jsonl",p,vocab_size=recipe["tokenizer_vocab_size"],
+            sample_bytes=recipe["tokenizer_sample_bytes"]))
+        token_path = output / "tokenizer/tokenizer.json"
+        wiki = stages.run("wikipedia",{"corpus":digest(corpus),"tokenizer":digest(tokenizer)},
+            lambda p:prepare_stream(wikipedia_documents(output / "corpus/articles.jsonl"),token_path,p,phase="wikipedia"))
+        selection = stages.run("conversation-selection",{},lambda p:prepare_oasst(
+            conversation_raw,conv["inventory"],conv["splits"],p))
+        streams = {"wikipedia": wiki}
+        for split in ("train", "validation"):
+            name = "conversation" if split == "train" else "conversation-validation"
+            streams[name] = stages.run(name,{"selection":digest(selection),"tokenizer":digest(tokenizer)},
+                lambda p:prepare_stream(rows(output / f"conversation-selection/{split}.jsonl"),token_path,p,phase="conversation"))
+        for name, stream in streams.items():
+            validate_stream(output / name, stream)
+        result = {"schema": "ovl.complete-preparation.v1", "source_commitment_sha256": digest(value),
+                  "corpus": corpus, "tokenizer": tokenizer, "conversation_selection": selection,
+                  "streams": streams, "code": value["code"], "environment": value["environment"],
+                  "validation_used_for_training": False}
+        if (output/"preparation.json").exists() and read_json(output/"preparation.json")!=result:
+            raise EvidenceError("completed preparation result differs from resumed stages")
+        write_json(output / "preparation.json", result)
+    if execution_observation is not None:
+        execution_observation.update(stages.observation)
     return result
 
 
-def prepare_committed(statement_path, bundle_path, policy, wiki_raw, conversation_raw, output, *, expected_preparation=None):
+def prepare_committed(statement_path, bundle_path, policy, wiki_raw, conversation_raw, output, *, expected_preparation=None, resume=False):
+    if resume and expected_preparation is not None:
+        raise EvidenceError("full reconstruction comparison requires fresh preparation, not resume")
     # Always recompute cryptographic admission. A cached local receipt is insufficient.
     admission = verify_anchor(statement_path, bundle_path, policy)
     statement = read_json(statement_path)
+    if digest(statement)!=policy.statement_sha256 or digest(statement)!=admission["statement_sha256"]:
+        raise EvidenceError("source statement changed after anchor verification")
     validate_contract(statement)
     if statement["source_revision"] != policy.source_revision:
         raise EvidenceError("source commitment revision differs from publisher certificate policy")
-    result = build_prepared(statement, wiki_raw, conversation_raw, output)
-    # Admission observations may change with TUF; keep them outside deterministic
-    # prepared roots. Reconstruction compares only actual transformation outputs.
-    write_json(output / "admission-observation.json", admission)
+    execution={}
+    result = build_prepared(statement, wiki_raw, conversation_raw, output, resume=resume,
+                            admission=admission, execution_observation=execution)
     if expected_preparation is not None and result != expected_preparation:
         raise EvidenceError("full preparation reconstruction mismatch; fresh output preserved")
     return {"result": "PASS", "scope": "complete-source-preparation",
             "preparation_sha256": digest(result), "source_commitment_sha256": digest(statement),
             "full_reconstruction_compared": expected_preparation is not None,
+            "execution_observation_sha256":digest(execution),
+            "stages_executed_this_run":execution["stages_executed_this_run"],
+            "stages_adopted_from_local_cache":execution["stages_adopted_from_local_cache"],
             "training_replay": "NOT_RUN", "production_training_admission": "NOT_RUN"}
 
 
@@ -279,11 +293,13 @@ def main():
     for name in ("statement", "bundle", "trust-policy", "wikipedia-raw", "conversation-raw", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--compare-preparation", type=Path)
+    parser.add_argument("--resume", action="store_true", help="resume original preparation; not a clean reconstruction")
     args = parser.parse_args()
     try:
         result = prepare_committed(args.statement, args.bundle, PublisherPolicy(**read_json(args.trust_policy)),
                                    args.wikipedia_raw, args.conversation_raw, args.output,
-                                   expected_preparation=read_json(args.compare_preparation) if args.compare_preparation else None)
+                                   expected_preparation=read_json(args.compare_preparation) if args.compare_preparation else None,
+                                   resume=args.resume)
     except Exception as e:
         print(canonical({"result": "FAIL", "reason": str(e)}).decode())
         return 1

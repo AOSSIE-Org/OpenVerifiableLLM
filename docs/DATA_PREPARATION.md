@@ -99,8 +99,45 @@ executed again and every derived manifest/hash must match. Production release lo
 must bind that expected manifest to its own trusted registration; merely comparing
 to a caller-selected file is not final training verification.
 
-Interrupted outputs are preserved and cannot be silently overwritten. This first
-driver requires a fresh output directory to retry preparation; stage-level resume
-is not yet implemented. Adopt any live process before launching another one. The
-raw downloader and training fixture have separate tested resume mechanisms. Full
-Wikipedia runtime, output storage and production reconstruction are still NOT_RUN.
+Interrupted outputs are preserved and cannot be silently overwritten. To resume
+the original preparation, repeat the original command with `--resume` and retain
+its sibling `NEW_PREPARED-progress` directory. An exclusive OS lease prevents two
+writers. The source commitment (including code/environment/recipe) must be identical.
+Raw inputs are fully checked again; completed stages are reused only after their
+complete file set, every file hash, saved result and input ancestry validate.
+Uncommitted partial stage directories are moved into the sibling progress directory
+with their inventory before recomputation. Never delete the sole preserved evidence.
+
+These local recovery receipts are operator caches, not public commitments or proof
+of transformation. Full reconstruction must use a fresh output and progress directory
+and execute every transformation again. `--resume` with `--compare-preparation` is
+refused. A completed-stage corruption fails closed and is preserved for investigation.
+A crash inside a stage recomputes that whole stage; XML/tokenization do not resume
+inside a file. Adopt any live process before launching another one. Full Wikipedia
+runtime, output storage and production reconstruction remain NOT_RUN.
+
+Recovery execution evidence is separate from the deterministic prepared manifests.
+Each invocation preserves content-addressed start/completion observations under
+`NEW_PREPARED-progress/observations/`, including anchor admission, process identity,
+and the exact stages executed or adopted. A killed invocation retains its start
+record; it does not acquire a successful completion record. Resumed output equality
+alone supplies no clean-reconstruction credit. The verified statement digest is
+checked again before the in-memory contract is passed to transformations.
+
+The lease locks the recovery directory inode, and all preparation evidence writes
+occur under that lease. Roots are trusted owner-controlled directories: replacing
+a root while a process holds it is outside the cooperative-writer model. A dead
+process releases its OS lock; process metadata is diagnostic, never authority to
+steal a live lock. Stage files, nested directories, the output directory and its
+parent are synced before publishing a completed-stage receipt. This assumes a
+local filesystem that honors fsync; it is not a hardware power-loss attestation.
+
+Incomplete stages use a durable preservation intent followed by a same-filesystem
+atomic rename, with no cross-filesystem copy/delete fallback. Recovery counts every
+preserved directory even if interrupted before its completion receipt. At most eight
+partial stages may be preserved by automatic retries. Before recomputation it records
+actual preserved bytes and free capacity and refuses if replacing even the known
+partial size would leave less than 20% filesystem headroom. This is a lower-bound
+check, not a prediction of full stage growth; production storage must separately
+budget complete preparation, clean reconstruction, and evidence exports. A bound
+failure preserves bytes and requires storage reconciliation before retrying.

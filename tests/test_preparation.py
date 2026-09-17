@@ -156,3 +156,163 @@ def test_checksum_listing_must_agree_even_if_all_metadata_hashes_are_rebound(inp
     with pytest.raises(EvidenceError,match="checksum file disagrees"):
         build_prepared(contract,wiki,conv,tmp_path/"bad")
     assert not (tmp_path/"bad").exists()
+
+
+def test_resume_reuses_verified_stages_and_preserves_incomplete_bytes(inputs,tmp_path,monkeypatch):
+    import ovl_pipeline.preparation as prep
+    contract,wiki,conv=inputs
+    baseline=build_prepared(contract,wiki,conv,tmp_path/'baseline')
+    def fail(documents,tokenizer,output,**kwargs):
+        output.mkdir();(output/'partial.bin').write_bytes(b'interrupted stream')
+        raise OSError('injected stage interruption')
+    with monkeypatch.context() as m:
+        m.setattr(prep,'prepare_stream',fail)
+        with pytest.raises(OSError,match='injected'):
+            build_prepared(contract,wiki,conv,tmp_path/'resumed')
+    with monkeypatch.context() as m:
+        m.setattr(prep,'extract_wikipedia',lambda *a,**k:pytest.fail('complete corpus must be adopted'))
+        m.setattr(prep,'train_tokenizer',lambda *a,**k:pytest.fail('complete tokenizer must be adopted'))
+        actual=build_prepared(contract,wiki,conv,tmp_path/'resumed',resume=True)
+    assert actual==baseline
+    kept=list((tmp_path/'resumed-progress/incomplete').rglob('partial.bin'))
+    assert len(kept)==1 and kept[0].read_bytes()==b'interrupted stream'
+    assert not list((tmp_path/'resumed').rglob('partial.bin'))
+
+
+@pytest.mark.parametrize('change',['bytes','extra-file','receipt-parent','source-recipe','context-link'])
+def test_resume_refuses_altered_completed_stages_and_parent_links(inputs,tmp_path,change):
+    contract,wiki,conv=inputs;out=tmp_path/'prepared';build_prepared(contract,wiki,conv,out)
+    progress=tmp_path/'prepared-progress'
+    if change=='bytes':(out/'tokenizer/tokenizer.json').write_bytes(b'{}')
+    elif change=='extra-file':(out/'corpus/extra').write_bytes(b'not registered')
+    elif change=='receipt-parent':
+        r=read_json(progress/'tokenizer.json');r['inputs']['parents']['corpus']='0'*64;write_json(progress/'tokenizer.json',r)
+    elif change=='source-recipe':contract['recipe']['tokenizer_vocab_size']+=1
+    else:
+        (progress/'context.json').rename(progress/'original-context.json')
+        (progress/'context.json').symlink_to(progress/'original-context.json')
+    with pytest.raises(EvidenceError):build_prepared(contract,wiki,conv,out,resume=True)
+
+
+def test_resume_cannot_count_as_clean_reconstruction(inputs,tmp_path):
+    contract,wiki,conv=inputs
+    with pytest.raises(EvidenceError,match='fresh preparation'):
+        prepare_committed(tmp_path/'missing',tmp_path/'missing',None,wiki,conv,tmp_path/'out',
+                          expected_preparation={},resume=True)
+    assert not (tmp_path/'out').exists()
+
+
+def test_preparation_lease_refuses_concurrent_writer(inputs,tmp_path):
+    from ovl_pipeline.preparation_stages import Stages
+    contract,_,_=inputs;output=tmp_path/'out'
+    with Stages(output,digest(contract)).lease(resume=False):
+        with pytest.raises(EvidenceError,match='active writer'):
+            with Stages(output,digest(contract)).lease(resume=True):pass
+
+
+def test_anchor_statement_replacement_refused_before_transformation(inputs,tmp_path,monkeypatch):
+    import ovl_pipeline.preparation as prep
+    contract,wiki,conv=inputs
+    statement=tmp_path/'source.json';write_json(statement,contract)
+    policy=PublisherPolicy('ovl.publisher-policy.v2',REPOSITORY,WORKFLOW,ISSUER,
+                           'refs/heads/feat/verifiable-wikipedia-pipeline','0'*40,digest(contract),
+                           'sigstore-production-tuf',REPOSITORY_ID,OWNER_ID,'github-hosted')
+    def swap(*a):
+        changed=copy.deepcopy(contract);changed['recipe']['tokenizer_vocab_size']+=1
+        write_json(statement,changed)
+        return {'statement_sha256':digest(contract)}
+    monkeypatch.setattr(prep,'verify_anchor',swap)
+    monkeypatch.setattr(prep,'build_prepared',lambda *a,**k:pytest.fail('unverified source used'))
+    with pytest.raises(EvidenceError,match='changed after anchor'):
+        prepare_committed(statement,tmp_path/'bundle',policy,wiki,conv,tmp_path/'out')
+    assert not (tmp_path/'out').exists()
+
+
+def test_execution_observations_distinguish_cache_from_fresh_work(inputs,tmp_path):
+    contract,wiki,conv=inputs
+    first={};resumed={};fresh={};out=tmp_path/'out'
+    a=build_prepared(contract,wiki,conv,out,execution_observation=first)
+    b=build_prepared(contract,wiki,conv,out,resume=True,execution_observation=resumed)
+    c=build_prepared(contract,wiki,conv,tmp_path/'fresh',execution_observation=fresh)
+    assert a==b==c
+    assert len(first['stages_executed_this_run'])==6 and not first['stages_adopted_from_local_cache']
+    assert resumed['stages_adopted_from_local_cache']==first['stages_executed_this_run']
+    assert resumed['stages_executed_this_run']==[]
+    assert fresh['stages_executed_this_run']==first['stages_executed_this_run']
+    assert first['invocation_id']!=resumed['invocation_id']
+    assert read_json(tmp_path/'out-progress/observations'/f'{digest(first)}.json')==first
+    assert read_json(tmp_path/'out-progress/observations'/f'{digest(resumed)}.json')==resumed
+
+
+def test_removing_lock_filename_does_not_admit_second_writer(tmp_path):
+    from ovl_pipeline.preparation_stages import Stages
+    out=tmp_path/'out'
+    with Stages(out,'0'*64).lease(resume=False):
+        lock=tmp_path/'out-progress/lease.lock';lock.touch();lock.unlink();lock.touch()
+        with pytest.raises(EvidenceError,match='active writer'):
+            with Stages(out,'0'*64).lease(resume=True):pass
+
+
+def test_parent_directory_synced_before_stage_receipt(tmp_path,monkeypatch):
+    import os
+    import ovl_pipeline.preparation_stages as stages
+    out=tmp_path/'out';events=[];real_sync=os.fsync;real_write=stages.write_json
+    def sync(fd):
+        events.append(('sync',os.fstat(fd).st_ino));real_sync(fd)
+    def write(path,value):
+        if path.name=='corpus.json' and path.parent.name=='out-progress':
+            assert ('sync',out.stat().st_ino) in events
+            assert ('sync',out.parent.stat().st_ino) in events
+            events.append(('receipt',None))
+        real_write(path,value)
+    monkeypatch.setattr(os,'fsync',sync);monkeypatch.setattr(stages,'write_json',write)
+    def producer(path):
+        path.mkdir();write_json(path/'corpus.json',{'ok':True});return {'ok':True}
+    with stages.Stages(out,'0'*64).lease(resume=False) as s:
+        events.clear();s.run('corpus',{},producer)
+    assert ('receipt',None) in events
+
+
+def test_partial_preservation_is_bounded_and_unindexed_bytes_accounted(tmp_path,monkeypatch):
+    import ovl_pipeline.preparation_stages as stages
+    out=tmp_path/'out';monkeypatch.setattr(stages,'MAX_PRESERVED_STAGES',2)
+    def interrupted(path):
+        path.mkdir();(path/'partial').write_bytes(b'abc');raise OSError('interrupted')
+    for i in range(3):
+        with stages.Stages(out,'0'*64).lease(resume=i>0) as s:
+            with pytest.raises(OSError,match='interrupted'):s.run('corpus',{},interrupted)
+    with stages.Stages(out,'0'*64).lease(resume=True) as s:
+        # A crash after rename and before completion receipt must not hide bytes.
+        for receipt in (s.progress/'incomplete').glob('*.json'):receipt.unlink()
+        observation=s.storage_observation()
+        assert observation['preserved_bytes']==6 and len(observation['preserved_directories'])==2
+        with pytest.raises(EvidenceError,match='count bound'):
+            s.run('corpus',{},lambda p:pytest.fail('must not run'))
+    assert (out/'corpus/partial').read_bytes()==b'abc'
+
+
+def test_headroom_failure_preserves_partial_and_refuses_producer(tmp_path,monkeypatch):
+    import collections
+    import ovl_pipeline.preparation_stages as stages
+    out=tmp_path/'out'
+    with stages.Stages(out,'0'*64).lease(resume=False) as s:
+        (out/'corpus').mkdir();(out/'corpus/partial').write_bytes(b'abc')
+        Usage=collections.namedtuple('Usage','total used free')
+        monkeypatch.setattr(stages.shutil,'disk_usage',lambda p:Usage(1000,801,199))
+        with pytest.raises(EvidenceError,match='headroom'):
+            s.run('corpus',{},lambda p:pytest.fail('must not run'))
+        assert (out/'corpus/partial').read_bytes()==b'abc'
+
+
+def test_cross_filesystem_rename_error_never_copies_or_deletes(tmp_path,monkeypatch):
+    import errno
+    import ovl_pipeline.preparation_stages as stages
+    out=tmp_path/'out'
+    with stages.Stages(out,'0'*64).lease(resume=False) as s:
+        (out/'corpus').mkdir();(out/'corpus/partial').write_bytes(b'abc')
+        def cross(*a):raise OSError(errno.EXDEV,'cross-device')
+        monkeypatch.setattr(stages.os,'rename',cross)
+        with pytest.raises(OSError):s.run('corpus',{},lambda p:pytest.fail('must not run'))
+        assert (out/'corpus/partial').read_bytes()==b'abc'
+        intents=list((s.progress/'incomplete').glob('*-intent.json'))
+        assert len(intents)==1 and read_json(intents[0])['files'][0]['bytes']==3

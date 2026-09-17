@@ -69,6 +69,21 @@ The [official GraphQL schema](https://graphql-spec.runpod.io/) advertises
 readback are unverified here. Do not provision until a supported hard guard can
 be set and checked. Local policy tests cannot substitute for that check.
 
+Run the implemented read-only credential/schema/account probe with a fresh receipt:
+
+```sh
+python3 scripts/provider_preflight.py --output local-provider-observation.json
+```
+
+It reads `RUNPOD_API_KEY` or the standard local RunPod TOML configuration, sends
+only fixed queries to the official HTTPS endpoint, refuses redirects, and keeps
+credentials and raw errors out of reports. It reports balance, account-wide rate,
+unattributed resource IDs and available deadline fields. It never creates resources,
+changes auto-pay, validates termination behavior or grants execution admission.
+Account-wide observations are not project spend. Missing credentials, partial/error
+responses and unsupported shapes fail with a nonzero exit and a scoped receipt.
+The empty default CLI config file is not evidence of authentication.
+
 ## Durable controller journal
 
 `Journal(directory).lease()` acquires a nonblocking OS file lock. It never steals

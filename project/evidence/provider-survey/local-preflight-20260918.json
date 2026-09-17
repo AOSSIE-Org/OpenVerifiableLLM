@@ -1,0 +1,6 @@
+{
+  "execution_admission": "NOT_RUN",
+  "reason": "invalid local RunPod credential format",
+  "resource_mutation": "NOT_RUN",
+  "result": "UNAVAILABLE"
+}
