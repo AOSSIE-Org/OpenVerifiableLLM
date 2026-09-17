@@ -14,14 +14,14 @@ from pyasn1.type.char import UTF8String
 import pytest
 from sigstore.errors import VerificationError
 
-from ovl_pipeline.anchoring import ISSUER, REPOSITORY, WORKFLOW, PublisherPolicy, verify_anchor
+from ovl_pipeline.anchoring import ISSUER, REPOSITORY, REPOSITORY_ID, OWNER_ID, WORKFLOW, PublisherPolicy, verify_anchor
 from ovl_pipeline.canonical import EvidenceError, canonical, digest, read_json
 
 
 def configured(value):
-    return PublisherPolicy("ovl.publisher-policy.v1", REPOSITORY, WORKFLOW, ISSUER,
+    return PublisherPolicy("ovl.publisher-policy.v2", REPOSITORY, WORKFLOW, ISSUER,
                            "refs/heads/feat/verifiable-wikipedia-pipeline", "a" * 40,
-                           digest(value), "sigstore-production-tuf")
+                           digest(value), "sigstore-production-tuf", REPOSITORY_ID, OWNER_ID, "github-hosted")
 
 
 def certificate(policy, overrides=None):
@@ -34,13 +34,14 @@ def certificate(policy, overrides=None):
             .public_key(key.public_key()).serial_number(1)
             .not_valid_before(now - timedelta(minutes=1)).not_valid_after(now + timedelta(minutes=1))
             .add_extension(x509.SubjectAlternativeName([x509.UniformResourceIdentifier(overrides.get("identity", policy.identity))]), False))
-    values = {"1": policy.issuer, "6": policy.ref,
-              "12": f"https://github.com/{policy.repository}", "13": policy.source_revision}
+    values = {"1": policy.issuer, "11": policy.runner_environment, "14": policy.ref,
+              "12": f"https://github.com/{policy.repository}", "13": policy.source_revision,
+              "15": policy.repository_id, "17": policy.owner_id}
     for suffix, value in values.items():
         value = overrides.get(suffix, value)
         if value is None:
             continue
-        encoded = encode(UTF8String(value)) if suffix in ("12", "13") else value.encode()
+        encoded = value.encode() if suffix == "1" else encode(UTF8String(value))
         cert = cert.add_extension(x509.UnrecognizedExtension(ObjectIdentifier("1.3.6.1.4.1.57264.1." + suffix), encoded), False)
     return cert.sign(key, hashes.SHA256())
 
@@ -49,8 +50,9 @@ def test_exact_certificate_policy():
     p = configured({"test": True})
     p.certificate_policy().verify(certificate(p))
     for change in [{"identity": p.identity + "-other"}, {"1": "https://evil.example"},
-                   {"6": "refs/heads/main"}, {"12": "https://github.com/attacker/OpenVerifiableLLM"},
-                   {"13": "b" * 40}, {"13": None}]:
+                   {"14": "refs/heads/main"}, {"12": "https://github.com/attacker/OpenVerifiableLLM"},
+                   {"13": "b" * 40}, {"13": None}, {"15": "1111"}, {"17": "1111"},
+                   {"11": "self-hosted"}]:
         with pytest.raises((VerificationError, x509.ExtensionNotFound)):
             p.certificate_policy().verify(certificate(p, change))
 
@@ -60,6 +62,7 @@ def test_exact_certificate_policy():
     {"issuer": "https://evil.example"}, {"workflow": ".github/workflows/evil.yml"},
     {"ref": "refs/pull/101/merge"}, {"source_revision": "a" * 39},
     {"statement_sha256": "a" * 63}, {"trust_root": "bundle-supplied"},
+    {"repository_id": "1"}, {"owner_id": "1"}, {"runner_environment": "self-hosted"},
 ])
 def test_policy_rejects_unknown_or_unapproved(change):
     with pytest.raises(EvidenceError):

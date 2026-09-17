@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 
-from ovl_pipeline.anchoring import ISSUER, REPOSITORY, WORKFLOW, PublisherPolicy
+from ovl_pipeline.anchoring import ISSUER, REPOSITORY, REPOSITORY_ID, OWNER_ID, WORKFLOW, PublisherPolicy
 from ovl_pipeline.canonical import EvidenceError, digest, inventory, write_json
 
 
@@ -36,8 +36,9 @@ def generate(root, environ):
         "ci_run_id": environ["GITHUB_RUN_ID"], "ci_run_attempt": environ["GITHUB_RUN_ATTEMPT"],
         "production_admission": "NOT_RUN", "training_replay": "NOT_RUN",
     }
-    policy = PublisherPolicy("ovl.publisher-policy.v1", REPOSITORY, WORKFLOW, ISSUER,
-                             expected_ref, sha, digest(statement), "sigstore-production-tuf")
+    policy = PublisherPolicy("ovl.publisher-policy.v2", REPOSITORY, WORKFLOW, ISSUER,
+                             expected_ref, sha, digest(statement), "sigstore-production-tuf",
+                             REPOSITORY_ID, OWNER_ID, "github-hosted")
     policy.validate()
     output = root / "anchor-smoke"
     output.mkdir(exist_ok=False)

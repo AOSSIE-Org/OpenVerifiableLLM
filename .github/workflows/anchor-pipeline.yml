@@ -43,6 +43,7 @@ jobs:
           --statement anchor-smoke/statement.json
           --bundle anchor-smoke/statement.sigstore.json
           --trust-policy anchor-smoke/ci-self-check-policy.json
+          --policy-origin ci-self-generated
           > anchor-smoke/ci-verification.json
       - name: Retain signing evidence for permanent public archival
         if: always()
