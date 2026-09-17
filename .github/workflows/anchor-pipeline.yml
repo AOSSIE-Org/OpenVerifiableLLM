@@ -1,0 +1,54 @@
+name: Pipeline publisher identity test
+on:
+  push:
+    branches: [feat/verifiable-wikipedia-pipeline]
+    paths:
+      - .github/workflows/anchor-pipeline.yml
+      - scripts/anchor_identity_smoke.py
+      - src/ovl_pipeline/anchoring.py
+      - src/ovl_pipeline/canonical.py
+      - requirements/anchoring.in
+      - requirements/anchoring.lock
+permissions:
+  contents: read
+concurrency:
+  group: pipeline-identity-test
+  cancel-in-progress: false
+jobs:
+  identity-smoke:
+    if: github.repository == 'AOSSIE-Org/OpenVerifiableLLM' && github.event_name == 'push' && github.ref == 'refs/heads/feat/verifiable-wikipedia-pipeline'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      PYTHONPATH: src
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Install hash-locked signing dependencies
+        run: python -m pip install --require-hashes -r requirements/anchoring.lock
+      - name: Construct restricted development statement
+        run: python scripts/anchor_identity_smoke.py
+      - name: Sign with ambient GitHub Actions OIDC
+        run: python -m sigstore sign --no-default-files --bundle anchor-smoke/statement.sigstore.json anchor-smoke/statement.json
+      - name: Verify exact identity, source revision and inclusion
+        run: >-
+          python -m ovl_pipeline.anchoring
+          --statement anchor-smoke/statement.json
+          --bundle anchor-smoke/statement.sigstore.json
+          --trust-policy anchor-smoke/ci-self-check-policy.json
+          > anchor-smoke/ci-verification.json
+      - name: Retain signing evidence for permanent public archival
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pipeline-identity-smoke-${{ github.sha }}-${{ github.run_attempt }}
+          path: anchor-smoke/
+          if-no-files-found: error
+          retention-days: 90

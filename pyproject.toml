@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-pipeline = ["rfc8785==0.1.4", "tokenizers==0.23.2", "mwparserfromhell==0.7.2", "defusedxml==0.7.1", "pyarrow==25.0.1"]
+pipeline = ["sigstore==4.5.0", "rfc8785==0.1.4", "tokenizers==0.23.2", "mwparserfromhell==0.7.2", "defusedxml==0.7.1", "pyarrow==25.0.1"]
 
 [project.scripts]
 ovllm = "ovllm:main"
