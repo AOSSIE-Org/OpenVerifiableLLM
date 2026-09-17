@@ -39,10 +39,20 @@ def forecast(value):
     must verify them and must ensure the target counts are the complete streams.
     Fixed costs cover setup, data preparation/reconstruction, export, retained
     storage and all mandatory work outside measured GPU training/replay.
+
+    v1 is retained for historical arithmetic reports only. v2 estimates complete
+    update counts from an independently validated stream census, avoiding a false
+    assumption that pilot and full-corpus windows have the same padding/masks.
+    Its denominator counts only full-shape pilot batches; elapsed time includes
+    all pilot work, including partial batches. Every remaining production update,
+    including a final short batch, is charged at that conservative measured rate.
+    Production callers must require v2 and authenticate the cited census/pilot.
     """
     fields(value, "schema spent_usd committed_future_usd hourly_usd fixed_remaining_usd phases", "forecast")
-    if value["schema"] != "ovl.cost-forecast-input.v1":
+    version = value["schema"]
+    if version not in ("ovl.cost-forecast-input.v1", "ovl.cost-forecast-input.v2"):
         raise EvidenceError("unsupported cost forecast")
+    by_updates = version == "ovl.cost-forecast-input.v2"
     spent, committed, hourly, fixed = [money(value[k]) for k in
         ("spent_usd", "committed_future_usd", "hourly_usd", "fixed_remaining_usd")]
     if hourly <= 0:
@@ -52,29 +62,31 @@ def forecast(value):
         raise EvidenceError("both complete phases required in forecast")
     estimates = {}
     for name, phase in phases.items():
-        fields(phase, "targets training_completed replay_completed measured_targets measured_ms warmup_excluded overhead_included measurement_sha256 recipe_sha256 stream_sha256", "phase forecast")
-        for key in ("measurement_sha256", "recipe_sha256", "stream_sha256"):
+        work, measured = ("updates", "measured_full_batch_updates") if by_updates else ("targets", "measured_targets")
+        identity_fields = "measurement_sha256 recipe_sha256 stream_sha256" + (" schedule_sha256" if by_updates else "")
+        fields(phase, f"{work} training_completed replay_completed {measured} measured_ms warmup_excluded overhead_included {identity_fields}", "phase forecast")
+        for key in identity_fields.split():
             require_digest(phase[key])
-        for key in ("targets", "measured_targets"):
+        for key in (work, measured):
             integer(phase[key], 1, 2**53 - 1, key)
         integer(phase["measured_ms"], MIN_PILOT_MS, 2**53 - 1, "pilot duration")
         if phase["warmup_excluded"] is not True or phase["overhead_included"] is not True:
             raise EvidenceError("pilot must exclude warmup and include representative checkpoint/log overhead")
         for key in ("training_completed", "replay_completed"):
-            integer(phase[key], 0, phase["targets"], key)
+            integer(phase[key], 0, phase[work], key)
         if phase["replay_completed"] > phase["training_completed"]:
             raise EvidenceError("replay cannot precede recorded training")
-        remaining = 2 * phase["targets"] - phase["training_completed"] - phase["replay_completed"]
+        remaining = 2 * phase[work] - phase["training_completed"] - phase["replay_completed"]
         # Include full sequential replay; never estimate a sampled audit.
-        ms = ceil_div(remaining * phase["measured_ms"], phase["measured_targets"])
-        estimates[name] = {"remaining_targets_including_replay": remaining,
+        ms = ceil_div(remaining * phase["measured_ms"], phase[measured])
+        estimates[name] = {f"remaining_{work}_including_replay": remaining,
                            "remaining_ms_with_margin": ceil_div(ms * 5, 4)}
     total_ms = sum(p["remaining_ms_with_margin"] for p in estimates.values())
     compute = ceil_div(total_ms * hourly, 3_600_000)
     total = spent + committed + fixed + compute
     headroom = OPERATING_LIMIT - spent - committed - fixed
     return {
-        "schema": "ovl.cost-forecast.v1", "input_sha256": digest(value),
+        "schema": "ovl.cost-forecast.v2" if by_updates else "ovl.cost-forecast.v1", "input_sha256": digest(value),
         "scope": "forecast-arithmetic-only-not-production-admission",
         "result": "FITS_OPERATING_LIMIT" if total <= OPERATING_LIMIT else "STOP",
         "cap_micro_usd": CAP, "operating_limit_micro_usd": OPERATING_LIMIT,

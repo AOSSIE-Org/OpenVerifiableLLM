@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import nullcontext
 import importlib.metadata
 import os
 from pathlib import Path
 import platform
 import random
 import shutil
+import struct
 import uuid
 
 from nacl.signing import SigningKey, VerifyKey
@@ -59,8 +61,8 @@ def verify_signed(envelope, public_key):
 
 
 def configure(seed):
-    # This P0 implementation supports CPU only. GPU admission requires measured
-    # fresh-process exactness and a separately committed compatible environment.
+    # Initialization arithmetic remains on CPU. The explicit GPU wrapper must
+    # configure CUDA first; production admission remains a separate closed gate.
     torch.set_default_device("cpu")
     torch.set_default_dtype(torch.float32)
     torch.set_num_threads(1)
@@ -87,11 +89,17 @@ def code_root():
 
 def new_optimizer(model, recipe):
     return torch.optim.AdamW(model.parameters(), lr=float(recipe["learning_rate"]),
-                             weight_decay=float(recipe["weight_decay"]), foreach=False, fused=False, capturable=False)
+                             weight_decay=float(recipe["weight_decay"]), betas=(0.9, 0.999), eps=1e-8,
+                             amsgrad=False, maximize=False, differentiable=False,
+                             foreach=False, fused=False, capturable=False)
 
 
-def initialize(recipe):
-    schema.recipe(recipe)
+def initialize(recipe, *, device="cpu"):
+    if device not in ("cpu", "cuda:0"):
+        raise EvidenceError("unsupported kernel device")
+    schema.recipe(recipe, gpu=device == "cuda:0")
+    if device == "cuda:0" and (not torch.cuda.is_initialized() or torch.cuda.device_count() != 1):
+        raise EvidenceError("GPU runtime must be explicitly configured before initialization")
     configure(recipe["seed"])
     cfg = recipe["model"]
     model = TinyGPT(**cfg)
@@ -104,6 +112,10 @@ def initialize(recipe):
         else:
             torch.nn.init.zeros_(p)
     model.train()
+    if device == "cuda:0":
+        # The GPU runtime must already have configured the sole visible device.
+        model.to(device)
+        model.lm_head.weight = model.transformer["wte"].weight
     optimizer = new_optimizer(model, recipe)
     control = {"phase": "wikipedia", "global_step": 0, "phase_step": 0, "cursor": 0,
                "transcript": sha256(b"ovl.batch-transcript.v1"), "schedule": "constant-lr-v1",
@@ -111,13 +123,25 @@ def initialize(recipe):
     return model, optimizer, control
 
 
-def update(model, optimizer, batch, control, total):
+def update(model, optimizer, batch, control, total, *, precision="fp32", metrics=None):
+    device = next(model.parameters()).device
+    if device.type not in ("cpu", "cuda") or precision not in ("fp32", "bf16"):
+        raise EvidenceError("unsupported update device/precision")
+    if precision == "bf16" and device.type != "cuda":
+        raise EvidenceError("BF16 profile requires CUDA; no silent CPU fallback")
+    if any(p.device != device or p.dtype != torch.float32 for p in model.parameters()):
+        raise EvidenceError("kernel requires FP32 master parameters on one device")
+    if any(t.device.type != "cpu" for t in batch.values()):
+        raise EvidenceError("coverage and transcript require original CPU batch tensors")
     next_cursor = check_coverage(batch, control["cursor"], total)
     batch_root = tensor_digest(batch)
-    logits = model(batch["inputs"])
-    losses = F.cross_entropy(logits.flatten(0, 1), batch["targets"].flatten(), reduction="none")
-    valid = batch["mask"].flatten()
-    loss = losses[valid].sum() / valid.sum()
+    inputs, targets, valid = (batch[n].to(device) for n in ("inputs", "targets", "mask"))
+    context = torch.autocast("cuda", dtype=torch.bfloat16, cache_enabled=False) if precision == "bf16" else nullcontext()
+    with context:
+        logits = model(inputs)
+        losses = F.cross_entropy(logits.flatten(0, 1), targets.flatten(), reduction="none")
+        valid = valid.flatten()
+        loss = losses[valid].sum() / valid.sum()
     if not torch.isfinite(loss):
         raise EvidenceError("nonfinite loss")
     loss.backward()
@@ -127,6 +151,9 @@ def update(model, optimizer, batch, control, total):
     if any(not torch.isfinite(p).all() for p in model.parameters()):
         raise EvidenceError("nonfinite updated parameter")
     optimizer.zero_grad(set_to_none=True)
+    if metrics is not None:
+        metrics.update(loss_float64_hex=struct.pack(">d",loss.item()).hex(),
+                       targets=next_cursor-control["cursor"])
     control = {**control, "global_step": control["global_step"] + 1, "phase_step": control["phase_step"] + 1,
                "cursor": next_cursor, "transcript": digest({"previous": control["transcript"], "batch": batch_root})}
     return control

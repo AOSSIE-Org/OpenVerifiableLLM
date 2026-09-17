@@ -15,7 +15,7 @@ def integer(value, low, high, label):
         raise EvidenceError(f"invalid {label}")
 
 
-def recipe(value):
+def recipe(value, *, gpu=False):
     fields(value, "seed context batch_size boundary_every learning_rate weight_decay init model", "recipe")
     integer(value["seed"], 0, 2**32 - 1, "seed")
     integer(value["context"], 1, 32768, "context")
@@ -39,11 +39,12 @@ def recipe(value):
         raise EvidenceError("inconsistent model recipe dimensions")
     if type(m["dropout"]) is not int or m["dropout"] != 0 or m["attn_impl"] != "manual":
         raise EvidenceError("unsupported fixture dropout/attention recipe")
-    # Bound configuration-directed allocation for this CPU-only verifier profile.
+    # Allocation bounds are profile-specific, not evidence of available GPU memory.
     d, layers, seq = m["embed_dim"], m["num_layers"], m["max_seq_len"]
     elements = (m["vocab_size"] + seq) * d + layers * (12*d*d + 13*d + seq*seq) + 2*d
-    if elements > 100_000_000 or value["batch_size"] * seq * m["vocab_size"] > 100_000_000:
-        raise EvidenceError("fixture recipe allocation budget exceeded")
+    logits_limit = 1_000_000_000 if gpu else 100_000_000
+    if elements > 100_000_000 or value["batch_size"] * seq * m["vocab_size"] > logits_limit:
+        raise EvidenceError("recipe allocation budget exceeded")
 
 
 def registration(value):
