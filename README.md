@@ -1,5 +1,15 @@
 # OpenVerifiableLLM
 
+The current Wikipedia execution goal is recorded in [PROJECT_GOAL.md](PROJECT_GOAL.md),
+with the [end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md),
+[autonomous starting prompt](AUTONOMOUS_START.md), and
+[progress state](project/goal_state.json). The [synthetic pipeline fixture](docs/PIPELINE_FORMAT.md) now exercises raw-data
+reconstruction, safe checkpoints, continuous two-phase replay and export/inference.
+Production training and public trust gates remain pending. The existing
+artifact verifier and sampled replay do not yet satisfy its full reconstruction and
+continuous replay requirements. The goal requires a public trail from source data
+through the published base and conversational models, within a US$100 RunPod cap.
+
 **One-command verification for small open model artifacts.**
 
 OpenVerifiableLLM is an AOSSIE project for making model releases independently

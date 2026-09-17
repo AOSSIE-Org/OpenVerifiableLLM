@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+Server: nginx/1.22.1
+Date: Thu, 17 Sep 2026 17:28:57 GMT
+Content-Type: application/json
+Content-Length: 643669
+Last-Modified: Tue, 15 Sep 2026 04:50:03 GMT
+Connection: keep-alive
+ETag: "6aa8ce7b-9d255"
+Strict-Transport-Security: max-age=106384710; includeSubDomains; preload
+Server: clouddumps1002.wikimedia.org
+Accept-Ranges: bytes
+

@@ -57,3 +57,6 @@ data/cifar-10-batches-py/
 
 # Local smoke tests and temp files
 openverifiable-smoke/
+
+# Active local transfer logs; immutable receipts are retained separately.
+.ovllm-cache-acquisition.stderr.log

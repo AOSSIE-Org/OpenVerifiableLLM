@@ -21,9 +21,12 @@ jobs:
           # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -r requirements.txt
+          pip install -e ".[pipeline]" pytest
 
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
+      - name: Unit tests and synthetic full-replay fixture
+        env:
+          TOKENIZERS_PARALLELISM: "false"
+        run: python -m pytest -q -rs tests
 
       # The falsifiability contract, enforced: reproducibility.py exits nonzero
       # if the clean audit fails OR any tampered scenario (bad seed, gradient
