@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/anchor-production.yml
       - src/ovl_pipeline/production_*.py
+      - requirements/endorsement.*
       - project/production-commitments/**
 permissions:
   contents: read
@@ -31,7 +32,7 @@ jobs:
         with:
           python-version: '3.12.14'
       - name: Install hash-locked verification dependencies
-        run: python -m pip install --require-hashes -r requirements/preparation.lock
+        run: python -m pip install --require-hashes -r requirements/preparation.lock -r requirements/endorsement.lock
       - name: Select new append-only registration request
         id: request
         run: python -m ovl_pipeline.production_commitment --select >> "$GITHUB_OUTPUT"

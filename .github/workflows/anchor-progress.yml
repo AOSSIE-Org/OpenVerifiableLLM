@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/anchor-progress.yml
       - src/ovl_pipeline/progress_*.py
+      - requirements/endorsement.*
       - project/progress-commitments/**
 permissions:
   contents: read
@@ -32,7 +33,7 @@ jobs:
         with:
           python-version: '3.12.14'
       - name: Install hash-locked verifier dependencies
-        run: python -m pip install --require-hashes -r requirements/preparation.lock
+        run: python -m pip install --require-hashes -r requirements/preparation.lock -r requirements/endorsement.lock
       - name: Select new append-only progress request
         id: request
         run: python -m ovl_pipeline.progress_commitment --select >> "$GITHUB_OUTPUT"
