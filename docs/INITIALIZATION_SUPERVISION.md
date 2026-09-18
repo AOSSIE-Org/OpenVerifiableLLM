@@ -41,3 +41,40 @@ explicit CUDA substitute. Process-transition observations in those tests are
 synthetic and labeled. Adversarial checks cover changed streams, pass indices,
 counts, process identities, sequences, historical bindings and forged journal
 cost decisions. They provide development evidence, not a CUDA qualification.
+# Guarded initialization cycle
+
+`run_sustained_pilot.py` also accepts the distinct
+`ovl.initialization-cycle-plan.v1` selection. It requires one initialization
+record followed by one regeneration job, with independently selected recipe,
+kernel, full stream, code, parameter count and discarded warmup count. Optional
+runtime setup and complete public-input download stages use the existing guarded
+transfer path.
+
+`pod_initialization.py` runs `ovl_pipeline.initialization` through the selected
+isolated runtime auditor. It accepts only `record` and `verify`, preserves the
+original worker deadline and creates a fresh activity/audit directory. The
+numerical initializer still requires a distinct process, regenerates state from
+the recipe and compares every state tensor without restoring prover weights.
+
+Every phase must fit its full measured work and export allowance. Initialization
+does not use the pilot initial-state retention hook: its work plus complete final
+export must fit the unchanged 1800-second export-age guard. A later admission
+refuses insufficient remaining time; it never shortens or renews a phase.
+
+Before regeneration, `initialization_parent.py` checks the complete retained
+record tree and actual safe state against the external parent selection. The
+worker independently rehashes every retained parent file. Before successful
+completion, the dispatcher rechecks those bytes and the separate regeneration
+report. Restart adopts the original descriptor and checks retained evidence;
+it does not execute another numerical job.
+
+Adoption also binds the exact ordered output-root list and retained terminal
+record to the original job and endpoint. This includes interruption before final
+health completion; rewriting a local result and its enclosing result hash cannot
+relabel, omit or duplicate a declared output. Every retained local tree must be
+covered by its complete inventory.
+
+The retained consistency report does not itself execute regeneration, attest
+hardware, authenticate a production publisher or grant production acceptance.
+Development tests use actual tiny CPU states and file transfers with explicit
+CUDA and process substitutes. Real CUDA initialization remains a separate gate.

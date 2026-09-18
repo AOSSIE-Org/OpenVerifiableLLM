@@ -1,0 +1,1 @@
+{"body":{"category":"invalid-response-Refused","error_type":"ProviderFailure","http_status":null,"stage":"termination","transient":false},"kind":"failure","observed_epoch":1789748491,"previous":"ede99f5775750e4ddeca05d381ff9050f1926fb4209afc671b3e407aef500b29","schema":"ovl.controller-event.v1","sequence":28}

@@ -8,6 +8,7 @@ accepted; neither this observation nor discarded warmup proves regeneration.
 from ovl_pipeline.canonical import EvidenceError,require_digest
 from ovl_pipeline.schema import fields,integer
 from pilot_health import PilotHealth
+from sustained_health import SustainedHealth
 
 
 class InitializationHealth(PilotHealth):
@@ -63,3 +64,11 @@ class InitializationHealth(PilotHealth):
         if type(observation) is dict and observation.get('schema')=='ovl.runtime-stream-validation.v1':
             raise EvidenceError('initialization requires the original scan protocol')
         return super().activity(job,observation)
+
+
+class InitializationCycleHealth(InitializationHealth,SustainedHealth):
+    """Add existing pinned download liveness to the initialization scan protocol.
+
+    SustainedHealth owns download contracts; InitializationHealth owns numerical
+    contracts and raw initializer scans. Both retain the same base cost journal.
+    """

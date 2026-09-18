@@ -16,13 +16,16 @@ DEADLINE='@SELECTED_ORIGINAL_DEADLINE@'
 RECORD='@RETAINED_RECORD_SHA256@'
 
 
-def derive(stage,template,output,plan_sha256,rental_plan,now,*,parent=None):
+def derive(stage,template,output,plan_sha256,rental_plan,now,*,parent=None,parent_kind='pilot'):
     """Return an immutable selected descriptor, including read-only adoption.
 
 Caller validates the enclosing plan, template source, endpoint and parent policy;
 this helper freezes only declared substitutions and complete parent required files.
 """
     require_digest(plan_sha256)
+    parent_schemas={'pilot':'ovl.retained-pilot-record-parent.v1',
+                    'initialization':'ovl.retained-initialization-record-parent.v1'}
+    if parent_kind not in parent_schemas:raise EvidenceError('unsupported selected development parent kind')
     fields(stage,'name template_sha256 work_seconds export_reserve_seconds parent_record_root','sustained stage selection')
     if digest(template)!=stage['template_sha256']:raise EvidenceError('selected sustained template differs')
     integer(stage['work_seconds'],1,1500,'sustained stage work bound')
@@ -36,7 +39,7 @@ this helper freezes only declared substitutions and complete parent required fil
         if parent is not None or RECORD in template['argv']:raise EvidenceError('undeclared replay parent')
     else:
         if (type(stage['parent_record_root']) is not str or not stage['parent_record_root'].startswith('/')
-            or parent is None or parent.get('schema')!='ovl.retained-pilot-record-parent.v1'):
+            or parent is None or parent.get('schema')!=parent_schemas[parent_kind]):
             raise EvidenceError('replay requires checked complete retained parent')
         if template['argv'].count(RECORD)!=1:raise EvidenceError('exactly one selected record digest argument required')
         require_digest(parent['record_sha256'])
@@ -48,6 +51,7 @@ this helper freezes only declared substitutions and complete parent required fil
     if job_file.exists() and not selected.exists():raise EvidenceError('existing job lost its original derivation fence; do not invent another')
     identity={'schema':'ovl.sustained-job-derivation.v1','plan_sha256':plan_sha256,'stage':stage,
               'template_sha256':digest(template),'parent_sha256':digest(parent) if parent else None}
+    if parent_kind!='pilot':identity['parent_kind']=parent_kind
     if selected.exists():
         prior=read_json(selected)
         if prior.get('identity')!=identity:raise EvidenceError('retained sustained job derivation changed')

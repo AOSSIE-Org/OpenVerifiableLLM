@@ -25,7 +25,9 @@ from run_workload_stage import run_stage,saved_result,remote_name
 def validate(plan,expected,rental,transport,inputs,worker):
     require_digest(expected)
     fields(plan,'schema rental_intent_sha256 profile_sha256 worker_sha256 timing uploads stages','sustained development plan')
-    if digest(plan)!=expected or plan['schema']!='ovl.sustained-pilot-plan.v1':raise EvidenceError('selected sustained plan differs')
+    if digest(plan)!=expected or plan['schema'] not in ('ovl.sustained-pilot-plan.v1','ovl.initialization-cycle-plan.v1'):
+        raise EvidenceError('selected sustained plan differs')
+    initialization=plan['schema']=='ovl.initialization-cycle-plan.v1'
     watchdog,rental_plan=validate_rental(rental,plan['rental_intent_sha256'])
     if digest(transport.profile)!=plan['profile_sha256'] or file_hash(Path(worker))!=plan['worker_sha256']:
         raise EvidenceError('selected sustained endpoint/worker differs')
@@ -43,7 +45,7 @@ def validate(plan,expected,rental,transport,inputs,worker):
         uploaded[u['remote_path']]=u;total+=u['bytes']
     if total>2**40:raise EvidenceError('sustained uploads too large')
     if type(plan['stages']) is not list or not 1<=len(plan['stages'])<=16:raise EvidenceError('bounded sustained stage list required')
-    stages=[];prior={};output_roots=[]
+    stages=[];prior={};prior_templates={};output_roots=[];initialization_actions=[]
     for s in plan['stages']:
         fields(s,'name template_path template_sha256 work_seconds export_reserve_seconds maximum_export_bytes parent_stage parent_record_root parent_binding validation_binding download_binding retention','sustained stage')
         relative(s['name']);relative(s['template_path']);require_digest(s['template_sha256'])
@@ -66,10 +68,18 @@ def validate(plan,expected,rental,transport,inputs,worker):
         if s['parent_stage'] is None:
             if s['parent_record_root'] is not None or RECORD in template['argv']:raise EvidenceError('undeclared parent record')
         else:
-            if s['parent_stage'] not in prior or prior[s['parent_stage']]['retention'] is None:
+            if s['parent_stage'] not in prior:
                 raise EvidenceError('replay parent must be an earlier selected record stage')
             parent=prior[s['parent_stage']]
-            if (parent['retention']['mode']!='record' or parent['retention']['output_root']!=s['parent_record_root']
+            if initialization:
+                parent_argv=prior_templates[s['parent_stage']]['argv']
+                parent_args=parent_argv[parent_argv.index('--')+1:] if '--' in parent_argv else []
+                if (parent['validation_binding'] is None or parent['validation_binding'].get('action')!='record'
+                    or parent_args.count('--output')!=1
+                    or parent_args[parent_args.index('--output')+1:parent_args.index('--output')+2]!=[s['parent_record_root']]
+                    or parent['parent_binding']!=s['parent_binding']):raise EvidenceError('initialization parent policy/root differs')
+            elif (parent['retention'] is None or parent['retention']['mode']!='record'
+                or parent['retention']['output_root']!=s['parent_record_root']
                 or parent['parent_binding']!=s['parent_binding']):raise EvidenceError('replay parent policy/root differs')
         required={f['path']:f for f in template['required_files']}
         for name,u in uploaded.items():
@@ -86,7 +96,29 @@ def validate(plan,expected,rental,transport,inputs,worker):
         if 'OVL_ACTIVITY_FILE' in template['environment']:
             activity=remote_name(transport,template['environment']['OVL_ACTIVITY_FILE'])
             if not any(activity.startswith(r+'/') for r in roots):raise EvidenceError('activity must be retained within a selected output root')
-        if template['kind']=='pilot':
+        if template['kind']=='pilot' and initialization:
+            from initialization_parent import policy
+            if (s['validation_binding'] is None or s['parent_binding'] is None or s['retention'] is not None
+                or s['download_binding'] is not None or 'OVL_ACTIVITY_FILE' not in template['environment']):
+                raise EvidenceError('initialization requires distinct scan/parent bindings and complete terminal retention')
+            b=s['validation_binding'];fields(b,'schema stream_sha256 documents action','initialization validation binding')
+            if b['schema']!='ovl.initialization-validation-binding.v1' or b['action'] not in ('record','verify'):
+                raise EvidenceError('unsupported initialization action binding')
+            require_digest(b['stream_sha256']);integer(b['documents'],1,2**53-1,'initialization document total')
+            policy(s['parent_binding'])
+            if b['stream_sha256']!=s['parent_binding']['stream_sha256']:raise EvidenceError('initialization stream parents differ')
+            argv=template['argv']
+            if argv.count('--')!=1 or argv[argv.index('--')+1:argv.index('--')+2]!=[b['action']]:
+                raise EvidenceError('initialization action differs from selected bootstrap command')
+            args=argv[argv.index('--')+1:]
+            if (args.count('--output')!=1 or len(args)<=args.index('--output')+1
+                or args[args.index('--output')+1] not in template['export_roots']):
+                raise EvidenceError('initialization output must select one complete declared export root')
+            if (b['action']=='verify')!=(s['parent_stage'] is not None):raise EvidenceError('initialization action has incorrect parent')
+            if s['work_seconds']+s['export_reserve_seconds']>1800:
+                raise EvidenceError('initialization must fit unchanged complete-export age')
+            initialization_actions.append(b['action'])
+        elif template['kind']=='pilot':
             if s['validation_binding'] is None or s['retention'] is None or s['parent_binding'] is None:
                 raise EvidenceError('sustained numerical job requires exact stream and initial retention bindings')
             if s['download_binding'] is not None or 'OVL_ACTIVITY_FILE' not in template['environment']:
@@ -115,23 +147,72 @@ def validate(plan,expected,rental,transport,inputs,worker):
             require_digest(b['plan_sha256']);integer(b['bytes'],1,64*1024**3,'selected public input bytes')
         if template['kind']!='pilot' and s['work_seconds']+s['export_reserve_seconds']>1800:
             raise EvidenceError('uncheckpointed stage exceeds original export-age bound')
-        prior[s['name']]=s;stages.append((s,template))
+        prior[s['name']]=s;prior_templates[s['name']]=template;stages.append((s,template))
+    if initialization and initialization_actions!=['record','verify']:
+        raise EvidenceError('initialization cycle requires exactly one record followed by fresh regeneration')
     minimum=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+(total+timing['transfer_floor_bytes_per_second']-1)//timing['transfer_floor_bytes_per_second']
     if minimum>rental_plan['request_checkpoint_epoch']-rental_plan['input']['now_epoch']:
         raise EvidenceError('complete selected phase budgets exceed unchanged rental work window')
     return watchdog,rental_plan,stages
 
 
+def retained_stage(stage,output,profile):
+    """Bind every retained root and terminal record to the selected descriptor."""
+    from types import SimpleNamespace
+    selected=read_json(output/'derived'/stage['name']/'selection.json')
+    job=read_json(output/'derived'/stage['name']/'job.json');root=selected['job_sha256']
+    if digest(job)!=root:raise EvidenceError('retained stage descriptor changed')
+    result=saved_result(output/'stages'/stage['name']/'stage-result.json',root)
+    expected=['jobs/'+root,*[remote_name(SimpleNamespace(profile=profile),p) for p in job['export_roots']]]
+    if [e['remote_root'] for e in result['exports']]!=expected:
+        raise EvidenceError('retained output roots differ from selected complete stage outputs')
+    for e in result['exports']:
+        directory=Path(e['directory']);actual=[]
+        for p in directory.rglob('*'):
+            if p.is_symlink() or not(p.is_file() or p.is_dir()):raise EvidenceError('unsafe retained stage output')
+            if p.is_file():actual.append(p.relative_to(directory).as_posix())
+        if sorted(actual)!=[f['path'] for f in e['files']]:raise EvidenceError('retained stage output inventory is incomplete')
+    terminal='exit.json' if result['exit']['state']=='EXITED' else 'abandoned.json'
+    if read_json(Path(result['exports'][0]['directory'])/terminal)!=result['exit']:
+        raise EvidenceError('retained stage terminal differs from observed process result')
+    return result
+
+
 def parent_for(stage,stages,output,transport):
     if stage['parent_stage'] is None:return None
-    selected=read_json(output/'derived'/stage['parent_stage']/'selection.json')
-    previous=saved_result(output/'stages'/stage['parent_stage']/'stage-result.json',selected['job_sha256'])
+    parent_stage=next(s for s,_ in stages if s['name']==stage['parent_stage'])
+    previous=retained_stage(parent_stage,output,transport.profile)
     if previous['exit']['state']!='EXITED' or previous['exit']['exit_code']!=0:raise EvidenceError('unsuccessful parent cannot launch replay')
     remote=remote_name(transport,stage['parent_record_root'])
     choices=[e for e in previous['exports'] if e['remote_root']==remote]
     if len(choices)!=1:raise EvidenceError('complete retained parent root absent')
     entry=choices[0]
-    return check_parent(Path(entry['directory']),entry['files'],stage['parent_binding'])
+    checker=check_parent
+    if stage['parent_binding']['schema']=='ovl.initialization-record-parent-binding.v1':
+        from initialization_parent import check as checker
+    return checker(Path(entry['directory']),entry['files'],stage['parent_binding'])
+
+
+def initialization_result(plan,output,profile):
+    """Recheck all retained initial bytes and the separate regeneration report."""
+    from initialization_parent import check_verification
+    selected=[s for s in plan['stages'] if s['validation_binding'] is not None]
+    record,verify=selected
+    def retained(stage,root):
+        from types import SimpleNamespace
+        result=retained_stage(stage,output,profile)
+        relative=remote_name(SimpleNamespace(profile=profile),root)
+        candidates=[e for e in result['exports'] if relative==e['remote_root']]
+        if len(candidates)!=1:raise EvidenceError('initialization selected output missing or ambiguous')
+        return candidates[0]
+    parent=retained(record,verify['parent_record_root'])
+    template=read_json(output/'derived'/verify['name']/'job.json')
+    argv=template['argv'];args=argv[argv.index('--')+1:]
+    if args.count('--output')!=1:raise EvidenceError('one explicit regeneration output required')
+    destination=args[args.index('--output')+1]
+    if destination not in template['export_roots']:raise EvidenceError('regeneration output must be fully retained')
+    result=retained(verify,destination)
+    return check_verification(Path(result['directory']),result['files'],Path(parent['directory']),parent['files'],verify['parent_binding'])
 
 
 def finalize(health,plan,expected,output,result,health_file,stop):
@@ -140,10 +221,12 @@ def finalize(health,plan,expected,output,result,health_file,stop):
         or result['production_acceptance']!='NOT_RUN' or result['provider_termination']!='SEPARATE_CONTROLLER_REQUIRED'):
         raise EvidenceError('retained sustained result identity differs')
     history=result['stages']
+    profile=read_json(output/'selected-profile.json')
+    if digest(profile)!=plan['profile_sha256']:raise EvidenceError('retained endpoint profile differs from selected plan')
     if type(history) is not list or not 1<=len(history)<=len(plan['stages']):raise EvidenceError('complete retained stage prefix required')
     for entry,stage in zip(history,plan['stages']):
         selection=read_json(output/'derived'/stage['name']/'selection.json');job=selection['job_sha256']
-        actual=saved_result(output/'stages'/stage['name']/'stage-result.json',job);check_export_budget(stage,actual)
+        actual=retained_stage(stage,output,profile);check_export_budget(stage,actual)
         if entry!={'name':stage['name'],'job_sha256':job,'result_sha256':digest(actual),'exit':actual['exit']}:
             raise EvidenceError('saved sustained result differs from retained bytes')
     if set(health.jobs)!={e['job_sha256'] for e in history}:raise EvidenceError('sustained result omits launched jobs')
@@ -159,6 +242,8 @@ def finalize(health,plan,expected,output,result,health_file,stop):
     elif result['outcome']=='STOPPED_AFTER_STAGE':
         if not stop.exists() and not journal_stop(stop.parent,plan['rental_intent_sha256'],health.pod):raise EvidenceError('retained sustained stop lacks original marker')
     elif result['outcome']!='EXITED_ZERO' or len(history)!=len(plan['stages']):raise EvidenceError('incomplete sustained work cannot report zero exits')
+    if plan['schema']=='ovl.initialization-cycle-plan.v1' and result['outcome']=='EXITED_ZERO':
+        save_once(output/'initialization-consistency.json',initialization_result(plan,output,profile))
     final=output/'final';names=['result.json']
     for i,entry in enumerate(history):
         dest=final/f'stage-{i:03d}';dest.mkdir(mode=0o700,exist_ok=True)
@@ -175,9 +260,11 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
     watchdog,rental_plan,stages=validate(plan,expected,rental,transport,inputs,worker)
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=True)
     stop=Path(controller_directory)/'stop-request.json'
+    parent_kind='initialization' if plan['schema']=='ovl.initialization-cycle-plan.v1' else 'pilot'
     with Journal(output/'health-journal').lease() as journal:
         if journal.events and not(output/'selected-plan.json').exists():raise EvidenceError('sustained health lost its selected plan')
         save_once(output/'selected-plan.json',plan)
+        save_once(output/'selected-profile.json',transport.profile)
         bindings={};download_bindings={};derived={}
         # Reconstruct every historical contract before health journal adoption,
         # including completed jobs. No peer-supplied replacement binding is used.
@@ -185,11 +272,15 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             if not(output/'derived'/stage['name']/'selection.json').exists():continue
             parent=parent_for(stage,stages,output,transport)
             selection={k:stage[k] for k in ('name','template_sha256','work_seconds','export_reserve_seconds','parent_record_root')}
-            value=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,0,parent=parent)
+            value=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,0,parent=parent,parent_kind=parent_kind)
             derived[stage['name']]=value
             if stage['validation_binding'] is not None:bindings[value[1]]=stage['validation_binding']
             if stage['download_binding'] is not None:download_bindings[value[1]]=stage['download_binding']
-        health=SustainedHealth(journal,watchdog,transport.profile['pod_id'],bindings,download_bindings)
+        health_class=SustainedHealth
+        if parent_kind=='initialization':
+            from initialization_health import InitializationCycleHealth
+            health_class=InitializationCycleHealth
+        health=health_class(journal,watchdog,transport.profile['pod_id'],bindings,download_bindings)
         if health.complete or (output/'final/result.json').exists():
             return finalize(health,plan,expected,output,read_json(output/'final/result.json'),health_file,stop)
         upload_dir=output/'uploads';upload_dir.mkdir(mode=0o700,exist_ok=True)
@@ -223,7 +314,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             if stage['name'] not in derived:
                 parent=parent_for(stage,stages,output,transport)
                 selection={k:stage[k] for k in ('name','template_sha256','work_seconds','export_reserve_seconds','parent_record_root')}
-                derived[stage['name']]=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,health.now(),parent=parent)
+                derived[stage['name']]=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,health.now(),parent=parent,parent_kind=parent_kind)
             path,job_root,job=derived[stage['name']]
             if stage['validation_binding'] is not None:bindings[job_root]=stage['validation_binding']
             if stage['download_binding'] is not None:download_bindings[job_root]=stage['download_binding']
@@ -249,7 +340,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
                 from sustained_pilot_abort import stop_and_retain
                 result=stop_and_retain(transport,health,path,job_root,worker,plan['worker_sha256'],stage_output,health_file,stop,
                                       plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook)
-            checked=saved_result(output/'stages'/stage['name']/'stage-result.json',job_root)
+            checked=retained_stage(stage,output,transport.profile)
             if checked!=result:raise EvidenceError('retained sustained result changed')
             check_export_budget(stage,result)
             history.append({'name':stage['name'],'job_sha256':job_root,'result_sha256':digest(result),'exit':result['exit']})

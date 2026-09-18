@@ -1,0 +1,19 @@
+{
+  "metadata": {
+    "query": {
+      "bucketSize": "hour",
+      "endTime": "2026-09-18T17:00:00Z",
+      "podId": "vpwchobbslrgpq",
+      "startTime": "2026-09-18T16:00:00Z"
+    },
+    "recordCount": 0,
+    "totals": {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "gpuAmount": 0,
+      "totalAmount": 0
+    },
+    "uniquePodCount": 0
+  },
+  "records": []
+}

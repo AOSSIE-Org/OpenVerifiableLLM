@@ -108,6 +108,22 @@ def test_altered_retained_terminal_bytes_cannot_complete_again(tmp_path):
     assert len(calls)==before
 
 
+@pytest.mark.parametrize('damage',['omitted-root','foreign-root','duplicate-root','extra-file','terminal','descriptor'])
+def test_retention_is_bound_to_declared_roots_and_complete_terminal_bytes(tmp_path,damage):
+    run,plan,_,t,_,calls,_,_=fixture(tmp_path);run();before=len(calls)
+    stage=plan['stages'][0];path=tmp_path/'sustained/stages/first/stage-result.json';v=read_json(path)
+    if damage=='omitted-root':v['exports'].pop()
+    elif damage=='foreign-root':v['exports'][-1]['remote_root']='foreign'
+    elif damage=='duplicate-root':v['exports'][-1]['remote_root']=v['exports'][0]['remote_root']
+    elif damage=='extra-file':(Path(v['exports'][-1]['directory'])/'unlisted').write_bytes(b'unlisted evidence')
+    elif damage=='terminal':v['exit']['exit_code']=17
+    else:
+        job=tmp_path/'sustained/derived/first/job.json';d=read_json(job);d['export_roots']=[];write_json(job,d)
+    write_json(path,v)
+    with pytest.raises(EvidenceError):m.retained_stage(stage,tmp_path/'sustained',t.profile)
+    assert len(calls)==before
+
+
 def test_bad_activity_stops_owned_process_retains_failure_and_never_relaunches(tmp_path):
     run,plan,_,t,remote,calls,_,_=fixture(tmp_path,second=True)
     p=tmp_path/plan['stages'][0]['template_path'];v=read_json(p);program=Path(v['argv'][1])

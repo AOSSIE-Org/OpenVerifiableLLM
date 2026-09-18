@@ -1,7 +1,7 @@
 """Actual tiny scans plus explicit CPU warmup; no CUDA or regeneration credit."""
 import pytest
 
-from initialization_health import InitializationHealth
+from initialization_health import InitializationHealth,InitializationCycleHealth
 from test_workload_health import Clock,JOB,SELECTION,activity
 from test_external_watchdog import intent,NOW
 from test_pilot_health import validation
@@ -131,3 +131,23 @@ def test_actual_initializer_scan_then_discarded_cpu_warmup(prepared,cpu_runtime,
         numeric={**activity(last['sequence']+1),'process_instance':last['process_instance'],'pid':last['pid']}
         assert h.activity(JOB,numeric)
         assert h.exported==NOW and not h.complete
+
+
+def test_cycle_download_contract_and_restart_keep_initializer_protocol_separate(tmp_path):
+    from test_sustained_health import BINDING as download_binding,transfer
+    c=Clock();path=tmp_path/'cycle';download='f'*64
+    def make(j,changed=False):
+        b=dict(download_binding)
+        if changed:b['bytes']+=1
+        return InitializationCycleHealth(j,intent(),'owned-pod',{JOB:dict(BINDING)},{download:b},
+            wall=lambda:c.now,clock=lambda:{'boot_id':c.boot,'boottime_ms':c.ms})
+    with Journal(path).lease() as j:
+        h=make(j);h.start_job({**SELECTION,'job_sha256':download,'kind':'setup'})
+        c.advance(10);assert h.activity(download,transfer(1024**2))
+        with pytest.raises(EvidenceError):h.activity(download,scan())
+        assert h.exported==NOW and not h.complete
+    with Journal(path).lease() as j:
+        h=make(j);c.advance(20);assert not h.activity(download,transfer(1024**2))
+        assert h.progress==NOW+10 and h.exported==NOW
+    with Journal(path).lease() as j:
+        with pytest.raises(EvidenceError):make(j,changed=True)
