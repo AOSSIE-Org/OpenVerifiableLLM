@@ -94,7 +94,7 @@ def replay(packet,registration_bundle,production_policy,source_policy,source_che
             'prover_checkpoints_restored':False,'base_model_root':base_root,
             'chat_model_root':tensor_digest(dict(model.state_dict())),
             'setup_ms':setup_ms,'numerical_replay_ms':(time.monotonic_ns()-numerical_started+999999)//1000000,
-            'performed_by':'project-operator','independent_third_party':False,
+            'performed_by':'local-execution-operator','independent_third_party':False,
             'raw_transformation_reconstruction':'NOT_RUN','public_download_verification':'NOT_RUN',
             'cost_guard_admission':'NOT_RUN','end_to_end_release_verification':'NOT_RUN'}
     write_json(output/'verification.json',report)

@@ -33,6 +33,8 @@ def select_request(root,environ):
     name=lines[0].split('\t')[1]
     if not re.fullmatch(REQUEST_DIRECTORY+r'/[a-z0-9][a-z0-9-]+-boundary-[0-9]{5}\.json',name):raise EvidenceError('invalid progress request path')
     if len(git(root,'log','--full-history','--format=%H','HEAD','--',name).splitlines())!=1:raise EvidenceError('progress request identity reused')
+    touched=git(root,'diff-tree','--no-commit-id','--name-only','-r','--no-renames','HEAD').splitlines()
+    if touched!=[name]:raise EvidenceError('signing commit must change only the append-only request')
     return name
 
 
@@ -83,6 +85,9 @@ def download_archive(archive,output,*,fetch=fetch_metadata,download=None):
         names=['statement.json','statement.sigstore.json'];maximum=4*1024**2
     elif re.fullmatch(r'production-checkpoints/[0-9a-f]{64}/boundary-[0-9]{5}',prefix):
         names=['checkpoint.json','state.json','state.safetensors'];maximum=2*1024**3
+    elif re.fullmatch(r'release-evidence/[0-9a-f]{64}',prefix):
+        from .production_release import EVIDENCE,archive_shape as release_archive_shape
+        release_archive_shape(archive);names=EVIDENCE;maximum=64*1024**2
     else:raise EvidenceError('unsupported public archive prefix')
     archive_shape(archive,prefix,names,maximum)
     if output.exists():raise EvidenceError('archive download must use a fresh directory')

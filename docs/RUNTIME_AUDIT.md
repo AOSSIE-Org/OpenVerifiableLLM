@@ -88,3 +88,14 @@ the running preparation environment is preserved. This establishes public binary
 identity, not reproduction of the upstream CPython compiler/build. Container, OS,
 driver and actual hardware observations and measured deterministic pilots remain
 required. It is not remote attestation or independent third-party verification.
+
+The runtime fingerprint now hashes all file-backed mapped shared ELF images,
+including the OS libraries and loader. Before hashing, each file descriptor's
+actual device/inode must match `/proc/self/maps`; missing/deleted/replaced images
+fail closed. A before/after metadata check detects mutation during the read. The
+CPU initialization/inference observation separately binds the mapped GNU libc,
+libm, C++/GCC libraries and loader. Paths and ASLR addresses are excluded from the
+compatible digest; library names, lengths and full SHA-256 digests are retained.
+These are observations of backing files, not proof of relocated in-memory code,
+protection against a hostile kernel, or reproduction of the container's build.
+The public container digest and actual compatible CUDA pilots remain separate.

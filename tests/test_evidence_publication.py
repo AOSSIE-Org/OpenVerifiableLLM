@@ -111,3 +111,25 @@ def test_other_supported_archive_kinds_preserve_closed_subject_roots(tmp_path,ki
     pp=tmp_path/'plan.json';write_json(pp,value);api=Fake()
     assert pub.upload(pp,stage,tmp_path/'upload',api=api)['semantic_verification']=='NOT_RUN'
     assert pub.download(pp,api.sha,tmp_path/'download',api=api,fetch_file=api.fetch)['semantic_verification']=='NOT_RUN'
+
+
+@pytest.mark.parametrize('kind',['registration-packet','release-evidence','release-anchor','python-runtime'])
+def test_new_closed_evidence_kinds_have_complete_anonymous_byte_roundtrip(tmp_path,kind):
+    from ovl_pipeline.production_anchoring import PACKET_FILES
+    from ovl_pipeline.production_release import EVIDENCE
+    stage=tmp_path/'stage';stage.mkdir()
+    names={'registration-packet':sorted(PACKET_FILES),'release-evidence':EVIDENCE,
+           'release-anchor':['release.json','release.sigstore.json'],
+           'python-runtime':['SHA256SUMS','acquisition.json','distribution.tar.gz','payloads.json']}[kind]
+    for name in names:(stage/name).write_bytes(b'{}')
+    files=inventory(stage,names)
+    marker={'registration-packet':'registration.json','release-anchor':'release.json','python-runtime':'distribution.tar.gz'}
+    root=digest(files) if kind=='release-evidence' else next(e['sha256'] for e in files if e['path']==marker[kind])
+    prefix={'registration-packet':'production-registration','release-evidence':'release-evidence',
+            'release-anchor':'release-anchors','python-runtime':'runtime-python'}[kind]+'/'+root
+    value={'schema':'ovl.evidence-publication-plan.v1','repo':pub.REPO,'kind':kind,'prefix':prefix,'subject_sha256':root,'files':files}
+    pp=tmp_path/'plan.json';write_json(pp,value);api=Fake()
+    pub.upload(pp,stage,tmp_path/'upload',api=api)
+    assert pub.download(pp,api.sha,tmp_path/'download',api=api,fetch_file=api.fetch)['result']=='PASS'
+    value['files'].pop();write_json(pp,value)
+    with pytest.raises(EvidenceError):pub.validate(value)

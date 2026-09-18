@@ -149,7 +149,7 @@ def infer(directory,r,phase,prompt,*,max_new_tokens=64,expected_model_root=None)
             'input_ids':inputs,'output_ids':generated,'decoded_text':tok.decode([v-OFFSET for v in generated if v>=OFFSET]),
             'control_output_ids':[v for v in generated if v<OFFSET],'decoding':'greedy','max_new_tokens':max_new_tokens,
             'sampling_rng_used':False,'runtime':{'software':environment(),'host':host_runtime()},
-            'inference_config_sha256':file_hash(directory/'config.json'),'performed_by':'project-operator',
+            'inference_config_sha256':file_hash(directory/'config.json'),'performed_by':'local-execution-operator',
             'factual_accuracy':'NOT_ESTABLISHED_BY_PROVENANCE'}
 
 

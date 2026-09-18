@@ -114,17 +114,22 @@ def full(packet,bundle,production_policy,source_policy,source_checkout,chain_dir
                    'ovl_pipeline.production_export',['replay-check',*arguments],
                    allowed_generated=runtime['allowed_generated'],interpreter_archive=runtime['interpreter_archive'],
                    interpreter_sha256=runtime['interpreter_sha256'],interpreter_root=runtime['interpreter_root'])
+    if process['exit_code']!=0:raise EvidenceError('full replay process failed; saved reports cannot override process exit')
     replay=read_json(output/'numerical-replay/verification.json')
     exports=verify_replayed_exports(expected_exports,r,replay)
-    if process['exit_code']!=0 or code_root()!=r['code_root']:raise EvidenceError('full replay process or source changed')
+    if code_root()!=r['code_root']:raise EvidenceError('full replay process or source changed')
     evaluation=evaluate(expected_exports,r,output/'reconstructed',{'base':replay['base_model_root'],'chat':replay['chat_model_root']})
     write_json(output/'evaluation.json',evaluation)
+    if exports.get('result')!='PASS':raise EvidenceError('both replayed export mappings must pass')
     report={'schema':'ovl.complete-computation-verification.v1','result':'PASS','registration_sha256':digest(r),
             'scope':'complete-raw-transformations-fresh-initialization-all-updates-both-exported-models',
-            'checks':{'publisher_ancestry':'PASS','complete_raw_reconstruction':'PASS','continuous_complete_replay':'PASS',
-                      'both_export_mappings':'PASS','complete_heldout_evaluation':'PASS','fixed_greedy_inference':'PASS'},
+            'checks':{'publisher_ancestry':'PASS','complete_raw_reconstruction':reconstruction['result'],'continuous_complete_replay':replay['result'],
+                      'both_export_mappings':exports['result'],'complete_heldout_evaluation':'PASS','fixed_greedy_inference':'PASS'},
             'endorsements':endorsements,'reconstruction':reconstruction,'reconstructed_artifacts':rebuilt,
             'replay_report_sha256':digest(replay),'replay_process':process,'exports':exports,'evaluation_sha256':digest(evaluation),
+            'raw_inputs':{'path_supplied_by':'caller','archive_repo':source['archive']['repo'],'archive_revision':source['archive']['revision'],
+                          'archive_prefix':source['archive']['prefix'],'complete_inventory_sha256':digest(source['archive']['inventory']),
+                          'all_local_bytes_rehashed':'PASS','public_anonymous_download_this_command':'NOT_RUN'},
             'base_model_root':replay['base_model_root'],'chat_model_root':replay['chat_model_root'],
             'reconstruction_and_input_validation_ms':reconstruction_ms,'total_ms':(time.monotonic_ns()-started+999999)//1000000,
             'performed_by':'verifier-operator','attested_by':None,'locally_recomputed':True,'independent_third_party':False,

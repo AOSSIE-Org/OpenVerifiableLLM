@@ -34,6 +34,7 @@ def setup(inputs,prepared,tmp_path,monkeypatch,damage=None):
         result=production_replay.replay(packet,None,pp,sp,tmp_path,chain,tmp_path/'progress',[],actual_streams,Path(selected['--output']))
         if damage=='partial-replay':
             result['updates_recomputed']['wikipedia']=0;write_json(Path(selected['--output'])/'verification.json',result)
+        if damage=='child-exit':return {'exit_code':1,'explicit-launcher-test-double':'killed after writing numerical PASS'}
         checked=production_export.verify_replayed_exports(exports,r,result)
         write_json(Path(selected['--output'])/'exports-verification.json',checked)
         return {'exit_code':0,'explicit-launcher-test-double':'CPU execution in test process only'}
@@ -58,6 +59,8 @@ def test_complete_reconstruction_replay_export_and_all_validation_targets(cpu_ru
     result=run();assert result['result']=='PASS' and result['locally_recomputed'] is True and result['independent_third_party'] is False
     assert result['reconstruction']['stages_executed_this_run']==m.STAGES and not result['reconstruction']['stages_adopted_from_local_cache']
     assert len(calls)==1 and result['public_release_download_verification']=='NOT_RUN'
+    assert result['raw_inputs']['path_supplied_by']=='caller' and result['raw_inputs']['public_anonymous_download_this_command']=='NOT_RUN'
+    assert result['raw_inputs']['all_local_bytes_rehashed']=='PASS'
     evaluation=read_json(out/'evaluation.json')
     expected=prepared[1]['streams']['conversation-validation']['targets']
     assert all(v['targets']==expected for v in evaluation['models'].values())
@@ -82,3 +85,12 @@ def test_evaluation_refuses_a_sample_even_with_correct_stream_manifest(prepared,
     monkeypatch.setattr(data,'batches',sampled)
     with pytest.raises(EvidenceError,match='coverage incomplete'):
         m.evaluate(exports,r,prepared[0],{p:report['exports'][p]['model_root'] for p in ('base','chat')})
+
+
+def test_failed_child_exit_cannot_consume_its_saved_pass_report(cpu_runtime,inputs,prepared,tmp_path,monkeypatch):
+    r,out,calls,run,exports=setup(inputs,prepared,tmp_path,monkeypatch,'child-exit')
+    def must_not_consume(*a,**kw):raise AssertionError('parent consumed failed child report')
+    monkeypatch.setattr(production_export,'verify_replayed_exports',must_not_consume)
+    with pytest.raises(EvidenceError,match='process failed'):run()
+    assert read_json(out/'numerical-replay/verification.json')['result']=='PASS'
+    assert not(out/'verification.json').exists()

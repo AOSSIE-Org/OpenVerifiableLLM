@@ -6,6 +6,9 @@ fresh-process/resume pilots and a separately anchored registration are required.
 from __future__ import annotations
 
 import csv
+import hashlib
+import re
+import stat
 import importlib.metadata
 import os
 from pathlib import Path
@@ -150,6 +153,51 @@ def cpu_identity(raw):
     return sorted(descriptors,key=canonical)
 
 
+def mapped_libraries(*, os_only=False, maps=None):
+    """Hash mapped ELF files, including libc/libm/C++ and the dynamic loader.
+
+    Device/inode equality detects replaced pathnames. This observes backing file
+    bytes, not relocated memory or a hostile kernel; no remote attestation claim.
+    """
+    if maps is None:maps=Path('/proc/self/maps').read_text()
+    if type(maps) is not str or len(maps.encode())>16*1024**2:raise EvidenceError('invalid mapped library inventory')
+    selected={}
+    os_name=re.compile(r'^(?:ld-linux[^/]*|lib(?:c|m|mvec|gcc_s|stdc\+\+|pthread|dl|rt|util|resolv|crypt|nsl|nss_[A-Za-z0-9_-]+))\.so(?:\.[0-9]+)*$')
+    for line in maps.splitlines():
+        parts=line.split(maxsplit=5)
+        if len(parts)!=6 or not parts[-1].startswith('/'):continue
+        address,permissions,offset,device,inode,name=parts
+        path=Path(name)
+        if '.so' not in path.name:continue
+        if os_only and not os_name.fullmatch(path.name.removesuffix(' (deleted)')):continue
+        try:
+            expected_device=tuple(int(x,16) for x in device.split(':'));expected_inode=int(inode)
+        except ValueError:raise EvidenceError('invalid mapped library file identity') from None
+        if len(expected_device)!=2 or expected_inode<=0:raise EvidenceError('missing mapped library file identity')
+        identity=(expected_device,expected_inode)
+        if name in selected:
+            if selected[name][0]!=identity:raise EvidenceError('mapped library identity changes between segments')
+            continue
+        try:
+            with path.open('rb') as f:
+                before=os.fstat(f.fileno())
+                if (not stat.S_ISREG(before.st_mode) or before.st_ino!=expected_inode
+                    or (os.major(before.st_dev),os.minor(before.st_dev))!=expected_device):
+                    raise EvidenceError('mapped library pathname was replaced')
+                if f.read(4)!=b'\x7fELF':raise EvidenceError('mapped library is not an ELF image')
+                f.seek(0);h=hashlib.sha256()
+                for chunk in iter(lambda:f.read(4*1024*1024),b''):h.update(chunk)
+                after=os.fstat(f.fileno())
+                if (before.st_size,before.st_mtime_ns,before.st_ctime_ns)!=(after.st_size,after.st_mtime_ns,after.st_ctime_ns):
+                    raise EvidenceError('mapped library changed while hashing')
+        except OSError:raise EvidenceError('mapped library backing file unavailable or deleted') from None
+        selected[name]=(identity,{'name':path.name,'bytes':before.st_size,'sha256':h.hexdigest()})
+    result=sorted((v[1] for v in selected.values()),key=lambda e:(e['name'],e['sha256']))
+    if os_only and any(not any(e['name'].startswith(prefix) for e in result) for prefix in ('libc.so','libm.so','ld-linux')):
+        raise EvidenceError('missing required GNU OS numerical library identities')
+    return result
+
+
 def host_runtime():
     """Record initialization-relevant host inputs, not an installed-stack audit."""
     if platform.system()!="Linux" or platform.machine()!="x86_64":
@@ -165,6 +213,7 @@ def host_runtime():
             "python_executable_sha256":file_hash(executable),"python_executable_bytes":executable.stat().st_size,
             "python_implementation":platform.python_implementation(),"python_build":list(platform.python_build()),
             "python_flags":str(sys.flags),"byteorder":sys.byteorder,
+            "mapped_os_libraries":mapped_libraries(os_only=True),
             "scope":"operator-observed CPU dispatch and interpreter bytes; not hardware attestation or full installed-stack verification"}
 
 
@@ -194,19 +243,9 @@ def environment(config):
             if record is None:
                 raise EvidenceError("numerical dependency lacks wheel RECORD")
             distributions.append({"name":name,"version":dist.version,"record_sha256":file_hash(Path(dist.locate_file(record)))})
-    libraries = {}
-    for line in Path("/proc/self/maps").read_text().splitlines():
-        parts = line.split(maxsplit=5)
-        if len(parts) != 6 or not parts[-1].startswith("/"):
-            continue
-        path = Path(parts[-1])
-        if (".so" in path.name and ("/torch/" in str(path) or "/nvidia/" in str(path)
-                or path.name.startswith(("libcuda.","libnvidia-","libpython")))):
-            if not path.is_file():raise EvidenceError("mapped numerical library is missing/deleted")
-            if str(path) not in libraries:
-                libraries[str(path)] = {"name":path.name,"bytes":path.stat().st_size,"sha256":file_hash(path)}
-    if not libraries or not any(e["name"].startswith("libcuda.") for e in libraries.values()):
-        raise EvidenceError("missing mapped CUDA driver library identity")
+    libraries=mapped_libraries()
+    if not libraries or not any(e['name'].startswith('libcuda.') for e in libraries):
+        raise EvidenceError('missing mapped CUDA driver library identity')
     from .runtime_launch import current_launch
     compatible = {"schema":"ovl.gpu-environment.v1", "kernel":config,
         "installed_wheel_audit":current_launch(),
@@ -217,7 +256,8 @@ def environment(config):
         "gpu":{"name":p.name,"compute_capability":[p.major,p.minor],"memory_bytes":p.total_memory,
                "multiprocessors":p.multi_processor_count,"warp_size":getattr(p,"warp_size",None)},
         "flags":flags(),"packages":sorted(distributions,key=lambda e:e["name"]),
-        "loaded_numerical_libraries":sorted(libraries.values(),key=lambda e:(e["name"],e["sha256"])),
+        "loaded_numerical_libraries":libraries,
+        "mapped_library_scope":"all file-backed shared ELF images at fingerprint time; path device/inode checked, not in-memory execution attestation",
         "environment":{n:os.environ.get(n) for n in ["CUBLAS_WORKSPACE_CONFIG","CUDA_VISIBLE_DEVICES",
             "CUDA_LAUNCH_BLOCKING","CUDA_MODULE_LOADING","CUDA_CACHE_DISABLE","NVIDIA_TF32_OVERRIDE",
             "TORCH_ALLOW_TF32_CUBLAS_OVERRIDE","PYTORCH_CUDA_ALLOC_CONF","PYTORCH_ALLOC_CONF",

@@ -33,6 +33,20 @@ def validate(plan):
     if kind=='prepared':
         if plan['prefix']!='prepared/'+root:raise EvidenceError('prepared publication prefix differs from root')
         names=None
+    elif kind=='registration-packet':
+        from ovl_pipeline.production_anchoring import PACKET_FILES
+        if plan['prefix']!='production-registration/'+root:raise EvidenceError('registration packet prefix differs')
+        names=sorted(PACKET_FILES)
+    elif kind=='release-evidence':
+        from ovl_pipeline.production_release import EVIDENCE
+        if plan['prefix']!='release-evidence/'+root or digest(plan['files'])!=root:raise EvidenceError('release evidence prefix differs')
+        names=EVIDENCE
+    elif kind=='release-anchor':
+        if plan['prefix']!='release-anchors/'+root:raise EvidenceError('release anchor prefix differs')
+        names=['release.json','release.sigstore.json']
+    elif kind=='python-runtime':
+        if plan['prefix']!='runtime-python/'+root:raise EvidenceError('Python distribution prefix differs')
+        names=['SHA256SUMS','acquisition.json','distribution.tar.gz','payloads.json']
     elif kind in exact:
         prefix,names=exact[kind]
         if prefix is not None and plan['prefix']!=prefix:raise EvidenceError('registration publication prefix differs')
@@ -52,7 +66,8 @@ def validate(plan):
     if kind=='prepared' and ('preparation.json' not in paths or any(
             p!='preparation.json' and not re.fullmatch(r'(corpus|tokenizer|conversation-selection|wikipedia|conversation|conversation-validation)/[a-zA-Z0-9_.-]+',p) for p in paths)):
         raise EvidenceError('unexpected prepared-data publication paths')
-    marker={'prepared':'preparation.json','progress-anchor':'statement.json','checkpoint':'checkpoint.json'}.get(kind)
+    marker={'prepared':'preparation.json','progress-anchor':'statement.json','checkpoint':'checkpoint.json',
+            'registration-packet':'registration.json','release-anchor':'release.json','python-runtime':'distribution.tar.gz'}.get(kind)
     if marker and next(e['sha256'] for e in entries if e['path']==marker)!=root:
         raise EvidenceError('publication subject differs from exact manifest/statement bytes')
 

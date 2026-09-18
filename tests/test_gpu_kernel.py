@@ -158,3 +158,38 @@ def test_host_fingerprint_rejects_replaced_interpreter_path(tmp_path,monkeypatch
     other=tmp_path/'python';other.write_bytes(b'not the executing interpreter')
     monkeypatch.setattr(sys,'executable',str(other))
     with pytest.raises(EvidenceError,match='running interpreter'):gpu.host_runtime()
+
+
+def mapping(path,inode=None):
+    st=path.stat();return f'1000-2000 r-xp 00000000 {os.major(st.st_dev):02x}:{os.minor(st.st_dev):02x} {st.st_ino if inode is None else inode} {path}\n'
+
+
+def test_mapped_runtime_includes_actual_os_math_cpp_loader_and_extra_extensions(tmp_path):
+    from ovl_pipeline.canonical import file_hash
+    names=['libc.so.6','libm.so.6','ld-linux-x86-64.so.2','libstdc++.so.6','libgcc_s.so.1','thirdparty_extension.so']
+    text=''
+    for name in names:
+        path=tmp_path/name;path.write_bytes(b'\x7fELF'+name.encode());text+=mapping(path)*2
+    got=gpu.mapped_libraries(maps=text)
+    assert [v['name'] for v in got]==sorted(names)
+    assert all(v['sha256']==file_hash(tmp_path/v['name']) for v in got)
+    assert [v['name'] for v in gpu.mapped_libraries(os_only=True,maps=text)]==sorted(names[:-1])
+    assert gpu.mapped_libraries(maps=''.join(reversed(text.splitlines(True))))==got
+    old=got;(tmp_path/'libm.so.6').write_bytes(b'\x7fELFchanged math')
+    assert gpu.mapped_libraries(maps=text)!=old
+
+
+@pytest.mark.parametrize('damage',['deleted','replaced','wrong-device','non-elf','missing-math','malformed-inode'])
+def test_mapped_os_libraries_cannot_be_missing_or_silently_replaced(tmp_path,damage):
+    text=''
+    for name in ('libc.so.6','libm.so.6','ld-linux-x86-64.so.2'):
+        path=tmp_path/name;path.write_bytes(b'\x7fELF'+name.encode());text+=mapping(path)
+    target=tmp_path/'libm.so.6'
+    if damage=='deleted':target.unlink()
+    elif damage=='replaced':
+        other=tmp_path/'replacement';other.write_bytes(target.read_bytes());other.replace(target)
+    elif damage=='wrong-device':text=text.replace(f'{os.major(target.stat().st_dev):02x}:{os.minor(target.stat().st_dev):02x}','ff:ff')
+    elif damage=='non-elf':target.write_bytes(b'not an ELF')
+    elif damage=='missing-math':text=''.join(line for line in text.splitlines(True) if 'libm.so' not in line)
+    else:text=text.replace(str(target.stat().st_ino)+' '+str(target),'invalid '+str(target))
+    with pytest.raises(EvidenceError):gpu.mapped_libraries(os_only=True,maps=text)

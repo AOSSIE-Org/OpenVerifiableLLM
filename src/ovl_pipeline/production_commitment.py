@@ -32,6 +32,8 @@ def select_request(root,environ):
     name=lines[0].split('\t')[1]
     if not re.fullmatch(REQUEST_DIRECTORY+r'/[a-z0-9][a-z0-9-]+\.json',name):raise EvidenceError('invalid production request filename')
     if len(git(root,'log','--full-history','--format=%H','HEAD','--',name).splitlines())!=1:raise EvidenceError('production request identity reused')
+    touched=git(root,'diff-tree','--no-commit-id','--name-only','-r','--no-renames','HEAD').splitlines()
+    if touched!=[name]:raise EvidenceError('signing commit must change only the append-only request')
     return name
 
 

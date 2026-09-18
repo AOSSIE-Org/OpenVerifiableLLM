@@ -122,3 +122,20 @@ def test_source_commit_edge_cases(tmp_path,monkeypatch,case):
         (tmp_path/'src/ovl_pipeline/link.txt').symlink_to('a.py');r['code_revision']=commit()['GITHUB_SHA']
     else:(tmp_path/'src/model.py').unlink()
     with pytest.raises(EvidenceError):m.verify_code(tmp_path,r)
+
+
+def test_real_kernel_and_release_tooling_share_the_exact_registered_code_root(tmp_path):
+    import shutil
+    from pathlib import Path
+    from ovl_pipeline import training
+    from ovl_pipeline.canonical import file_hash
+    git,commit=repository(tmp_path);project=Path(__file__).resolve().parents[1]
+    target=tmp_path/'src/ovl_pipeline';target.mkdir(parents=True)
+    for source in (project/'src/ovl_pipeline').glob('*.py'):shutil.copyfile(source,target/source.name)
+    shutil.copyfile(project/'src/model.py',tmp_path/'src/model.py')
+    (tmp_path/'requirements').mkdir();shutil.copyfile(project/'requirements/gpu.lock',tmp_path/'requirements/gpu.lock')
+    env=commit();r={'code_revision':env['GITHUB_SHA'],'code_root':training.code_root(),
+                  'runtime':{'dependency_lock_sha256':file_hash(project/'requirements/gpu.lock')}}
+    assert m.verify_code(tmp_path,r)['code_root']==training.code_root()
+    with (target/'release_download.py').open('a') as f:f.write('\n# post-registration tool mutation\n')
+    with pytest.raises(EvidenceError,match='source differs from pilot commit'):m.verify_code(tmp_path,r)
