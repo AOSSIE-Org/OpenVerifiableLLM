@@ -1,0 +1,43 @@
+{
+  "schema": "ovl.deadline-probe-launch.v1",
+  "observed_epoch": 1789689364,
+  "source_revision": "33f168612a71830da1443d445cc8d998b4c8f717",
+  "service": "ovllm-provider-deadline-probe-v1.service",
+  "journal": ".ovllm-cache/provider-deadline-probe-v1",
+  "restart": "on-failure",
+  "restart_seconds": 5,
+  "start_limit_interval_seconds": 0,
+  "user_linger_observed": true,
+  "credential_source": "owner-only local RunPod config; no key in unit environment or pod",
+  "files": [
+    {
+      "path": "scripts/probe_provider_deadline.py",
+      "sha256": "ea2776fe6f47ea4eb0b06b0d766a59223f7cead02a47260deee6373cd1ca743c"
+    },
+    {
+      "path": "scripts/provider_preflight.py",
+      "sha256": "1ee33c23ee85da9dfd5db84c002c2313fab02134bacee66b666a1e1f89216e9a"
+    },
+    {
+      "path": "src/ovl_pipeline/supervision.py",
+      "sha256": "f5c12a47aa10fc2b4682049f486fc5e87d411dfa81f748bcc0e57716829e17f5"
+    },
+    {
+      "path": "src/ovl_pipeline/budget.py",
+      "sha256": "ef6502cdd55a36dccca228b47115e1cfb24868e52b10c6917702bec176000c2e"
+    },
+    {
+      "path": "src/ovl_pipeline/canonical.py",
+      "sha256": "2de9c77a6d7414b9802a8b26b95d7fe9effdfd241df1e751ab3fb17475bcb1b1"
+    },
+    {
+      "path": "src/ovl_pipeline/schema.py",
+      "sha256": "6255f646fb441d350ca7d79ac2441edf42af9b1047ab3c7ad6061743299e090c"
+    }
+  ],
+  "scope": "empty operational deadline probe, no training admission",
+  "hourly_gpu_quote_usd": "0.24",
+  "all_in_upper_usd": "0.30",
+  "allowance_usd": "0.25",
+  "planned_maximum_usd": "0.075"
+}

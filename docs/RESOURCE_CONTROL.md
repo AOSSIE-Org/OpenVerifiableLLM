@@ -1,8 +1,9 @@
 # Run keys and resource-control foundations
 
-These modules are implemented and locally tested. No production run key has been
-created, no paid resource has been provisioned, and no live provider guard or
-supervisor has been admitted. A local policy result is not provider-side evidence.
+These modules are implemented and locally tested. The first empty native-deadline
+probe is recorded under `project/evidence/provider-survey/deadline-probe-v1/`;
+its live resource and cost state belongs in `project/goal_state.json`. No production
+training supervisor has been admitted. A local policy result is not provider-side evidence.
 
 ## Private run keys
 
@@ -128,7 +129,7 @@ a lost response is reconciled using its unique pre-request identity. Two actual
 absence observations are required. Billing and residual storage need separate
 reconciliation. API outages can still prevent caller cleanup.
 
-The executable accepts only the fixed original probe journal directory. Its
+The original attempt is retained at source33f1686. The current executable accepts only the linked second probe journal directory; it requires the first probe’s terminal absence record and reserves its entire$0.075 ceiling while billing settles. Its
 `--dry-run` exercises fresh account/quote/clock/budget checks with no mutation.
 A timing match can report only `OBSERVED_TERMINATION_IN_DEADLINE_WINDOW`; alternate
 provider termination causes remain possible. It cannot authorize a later production
@@ -138,3 +139,26 @@ remain closed until their own required guards and other trust gates are establis
 Provider monetary observations retain their full precision. `policy_amount` floors
 available balances and rounds costs upward to six decimals before integer-microdollar
 budget policy. Never silently round a cost down or available funds up.
+
+The run key for `enwiki-20260901-20260918-r1` has been created and both private
+local copies checked against its published descriptor in `project/run-keys/`. The
+copies are separate files on the same local physical storage; they protect against
+pod/process loss, not local disk disaster. `run-key-backup-check.json` records
+that scope. The descriptor does not authorize production training.
+
+The first actual probe (`lrsbh9avgltuxm`) ended with caller teardown after an
+observation failure before the native deadline. Its result is not evidence of a
+native deadline failure or success. Observed account debit is$0.02; attributed
+billing remains pending. No pod or network volume remains from that attempt.
+
+The second controller retains selected HTTP status/category diagnostics without
+response bodies or URLs. Only transient account-read failures (HTTP429/5xx,
+transport) receive grace for less than30seconds since the last successful read,
+using both wall and monotonic clocks. A retry waits5seconds and each request has a
+20second timeout; grace therefore ends within55seconds under forward wall time.
+No grace applies to malformed/authentication/identity/storage/creation/teardown
+failures, latched abort or the hard fallback deadline. Process restart still
+reconciles the same durable intent and never reissues creation. Tests exercise
+transient recovery, persistent failure, authentication failure and reserve limits.
+This repairs observation robustness; it does not retroactively explain the first
+failure or convert the probe into production guard verification.

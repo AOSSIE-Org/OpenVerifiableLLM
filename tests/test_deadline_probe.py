@@ -58,13 +58,17 @@ def test_guard_timing_is_scoped_not_production_admission():
     assert verdict(i,[{'observed_epoch':d-100,'pod':p},{'observed_epoch':d-80,'pod':None}],False)=='INCONCLUSIVE_DISAPPEARED_OUTSIDE_WINDOW'
 
 
-@pytest.mark.parametrize('mode',['native','ignored-deadline','lost-create-response','crash-after-create','misprovision-lost-response','disk-full-observation'])
+@pytest.mark.parametrize('mode',['native','ignored-deadline','lost-create-response','crash-after-create','misprovision-lost-response','disk-full-observation','transient-read','persistent-read','auth-failure'])
 def test_controller_reconciliation_no_duplicate_and_teardown(tmp_path,monkeypatch,mode):
     import types
     import probe_provider_deadline as probe
     now=[NOW];live=[None];calls=[];initial=intent()
     monkeypatch.setattr(probe,'time',types.SimpleNamespace(time=lambda:now[0],monotonic=lambda:now[0]-NOW,sleep=lambda seconds:now.__setitem__(0,now[0]+seconds)))
     def observe():
+        if live[0] and now[0]>=NOW+100:
+            if mode=='transient-read' and now[0]<NOW+105:raise probe.ProviderFailure('http',status=503,transient=True)
+            if mode=='persistent-read':raise probe.ProviderFailure('transport',transient=True)
+            if mode=='auth-failure':raise probe.ProviderFailure('http',status=401)
         if mode!='ignored-deadline' and now[0]>=NOW+600:live[0]=None
         return {'observed_epoch':now[0],'response_sha256':'0'*64,'balance_usd':'100.4',
                 'account_hourly_usd':'0.24' if live[0] else '0','autopay':False,
@@ -102,7 +106,7 @@ def test_controller_reconciliation_no_duplicate_and_teardown(tmp_path,monkeypatc
     assert calls.count('create')==1 and live[0] is None
     result=probe.read_json(directory/'result.json')
     assert result['production_guard_admission']=='NOT_RUN'
-    if mode in ('ignored-deadline','misprovision-lost-response','disk-full-observation'):
+    if mode in ('ignored-deadline','misprovision-lost-response','disk-full-observation','persistent-read','auth-failure'):
         assert calls.count('terminate')==1 and result['result']=='FAIL_REQUIRED_CALLER_TEARDOWN'
     else:assert 'terminate' not in calls and result['result']=='OBSERVED_TERMINATION_IN_DEADLINE_WINDOW'
 
@@ -120,3 +124,37 @@ def test_disk_failure_never_blocks_attributed_emergency_teardown(monkeypatch):
 def test_clock_skew_refuses_before_creation():
     i=intent();i['baseline']['http_clock']['server_epoch']-=61
     with pytest.raises(EvidenceError,match='clock skew'):make_intent(NOW,i['baseline'],i['quote'],IMAGE)
+
+
+def test_linked_probe_reserves_entire_predecessor_charge():
+    i=intent()
+    second=make_intent(NOW,i['baseline'],i['quote'],IMAGE,{'reserved_unsettled_usd':'0.075','baseline_balance_usd':'100.50'})
+    assert second['plan']['input']['outstanding_usd']=='0.075'
+    assert second['plan']['input']['allowance_usd']=='0.175'
+    assert second['plan']['maximum_charge_micro_usd']==75000
+    with pytest.raises(EvidenceError,match='debit exceeds'):
+        make_intent(NOW,{**i['baseline'],'balance_usd':'100.40'},i['quote'],IMAGE,{'baseline_balance_usd':'100.50'})
+
+
+@pytest.mark.parametrize('status,transient',[(401,False),(403,False),(400,False),(429,True),(503,True)])
+def test_http_diagnostics_select_only_status(monkeypatch,status,transient):
+    import probe_provider_deadline as p
+    from urllib.error import HTTPError
+    class Opener:
+        def open(self,*a,**kw):raise HTTPError('https://private.invalid/reflected-secret',status,'reflected-secret',{},None)
+    monkeypatch.setattr(p,'credential',lambda:'local-secret')
+    monkeypatch.setattr(p,'build_opener',lambda *a:Opener())
+    with pytest.raises(p.ProviderFailure) as e:p.request('account')
+    assert p.diagnostic(e.value)=={'error_type':'ProviderFailure','category':'http','http_status':status,'transient':transient}
+    assert 'secret' not in str(e.value)
+
+
+def test_transient_grace_refuses_stale_backward_clock_or_near_deadline():
+    from probe_provider_deadline import ProviderFailure,transient_read_grace
+    error=ProviderFailure('transport',transient=True)
+    assert transient_read_grace(error,20,0,20,0,100,False)
+    assert not transient_read_grace(error,30,0,20,0,100,False)
+    assert not transient_read_grace(error,20,0,30,0,100,False)
+    assert not transient_read_grace(error,-1,0,20,0,100,False)
+    assert not transient_read_grace(error,20,0,20,0,45,False)
+    assert not transient_read_grace(error,20,0,20,0,100,True)
