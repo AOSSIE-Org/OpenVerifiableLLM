@@ -51,7 +51,40 @@ PYTHONPATH=src TRUSTED_PYTHON -m ovl_pipeline.runtime_launch \
 
 Roots must remain owner-controlled and unchanged while running. The launcher is
 not a hostile-process sandbox or protection from a compromised verifier/OS. It
-does not attest the interpreter/standard library, container,
-GPU hardware or executed machine code; their required provenance observations and
+does not attest a remote container, GPU hardware or executed machine code; their
+required provenance observations and
 fresh deterministic pilots remain separate gates. No production admission follows
 from a package audit alone.
+
+The GPU gate now also requires a complete public interpreter-origin audit. The
+operator selects an install-only Python archive by SHA-256, reconstructs its complete
+inventory, and extracts it unchanged into a fresh private directory. The launcher
+rehashes every installed non-bytecode payload and checks every symlink before
+starting the target interpreter. It rejects additional source, shared libraries,
+sourceless bytecode, changed executable modes and paths outside the selected tree.
+Only generated `__pycache__/*.pyc` is excluded, under the same fresh-cache startup
+requirement. Wheel-only developer launches remain usable for CPU fixtures but
+cannot pass `gpu.configure`.
+
+```bash
+PYTHONPATH=src TRUSTED_PYTHON -m ovl_pipeline.python_origin extract \
+  --archive PUBLIC_INSTALL_ONLY_ARCHIVE --sha256 EXTERNALLY_SELECTED_SHA256 \
+  --root FRESH_PUBLIC_PYTHON --evidence FRESH_ORIGIN_EVIDENCE
+
+# Create the target venv with FRESH_PUBLIC_PYTHON/python/bin/python3.12 and
+# install the complete hash lock. Add these options to runtime_launch:
+# --interpreter-archive PUBLIC_INSTALL_ONLY_ARCHIVE
+# --interpreter-sha256 EXTERNALLY_SELECTED_SHA256
+# --interpreter-root FRESH_PUBLIC_PYTHON
+```
+
+The tested candidate is the [20260814 python-build-standalone release](https://github.com/astral-sh/python-build-standalone/releases/tag/20260814),
+CPython3.12.14 x86_64 Linux GNU, install-only stripped archive, SHA-256
+`5acfa3e9ba26b51ae161c83aff278da915b590d22373a424b2ba55b8afe91fcc`.
+Its complete 34,143,739-byte download matched both the GitHub asset digest and the
+retained public checksum file. The original uv-managed installation had a rewritten
+sysconfig module, so the production candidate uses a separate unmodified extraction;
+the running preparation environment is preserved. This establishes public binary
+identity, not reproduction of the upstream CPython compiler/build. Container, OS,
+driver and actual hardware observations and measured deterministic pilots remain
+required. It is not remote attestation or independent third-party verification.

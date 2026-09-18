@@ -78,7 +78,8 @@ def configure(config):
     if not torch.__version__.startswith("2.14.0+") or torch.version.cuda is None:
         raise EvidenceError("GPU profile requires an explicitly pinned PyTorch 2.14.0 CUDA build")
     from .runtime_launch import current_launch
-    current_launch()
+    if current_launch().get('interpreter_origin') is None:
+        raise EvidenceError('GPU runtime requires externally audited public interpreter payloads')
     required = {"CUBLAS_WORKSPACE_CONFIG":WORKSPACE, "TOKENIZERS_PARALLELISM":"false", "CUDA_VISIBLE_DEVICES":"0",
                 "OMP_NUM_THREADS":"1", "MKL_NUM_THREADS":"1", "OPENBLAS_NUM_THREADS":"1",
                 "PYTHONHASHSEED":"0", "USE_PYTORCH_KERNEL_CACHE":"0"}

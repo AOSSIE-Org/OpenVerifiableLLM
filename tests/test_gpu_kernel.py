@@ -105,7 +105,7 @@ import torch
 from ovl_pipeline import gpu
 from ovl_pipeline import runtime_launch
 from ovl_pipeline.canonical import EvidenceError
-runtime_launch.current_launch=lambda:{}  # explicit launcher double for flags only
+runtime_launch.current_launch=lambda:{'interpreter_origin':{'explicit-test-double':True}}  # flags-only launcher double
 torch.__version__="2.14.0+cu130";torch.version.cuda="13.0"
 torch.cuda.is_initialized=lambda:False;torch.cuda.is_available=lambda:True
 torch.cuda.device_count=lambda:1;torch.cuda.set_device=lambda n:None

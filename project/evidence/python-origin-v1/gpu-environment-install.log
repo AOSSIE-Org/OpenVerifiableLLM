@@ -1,0 +1,7 @@
+error: unexpected argument '-r' found
+
+  tip: to pass '-r' as a value, use '-- -r'
+
+Usage: uv pip sync [OPTIONS] <SRC_FILE>...
+
+For more information, try '--help'.

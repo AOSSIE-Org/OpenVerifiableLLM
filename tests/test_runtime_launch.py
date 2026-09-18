@@ -81,3 +81,25 @@ def test_bootstrap_rejects_launch_record_argument_substitution(tmp_path):
     result=subprocess.run([sys.executable,'-s','-S','-P','-X','pycache_prefix='+str(cache),str(Path(runtime_launch.__file__).with_name('runtime_bootstrap.py')),
         '--source',str(src),'--site',str(site),'--launch-record',str(record),'--module','probe','--','changed'],env=env,capture_output=True,text=True)
     assert result.returncode!=0 and 'differs from audited parent record' in result.stderr
+
+
+def test_python_origin_damage_stops_before_target_start(tmp_path):
+    from test_python_origin import archive
+    from ovl_pipeline import python_origin
+    args=setup(tmp_path);tar,sha=archive(tmp_path);root=tmp_path/'public-python'
+    python_origin.extract(tar,sha,root)
+    link=args[2]/'bin/python';link.unlink();link.symlink_to(root/'python/bin/python3.12')
+    (root/'python/lib/python3.12/example.py').write_bytes(b'altered executable source')
+    with pytest.raises(EvidenceError,match='installed Python bytes differ'):
+        runtime_launch.launch(*args,'ovl_pipeline',[],interpreter_archive=tar,interpreter_sha256=sha,interpreter_root=root,
+                             execute=lambda *a,**k:pytest.fail('unverified interpreter must not start'))
+    assert not args[-1].exists()
+
+
+def test_gpu_refuses_wheel_only_audit_before_any_cuda_initialization(monkeypatch):
+    from ovl_pipeline import gpu
+    monkeypatch.setattr(gpu.torch,'__version__','2.14.0+cu130');monkeypatch.setattr(gpu.torch.version,'cuda','13.0')
+    monkeypatch.setattr(runtime_launch,'current_launch',lambda:{'interpreter_origin':None})
+    monkeypatch.setattr(gpu.torch.cuda,'init',lambda:pytest.fail('origin gate must precede CUDA'))
+    with pytest.raises(EvidenceError,match='public interpreter payloads'):
+        gpu.configure({'schema':'ovl.gpu-kernel.v1','precision':'fp32'})
