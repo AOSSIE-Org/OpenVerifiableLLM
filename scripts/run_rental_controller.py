@@ -14,7 +14,7 @@ import re
 import time
 
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,require_digest,write_json
-from ovl_pipeline.schema import fields
+from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.supervision import ControllerBusy,Journal,observe
 from probe_provider_deadline import account,request,match_pod,provision_errors,diagnostic,transient_read_grace
 from run_external_watchdog import validate_intent
@@ -79,6 +79,8 @@ def normalized(w,obs,pod,h,health,now):
             or not 0<=now-health['observed_epoch']<=60 or type(health['complete']) is not bool):
             raise EvidenceError('invalid/stale workload and export health')
         progress=health['progress_epoch'];checkpoint=health['exported_checkpoint_epoch']
+        integer(progress,1,2**53-1,'workload progress epoch')
+        integer(checkpoint,1,2**53-1,'workload export epoch')
         if health['complete'] and (type(progress) is not int or type(checkpoint) is not int or checkpoint<progress):
             raise EvidenceError('completed work must have its final state exported')
     return {'schema':'ovl.supervisor-observation.v2','now_epoch':now,'observed_epoch':obs['observed_epoch'],

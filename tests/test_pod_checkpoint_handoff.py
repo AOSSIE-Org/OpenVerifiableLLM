@@ -8,6 +8,7 @@ import pytest
 sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
 import pod_checkpoint_handoff as m
 from test_pipeline import prepared
+from test_gpu_pilot import cpu_runtime
 from test_production_chain import actual_artifacts
 from test_pod_transfer import setup as ssh
 from test_progress_dispatch import setup as publisher
@@ -80,12 +81,18 @@ def published(prepared,tmp_path,monkeypatch):
 
 def test_verified_public_ack_then_recorder_reverification_and_idempotent_retry(prepared,tmp_path,monkeypatch):
     t,remote,r,root,out,ack,policies,calls=published(prepared,tmp_path,monkeypatch)
+    sent=[];put=t.put
+    def counted(name,*a,**k):sent.append(name);return put(name,*a,**k)
+    t.put=counted
     result=m.deliver(t,r,root,out,ack,policies,tmp_path/'delivery',int(time.time())+60)
     assert result['result']=='PASS' and result['training_replay']=='NOT_RUN'
     assert read_json(remote/'external-progress-policies.json')==[asdict(p) for p in policies]
     envs=read_json(out/'chain.json')['boundaries']
     assert await_anchor(r,root,envs,remote/'anchors',remote/'external-progress-policies.json',int(time.time())+30)['result']=='PASS'
+    assert len([n for n in sent if n.startswith('anchors/')])==2
+    sent.clear()
     assert m.deliver(t,r,root,out,ack,policies,tmp_path/'redelivery',int(time.time())+60)['result']=='PASS'
+    assert not [n for n in sent if n.startswith('anchors/')]
 
 
 @pytest.mark.parametrize('damage',['saved-pass','policy','anchor','local-state','waiting','rollback','partial-put'])
@@ -110,6 +117,72 @@ def test_failed_handoff_never_installs_new_policy(prepared,tmp_path,monkeypatch,
     assert (remote/'external-progress-policies.json').read_bytes()==previous
     assert not(tmp_path/'delivery/delivery.json').exists()
     if damage=='partial-put':assert (remote/'anchors/progress-00000/statement.json').exists()
+
+
+@pytest.mark.parametrize('damage',['altered','foreign'])
+def test_remote_anchor_inventory_mismatch_is_preserved_and_refused(prepared,tmp_path,monkeypatch,damage):
+    t,remote,r,root,out,ack,policies,calls=published(prepared,tmp_path,monkeypatch)
+    m.deliver(t,r,root,out,ack,policies,tmp_path/'first-delivery',int(time.time())+60)
+    target=remote/('anchors/progress-00000/statement.json' if damage=='altered' else 'anchors/unselected.json')
+    target.write_bytes(b'preserve mismatched peer bytes')
+    previous=(remote/'external-progress-policies.json').read_bytes()
+    with pytest.raises(EvidenceError,match='remote anchor bytes differ'):
+        m.deliver(t,r,root,out,ack,policies,tmp_path/'second-delivery',int(time.time())+60)
+    assert target.read_bytes()==b'preserve mismatched peer bytes'
+    assert (remote/'external-progress-policies.json').read_bytes()==previous
+    assert not(tmp_path/'second-delivery/delivery.json').exists()
+
+
+def test_partial_anchor_retry_only_transfers_missing_bytes(prepared,tmp_path,monkeypatch):
+    t,remote,r,root,out,ack,policies,calls=published(prepared,tmp_path,monkeypatch)
+    original=t.put
+    def interrupted(name,*args,**kwargs):
+        if name.endswith('statement.sigstore.json'):raise EvidenceError('explicit transfer interruption')
+        return original(name,*args,**kwargs)
+    t.put=interrupted
+    with pytest.raises(EvidenceError,match='explicit transfer interruption'):
+        m.deliver(t,r,root,out,ack,policies,tmp_path/'interrupted',int(time.time())+60)
+    sent=[]
+    def counted(name,*args,**kwargs):sent.append(name);return original(name,*args,**kwargs)
+    t.put=counted
+    m.deliver(t,r,root,out,ack,policies,tmp_path/'retry',int(time.time())+60)
+    assert sent==['anchors/progress-00000/statement.sigstore.json','external-progress-policies.json']
+    envs=read_json(out/'chain.json')['boundaries']
+    assert await_anchor(r,root,envs,remote/'anchors',remote/'external-progress-policies.json',int(time.time())+30)['result']=='PASS'
+
+
+def test_separate_control_profile_preserves_fresh_record_and_exports_real_initial_state(cpu_runtime,prepared,tmp_path,monkeypatch):
+    import shlex
+    import subprocess
+    from pod_transfer import Transport,REMOTE_GET,REMOTE_PUT
+    from test_production_record import setup as record_setup
+    from ovl_pipeline import production_record as rec
+    transport_dir=tmp_path/'transport';transport_dir.mkdir()
+    control,control_dir,calls,processes=ssh(transport_dir)
+    numerical=tmp_path/'numerical';numerical.mkdir()
+    r,reference,key,streams,run=record_setup(prepared,numerical,monkeypatch)
+    record_dir=numerical/'record'
+    profile=dict(control.profile,remote_root=control.profile['remote_root']+'-record')
+    def local_ssh(command,**kwargs):
+        args=shlex.split(command[-1]);assert args.pop(0)=='exec'
+        assert args[:2]==['/usr/bin/python3','-c'] and args[2] in (REMOTE_GET,REMOTE_PUT)
+        assert args[3]==profile['remote_root'];args[0]=sys.executable;args[3]=str(record_dir)
+        return subprocess.Popen(args,**kwargs)
+    recording=Transport(profile,control.key,control.known,popen=local_ssh)
+    descriptor=tmp_path/'control-input.json';write_json(descriptor,{'explicit':'test-control-only'})
+    control.put('jobs/test/job.json',descriptor,int(time.time())+30)
+    assert (control_dir/'jobs/test/job.json').is_file() and not record_dir.exists()
+    exports=[]
+    def anchor(registration,root,envelopes,*args,**kwargs):
+        receipt=m.snapshot(recording,registration,root,tmp_path/'initial-export',int(time.time())+60)
+        exports.append(receipt)
+        recording.put('request-stop',descriptor,int(time.time())+30,replace=True)
+        return {'explicit-test-double':'publisher verification excluded from this CPU transport fixture'}
+    monkeypatch.setattr(rec,'await_anchor',anchor)
+    result=run()
+    assert result['result']=='STOPPED' and result['control']['global_step']==0
+    assert len(exports)==1 and exports[0]['checkpoint']['state_root']==reference[0]['body']['checkpoint']['state_root']
+    assert (record_dir/'request-stop').is_file() and not(control_dir/'request-stop').exists()
 
 
 def test_changed_registration_between_signature_check_and_load_is_rejected(tmp_path,monkeypatch):

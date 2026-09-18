@@ -70,22 +70,22 @@ finally:
 
 
 REMOTE_GET=r'''
-import hashlib,json,os,stat,sys
+import base64,hashlib,json,os,stat,sys
 from pathlib import Path
 root,name,size,action=sys.argv[1:];size=int(size)
-if action not in ('get','describe'):raise ValueError('action')
+if action not in ('get','describe','observe'):raise ValueError('action')
 if not root.startswith('/') or '..' in Path(root).parts or str(Path(root))!=root or any(x in ('','.','..') for x in name.split('/')):raise ValueError('path')
 path=Path(root)/name;current=Path('/')
 for part in path.parts[1:]:
  current=current/part
  if current.is_symlink():raise ValueError('symlink path')
-if action=='describe' and not path.exists():
+if action in ('describe','observe') and not path.exists():
  print(json.dumps({'path':name,'present':False},sort_keys=True,separators=(',',':')));raise SystemExit(0)
 fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
 with os.fdopen(fd,'rb') as f:
  info=os.fstat(f.fileno())
- if not stat.S_ISREG(info.st_mode) or not 0<info.st_size<=size or action=='get' and info.st_size!=size:raise ValueError('file length/type')
- count=0;h=hashlib.sha256()
+ if not stat.S_ISREG(info.st_mode) or not 0<=info.st_size<=size or action=='get' and info.st_size!=size:raise ValueError('file length/type')
+ count=0;h=hashlib.sha256();observed=bytearray()
  while True:
   data=f.read(min(1024*1024,size-count+1))
   if not data:break
@@ -93,8 +93,10 @@ with os.fdopen(fd,'rb') as f:
   if count>size:raise ValueError('file grew')
   h.update(data)
   if action=='get':sys.stdout.buffer.write(data)
+  elif action=='observe':observed.extend(data)
  if count!=info.st_size:raise ValueError('file length changed')
  if action=='describe':print(json.dumps({'path':name,'present':True,'bytes':count,'sha256':h.hexdigest()},sort_keys=True,separators=(',',':')))
+ if action=='observe':print(json.dumps({'path':name,'present':True,'bytes':count,'sha256':h.hexdigest(),'data_b64':base64.b64encode(observed).decode()},sort_keys=True,separators=(',',':')))
  sys.stdout.buffer.flush()
 '''
 
@@ -152,7 +154,7 @@ class Transport:
 
     def stream(self,argv,destination,maximum,deadline,*,source=None,source_bytes=None,progress=None):
         integer(maximum,0,2**40,'transfer output bound');integer(deadline,1,2**53-1,'transfer deadline')
-        if source is not None:integer(source_bytes,1,2**40,'transfer input bound')
+        if source is not None:integer(source_bytes,0,2**40,'transfer input bound')
         remaining=deadline-self.wall()
         if remaining<=0:raise EvidenceError('transfer deadline expired')
         end=self.monotonic()+remaining;out_count=in_count=0;errors=bytearray();pending=b'';input_done=source is None
@@ -218,18 +220,40 @@ class Transport:
         value=parse_json(reply.getvalue(),canonical_required=False)
         if value=={'path':name,'present':False}:return None
         fields(value,'path present bytes sha256','SSH peer inventory');require_digest(value['sha256'])
-        integer(value['bytes'],1,maximum,'remote inventory file size')
+        integer(value['bytes'],0,maximum,'remote inventory file size')
         if value['path']!=name or value['present'] is not True:raise EvidenceError('SSH peer inventory differs')
         return {k:value[k] for k in ('path','bytes','sha256')}
 
+    def read_live(self,name,maximum,deadline):
+        """One open file description for atomic writer metadata; no trust credit.
+
+        Inspect-then-fetch is for immutable selected files. Mutable status can
+        be atomically replaced between those calls, so retain one bounded read.
+        """
+        import base64,io
+        relative(name);integer(maximum,1,16*1024**2,'live metadata bound');reply=io.BytesIO()
+        self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(maximum),'observe'],reply,4*((maximum+2)//3)+4096,deadline)
+        value=parse_json(reply.getvalue(),canonical_required=False)
+        if value=={'path':name,'present':False}:return None
+        fields(value,'path present bytes sha256 data_b64','live SSH peer bytes');require_digest(value['sha256'])
+        integer(value['bytes'],0,maximum,'live observation size')
+        if value['path']!=name or value['present'] is not True or type(value['data_b64']) is not str:
+            raise EvidenceError('live SSH peer selection differs')
+        try:data=base64.b64decode(value['data_b64'],validate=True)
+        except Exception:raise EvidenceError('invalid live SSH encoding') from None
+        if len(data)!=value['bytes'] or hashlib.sha256(data).hexdigest()!=value['sha256']:
+            raise EvidenceError('live SSH bytes differ from their framing')
+        return data
+
     def get(self,name,destination,expected,deadline,*,progress=None):
         relative(name);fields(expected,'path bytes sha256','expected transfer');require_digest(expected['sha256'])
-        integer(expected['bytes'],1,2**40,'expected transfer size')
+        integer(expected['bytes'],0,2**40,'expected transfer size')
         if expected['path']!=name:raise EvidenceError('transfer path differs from selected inventory')
         destination=Path(destination)
         if destination.exists() or destination.is_symlink():raise EvidenceError('download requires fresh destination')
         partial=destination.with_name(destination.name+'.partial')
-        fd=os.open(partial,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        try:fd=os.open(partial,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+        except FileExistsError:raise EvidenceError('preserved partial from a prior attempt; select a fresh destination') from None
         with os.fdopen(fd,'wb') as f:
             result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],f,expected['bytes'],deadline,progress=progress)
             f.flush();os.fsync(f.fileno())
@@ -248,7 +272,7 @@ class Transport:
         if source.is_symlink() or not source.is_file():raise EvidenceError('regular upload source required')
         if type(replace) is not bool or replace and name not in ('external-progress-policies.json','request-stop'):
             raise EvidenceError('only explicit acknowledgement/stop controls may be replaced')
-        size=source.stat().st_size;integer(size,1,2**40,'upload size');root=file_hash(source);reply=io.BytesIO()
+        size=source.stat().st_size;integer(size,0,2**40,'upload size');root=file_hash(source);reply=io.BytesIO()
         argv=['/usr/bin/python3','-c',REMOTE_PUT,self.profile['remote_root'],name,str(size),root,'1' if replace else '0']
         with source.open('rb') as f:result=self.stream(argv,reply,4096,deadline,source=f,source_bytes=size,progress=progress)
         value=parse_json(reply.getvalue(),canonical_required=False)

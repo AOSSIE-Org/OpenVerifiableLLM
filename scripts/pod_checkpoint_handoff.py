@@ -8,6 +8,7 @@ proves artifact preservation only, never execution or sequential replay.
 """
 from dataclasses import asdict
 from pathlib import Path
+import os
 import time
 
 from ovl_pipeline.canonical import EvidenceError,canonical,confined,digest,inventory,read_json,sha256,write_json
@@ -20,11 +21,12 @@ from ovl_pipeline.state import read_state,unpack
 
 def observe(transport,name,destination,maximum,deadline,*,optional=False):
     """Fresh peer bytes, not an authenticated inventory or progress heartbeat."""
-    item=transport.inspect(name,maximum,deadline)
-    if item is None:
+    data=transport.read_live(name,maximum,deadline)
+    if data is None:
         if optional:return None
         raise EvidenceError('required remote observation is absent')
-    transport.get(name,destination,item,deadline)
+    fd=os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    with os.fdopen(fd,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
     return read_json(destination)
 
 
@@ -130,12 +132,20 @@ def deliver(transport,registration,root,snapshot_directory,ack,policies,output,d
     if index==0:allowed.append(None)
     if previous not in allowed:raise EvidenceError('remote policy prefix would be rolled back or replaced')
     transfers=[]
-    # Include the whole verified prefix so an interrupted handoff can be adopted.
-    # Existing different bytes fail at the immutable transfer layer.
-    for i in range(index+1):
-        for name in ('statement.json','statement.sigstore.json'):
-            relative=f'progress-{i:05d}/{name}'
-            transfers.append(transport.put('anchors/'+relative,confined(anchors,relative),deadline))
+    # One bounded remote inventory avoids two SSH handshakes for every old
+    # boundary on every delivery. This is a peer observation only: the recorder
+    # still verifies the complete public prefix before advancing numerically.
+    from pod_job_client import tree
+    remote=tree(transport,'anchors',deadline,allow_missing=True)
+    expected=inventory(anchors,[f'progress-{i:05d}/{name}' for i in range(index+1)
+                               for name in ('statement.json','statement.sigstore.json')])
+    selected={f['path']:f for f in expected}
+    for f in remote:
+        if selected.get(f['path'])!=f:raise EvidenceError('existing remote anchor bytes differ; preserve rather than overwrite')
+    present={f['path'] for f in remote}
+    for f in expected:
+        if f['path'] not in present:
+            transfers.append(transport.put('anchors/'+f['path'],confined(anchors,f['path']),deadline))
     if observe(transport,'awaiting-anchor.json',output/'final-waiting.json',1024**2,deadline)!=waiting:
         raise EvidenceError('pod advanced during anchor delivery')
     policy_file=output/'external-progress-policies.json';write_json(policy_file,values)

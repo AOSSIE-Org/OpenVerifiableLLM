@@ -72,6 +72,28 @@ def test_one_shot_create_graceful_shutdown_and_verified_absence(tmp_path):
     f.run();assert f.writes==1
 
 
+@pytest.mark.parametrize('field',['progress_epoch','exported_checkpoint_epoch'])
+@pytest.mark.parametrize('value',['not-an-epoch',False,None,-1,2**54])
+def test_malformed_health_epochs_request_export_grace_before_teardown(tmp_path,field,value):
+    f=RentalFake(tmp_path);original=f.refresh
+    def refresh():
+        original()
+        if f.alive:
+            h=read_json(f.health);h[field]=value;write_json(f.health,h)
+    # Oversized integers are rejected by the producer canonicalizer as well;
+    # write the adversarial file directly to exercise the consumer boundary.
+    if value==2**54:
+        def refresh():
+            original()
+            if f.alive:
+                h=read_json(f.health);h[field]=value;f.health.write_text(json.dumps(h))
+    f.refresh=refresh;f.run()
+    stop=read_json(f.directory/'stop-request.json')
+    assert 'invalid-workload-export-health' in stop['reasons']
+    first=next(c for c in f.calls if c[0]=='terminate')
+    assert first[2]>=stop['observed_epoch']+f.i['plan']['input']['checkpoint_grace_seconds']
+
+
 def test_unknown_create_response_is_adopted_and_aborted_never_reissued(tmp_path):
     f=RentalFake(tmp_path);f.create_failure=True;f.run()
     assert f.writes==1 and not f.alive

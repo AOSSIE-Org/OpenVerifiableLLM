@@ -22,11 +22,19 @@ Those operations still require the live workload/controller integration.
 `scripts/pod_checkpoint_handoff.py` now supplies the bounded SSH snapshot and
 acknowledgement operations. Its CLI authenticates source/registration policies and
 code before any remote command. Select a profile for the already adopted pod,
-private local SSH key and pinned known-hosts file. The profile's remote root must
+private local SSH key and pinned known-hosts file. The checkpoint-handoff profile's remote root must
 be the recorder's output directory, `/workspace/ovllm/OWNED_NAME`; use its
 `anchors/` subdirectory and root `external-progress-policies.json` as recorder
 arguments. Neither SSH host-key TOFU nor provider endpoint metadata attests GPU
 hardware or training.
+
+Use a separate job-control profile, such as `/workspace/ovllm/OWNED_NAME-jobs`,
+for the worker script and launch journals. Its host, pod ID and host-key selection
+must match the handoff profile. Uploading `tools/` or `jobs/` into the recorder
+output would create that directory before `production_record` can enforce its
+fresh-output requirement. The handoff profile is used only after the recorder
+creates its own output. The existing local tests do not yet validate this complete
+production launch arrangement; it is a production-integration prerequisite.
 
 Run `snapshot` with `--profile`, `--key`, `--known-hosts`, `--packet`,
 `--registration-bundle`, `--production-policy`, `--source-policy`,
