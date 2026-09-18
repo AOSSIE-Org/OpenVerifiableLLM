@@ -142,9 +142,13 @@ def infer(directory,r,phase,prompt,*,max_new_tokens=64,expected_model_root=None)
             value=int(model(torch.tensor([tokens[-context:]],dtype=torch.int64))[0,-1].argmax())
             tokens.append(value);generated.append(value)
             if value==EOS:break
+    from .training import environment
+    from .gpu import host_runtime
     return {'schema':'ovl.local-generation.v1','registration_sha256':digest(r),'phase':phase,'prompt':prompt,
+            'prompt_utf8_sha256':sha256(prompt.encode()),'model_root':read_json(directory/'config.json')['model_root'],
             'input_ids':inputs,'output_ids':generated,'decoded_text':tok.decode([v-OFFSET for v in generated if v>=OFFSET]),
             'control_output_ids':[v for v in generated if v<OFFSET],'decoding':'greedy','max_new_tokens':max_new_tokens,
+            'sampling_rng_used':False,'runtime':{'software':environment(),'host':host_runtime()},
             'inference_config_sha256':file_hash(directory/'config.json'),'performed_by':'project-operator',
             'factual_accuracy':'NOT_ESTABLISHED_BY_PROVENANCE'}
 
