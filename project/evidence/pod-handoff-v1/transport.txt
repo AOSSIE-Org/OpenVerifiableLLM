@@ -1,0 +1,28 @@
+........................                                                 [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_pod_transfer.py::test_full_upload_download_and_verified_immutable_adoption
+PASSED tests/test_pod_transfer.py::test_only_policy_or_stop_controls_can_be_atomically_replaced
+PASSED tests/test_pod_transfer.py::test_untrusted_download_bytes_preserve_partial_but_never_success[changed-bytes]
+PASSED tests/test_pod_transfer.py::test_untrusted_download_bytes_preserve_partial_but_never_success[oversized]
+PASSED tests/test_pod_transfer.py::test_untrusted_download_bytes_preserve_partial_but_never_success[short]
+PASSED tests/test_pod_transfer.py::test_untrusted_download_bytes_preserve_partial_but_never_success[missing]
+PASSED tests/test_pod_transfer.py::test_bounded_failure_closes_owned_process_and_does_not_renew_deadline[hang]
+PASSED tests/test_pod_transfer.py::test_bounded_failure_closes_owned_process_and_does_not_renew_deadline[stderr-flood]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[../seed.key]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[/root/key]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[a/../../key]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[-o ProxyCommand=bad]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[a;command]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[a//b]
+PASSED tests/test_pod_transfer.py::test_remote_path_cannot_escape_or_become_a_shell_option[a/./b]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[key-mode]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[key-symlink]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[hostkey-bytes]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[profile-extra]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[hostname-shell]
+PASSED tests/test_pod_transfer.py::test_invalid_local_key_or_endpoint_selection_fails_before_network[unscoped-root]
+PASSED tests/test_pod_transfer.py::test_remote_symlink_cannot_redirect_acknowledgement_or_overwrite_checkpoint
+PASSED tests/test_pod_transfer.py::test_even_matching_bytes_cannot_be_fetched_through_remote_symlink
+PASSED tests/test_pod_transfer.py::test_bounded_live_json_inventory_is_only_a_peer_observation
+24 passed in 1.41s

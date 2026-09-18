@@ -19,6 +19,40 @@ the whole prefix before another update. This script does not provision, terminat
 transfer from a pod, deliver that acknowledgement or assert training verification.
 Those operations still require the live workload/controller integration.
 
+`scripts/pod_checkpoint_handoff.py` now supplies the bounded SSH snapshot and
+acknowledgement operations. Its CLI authenticates source/registration policies and
+code before any remote command. Select a profile for the already adopted pod,
+private local SSH key and pinned known-hosts file. The profile's remote root must
+be the recorder's output directory, `/workspace/ovllm/OWNED_NAME`; use its
+`anchors/` subdirectory and root `external-progress-policies.json` as recorder
+arguments. Neither SSH host-key TOFU nor provider endpoint metadata attests GPU
+hardware or training.
+
+Run `snapshot` with `--profile`, `--key`, `--known-hosts`, `--packet`,
+`--registration-bundle`, `--production-policy`, `--source-policy`,
+`--source-checkout`, `--output FRESH_SNAPSHOT`, and `--deadline ABSOLUTE_EPOCH`.
+It downloads chain/waiting metadata, verifies the exact run-signed schedule,
+transfers all three checkpoint files against that signed inventory, decodes the
+safe state/control, and re-reads both remote markers before recording export.
+This receipt establishes a complete local copy, not public availability or replay.
+Missing, changed and interrupted copies remain preserved without a PASS receipt.
+
+After the publisher above returns its verified acknowledgement, run `deliver`
+with those same identity/transport options, a fresh output directory,
+`--snapshot-directory FRESH_SNAPSHOT`, `--ack PUBLICATION/ack.json` and
+`--progress-policies SEPARATELY_SELECTED_POLICIES`. It recomputes state integrity
+and every public signature under the external policies, checks the pod is still
+paused at that boundary and rejects any policy rollback. Immutable anchor files
+are copied first; the policy list is installed atomically last. An interruption
+can leave anchor files but cannot authorize advancement with a partial prefix.
+The recorder independently verifies again. A retry verifies and adopts matching
+immutable bytes; it never overwrites an existing different anchor. Delivery does
+not repeat the publisher's public network downloads or prove recorder advancement.
+
+The persistent stage runner, cost-health integration and stop/export lifecycle
+remain prerequisites to a paid workload. These CLI operations do not provision
+resources, renew deadlines or mark the whole workload complete.
+
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/publish_progress_boundary.py \
   --packet REGISTRATION_PACKET --registration-bundle REGISTRATION_BUNDLE \

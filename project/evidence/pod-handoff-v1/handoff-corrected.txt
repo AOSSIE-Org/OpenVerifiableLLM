@@ -1,0 +1,21 @@
+.................                                                        [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_pod_checkpoint_handoff.py::test_complete_signed_state_export_and_recheck_before_receipt
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[signature]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[registration]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[waiting]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[state-marker]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[metadata-race]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[missing-state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_verified_public_ack_then_recorder_reverification_and_idempotent_retry
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[saved-pass]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[policy]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[anchor]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[local-state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[waiting]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[rollback]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[partial-put]
+PASSED tests/test_pod_checkpoint_handoff.py::test_changed_registration_between_signature_check_and_load_is_rejected
+17 passed in 6.50s
