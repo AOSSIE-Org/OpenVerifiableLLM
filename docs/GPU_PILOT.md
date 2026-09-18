@@ -1,7 +1,7 @@
 # GPU development pilot and complete update census
 
-This path is development infrastructure. No real CUDA measurement or production
-admission has passed yet. CPU-substitute orchestration tests do not establish GPU
+This path is development infrastructure. An eight-update synthetic CUDA record passed in the fourth live attempt;
+complete CUDA replay and production admission remain pending. CPU-substitute orchestration tests do not establish GPU
 numerical reproducibility, feasibility, model quality or independent verification.
 
 ## Numerical profile

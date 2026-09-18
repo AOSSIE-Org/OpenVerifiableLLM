@@ -44,7 +44,7 @@ class Health:
         elif previous!=[identity]:raise EvidenceError('workload health identity differs from retained journal')
         self.lifetime=Lifetime(journal,self.plan,wall=wall,clock=clock,initialize=fresh)
         self.progress=self.exported=self.plan['input']['now_epoch'];self.complete=False
-        self.jobs={};self.transfers={};self.activities={};self.exports=set()
+        self.jobs={};self.transfers={};self.activities={};self.phase_activities={};self.exports=set()
         self._complete_verified=False
         for event in journal.events:
             body=event['body']
@@ -62,6 +62,7 @@ class Health:
         if kind=='job-start':self.jobs[d['job_sha256']]={'finished':False,'selection':d}
         elif kind=='bytes':self.transfers[d['operation_sha256']]=d
         elif kind=='activity':self.activities[d['job_sha256']]=d['observation']
+        elif kind=='pilot-phases':self.phase_activities[d['job_sha256']]=d['observation']
         elif kind=='export':self.exports.add(d['export_sha256'])
         elif kind in ('job-exit','job-abandon'):self.jobs[d['job_sha256']]['finished']=True
         elif kind!='complete':raise EvidenceError('unknown cost activity event')
@@ -128,6 +129,8 @@ class Health:
 
     def activity(self,job,observation):
         self.active(job)
+        if type(observation) is dict and observation.get('schema')=='ovl.audited-pilot-phases.v1':return self.pilot_phases(job,observation)
+        if job in self.phase_activities:raise EvidenceError('job changed its activity protocol')
         fields(observation,'schema process_instance pid sequence kind control scope','runtime activity')
         if (observation['schema']!='ovl.runtime-activity.v1' or observation['kind']!='completed-numerical-update'
             or observation['scope']!='operator-supervision-only-not-training-verification'
@@ -150,6 +153,38 @@ class Health:
         # initialization starts. This is liveness, never a monotonic coverage proof.
         self.event('activity',{'job_sha256':job,'observation':observation},progress=changed)
         return changed
+
+    def pilot_phases(self,job,observation):
+        """At most three completed audited phases; never a heartbeat or export.
+
+        The selected trusted wrapper emits these only after child success and
+        report checks. This remains peer-reported operational progress, not proof
+        of arithmetic, authenticity, safe-state retention or training acceptance.
+        """
+        self.active(job)
+        if self.jobs[job]['selection']['kind']!='pilot' or job in self.activities:
+            raise EvidenceError('completed-phase activity requires a distinct pilot wrapper')
+        fields(observation,'schema process_instance pid completed scope','audited pilot phase activity')
+        if (observation['schema']!='ovl.audited-pilot-phases.v1'
+            or observation['scope']!='operator-supervision-only-not-training-verification'
+            or type(observation['process_instance']) is not str or not re.fullmatch('[0-9a-f]{32}',observation['process_instance'])):
+            raise EvidenceError('unsupported audited pilot phase activity')
+        integer(observation['pid'],1,2**31-1,'pilot wrapper PID')
+        completed=observation['completed']
+        if type(completed) is not list or not 1<=len(completed)<=3:raise EvidenceError('bounded completed pilot prefix required')
+        for item,phase in zip(completed,('record','replay','resume')):
+            fields(item,'phase report_sha256','completed audited pilot phase');require_digest(item['report_sha256'])
+            if item['phase']!=phase:raise EvidenceError('audited pilot phases reordered')
+        if len({x['report_sha256'] for x in completed})!=len(completed):raise EvidenceError('pilot phases repeat a report')
+        previous=self.phase_activities.get(job)
+        if previous:
+            if any(previous[k]!=observation[k] for k in ('process_instance','pid')):
+                raise EvidenceError('pilot wrapper process changed')
+            if completed[:len(previous['completed'])]!=previous['completed']:
+                raise EvidenceError('completed pilot prefix changed or regressed')
+            if previous==observation:return False
+        self.event('pilot-phases',{'job_sha256':job,'observation':observation},progress=True)
+        return True
 
     def exported_files(self,job,directory,expected):
         """Verify actual complete selected file bytes, not a report's PASS field.

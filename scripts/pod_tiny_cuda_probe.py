@@ -13,6 +13,8 @@ from pathlib import Path
 import subprocess
 import sys
 import time
+import tempfile
+import uuid
 
 
 def sha(path):
@@ -27,34 +29,62 @@ def probe(setup_script,setup_sha256,config,config_sha256,inputs,runtime,stream,r
         if not p.is_absolute() or any(v.is_symlink() for v in [p,*p.parents]):raise ValueError('absolute regular selected paths required')
     if sha(setup_script)!=setup_sha256 or sha(config)!=config_sha256:raise ValueError('selected launcher/config differs')
     if output.exists():raise ValueError('fresh probe output required')
-    if not 0<deadline-time.time()<=900:raise ValueError('bounded original probe deadline required')
-    # This tiny multi-process wrapper deliberately emits no numerical liveness
-    # across process identities. Bound all three audited processes below the
-    # external controller's 300-second no-progress interval, including cleanup.
-    deadline=min(deadline,int(time.time())+240)
+    if os.environ.get('OVL_ACTIVITY_FILE')!=str(output/'activity.json'):
+        raise ValueError('selected completed-phase activity path required')
+    if not 0<deadline-time.time()<=1500:raise ValueError('bounded original probe deadline required')
+    # Every independently audited process is material work. Only successfully
+    # checked phase reports advance the bounded prefix below; never manufacture
+    # numerical liveness by combining different child process identities.
+    deadline=min(deadline,int(time.time())+720)
     monotonic_end=time.monotonic()+deadline-time.time()
     output.mkdir(mode=0o700,parents=True)
+    process_instance=uuid.uuid4().hex;completed=[]
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PYTHONDONTWRITEBYTECODE':'1'}
+    def observed(phase,report):
+        if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original probe deadline expired')
+        completed.append({'phase':phase,'report_sha256':sha(report)})
+        value={'schema':'ovl.audited-pilot-phases.v1','process_instance':process_instance,'pid':os.getpid(),
+               'completed':completed,'scope':'operator-supervision-only-not-training-verification'}
+        path=output/'activity.json'
+        if path.is_symlink():raise ValueError('activity symlink')
+        fd,name=tempfile.mkstemp(prefix='.activity-',dir=output)
+        with os.fdopen(fd,'w') as f:
+            json.dump(value,f,sort_keys=True,separators=(',',':'),allow_nan=False);f.flush();os.fsync(f.fileno())
+        os.replace(name,path)
+        fd=os.open(output,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(fd)
+        finally:os.close(fd)
     def run(name,args):
         remaining=min(deadline-time.time(),monotonic_end-time.monotonic())
         if remaining<=0:raise TimeoutError('original probe deadline expired')
         command=[sys.executable,'-I','-S',str(setup_script),'launch','--config',str(config),'--config-sha256',config_sha256,
                  '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/(name+'-launch')),'--module','ovl_pipeline.gpu_pilot','--',*args]
-        execute(command,env=env,check=True,timeout=remaining)
+        # v4's first fully audited phase took ~135s. Allow 240s per phase,
+        # below the unchanged 300s useful-progress guard; the combined 720s
+        # ceiling and original selected job deadline still dominate.
+        execute(command,env=env,check=True,timeout=min(remaining,240))
     run('record',['record','--recipe',str(recipe),'--kernel',str(kernel),'--updates','8','--warmup-updates','2','--checkpoint-every','4',
                   '--stream',str(stream),'--output',str(output/'record')])
     record=output/'record/record.json';record_sha=sha(record)
+    r=json.loads(record.read_bytes())
+    if (r.get('schema')!='ovl.gpu-pilot-record.v1' or r.get('result')!='RECORDED_NOT_REPLAYED'
+        or r['updates']!=8 or r['eligible_duration_for_forecast'] is not False or len(r['boundaries'])!=3):raise ValueError('unexpected tiny record')
+    observed('record',record)
     args=['replay','--record-directory',str(output/'record'),'--expected-record-sha256',record_sha,'--stream',str(stream)]
-    run('replay',[*args,'--output',str(output/'replay')])
-    run('resume',[*args,'--output',str(output/'resume'),'--resume-from','1'])
-    # The numerical module owns these checks; verify its required report scope
-    # before this operational wrapper declares completion as well.
-    reports={name:json.loads((output/name/file).read_bytes()) for name,file in [('record','record.json'),('replay','verification.json'),('resume','verification.json')]}
-    r=reports['record'];v=reports['replay'];s=reports['resume']
-    if r['updates']!=8 or r['eligible_duration_for_forecast'] is not False or len(r['boundaries'])!=3:raise ValueError('unexpected tiny record')
-    for value,count,scope in ((v,8,'fresh-initialization-continuous-pilot-replay'),(s,4,'training-resume-continuation-probe')):
-        if (value['result']!='PASS' or value['scope']!=scope or value['updates_recomputed']!=count or value['record_sha256']!=record_sha
+    reports={}
+    for name,count,scope in (('replay',8,'fresh-initialization-continuous-pilot-replay'),('resume',4,'training-resume-continuation-probe')):
+        run(name,[*args,'--output',str(output/name),*(['--resume-from','1'] if name=='resume' else [])])
+        report=output/name/'verification.json';value=json.loads(report.read_bytes());reports[name]=value
+        if (value.get('schema')!='ovl.gpu-pilot-replay.v1' or value['result']!='PASS' or value['scope']!=scope or value['updates_recomputed']!=count or value['record_sha256']!=record_sha
             or value['initial_state_regenerated'] is not True or value['independent_third_party'] is not False):raise ValueError('incomplete selected probe')
+        if sha(record)!=record_sha:raise ValueError('record changed')
+        if name=='replay' and len(value['compared'])!=3:raise ValueError('incomplete pilot boundary comparison')
+        if value.get('resume_from')!=(1 if name=='resume' else None):raise ValueError('wrong selected resume boundary')
+        # This particular resume regenerates zero, restores boundary one, then
+        # recomputes to boundary two: all three comparisons must equal replay.
+        if name=='resume' and value['compared']!=reports['replay']['compared']:raise ValueError('probe compared states differ')
+        observed(name,report)
+    v=reports['replay'];s=reports['resume']
     if s['compared'][-1]!=v['compared'][-1] or len(v['compared'])!=3:raise ValueError('probe final state differs')
     if sha(record)!=record_sha or min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise ValueError('record changed or original deadline expired')
     result={'schema':'ovl.tiny-cuda-probe.v1','result':'PASS','record_sha256':record_sha,
