@@ -1,0 +1,57 @@
+{
+  "schema": "ovl.development-checks.v1",
+  "parent_revision": "d8a8c8385116469d93cd92653a8c670adde78f10",
+  "result": "595 passed, 3 existing CUDA-dependent skips",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "sources": [
+    {
+      "path": "src/ovl_pipeline/runtime_audit.py",
+      "sha256": "63c8dc34cc119df6d346819462fc284b4ebb17d0430883378f1f8155692c598a"
+    },
+    {
+      "path": "src/ovl_pipeline/runtime_bootstrap.py",
+      "sha256": "1d1f950c67238630b9260eb0c1d61db0d1beb4568ec428302cc3001c76d1e00b"
+    },
+    {
+      "path": "src/ovl_pipeline/runtime_launch.py",
+      "sha256": "05e54b1e872e9d1ac3aaa9b0c4409c4c5f92246bb32c7c9362544d6c1e200fd7"
+    },
+    {
+      "path": "src/ovl_pipeline/gpu.py",
+      "sha256": "65aa2e9013c77973434d8b08223a81a39c13386f18e972ede2157a0da6bee0bc"
+    },
+    {
+      "path": "tests/test_runtime_audit.py",
+      "sha256": "853583300bfe1ec236b31dc0927ccefc3e231ca2a82b4dc0a47f05a050625e8f"
+    },
+    {
+      "path": "tests/test_runtime_launch.py",
+      "sha256": "49d62bbe4632d76e3202ad1e5b00e1baeb6766342322cc2b1cae107ad736f10b"
+    },
+    {
+      "path": "tests/test_gpu_kernel.py",
+      "sha256": "74dfc4f41b81dc9b0d4ee658c1d91fdcbd84e608098c80b70cda1c5927e0f21a"
+    }
+  ],
+  "actual_package_audit": {
+    "packages": 76,
+    "compressed_wheel_bytes": 3102821057,
+    "installed_payload_files": 19776,
+    "installed_payload_bytes": 5790157589,
+    "wheel_manifest_sha256": "7efc6d5eace59b57e11b3bf4928dd9d736f41fae742578047aa50319bfbf6c6e",
+    "installed_audit_sha256": "197ee18fb07d50a14e3a1f90a9705e143d0ebb8858d6ea2f6c103361fec29e9a"
+  },
+  "checks": [
+    "All selected wheels freshly downloaded with pip --require-hashes --only-binary=:all: --no-deps --no-cache-dir and the full GPU lock.",
+    "Complete member hashing and all installed payload bytes matched; forged installed RECORD does not excuse altered code.",
+    "Real stale .pyc counterexample executes EVIL under ordinary import and CLEAN under fresh-cache constrained bootstrap; site hook not run.",
+    "Actual target startup inspection, full tiny fixture and separate-process full raw reconstruction/replay passed through externally audited launcher.",
+    "GPU configure now requires launch evidence; numerical flag unit tests explicitly double launch admission. Actual CUDA NOT_RUN."
+  ],
+  "limits": [
+    "Original wheel/package equality is not interpreter/stdlib/container/hardware attestation.",
+    "Operator-selected UV hook hashes record local trusted installer bytes, not independently proven origin. Hooks are not executed under -S.",
+    "Parent verifier, source and roots must be trusted and unchanged during execution; no hostile-process sandbox or independent verification.",
+    "All production gates G02-G10 remain pending."
+  ]
+}

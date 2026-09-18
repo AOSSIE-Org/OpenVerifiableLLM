@@ -77,6 +77,8 @@ def configure(config):
     validate_config(config)
     if not torch.__version__.startswith("2.14.0+") or torch.version.cuda is None:
         raise EvidenceError("GPU profile requires an explicitly pinned PyTorch 2.14.0 CUDA build")
+    from .runtime_launch import current_launch
+    current_launch()
     required = {"CUBLAS_WORKSPACE_CONFIG":WORKSPACE, "TOKENIZERS_PARALLELISM":"false", "CUDA_VISIBLE_DEVICES":"0",
                 "OMP_NUM_THREADS":"1", "MKL_NUM_THREADS":"1", "OPENBLAS_NUM_THREADS":"1",
                 "PYTHONHASHSEED":"0", "USE_PYTORCH_KERNEL_CACHE":"0"}
@@ -201,7 +203,9 @@ def environment(config):
                 libraries[str(path)] = {"name":path.name,"bytes":path.stat().st_size,"sha256":file_hash(path)}
     if not libraries or not any(e["name"].startswith("libcuda.") for e in libraries.values()):
         raise EvidenceError("missing mapped CUDA driver library identity")
+    from .runtime_launch import current_launch
     compatible = {"schema":"ovl.gpu-environment.v1", "kernel":config,
+        "installed_wheel_audit":current_launch(),
         "python":platform.python_version(),"machine":platform.machine(),"system":platform.system(),
         "initialization_host":host_runtime(),
         "torch_build":torch.__config__.show(),"cuda_build":torch.version.cuda,

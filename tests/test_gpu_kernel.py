@@ -98,11 +98,14 @@ def test_cuda_initialization_cannot_silently_use_unconfigured_device(monkeypatch
 @pytest.mark.parametrize("noop", [False, True])
 def test_precision_setters_against_literal_profile_and_noop_rejected(noop):
     # Execute actual precision setters in a fresh CPU process; fake only CUDA
-    # availability/initialization. This is configuration coverage, not GPU proof.
+    # availability/initialization and audited-launch admission. This is isolated
+    # precision configuration coverage, not GPU or installed-runtime proof.
     code = '''
 import torch
 from ovl_pipeline import gpu
+from ovl_pipeline import runtime_launch
 from ovl_pipeline.canonical import EvidenceError
+runtime_launch.current_launch=lambda:{}  # explicit launcher double for flags only
 torch.__version__="2.14.0+cu130";torch.version.cuda="13.0"
 torch.cuda.is_initialized=lambda:False;torch.cuda.is_available=lambda:True
 torch.cuda.device_count=lambda:1;torch.cuda.set_device=lambda n:None
