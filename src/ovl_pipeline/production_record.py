@@ -11,7 +11,7 @@ import time
 
 from .anchoring import bounded_bytes
 from .canonical import EvidenceError,confined,digest,parse_json,read_json,write_json
-from .coverage import schedule_counts
+from .production_observation import schedule_counts
 from .initialization import process_identity
 from .production_anchoring import object_at,verify_packet
 from .production_chain import verify_artifacts,verify_chain

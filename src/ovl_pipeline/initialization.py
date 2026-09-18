@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import gpu_pilot,schema
 from .canonical import EvidenceError,canonical,confined,digest,read_json,require_digest,write_json
-from .data import validate_stream
+from .production_observation import validate_stream
 from .state import capture,read_state,save_state,state_root
 from .training import code_root
 

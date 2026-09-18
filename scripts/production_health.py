@@ -5,21 +5,24 @@ jobs/transports. This class never authenticates publisher identity on their beha
 or authorizes an update. The numerical record/replay drivers retain those gates.
 """
 from pathlib import Path
+import re
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
 from pod_checkpoint_handoff import state_check
 from production_retention import verify as verify_retention
 from publication_activity import validate as validate_publication
 from workload_health import Health,terminal_status
+from ovl_pipeline.production_observation import MAX_PASSES
 
 
 class ProductionHealth(Health):
     def __init__(self,journal,watchdog_intent,pod_id,registration,bindings,**kwargs):
         self.registration=registration;self.registration_root=digest(registration)
-        self.bindings=bindings;self.publications={}
+        self.bindings=bindings;self.publications={};self.scans={}
         super().__init__(journal,watchdog_intent,pod_id,**kwargs)
 
     def contract(self,job):
+        if digest(self.registration)!=self.registration_root:raise EvidenceError('selected production registration changed')
         require_digest(job)
         if job not in self.bindings:raise EvidenceError('production job lacks independently selected retention bindings')
         b=self.bindings[job];fields(b,'job_file worker_sha256 control transports','production retention binding')
@@ -46,6 +49,23 @@ class ProductionHealth(Health):
         self.event('job-start',selected);return True
 
     def _apply(self,body):
+        kind=body.get('kind');detail=body.get('detail',{})
+        if kind=='job-start' and detail.get('kind') in ('production-record','full-replay'):
+            if detail.get('retention_contract_sha256')!=digest(self.contract(detail['job_sha256'])):
+                raise EvidenceError('historical production retention contract differs')
+        if kind=='production-scan':
+            fields(body,'schema kind observed_epoch detail advances_progress advances_export completes','production scan cost event')
+            fields(detail,'job_sha256 observation','production scan cost detail')
+            advances=self._scan(detail['job_sha256'],detail['observation'])
+            integer(body['observed_epoch'],self.plan['input']['now_epoch'],self.plan['external_terminate_epoch'],'production scan clock')
+            if (body['schema']!='ovl.cost-activity-event.v2' or body['advances_progress'] is not advances
+                or body['advances_export'] is not False or body['completes'] is not False):
+                raise EvidenceError('invalid production scan cost decision')
+            self.scans[detail['job_sha256']]=detail['observation']
+            if advances:self.progress=max(self.progress,body['observed_epoch'])
+            return
+        if kind=='activity' and detail['job_sha256'] in self.scans:
+            self._scan_transition(detail['job_sha256'],detail['observation'])
         if body.get('kind')!='publication':return super()._apply(body)
         fields(body,'schema kind observed_epoch detail advances_progress advances_export completes','publication cost event')
         integer(body['observed_epoch'],self.plan['input']['now_epoch'],self.plan['external_terminate_epoch'],'publication event clock')
@@ -56,6 +76,55 @@ class ProductionHealth(Health):
         key=(d['job_sha256'],value['boundary_sha256'],value['stage'])
         if key in self.publications:raise EvidenceError('duplicate durable publication credit')
         self.publications[key]=value;self.progress=max(self.progress,body['observed_epoch'])
+
+    def _scan_transition(self,job,value):
+        previous=self.scans.get(job)
+        if previous and (any(value[k]!=previous[k] for k in ('process_instance','pid')) or value['sequence']<=previous['sequence']):
+            raise EvidenceError('numerical activity changed production scan process/sequence')
+
+    def _scan(self,job,value):
+        self.active(job);contract=self.contract(job)
+        if self.jobs[job]['selection'].get('retention_contract_sha256')!=digest(contract):
+            raise EvidenceError('selected production contract changed')
+        if job in self.activities or job in self.phase_activities:raise EvidenceError('production scan follows numerical activity')
+        fields(value,'schema process_instance pid sequence pass_index operation stream_sha256 documents completed_documents complete scope','production scan observation')
+        if (value['schema']!='ovl.runtime-production-scan.v1' or value['scope']!='operator-supervision-only-not-training-verification'
+            or value['operation'] not in ('stream-validation','coverage-census','boundary-cursor-census')
+            or type(value['process_instance']) is not str or not re.fullmatch('[0-9a-f]{32}',value['process_instance'])):
+            raise EvidenceError('unsupported production scan observation')
+        integer(value['pid'],1,2**31-1,'production scan PID');integer(value['sequence'],1,2**53-1,'production scan sequence')
+        integer(value['pass_index'],1,MAX_PASSES,'bounded production scan pass')
+        selected=[c for c in self.registration['coverage'].values() if c['stream_sha256']==value['stream_sha256']]
+        if len(selected)!=1 or selected[0]['documents']!=value['documents']:raise EvidenceError('production scan differs from registered stream')
+        integer(value['documents'],1,2**53-1,'production scan document total')
+        integer(value['completed_documents'],0,value['documents'],'production scanned prefix')
+        if type(value['complete']) is not bool or value['complete'] and value['completed_documents']!=value['documents']:
+            raise EvidenceError('production scan completion differs')
+        previous=self.scans.get(job)
+        if previous:
+            if any(value[k]!=previous[k] for k in ('process_instance','pid')):raise EvidenceError('production scan process changed')
+            if value['sequence']<previous['sequence'] or value['pass_index']<previous['pass_index']:
+                raise EvidenceError('production scan sequence/pass regressed')
+            if value['sequence']==previous['sequence'] and value!=previous:raise EvidenceError('same production scan sequence changed')
+            if value['pass_index']==previous['pass_index']:
+                if any(value[k]!=previous[k] for k in ('operation','stream_sha256','documents')):
+                    raise EvidenceError('production scan contract changed within pass')
+                if value['completed_documents']<previous['completed_documents']:raise EvidenceError('production scan prefix regressed')
+                if previous['complete'] and value!=previous:raise EvidenceError('completed production scan changed')
+                return value['completed_documents']>previous['completed_documents'] or value['complete'] and not previous['complete']
+        # A new pass alone is not progress. An actual checked prefix is required;
+        # polling may miss earlier/final snapshots of a fast nested scan.
+        return value['completed_documents']>0
+
+    def activity(self,job,value):
+        self.active(job)
+        if type(value) is dict and value.get('schema')=='ovl.runtime-production-scan.v1':
+            advances=self._scan(job,value)
+            if self.scans.get(job)==value:return False
+            self.event('production-scan',{'job_sha256':job,'observation':value},progress=advances)
+            return advances
+        if job in self.scans:self._scan_transition(job,value)
+        return super().activity(job,value)
 
     def publication(self,job,snapshot,deadline,value):
         self.active(job);contract=self.contract(job)

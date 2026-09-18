@@ -92,8 +92,7 @@ def verify_artifacts(registration,expected_registration_sha256,envelopes,checkpo
     establishes that the declared optimization trajectory actually happened.
     """
     from .canonical import confined
-    from .coverage import schedule_counts
-    from .production_cursors import boundary_cursors
+    from .production_observation import schedule_counts,boundary_cursors
     from .state import read_state,unpack
     checked=verify_chain(registration,expected_registration_sha256,envelopes,complete=complete)
     if type(stream_directories) is not dict or set(stream_directories)!={'wikipedia','conversation'}:
