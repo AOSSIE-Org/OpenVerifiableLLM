@@ -23,8 +23,10 @@ from .schema import fields
 from . import training
 
 WORKSPACE = ":4096:8"
+REQUIRED_WORKSPACES = {"cublas_bytes":32*1024**2,"cublaslt_bytes":32*1024**2}
 _configured = False
 REQUIRED_FLAGS = {
+    "preferred_blas_library":"cublaslt",
     "fp32_precision":"ieee", "matmul_fp32_precision":"ieee", "cudnn_fp32_precision":"ieee",
     "conv_fp32_precision":"ieee", "rnn_fp32_precision":"ieee", "bf16_reduced_precision":False,
     "bf16_split_k":False, "fp16_reduced_precision":False, "fp16_split_k":False,
@@ -42,6 +44,10 @@ def validate_config(value):
 
 def _set_flags():
     # PyTorch 2.14's new precision API; do not mix it with legacy allow_tf32.
+    # Disabling split-K requires cuBLASLt in the pinned CUDA build. A preference
+    # is not a promise that every operation uses Lt; unsupported operations may
+    # fall back. The complete pilot/replay still has to establish exactness.
+    torch.backends.cuda.preferred_blas_library("cublaslt")
     torch.backends.fp32_precision = "ieee"
     torch.backends.cuda.matmul.fp32_precision = "ieee"
     torch.backends.cudnn.fp32_precision = "ieee"
@@ -57,7 +63,8 @@ def _set_flags():
 
 
 def flags():
-    return {"fp32_precision": torch.backends.fp32_precision,
+    return {"preferred_blas_library": torch.backends.cuda.preferred_blas_library().name.lower(),
+            "fp32_precision": torch.backends.fp32_precision,
             "matmul_fp32_precision": torch.backends.cuda.matmul.fp32_precision,
             "cudnn_fp32_precision": torch.backends.cudnn.fp32_precision,
             "conv_fp32_precision": torch.backends.cudnn.conv.fp32_precision,
@@ -75,6 +82,12 @@ def flags():
             "threads": torch.get_num_threads(), "interop_threads": torch.get_num_interop_threads()}
 
 
+def workspaces():
+    # These getters can touch the driver; call only after explicit CUDA init.
+    return {"cublas_bytes":torch.backends.cuda.cublas_workspace_size(),
+            "cublaslt_bytes":torch.backends.cuda.cublaslt_workspace_size()}
+
+
 def configure(config):
     global _configured
     validate_config(config)
@@ -83,7 +96,8 @@ def configure(config):
     from .runtime_launch import current_launch
     if current_launch().get('interpreter_origin') is None:
         raise EvidenceError('GPU runtime requires externally audited public interpreter payloads')
-    required = {"CUBLAS_WORKSPACE_CONFIG":WORKSPACE, "TOKENIZERS_PARALLELISM":"false", "CUDA_VISIBLE_DEVICES":"0",
+    required = {"CUBLAS_WORKSPACE_CONFIG":WORKSPACE, "CUBLASLT_WORKSPACE_SIZE":"32768",
+                "TORCH_CUBLASLT_UNIFIED_WORKSPACE":"1", "TOKENIZERS_PARALLELISM":"false", "CUDA_VISIBLE_DEVICES":"0",
                 "OMP_NUM_THREADS":"1", "MKL_NUM_THREADS":"1", "OPENBLAS_NUM_THREADS":"1",
                 "PYTHONHASHSEED":"0", "USE_PYTORCH_KERNEL_CACHE":"0"}
     if any(os.environ.get(k) != v for k,v in required.items()):
@@ -96,14 +110,18 @@ def configure(config):
         raise EvidenceError("CUDA initialized before explicit kernel configuration; start a fresh process")
     if not torch.cuda.is_available() or torch.cuda.device_count() != 1:
         raise EvidenceError("exactly one visible CUDA GPU required; no CPU fallback")
+    if _configured and (flags()!=REQUIRED_FLAGS or workspaces()!=REQUIRED_WORKSPACES):
+        raise EvidenceError("GPU settings drifted before reconfiguration")
     if not _configured:
         torch.set_num_interop_threads(1)
     torch.set_num_threads(1)
     _set_flags()
     if flags() != REQUIRED_FLAGS:
-        raise EvidenceError("GPU runtime did not achieve the declared numerical profile")
+        raise EvidenceError("GPU settings differ from the declared numerical profile")
     torch.cuda.set_device(0)
     torch.cuda.init()
+    if workspaces()!=REQUIRED_WORKSPACES:
+        raise EvidenceError("GPU BLAS workspaces differ from the declared sizes")
     if config["precision"] == "bf16" and not torch.cuda.is_bf16_supported(including_emulation=False):
         raise EvidenceError("native GPU BF16 support required")
     _configured = True
@@ -122,6 +140,8 @@ def update(model, optimizer, batch, control, total, config, *, expected_flags, m
     if (not _configured or expected_flags != REQUIRED_FLAGS or flags() != REQUIRED_FLAGS or torch.cuda.current_device() != 0
             or next(model.parameters()).device != torch.device("cuda:0")):
         raise EvidenceError("GPU runtime changed after configuration")
+    if workspaces()!=REQUIRED_WORKSPACES:
+        raise EvidenceError("GPU BLAS workspaces changed after configuration")
     result=training.update(model, optimizer, batch, control, total,
                            precision=config["precision"], metrics=metrics)
     from .runtime_activity import update as observe_completed_update
@@ -255,10 +275,11 @@ def environment(config):
         "cudnn_version":cudnn_version,"driver_version":driver,
         "gpu":{"name":p.name,"compute_capability":[p.major,p.minor],"memory_bytes":p.total_memory,
                "multiprocessors":p.multi_processor_count,"warp_size":getattr(p,"warp_size",None)},
-        "flags":flags(),"packages":sorted(distributions,key=lambda e:e["name"]),
+        "flags":flags(),"blas_workspaces":workspaces(),"packages":sorted(distributions,key=lambda e:e["name"]),
         "loaded_numerical_libraries":libraries,
         "mapped_library_scope":"all file-backed shared ELF images at fingerprint time; path device/inode checked, not in-memory execution attestation",
-        "environment":{n:os.environ.get(n) for n in ["CUBLAS_WORKSPACE_CONFIG","CUDA_VISIBLE_DEVICES",
+        "environment":{n:os.environ.get(n) for n in ["CUBLAS_WORKSPACE_CONFIG","CUBLASLT_WORKSPACE_SIZE",
+            "TORCH_CUBLASLT_UNIFIED_WORKSPACE","CUDA_VISIBLE_DEVICES",
             "CUDA_LAUNCH_BLOCKING","CUDA_MODULE_LOADING","CUDA_CACHE_DISABLE","NVIDIA_TF32_OVERRIDE",
             "TORCH_ALLOW_TF32_CUBLAS_OVERRIDE","PYTORCH_CUDA_ALLOC_CONF","PYTORCH_ALLOC_CONF",
             "USE_PYTORCH_KERNEL_CACHE","OMP_NUM_THREADS","MKL_NUM_THREADS","OPENBLAS_NUM_THREADS",

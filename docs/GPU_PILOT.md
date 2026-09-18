@@ -13,6 +13,7 @@ overrides. Start each record/replay in a fresh process with:
 
 ```sh
 export CUBLAS_WORKSPACE_CONFIG=:4096:8
+export CUBLASLT_WORKSPACE_SIZE=32768 TORCH_CUBLASLT_UNIFIED_WORKSPACE=1
 export CUDA_VISIBLE_DEVICES=0 TOKENIZERS_PARALLELISM=false
 export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
 export PYTHONHASHSEED=0 USE_PYTORCH_KERNEL_CACHE=0
@@ -35,6 +36,23 @@ notes](https://docs.pytorch.org/docs/2.14/notes/cuda.html),
 The setters and every update assert the literal required flag profile; merely
 recording a self-consistent value is insufficient. Configuration flags alone do not guarantee reproducibility across hardware or
 software versions.
+
+The backend preference is explicitly cuBLASLt and is read back before every
+update. This is a preference setting, not proof of exclusive kernel dispatch.
+Both BLAS workspace sizes are bound to 32 MiB; the Lt environment variable uses
+KiB. Actual getters are checked after explicit CUDA initialization and before
+updates, and recorded in the compatible environment. Reconfiguration rejects
+existing flag/workspace drift before setting anything. The audited child receives
+a fixed executable path and locale, a fresh evidence HOME, deterministic settings
+and only the selected activity path; operator credentials and arbitrary shell
+overrides are not inherited.
+
+The third real tiny attempt exposed the missing backend preference and failed
+before recording training. PyTorch's BF16 cuBLAS GEMM guard uses an FP16-labelled
+error string in the [pinned upstream source](https://github.com/pytorch/pytorch/blob/v2.14.0/aten/src/ATen/cuda/CUDABlas.cpp#L1074).
+Host-only setters do not trigger that GEMM guard. CPU tests and real CUDA-wheel
+host readback checks therefore remain configuration evidence; the next actual
+GPU record/replay is required to validate the correction numerically.
 
 After warmup, the environment report records driver/build/device properties,
 precision flags, relevant environment variables, numerical package RECORD hashes

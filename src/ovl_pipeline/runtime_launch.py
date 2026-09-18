@@ -18,6 +18,7 @@ MODULES={'ovl_pipeline','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization',
          'ovl_pipeline.production_replay','ovl_pipeline.production_record','ovl_pipeline.production_export',
          'ovl_pipeline.runtime_audit','ovl_pipeline.runtime_launch'}
 DETERMINISTIC_ENV={'CUBLAS_WORKSPACE_CONFIG':':4096:8','TOKENIZERS_PARALLELISM':'false','CUDA_VISIBLE_DEVICES':'0',
+                   'CUBLASLT_WORKSPACE_SIZE':'32768','TORCH_CUBLASLT_UNIFIED_WORKSPACE':'1',
                    'OMP_NUM_THREADS':'1','MKL_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','PYTHONHASHSEED':'0',
                    'USE_PYTORCH_KERNEL_CACHE':'0'}
 
@@ -95,7 +96,11 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
             'allowed_generated':allowed_generated or {},'interpreter_origin':origin,
             'performed_by':'project-operator','production_admission':'NOT_RUN'}
     write_json(output/'launch.json',record)
-    env={k:v for k,v in os.environ.items() if not k.startswith('PYTHON') and k not in ('LD_PRELOAD','LD_LIBRARY_PATH','OVL_AUDITED_RUNTIME_LAUNCH')}
+    # Do not pass the operator's credentials, numerical overrides or executable
+    # search path to the numerical child. Only the selected liveness path crosses
+    # this boundary; it does not authorize updates or numerical acceptance.
+    env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(output)}
+    if 'OVL_ACTIVITY_FILE' in os.environ:env['OVL_ACTIVITY_FILE']=os.environ['OVL_ACTIVITY_FILE']
     env.update(DETERMINISTIC_ENV)
     command=[str(python),'-s','-S','-P','-X','pycache_prefix='+str(cache),str(bootstrap),
              '--source',str(source),'--site',str(site),'--launch-record',str(output/'launch.json'),'--module',module,'--',*arguments]

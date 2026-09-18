@@ -106,10 +106,20 @@ from ovl_pipeline import gpu
 from ovl_pipeline import runtime_launch
 from ovl_pipeline.canonical import EvidenceError
 runtime_launch.current_launch=lambda:{'interpreter_origin':{'explicit-test-double':True}}  # flags-only launcher double
+# CPU wheels cannot select a compiled CUDA backend. Double only this setting;
+# a separate pinned-CUDA-build host check exercises its actual setter/readback.
+from types import SimpleNamespace
+blas=SimpleNamespace(name='Cublas')
+def preferred(value=None):
+    if value is not None:blas.name={'cublas':'Cublas','cublaslt':'Cublaslt'}[value]
+    return blas
+torch.backends.cuda.preferred_blas_library=preferred
 torch.__version__="2.14.0+cu130";torch.version.cuda="13.0"
 torch.cuda.is_initialized=lambda:False;torch.cuda.is_available=lambda:True
 torch.cuda.device_count=lambda:1;torch.cuda.set_device=lambda n:None
 torch.cuda.init=lambda:None;torch.cuda.is_bf16_supported=lambda **k:True
+torch.backends.cuda.cublas_workspace_size=lambda:32*1024**2
+torch.backends.cuda.cublaslt_workspace_size=lambda:32*1024**2
 noop=NOOP
 if noop:
     torch.backends.cuda.matmul.fp32_precision="tf32"
@@ -120,14 +130,26 @@ if noop:
 else:
     got=gpu.configure({"schema":"ovl.gpu-kernel.v1","precision":"bf16"})
     assert got=={
+      "preferred_blas_library":"cublaslt",
       "fp32_precision":"ieee","matmul_fp32_precision":"ieee","cudnn_fp32_precision":"ieee",
       "conv_fp32_precision":"ieee","rnn_fp32_precision":"ieee","bf16_reduced_precision":False,
       "bf16_split_k":False,"fp16_reduced_precision":False,"fp16_split_k":False,
       "fp16_accumulation":False,"cudnn_benchmark":False,"cudnn_deterministic":True,
       "deterministic":True,"warn_only":False,"fill_uninitialized_memory":True,
       "threads":1,"interop_threads":1}
+    torch.backends.cuda.preferred_blas_library('cublas')
+    assert gpu.flags()!=gpu.REQUIRED_FLAGS
+    try:gpu.configure({"schema":"ovl.gpu-kernel.v1","precision":"bf16"})
+    except EvidenceError as e:assert 'drifted before reconfiguration' in str(e)
+    else:raise AssertionError('backend drift was silently repaired')
+    torch.backends.cuda.preferred_blas_library('cublaslt')
+    torch.backends.cuda.cublaslt_workspace_size=lambda:1
+    try:gpu.configure({"schema":"ovl.gpu-kernel.v1","precision":"bf16"})
+    except EvidenceError as e:assert 'drifted before reconfiguration' in str(e)
+    else:raise AssertionError('workspace drift was silently repaired')
 '''.replace("NOOP", repr(noop))
     env={**os.environ,"PYTHONHASHSEED":"0","CUBLAS_WORKSPACE_CONFIG":":4096:8","CUDA_VISIBLE_DEVICES":"0",
+         "CUBLASLT_WORKSPACE_SIZE":"32768","TORCH_CUBLASLT_UNIFIED_WORKSPACE":"1",
          "TOKENIZERS_PARALLELISM":"false","OMP_NUM_THREADS":"1","MKL_NUM_THREADS":"1","OPENBLAS_NUM_THREADS":"1",
          "USE_PYTORCH_KERNEL_CACHE":"0","NVIDIA_TF32_OVERRIDE":"0","TORCH_ALLOW_TF32_CUBLAS_OVERRIDE":"0"}
     subprocess.run([sys.executable,"-c",code],env=env,check=True,capture_output=True,text=True)

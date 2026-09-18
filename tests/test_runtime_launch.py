@@ -22,9 +22,15 @@ def setup(tmp_path):
 def test_parent_audits_before_target_and_sets_fresh_import_environment(tmp_path,monkeypatch):
     args=setup(tmp_path);calls=[]
     monkeypatch.setenv('PYTHONPATH','untrusted');monkeypatch.setenv('LD_PRELOAD','untrusted')
+    for name in ('HF_TOKEN','RUNPOD_API_KEY','NVIDIA_TF32_OVERRIDE','PATH','CUBLASLT_WORKSPACE_SIZE'):
+        monkeypatch.setenv(name,'hostile-value')
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(tmp_path/'activity.json'))
     def execute(command,env,check):
         calls.append(command);assert '-s' in command and '-S' in command and '-P' in command
         assert 'PYTHONPATH' not in env and 'LD_PRELOAD' not in env and env['PYTHONHASHSEED']=='0'
+        assert set(env)=={'PATH','LANG','HOME','OVL_ACTIVITY_FILE',*runtime_launch.DETERMINISTIC_ENV}
+        assert env['PATH']=='/usr/bin:/bin' and env['CUBLASLT_WORKSPACE_SIZE']=='32768'
+        assert env['OVL_ACTIVITY_FILE']==str(tmp_path/'activity.json')
         assert read_json(args[-1]/'installed-audit.json')['result']=='PASS'
         assert list((args[-1]/'pycache').iterdir())==[]
         return SimpleNamespace(returncode=0)

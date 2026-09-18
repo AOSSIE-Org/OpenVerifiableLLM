@@ -119,3 +119,10 @@ downloads, leaving 90 seconds of the unchanged 300-second setup budget.
 The second rehearsal completed setup but then stopped on a coordinator failure;
 all 193 selected files were preserved and freshly verified after public download.
 No active deadline was extended. CUDA and production acceptance remain pending.
+The third rehearsal completed setup in 74 operator-observed seconds, then the
+CUDA backend guard rejected its precision configuration. Automatic complete
+export and teardown succeeded; all 2,209 selected files (64,226,822 bytes) were
+freshly verified from the public archive. Its 53,463,122-byte CUDA-stage bulk
+export took 34 observed seconds including splitting/hashing. This measurement
+informs subsequent export planning, without guaranteeing another pod's rate.
+Budget for a separate fresh bytecode cache for every audited process.
