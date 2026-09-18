@@ -1,0 +1,33 @@
+{
+  "availability": "NONE",
+  "community": true,
+  "cudaVersions": [
+    {
+      "available": false,
+      "version": "13.0"
+    },
+    {
+      "available": false,
+      "version": "13.2"
+    },
+    {
+      "available": false,
+      "version": "13.3"
+    }
+  ],
+  "id": "NVIDIA GeForce RTX 4090",
+  "manufacturer": "NVIDIA",
+  "maxCount": {
+    "community": 8,
+    "secure": 8
+  },
+  "memory": 24,
+  "name": "RTX 4090",
+  "pool": "ADA_24",
+  "price": {
+    "community": 0.34,
+    "secure": 0.74,
+    "serverless": 1.1
+  },
+  "secure": true
+}
