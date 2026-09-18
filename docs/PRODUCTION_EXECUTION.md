@@ -73,3 +73,17 @@ Pilot replay timing now includes saving every compared verifier checkpoint. Pare
 checks require that overhead and its complete count, so the full-replay forecast
 cannot silently omit it. Initial/transition saves, cold full-input checks, public
 anchoring/transfers and reconstruction still belong in measured fixed-cost evidence.
+
+`scripts/production_live_retention.py` selects complete primary and recovery
+checkpoints from recording metadata or a verifier session bound to the selected
+record chain. It copies all safe-state files, rechecks the actual tensors and
+control, and credits export only after complete off-pod retention. Interrupted
+copies remain preserved, with at most one fresh transfer attempt under the same
+deadline. Repeated copies of identical files do not renew export age.
+
+Recording primaries remain run-signed; recovery snapshots and replay observations
+do not supply public anchor or arithmetic acceptance. Verifier recovery checks
+bind the registered phase/step and actual state root; they do not independently
+enumerate that checkpoint's target cursor. The full replay retains that check.
+Final complete output retention still covers all primary, recovery and partial
+files. The enclosing production dispatcher and actual live CUDA use remain pending.

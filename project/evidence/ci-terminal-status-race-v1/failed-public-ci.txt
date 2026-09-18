@@ -1,0 +1,54 @@
+falsifiability	Unit tests and synthetic full-replay fixture	﻿2026-09-18T14:55:08.5485590Z ##[group]Run python -m pytest -q -rs tests
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5485925Z [36;1mpython -m pytest -q -rs tests[0m
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5505231Z shell: /usr/bin/bash -e {0}
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5505481Z env:
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5505796Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.14/x64
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5506211Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.14/x64/lib/pkgconfig
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5506613Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5506945Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5507262Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5507646Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.14/x64/lib
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5507966Z   TOKENIZERS_PARALLELISM: false
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:08.5508221Z ##[endgroup]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:13.7987248Z ........................................................................ [  6%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:55:31.9968246Z ..................................................................sss... [ 12%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:56:50.6866316Z ........................................................................ [ 18%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:57:17.7477517Z ........................................................................ [ 24%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:58:07.2923421Z ........................................................................ [ 30%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:58:34.1092968Z ...................F.................................................... [ 36%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:58:41.0004677Z ........................................................................ [ 42%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:59:02.7041865Z ........................................................................ [ 48%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T14:59:10.1851801Z ........................................................................ [ 54%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:00:21.5948795Z ........................................................................ [ 60%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:03:29.9039200Z ........................................................................ [ 66%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:03:42.4312743Z ........................................................................ [ 72%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:05:52.5185160Z ........................................................................ [ 78%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:06:44.3028333Z ........................................................................ [ 84%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:06:50.2562031Z ........................................................................ [ 90%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:07:42.4133316Z ........................................................................ [ 96%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8459514Z ................................................                         [100%]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8462467Z =================================== FAILURES ===================================
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8463334Z ___ test_deadline_stop_or_storage_bound_ends_owned_process_group[log-bound] ____
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8463691Z 
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8463981Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_deadline_stop_or_storage_2')
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8465234Z reason = 'log-bound'
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8465483Z 
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8465801Z     @pytest.mark.parametrize('reason',['deadline','request-stop','log-bound'])
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8466457Z     def test_deadline_stop_or_storage_bound_ends_owned_process_group(tmp_path,reason):
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8467459Z         code='import time\ntime.sleep(20)\n'
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8468114Z         if reason=='log-bound':code='import os,time\nos.write(1,b"x"*(17*1024*1024))\ntime.sleep(20)\n'
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8468844Z         job,v,root,worker=fixture(tmp_path,code,seconds=2 if reason=='deadline' else 20)
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8469492Z         before=time.monotonic();assert start(job,root,worker).returncode==0
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8470094Z         if reason=='request-stop':(job/'request-stop').write_text('owned stop request')
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8471068Z         status=exited(job);assert status['exit_code']<0 and time.monotonic()-before<6
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8471768Z         expected={'deadline':'job-deadline','request-stop':'operator-stop','log-bound':'storage-bound'}[reason]
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8472728Z >       assert read_json(job/'status.json')['stop_reason']==expected
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8473308Z E       AssertionError: assert None == 'storage-bound'
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8473604Z 
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8473810Z tests/test_pod_job_worker.py:98: AssertionError
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8474287Z =========================== short test summary info ============================
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8474821Z SKIPPED [1] tests/test_experiment.py:332: CUDA GPU required (run on the pod)
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8475433Z SKIPPED [1] tests/test_experiment.py:340: CUDA GPU required (run on the pod)
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8476045Z SKIPPED [1] tests/test_experiment.py:351: needs >=2 CUDA GPUs (run on a multi-GPU pod)
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:28.8476617Z 1 failed, 1196 passed, 3 skipped in 798.71s (0:13:18)
+falsifiability	Unit tests and synthetic full-replay fixture	2026-09-18T15:08:29.3949157Z ##[error]Process completed with exit code 1.

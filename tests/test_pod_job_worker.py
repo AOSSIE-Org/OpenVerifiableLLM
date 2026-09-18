@@ -95,7 +95,17 @@ def test_deadline_stop_or_storage_bound_ends_owned_process_group(tmp_path,reason
     if reason=='request-stop':(job/'request-stop').write_text('owned stop request')
     status=exited(job);assert status['exit_code']<0 and time.monotonic()-before<6
     expected={'deadline':'job-deadline','request-stop':'operator-stop','log-bound':'storage-bound'}[reason]
-    assert read_json(job/'status.json')['stop_reason']==expected
+    # exit.json is durable before the final mutable status write. CI observed
+    # the prior RUNNING status in that window; wait for the status whose fields
+    # this assertion actually checks. The process-stop bound above is unchanged.
+    end=time.monotonic()+2;final=None
+    while time.monotonic()<end:
+        if (job/'status.json').exists():
+            final=read_json(job/'status.json')
+            if final['state']=='EXITED':break
+        time.sleep(.01)
+    assert final is not None and final['state']=='EXITED'
+    assert final['job_sha256']==root and final['stop_reason']==expected
 
 
 def test_pid_reuse_cannot_signal_another_process(monkeypatch):
