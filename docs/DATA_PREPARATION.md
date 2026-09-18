@@ -160,3 +160,20 @@ claim independent verification. It publishes the local request without replacing
 existing attempt. Commit that single new request through the approved branch so the
 Actions job reconstructs and signs the statement. The builder does not itself sign
 anything or permit training; independently verify and archive the actual anchor.
+
+Extraction uses eight spawned pure-text workers with ordered parent-only output.
+The queue admits at most32 pages and64MiB of pending raw input, or one oversized
+page; it never excludes an article to meet this bound. Tiny inputs may remain
+serial. Total memory also includes parsers, results, IPC and imported dependencies.
+Parent parsing independently counts pages and checks per-source emission ordinals
+and final count reconciliation. Failures preserve a bounded diagnostic record of
+active/pending identities and never produce a successful corpus manifest.
+
+Parser backend and recursion limit are part of the frozen environment; spawned
+workers verify the backend and inherit the declared recursion setting. Successful
+corpus bytes do not include worker timing/identity. The development comparison CLI
+`scripts/compare_extraction.py` compares an explicitly hashed prefix against the
+historical serial implementation and current1/8-worker paths, including exact
+file bytes and sampled aggregate RSS. Its prefix result is not full-corpus
+reconstruction or a production forecast. Current evidence is under
+`project/evidence/extraction-workers/advisory/`; all complete-data gates remain.

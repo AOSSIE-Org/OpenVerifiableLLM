@@ -11,12 +11,12 @@ import sqlite3
 import tempfile
 import xml.etree.ElementTree as ET
 
-import mwparserfromhell
 import numpy as np
 from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
 import torch
 
 from . import schema
+from .extraction_workers import OrderedExtraction
 from .canonical import EvidenceError, Merkle, canonical, digest, file_hash, inventory, parse_json, sha256, write_json
 
 PAD, BOS, EOS, USER, ASSISTANT, OFFSET = range(6)
@@ -34,85 +34,104 @@ def write_row(f, row):
     f.write(canonical(row) + b"\n")
 
 
-def extract_wikipedia(sources: list[Path], output: Path):
+def extract_wikipedia(sources: list[Path], output: Path, *, workers=8):
     """Page order is source-list order, then XML order. No network expansion."""
     output.mkdir(parents=True, exist_ok=False)
     counts, root = Counter(), Merkle()
+    parsed_by_source, emitted_by_source = Counter(), Counter()
+    extraction = None
     db = sqlite3.connect(output / "seen.sqlite")
     db.execute("CREATE TABLE ids (page TEXT PRIMARY KEY, revision TEXT UNIQUE)")
     try:
         with (output / "articles.jsonl").open("wb") as articles, (output / "ledger.jsonl").open("wb") as ledger:
-            for source_no, source in enumerate(sources):
-                opener = bz2.open if source.suffix == ".bz2" else open
-                source_digest = file_hash(source)
-                with opener(source, "rb") as f:
-                    # Entity declarations are forbidden. Wikimedia dumps have no DTD.
-                    from defusedxml.ElementTree import iterparse
-                    parser = iterparse(f, events=("start", "end"), forbid_dtd=True, forbid_entities=True, forbid_external=True)
-                    _, docroot = next(parser)
-                    ns = docroot.tag.split("}")[0] + "}" if "}" in docroot.tag else ""
-                    ordinal = 0
-                    for event, page in parser:
-                        if event != "end" or page.tag != ns + "page":
-                            continue
-                        def val(node, key, required=True):
-                            child = node.find(ns + key)
-                            if child is None or child.text is None:
-                                if required:
-                                    raise EvidenceError(f"missing XML field: {key}")
-                                return ""
-                            return child.text
-                        revisions = page.findall(ns + "revision")
-                        if len(revisions) != 1:
-                            raise EvidenceError("expected exactly one current revision per page")
-                        rev = revisions[0]
-                        pid, rid = val(page, "id"), val(rev, "id")
-                        if any(not re.fullmatch(r"[1-9][0-9]{0,31}", i) for i in (pid, rid)):
-                            raise EvidenceError("invalid Wikipedia page/revision ID")
-                        try:
-                            db.execute("INSERT INTO ids VALUES (?,?)", (pid, rid))
-                        except sqlite3.IntegrityError as e:
-                            raise EvidenceError("duplicate page/revision identity") from e
-                        raw = val(rev, "text", required=False)
-                        record = {"source": source_digest, "source_order": source_no, "ordinal": ordinal,
-                                  "page_id": pid, "revision_id": rid, "title": val(page, "title"),
-                                  "namespace": int(val(page, "ns")), "timestamp": val(rev, "timestamp"),
-                                  "attribution_url": f"https://en.wikipedia.org/w/index.php?curid={pid}",
-                                  "revision_url": f"https://en.wikipedia.org/w/index.php?oldid={rid}",
-                                  "history_url": f"https://en.wikipedia.org/w/index.php?curid={pid}&action=history",
-                                  "raw_text_sha256": sha256(raw.encode("utf-8"))}
-                        model = val(rev, "model", required=False)
-                        if record["namespace"] != 0:
-                            reason = "non_main_namespace"
-                        elif page.find(ns + "redirect") is not None:
-                            reason = "redirect"
-                        elif model != "wikitext":
-                            reason = "non_wikitext_model"
-                        elif not raw:
-                            reason = "empty_revision_text"
-                        else:
-                            code = mwparserfromhell.parse(raw)
-                            # References are citations rather than article prose. No template expansion.
-                            for tag in list(code.filter_tags(recursive=True)):
-                                if str(tag.tag).lower() in {"ref", "references", "gallery"}:
-                                    try:
-                                        code.remove(tag)
-                                    except ValueError:
-                                        pass  # Already removed inside an enclosing removed tag.
-                            text = code.strip_code(normalize=True, collapse=False)
-                            reason = "included" if text else "empty_extracted_text"
-                            if reason == "included":
-                                article = {**record, "text": text, "text_sha256": sha256(text.encode("utf-8"))}
-                                write_row(articles, article)
-                                record["text_sha256"] = article["text_sha256"]
-                        record["reason"] = reason
-                        write_row(ledger, record)
-                        root.add(canonical(record))
-                        counts[reason] += 1
-                        ordinal += 1
-                        page.clear()
-                        docroot.clear()
-                db.commit()
+            def emit(record, reason, text):
+                source_no = record['source_order']
+                if record['ordinal'] != emitted_by_source[source_no]:
+                    raise EvidenceError('extraction ledger ordinal gap or duplicate')
+                if reason is None:
+                    reason = "included" if text else "empty_extracted_text"
+                    if reason == "included":
+                        article = {**record, "text": text, "text_sha256": sha256(text.encode("utf-8"))}
+                        write_row(articles, article)
+                        record["text_sha256"] = article["text_sha256"]
+                record["reason"] = reason
+                write_row(ledger, record)
+                root.add(canonical(record))
+                counts[reason] += 1
+                emitted_by_source[source_no] += 1
+            with OrderedExtraction(emit, workers=workers) as extraction:
+                for source_no, source in enumerate(sources):
+                    opener = bz2.open if source.suffix == ".bz2" else open
+                    source_digest = file_hash(source)
+                    with opener(source, "rb") as f:
+                        # Entity declarations are forbidden. Wikimedia dumps have no DTD.
+                        from defusedxml.ElementTree import iterparse
+                        parser = iterparse(f, events=("start", "end"), forbid_dtd=True, forbid_entities=True, forbid_external=True)
+                        _, docroot = next(parser)
+                        ns = docroot.tag.split("}")[0] + "}" if "}" in docroot.tag else ""
+                        ordinal = 0
+                        for event, page in parser:
+                            if event != "end" or page.tag != ns + "page":
+                                continue
+                            def val(node, key, required=True):
+                                child = node.find(ns + key)
+                                if child is None or child.text is None:
+                                    if required:
+                                        raise EvidenceError(f"missing XML field: {key}")
+                                    return ""
+                                return child.text
+                            revisions = page.findall(ns + "revision")
+                            if len(revisions) != 1:
+                                raise EvidenceError("expected exactly one current revision per page")
+                            rev = revisions[0]
+                            pid, rid = val(page, "id"), val(rev, "id")
+                            if any(not re.fullmatch(r"[1-9][0-9]{0,31}", i) for i in (pid, rid)):
+                                raise EvidenceError("invalid Wikipedia page/revision ID")
+                            try:
+                                db.execute("INSERT INTO ids VALUES (?,?)", (pid, rid))
+                            except sqlite3.IntegrityError as e:
+                                raise EvidenceError("duplicate page/revision identity") from e
+                            raw = val(rev, "text", required=False)
+                            record = {"source": source_digest, "source_order": source_no, "ordinal": ordinal,
+                                      "page_id": pid, "revision_id": rid, "title": val(page, "title"),
+                                      "namespace": int(val(page, "ns")), "timestamp": val(rev, "timestamp"),
+                                      "attribution_url": f"https://en.wikipedia.org/w/index.php?curid={pid}",
+                                      "revision_url": f"https://en.wikipedia.org/w/index.php?oldid={rid}",
+                                      "history_url": f"https://en.wikipedia.org/w/index.php?curid={pid}&action=history",
+                                      "raw_text_sha256": sha256(raw.encode("utf-8"))}
+                            model = val(rev, "model", required=False)
+                            if record["namespace"] != 0:
+                                reason = "non_main_namespace"
+                            elif page.find(ns + "redirect") is not None:
+                                reason = "redirect"
+                            elif model != "wikitext":
+                                reason = "non_wikitext_model"
+                            elif not raw:
+                                reason = "empty_revision_text"
+                            else:
+                                reason = None
+                            parsed_by_source[source_no] += 1
+                            extraction.submit(record, reason, raw if reason is None else None)
+                            ordinal += 1
+                            page.clear()
+                            docroot.clear()
+                    db.commit()
+            if parsed_by_source != emitted_by_source or extraction.pending or extraction.pending_bytes:
+                raise EvidenceError('parsed pages and emitted ledger do not reconcile')
+    except Exception as error:
+        # Failed partial bytes are diagnostic, never a reconstructible corpus.
+        # Do not drain after parser/worker/output failure or hide the first error.
+        try:
+            write_json(output / 'extraction-failure.json', {
+                'schema': 'ovl.extraction-failure.v1', 'result': 'FAIL',
+                'error_type': type(error).__name__,
+                'parsed_by_source': {str(k):v for k,v in parsed_by_source.items()},
+                'emitted_by_source': {str(k):v for k,v in emitted_by_source.items()},
+                'worker_observation': extraction.observation() if extraction else None,
+                'scope': 'operator diagnostic; pending pages discarded on abort, no successful corpus'})
+        except Exception:
+            pass  # Evidence-storage failure must not suppress the original error.
+        raise
     finally:
         db.close()
         (output / "seen.sqlite").unlink()

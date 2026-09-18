@@ -1,0 +1,44 @@
+{
+  "schema": "ovl.deadline-probe-launch.v2",
+  "observed_epoch": 1789690986,
+  "source_revision": "22292195b3c44ddc09e3aa5a8d612ab2e6908328",
+  "service": "ovllm-provider-deadline-probe-v2.service",
+  "journal": ".ovllm-cache/provider-deadline-probe-v2",
+  "restart": "on-failure",
+  "restart_seconds": 5,
+  "start_limit_interval_seconds": 0,
+  "credential_source": "Owner-only local config; no key in service environment or pod",
+  "quoted_gpu_hourly_usd": "0.24",
+  "maximum_all_in_hourly_usd": "0.30",
+  "maximum_charge_usd": "0.075",
+  "prior_unsettled_reservation_usd": "0.075",
+  "mandatory_remaining_reservation_usd": "89.75",
+  "protected_reserve_usd": "10",
+  "reason": "New attempt after terminal first-probe abort; selective error diagnostics and bounded transient-read grace tested, predecessor fully reserved",
+  "files": [
+    {
+      "path": "scripts/probe_provider_deadline.py",
+      "sha256": "91144b11343c6f89b6fa4c69bfa84d5f1adab7a1fa742f2ca7e01046747e7d58"
+    },
+    {
+      "path": "scripts/provider_preflight.py",
+      "sha256": "1ee33c23ee85da9dfd5db84c002c2313fab02134bacee66b666a1e1f89216e9a"
+    },
+    {
+      "path": "src/ovl_pipeline/supervision.py",
+      "sha256": "f5c12a47aa10fc2b4682049f486fc5e87d411dfa81f748bcc0e57716829e17f5"
+    },
+    {
+      "path": "src/ovl_pipeline/budget.py",
+      "sha256": "ef6502cdd55a36dccca228b47115e1cfb24868e52b10c6917702bec176000c2e"
+    },
+    {
+      "path": "src/ovl_pipeline/canonical.py",
+      "sha256": "2de9c77a6d7414b9802a8b26b95d7fe9effdfd241df1e751ab3fb17475bcb1b1"
+    },
+    {
+      "path": "src/ovl_pipeline/schema.py",
+      "sha256": "6255f646fb441d350ca7d79ac2441edf42af9b1047ab3c7ad6061743299e090c"
+    }
+  ]
+}

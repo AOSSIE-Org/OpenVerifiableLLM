@@ -17,7 +17,7 @@ from .data import extract_wikipedia, prepare_stream, rows, train_tokenizer, vali
 from .schema import fields, integer
 from .preparation_stages import Stages
 
-PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "preparation.py", "preparation_stages.py", "schema.py", "source_commitment.py"]
+PREPARATION_FILES = ["__init__.py", "acquisition.py", "anchoring.py", "canonical.py", "conversations.py", "data.py", "extraction_workers.py", "preparation.py", "preparation_stages.py", "schema.py", "source_commitment.py"]
 SOURCE_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -28,6 +28,8 @@ def preparation_code():
 
 
 def preparation_environment():
+    import mwparserfromhell.parser
+    import sys
     lock = SOURCE_ROOT / "requirements/preparation.lock"
     pinned = dict(re.findall(r"^([a-zA-Z0-9_.-]+)==([^\s]+)", lock.read_text(), re.M))
     if not pinned or not {"torch", "sigstore", "pyarrow", "tokenizers", "mwparserfromhell"} <= pinned.keys():
@@ -37,7 +39,9 @@ def preparation_environment():
         raise EvidenceError("installed preparation packages differ from the hash-locked environment")
     return {"python": platform.python_version(), "machine": platform.machine(), "system": platform.system(),
             "packages": installed, "dependency_lock_sha256": file_hash(lock),
-            "tokenizers_parallelism": os.environ.get("TOKENIZERS_PARALLELISM")}
+            "tokenizers_parallelism": os.environ.get("TOKENIZERS_PARALLELISM"),
+            "wikitext_parser_backend": "c" if mwparserfromhell.parser.use_c else "python",
+            "python_recursion_limit": sys.getrecursionlimit()}
 
 
 def validate_contract(value):
