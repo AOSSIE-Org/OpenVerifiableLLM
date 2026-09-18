@@ -1,0 +1,1 @@
+{"body":{"complete":false,"pod_id":"fixture-only-no-real-pod","response_sha256":"2222222222222222222222222222222222222222222222222222222222222222"},"kind":"teardown","observed_epoch":1789703955,"previous":"f4640b3fe733b10afd9511477bd01760f93c37d3a3f43b5ec5a1e48e7947dcc5","schema":"ovl.controller-event.v1","sequence":23}

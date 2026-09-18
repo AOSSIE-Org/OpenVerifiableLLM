@@ -11,7 +11,7 @@ from ovl_pipeline.supervision import Journal,rental_plan
 NOW=1800000000
 
 def intent():
-    plan=rental_plan({'schema':'ovl.rental-budget-input.v2','attempt_id':'ovllm-test-12345678',
+    plan=rental_plan({'schema':'ovl.rental-budget-input.v2','attempt_id':'ovllm-test-'+'a'*32,
         'now_epoch':NOW,'spent_usd':'0.068185','outstanding_usd':'0.15','reserved_remaining_usd':'60',
         'allowance_usd':'1','hourly_upper_usd':'0.3','quote_sha256':'a'*64,'maximum_seconds':600,
         'checkpoint_grace_seconds':300,'billing_slack_seconds':300,
@@ -51,7 +51,8 @@ class Fake:
         return {},'b'*64,{}
     def run(self,path):
         watchdog.run(path,self.i,digest(self.i),get_account=self.account,provider_request=self.request,
-                     wall=lambda:self.now,monotonic=lambda:self.elapsed,sleep=self.sleep)
+                     wall=lambda:self.now,monotonic=lambda:self.elapsed,sleep=self.sleep,
+                     clock=lambda:{'boot_id':'fake-boot','boottime_ms':int(self.elapsed*1000)})
 
 
 def test_enforces_grace_deadline_and_two_fresh_absence_observations(tmp_path):

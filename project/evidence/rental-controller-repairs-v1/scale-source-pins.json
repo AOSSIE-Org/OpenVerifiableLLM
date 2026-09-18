@@ -1,0 +1,190 @@
+[
+  {
+    "path": "src/ovl_pipeline/production_chain.py",
+    "sha256": "eeaa8ddaa245a476421b534f3cefd5322414774ad763b2aeadd7441ecbc180bd"
+  },
+  {
+    "path": "src/ovl_pipeline/run_key.py",
+    "sha256": "ff61e263e0462851a96a579f340321fdd613c97654e0b7011b0edde79402d495"
+  },
+  {
+    "path": "src/ovl_pipeline/gpu.py",
+    "sha256": "65aa2e9013c77973434d8b08223a81a39c13386f18e972ede2157a0da6bee0bc"
+  },
+  {
+    "path": "src/ovl_pipeline/canonical.py",
+    "sha256": "2de9c77a6d7414b9802a8b26b95d7fe9effdfd241df1e751ab3fb17475bcb1b1"
+  },
+  {
+    "path": "src/ovl_pipeline/production_commitment.py",
+    "sha256": "197cda3ce60409b30c9629132a2339704b5727b03d568a723bc9005b65c153ea"
+  },
+  {
+    "path": "src/ovl_pipeline/budget.py",
+    "sha256": "ef6502cdd55a36dccca228b47115e1cfb24868e52b10c6917702bec176000c2e"
+  },
+  {
+    "path": "src/ovl_pipeline/runtime_launch.py",
+    "sha256": "05e54b1e872e9d1ac3aaa9b0c4409c4c5f92246bb32c7c9362544d6c1e200fd7"
+  },
+  {
+    "path": "src/ovl_pipeline/production_anchoring.py",
+    "sha256": "512987954882edc71a84417d923859ff7692dbe3887e2b17bf3fd1c3ab7dfd90"
+  },
+  {
+    "path": "src/ovl_pipeline/__main__.py",
+    "sha256": "dec4e49d0e527a22108b457ba14c73717cb85dd74308c8accac29e1089de87c6"
+  },
+  {
+    "path": "src/ovl_pipeline/data.py",
+    "sha256": "2b5c6898a8473f600aaf07868bd1bc495f206c2c2c1c2ba2b13cc215cb6063ab"
+  },
+  {
+    "path": "src/ovl_pipeline/conversations.py",
+    "sha256": "1233029c70b69a0dcc9067938ea4e20bcda3aa6ae6609df728ee5c49403f407a"
+  },
+  {
+    "path": "src/ovl_pipeline/preparation_stages.py",
+    "sha256": "2206849e62ff957937783284ef9e018cf8c79ab15a42783479be807611fda242"
+  },
+  {
+    "path": "src/ovl_pipeline/production_record.py",
+    "sha256": "b7c931a2fdd96a160be7ef4886874bf972047953955064491c0121d2b626f5a7"
+  },
+  {
+    "path": "src/ovl_pipeline/acquisition.py",
+    "sha256": "389153c4e6a76f66586a26e530b6f5defd9d9e4c6140dc46c702c74fc3fa8392"
+  },
+  {
+    "path": "src/ovl_pipeline/prepared_verification.py",
+    "sha256": "8c5266d607bbbceeb12630394734a8d9230da68a1c0dbb57014c2ad5c4be428f"
+  },
+  {
+    "path": "src/ovl_pipeline/progress_anchoring.py",
+    "sha256": "9ec5acbfe260b358ebb48130db4a9753523b46216e3a86a9a45c859a58d59e75"
+  },
+  {
+    "path": "src/ovl_pipeline/gpu_pilot.py",
+    "sha256": "6b4f27217f879eee5df1f6a34a8b38f0d3aab0db9e53a5e8c1d5bab597db526e"
+  },
+  {
+    "path": "src/ovl_pipeline/supervision.py",
+    "sha256": "283e15ea089103f414902cd12ec12b7d4344946e79a47aae324b6d54f458b203"
+  },
+  {
+    "path": "src/ovl_pipeline/schema.py",
+    "sha256": "6255f646fb441d350ca7d79ac2441edf42af9b1047ab3c7ad6061743299e090c"
+  },
+  {
+    "path": "src/ovl_pipeline/progress_commitment.py",
+    "sha256": "199710879f279b31cb1b175263006a171836a30da7321441799f469ac796cda9"
+  },
+  {
+    "path": "src/ovl_pipeline/initialization.py",
+    "sha256": "e672cd8e89658c203f4909e876628225f23e3974a7d5c57bf2fe496928040a58"
+  },
+  {
+    "path": "src/ovl_pipeline/source_commitment.py",
+    "sha256": "de00be05627f7556c62a3437470d816e4d3235ad51f162a61751f7b4af3df108"
+  },
+  {
+    "path": "src/ovl_pipeline/runtime_audit.py",
+    "sha256": "63c8dc34cc119df6d346819462fc284b4ebb17d0430883378f1f8155692c598a"
+  },
+  {
+    "path": "src/ovl_pipeline/training.py",
+    "sha256": "b90e987247c9f431f68b75cb0866ed536fefc8dc74fa458c8ad6615d161291e5"
+  },
+  {
+    "path": "src/ovl_pipeline/__init__.py",
+    "sha256": "0e60ca9603d569e977ae6f7b55d308384e7d864b65f9a2e3eb00f2afea9fbffb"
+  },
+  {
+    "path": "src/ovl_pipeline/state.py",
+    "sha256": "2967fb175915c0589cff7ec66c26ef9ea91a97605db54073d02adefab7a0245a"
+  },
+  {
+    "path": "src/ovl_pipeline/production_parents.py",
+    "sha256": "560d3e4eaae555a93c419eb4d9c118b9e7af089982d93b4f0c311b596c86f479"
+  },
+  {
+    "path": "src/ovl_pipeline/fixture.py",
+    "sha256": "566ae99a6a306d9e28482675f79ed0f2f6ad8ad4a96f82465024ec1b78b11f14"
+  },
+  {
+    "path": "src/ovl_pipeline/runtime_bootstrap.py",
+    "sha256": "1d1f950c67238630b9260eb0c1d61db0d1beb4568ec428302cc3001c76d1e00b"
+  },
+  {
+    "path": "src/ovl_pipeline/production_cursors.py",
+    "sha256": "861c1481a8bd77d433ad367991a14a928692f5a71cda49fcf97b58e60c20680f"
+  },
+  {
+    "path": "src/ovl_pipeline/production_identity.py",
+    "sha256": "fd63300d1091b8e3b17d6543da313d96b150e6972a4eb168ac64d74814375d9b"
+  },
+  {
+    "path": "src/ovl_pipeline/production_contract.py",
+    "sha256": "8e762c3cac07855a035be4848a17a493b10e057a17c96b5bb3f6a1be64c90a15"
+  },
+  {
+    "path": "src/ovl_pipeline/anchoring.py",
+    "sha256": "e23d14c090c8152ff65506c5e1c15b16da060b82dde860714c2396e7f4e097d2"
+  },
+  {
+    "path": "src/ovl_pipeline/preparation.py",
+    "sha256": "e368c228254c05fd59ff593ceddd6393b6a192fbb70953b8b3af5c14b48d12fa"
+  },
+  {
+    "path": "src/ovl_pipeline/extraction_workers.py",
+    "sha256": "969d06c76bbd13129beb1af6fb3d9a2a09fbc5ec0d84a62e46a098b3f1a0e7e7"
+  },
+  {
+    "path": "src/ovl_pipeline/production_replay.py",
+    "sha256": "552f1a261371acec7af0389a958c282edac495beaf52742e4de8b66323c0be9d"
+  },
+  {
+    "path": "src/ovl_pipeline/coverage.py",
+    "sha256": "cf41a2ab808160de19f596e3ae55787aa6ff5680bb3c2d2c036a376828b64365"
+  },
+  {
+    "path": "src/ovl_pipeline/production_trajectory.py",
+    "sha256": "de94d08b1be64ac101b10c66384a585654dcd799a60d3bf90c41b3b0002b0ea4"
+  },
+  {
+    "path": "scripts/run_rental_controller.py",
+    "sha256": "ccd3c1c066c027119e8a9696660c0f2a6de80ff684d5a6c089f9a3632881a528"
+  },
+  {
+    "path": "scripts/run_external_watchdog.py",
+    "sha256": "f54ea81e7a47f5463b7f833b03468bf92078f0d32f8dcb43a50ca1811e3622a4"
+  },
+  {
+    "path": "scripts/rental_safety.py",
+    "sha256": "eaffcd6ae7ee401d45b4442ebd90bd6d3fcfed82f6804a2d418fd53f69969dd8"
+  },
+  {
+    "path": "scripts/rental_quote.py",
+    "sha256": "5ffa742dfa8665313860dcc0bc0b6d57f607ca3b83cb812b234ec352334318e7"
+  },
+  {
+    "path": "scripts/probe_provider_deadline.py",
+    "sha256": "91144b11343c6f89b6fa4c69bfa84d5f1adab7a1fa742f2ca7e01046747e7d58"
+  },
+  {
+    "path": "scripts/provider_preflight.py",
+    "sha256": "1ee33c23ee85da9dfd5db84c002c2313fab02134bacee66b666a1e1f89216e9a"
+  },
+  {
+    "path": "tests/test_rental_controller.py",
+    "sha256": "2ee5b709294b530ab819b1fd2f723509791247ab9c5bf25ff1637e66340d5d6a"
+  },
+  {
+    "path": "tests/test_external_watchdog.py",
+    "sha256": "e1ced26d01e9a13cbd47ee1d09b8e89e7610fdc5bec8187da590daa976e1b4fb"
+  },
+  {
+    "path": "project/evidence/cost-guard-revision-20260918/authorization.json",
+    "sha256": "12bbf07875add059c338ae35255fbb6c2bfbda16c102310395312a7474f93e80"
+  }
+]

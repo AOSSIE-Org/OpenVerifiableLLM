@@ -2,20 +2,30 @@
 from copy import deepcopy
 from decimal import Decimal
 from pathlib import Path
+import json,hashlib
 import sys
 import pytest
 sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
 import run_rental_controller as controller
 from test_external_watchdog import intent as watchdog_intent,NOW,Fake
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,write_json
-from ovl_pipeline.supervision import Journal
+from ovl_pipeline.supervision import Journal,rental_plan
+from rental_quote import AUTHORIZATION_SHA256
 
 
 def intent():
     w=watchdog_intent();w['baseline']['balance_usd']='100'
     payload={**w['payload'],'cloudType':'SECURE','gpuTypeId':'NVIDIA RTX 5090','minVcpuCount':1,'minMemoryInGb':1,
              'dockerArgs':'','startSsh':True,'startJupyter':False,'ports':'22/tcp'}
-    return {'schema':'ovl.rental-controller-intent.v1','watchdog_intent':w,'payload':payload}
+    quote={'schema':'ovl.rental-quote.v1','observed_epoch':NOW,'catalog_response_sha256':'c'*64,
+           'selected_gpu':{'id':'NVIDIA RTX 5090','secure':True,'secure_hourly_usd':'0.24'},
+           'storage_source':'https://docs.runpod.io/pods/pricing','storage_page_sha256':'d'*64,'storage_observed_epoch':NOW,
+           'container_gb_month_usd':'0.10','volume_gb_month_upper_usd':'0.20','monthly_hours':672,'rate_margin_percent':125}
+    quote['catalog_response']=json.dumps({'gpus':[{'id':'NVIDIA RTX 5090','secure':True,'maxCount':{'secure':1},'price':{'secure':'0.24'}}]})
+    quote['catalog_response_sha256']=hashlib.sha256(quote['catalog_response'].encode()).hexdigest()
+    v={**w['plan']['input'],'quote_sha256':digest(quote),'authorization_sha256':AUTHORIZATION_SHA256,'hourly_upper_usd':'0.300745'}
+    w['plan']=rental_plan(v)
+    return {'schema':'ovl.rental-controller-intent.v1','watchdog_intent':w,'payload':payload,'quote':quote}
 
 class RentalFake(Fake):
     def __init__(self,path):
@@ -46,7 +56,8 @@ class RentalFake(Fake):
         return {'podFindAndDeployOnDemand':self.pod()},'a'*64,{}
     def run(self):
         controller.run(self.directory,self.value,digest(self.value),self.heartbeat,self.health,
-            get_account=self.account,provider_request=self.provider,wall=lambda:self.now,monotonic=lambda:self.elapsed,sleep=self.sleep)
+            get_account=self.account,provider_request=self.provider,wall=lambda:self.now,monotonic=lambda:self.elapsed,sleep=self.sleep,
+            boot=lambda:{'boot_id':'fake-boot','boottime_ms':int(self.elapsed*1000)},fence_root=self.directory.parent/'fences')
 
 
 def test_one_shot_create_graceful_shutdown_and_verified_absence(tmp_path):
@@ -99,7 +110,7 @@ def test_creation_requires_fresh_exact_armed_watchdog(tmp_path,change):
 
 def test_watchdog_death_after_create_terminates_early(tmp_path):
     f=RentalFake(tmp_path);f.refresh_heartbeat=False;f.run()
-    assert next(c for c in f.calls if c[0]=='terminate')[2]==NOW+35
+    assert next(c for c in f.calls if c[0]=='terminate')[2]==NOW+40
     assert not f.alive
 
 
@@ -125,7 +136,7 @@ def test_spend_uses_upper_rate_accrual_and_retains_prior_reservations(tmp_path):
     assert Decimal(v['outstanding_usd'])>=Decimal('.15')+Decimal(100)*Decimal('.3')/3600
     assert v['reserved_remaining_usd']=='60'
     obs['balance_usd']='99.5';v=controller.normalized(f.i,obs,f.pod(),h,read_json(f.health),f.now)
-    assert v['outstanding_usd']=='0.650000'
+    assert v['outstanding_usd']=='0.500000'
 
 
 def test_changed_singleton_account_is_not_modified_before_create(tmp_path):
@@ -164,6 +175,7 @@ def test_prior_stop_cannot_be_cancelled_by_healthy_restart(tmp_path):
     f=RentalFake(tmp_path);f.alive=True;f.now=NOW+100;f.refresh()
     with Journal(f.directory).lease() as j:
         j.append('creation-intent',f.value);j.append('creation-observed',{'id':'owned-pod'})
+        controller.Lifetime(j,f.i['plan'],wall=lambda:NOW,clock=lambda:{'boot_id':'fake-boot','boottime_ms':0},initialize=True)
         j.append('decision',{'action':'CHECKPOINT_AND_STOP','observed_epoch':NOW})
     f.run();assert f.writes==0
     assert next(c for c in f.calls if c[0]=='terminate')[2]==NOW+300

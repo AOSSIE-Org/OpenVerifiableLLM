@@ -1,0 +1,11 @@
+{
+  "schema": "ovl.preparation-progress-observation.v1",
+  "observed_utc": "2026-09-18T04:01:48.444858+00:00",
+  "unit": "ovllm-source-preparation-v1.service",
+  "unit_state": "ActiveState=active\nSubState=running\nMainPID=2683918\nMemoryCurrent=17330003968\n",
+  "ledger_bytes": 2730313616,
+  "last_complete_ordinal": 4529460,
+  "articles_bytes": 12202430465,
+  "disk_free_bytes": 245186605056,
+  "scope": "Live progress only; full extraction/preparation completion NOT_RUN"
+}

@@ -19,7 +19,8 @@ import time
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.supervision import ControllerBusy,Journal,rental_plan
-from probe_provider_deadline import account,request,diagnostic,match_pod,provision_errors
+from probe_provider_deadline import account,request,diagnostic,match_pod,provision_errors,transient_read_grace
+from rental_safety import Lifetime,boot_clock,attributed_ids
 
 
 def validate_intent(value,expected):
@@ -32,7 +33,7 @@ def validate_intent(value,expected):
     payload=value['payload']
     fields(payload,'name gpuCount imageName containerDiskInGb volumeInGb terminateAfter','watchdog resource identity')
     if payload['name']!=p['input']['attempt_id']:raise EvidenceError('resource name differs from budget attempt')
-    if not re.fullmatch(r'ovllm-[a-z0-9-]{8,89}',payload['name']):raise EvidenceError('unique project attempt name required')
+    if not re.fullmatch(r'ovllm-[a-z0-9-]*[0-9a-f]{32}',payload['name']):raise EvidenceError('unique UUID-suffixed project attempt name required')
     if type(payload['gpuCount']) is not int or payload['gpuCount']!=1:raise EvidenceError('one GPU required')
     if type(payload['imageName']) is not str or not re.fullmatch(r'[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}',payload['imageName']):raise EvidenceError('immutable image required')
     for k in ('containerDiskInGb','volumeInGb'):integer(payload[k],0,1024,k)
@@ -50,7 +51,7 @@ def validate_intent(value,expected):
 
 
 def run(directory,intent,expected,*,get_account=account,provider_request=request,
-        wall=time.time,monotonic=time.monotonic,sleep=time.sleep):
+        wall=time.time,monotonic=time.monotonic,sleep=time.sleep,clock=boot_clock):
     p=validate_intent(intent,expected)
     with Journal(directory).lease() as j:
         prior=[e['body'] for e in j.events if e['kind']=='creation-intent']
@@ -61,39 +62,53 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
         if len(identities)>1:raise EvidenceError('multiple attributed resource identities')
         known=next(iter(identities),None)
         terminating=any(e['kind']=='decision' and e['body'].get('action')=='TERMINATE' for e in j.events)
-        # A clock rollback on restart fails closed below instead of renewing a lease.
-        remaining=max(0,min(p['external_terminate_epoch']-wall(),p['external_terminate_epoch']-p['input']['now_epoch']))
+        lifetime=Lifetime(j,p,wall=wall,clock=clock,initialize=not prior)
+        remaining=lifetime.remaining()
         mono_deadline=monotonic()+remaining
         missing_since=None
+        last_success=None;last_success_monotonic=None
         def log(kind,body):
             # Evidence storage failure must not suppress attributed teardown.
             try:j.append(kind,body)
             except Exception:return False
             return True
-        def terminate(reason):
-            nonlocal terminating
+        def terminate(reason,*,reconcile=False):
+            nonlocal terminating,known
             terminating=True;log('decision',{'action':'TERMINATE','reason':reason,'pod_id':known})
             if known is not None:
                 try:
                     _,h,_=provider_request('terminate',{'input':{'podId':known}})
                     log('teardown',{'complete':False,'pod_id':known,'response_sha256':h})
                 except Exception as e:log('failure',{'stage':'termination',**diagnostic(e)})
+            if known is None or reconcile:
+                try:
+                    matches=attributed_ids(provider_request,intent['payload']['name'])
+                    if known is None and matches:
+                        known=matches[0];log('creation-observed',{'id':known,'adopted_from_unique_intent':True})
+                    for pod_id in matches:
+                        # Repeating the first ID is safe; do not let ambiguous
+                        # provider duplicates disable cleanup of all exact names.
+                        _,h,_=provider_request('terminate',{'input':{'podId':pod_id}})
+                        log('teardown',{'complete':False,'pod_id':pod_id,'response_sha256':h})
+                except Exception as e:log('failure',{'stage':'identity-reconciliation',**diagnostic(e)})
         while True:
             now=wall()
             # Do not wait for a potentially slow read before a due known-ID teardown.
-            if terminating or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
+            if terminating or lifetime.remaining()<=0 or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
                 terminate('deadline-or-prior-abort-or-clock-rollback')
             # Avoid starting a 20s account read that crosses the deadline. The
             # loop wakes at the deadline itself; its monotonic limit cannot extend.
-            left=min(p['external_terminate_epoch']-wall(),mono_deadline-monotonic())
+            left=min(lifetime.remaining(),p['external_terminate_epoch']-wall(),mono_deadline-monotonic())
             if known is not None and not terminating and 0<left<=21:
                 sleep(min(5,left));continue
+            stage='account'
             try:
-                obs=get_account();pod=match_pod(intent,obs,known)
+                obs=get_account();stage='observation';pod=match_pod(intent,obs,known)
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
                     raise EvidenceError('provider clock mismatch')
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale account read')
+                last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
                 if pod is not None:
                     missing_since=None
                     if known is None:
@@ -123,19 +138,15 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                            'state':'TERMINATING' if terminating else 'ARMED',
                            'automatic_provider_termination':'UNVERIFIED'})
             except Exception as e:
-                terminate('observation-or-evidence-failure');log('failure',{'stage':'observation',**diagnostic(e)})
-                if known is None:
-                    # Minimal authenticated reconciliation remains possible when
-                    # the richer account query fails. Never create or delete a
-                    # merely similar name; the durable intent selects exactly one.
-                    try:
-                        d,_,_=provider_request('identities')
-                        matches=[x for x in d['myself']['pods'] if x['name']==intent['payload']['name']]
-                        if len(matches)==1 and re.fullmatch('[A-Za-z0-9_-]{1,96}',matches[0]['id']):
-                            known=matches[0]['id'];log('creation-observed',{'id':known,'adopted_from_unique_intent':True})
-                            terminate('minimal-identity-reconciliation')
-                    except Exception as e:log('failure',{'stage':'identity-reconciliation',**diagnostic(e)})
-            sleep(max(.01,min(5,p['external_terminate_epoch']-wall())) if not terminating else 5)
+                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
+                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):
+                        write_json(directory/'heartbeat.json',{'schema':'ovl.external-watchdog-heartbeat.v1','observed_epoch':int(wall()),
+                            'provider_observed_epoch':last_success,'pid':os.getpid(),'pod_id':known,'intent_sha256':expected,
+                            'plan_sha256':digest(p),'external_terminate_epoch':p['external_terminate_epoch'],'state':'ARMED',
+                            'automatic_provider_termination':'UNVERIFIED'})
+                        sleep(5);continue
+                terminate('observation-or-evidence-failure',reconcile=True);log('failure',{'stage':'observation',**diagnostic(e)})
+            sleep(max(.01,min(10,p['external_terminate_epoch']-wall())) if not terminating else 5)
 
 
 def run_guarded(directory,intent,expected,*,provider_request=request,**kwargs):
@@ -145,10 +156,8 @@ def run_guarded(directory,intent,expected,*,provider_request=request,**kwargs):
     except ControllerBusy:raise  # A duplicate must leave the live owner alone.
     except Exception:
         try:
-            d,_,_=provider_request('identities')
-            matches=[p for p in d['myself']['pods'] if p['name']==intent['payload']['name']]
-            if len(matches)==1 and re.fullmatch('[A-Za-z0-9_-]{1,96}',matches[0]['id']):
-                provider_request('terminate',{'input':{'podId':matches[0]['id']}})
+            for pod_id in attributed_ids(provider_request,intent['payload']['name']):
+                provider_request('terminate',{'input':{'podId':pod_id}})
         except Exception:pass
         # Restarting service continues reconciliation; never claim a request is
         # successful termination or overwrite the damaged journal to make it pass.

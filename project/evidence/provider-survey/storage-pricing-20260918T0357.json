@@ -1,0 +1,13 @@
+{
+  "schema": "ovl.public-price-document-observation.v1",
+  "url": "https://docs.runpod.io/pods/pricing.md",
+  "observed_epoch": 1789703754,
+  "bytes": 5382,
+  "sha256": "b3565c38c06871d58b603713e2a971141de7107b60d104e0c7994114ed192fe5",
+  "used_rates": {
+    "container_gb_month_usd": "0.10",
+    "running_volume_gb_month_usd": "0.10",
+    "stopped_volume_gb_month_usd": "0.20"
+  },
+  "policy": "Use higher volume rate,28-day denominator and25% all-in margin; actual billing remains separate."
+}

@@ -16,14 +16,16 @@ import time
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,require_digest,write_json
 from ovl_pipeline.schema import fields
 from ovl_pipeline.supervision import ControllerBusy,Journal,observe
-from probe_provider_deadline import account,request,match_pod,provision_errors,diagnostic
+from probe_provider_deadline import account,request,match_pod,provision_errors,diagnostic,transient_read_grace
 from run_external_watchdog import validate_intent
+from rental_safety import Lifetime,boot_clock,attributed_ids,account_lease,fence
+from rental_quote import validate_quote
 
 
 def validate(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('rental intent differs from selected pin')
-    fields(value,'schema watchdog_intent payload','rental intent')
+    fields(value,'schema watchdog_intent payload quote','rental intent')
     if value['schema']!='ovl.rental-controller-intent.v1':raise EvidenceError('unsupported rental controller intent')
     w=value['watchdog_intent'];p=validate_intent(w,digest(w));payload=value['payload']
     fields(payload,'name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports','creation payload')
@@ -35,6 +37,7 @@ def validate(value,expected):
     if type(payload['gpuTypeId']) is not str or not re.fullmatch(r'[A-Za-z0-9 ._-]{1,96}',payload['gpuTypeId']):raise EvidenceError('invalid selected GPU')
     for k in ('minVcpuCount','minMemoryInGb'):
         if type(payload[k]) is not int or not 1<=payload[k]<=1024:raise EvidenceError('invalid selected resource minimum')
+    validate_quote(value['quote'],payload,p)
     # No env/key/registry credential fields are accepted in the published intent.
     b=w['baseline'];balance=Decimal(b['balance_usd'])
     needed=sum(Decimal(p['input'][k]) for k in ('outstanding_usd','reserved_remaining_usd'))+Decimal(p['maximum_charge_micro_usd']+p['protected_reserve_micro_usd'])/10**6
@@ -67,7 +70,7 @@ def normalized(w,obs,pod,h,health,now):
     debit=max(Decimal(0),baseline-balance)
     elapsed=max(0,now-p['input']['now_epoch'])
     accrual=Decimal(elapsed)*Decimal(p['input']['hourly_upper_usd'])/3600
-    outstanding=Decimal(p['input']['outstanding_usd'])+max(debit,accrual)
+    outstanding=max(Decimal(p['input']['outstanding_usd'])+accrual,debit)
     if health is None:progress=checkpoint=p['input']['now_epoch']
     else:
         fields(health,'schema intent_sha256 pod_id observed_epoch progress_epoch exported_checkpoint_epoch complete','workload health')
@@ -90,9 +93,9 @@ def normalized(w,obs,pod,h,health,now):
 
 
 def run(directory,value,expected,heartbeat,health_path,*,get_account=account,provider_request=request,
-        wall=time.time,monotonic=time.monotonic,sleep=time.sleep):
+        wall=time.time,monotonic=time.monotonic,sleep=time.sleep,boot=boot_clock,fence_root=None):
     w,p=validate(value,expected)
-    with Journal(directory).lease() as j:
+    with account_lease(fence_root) as fences,Journal(directory).lease() as j:
         intents=[e['body'] for e in j.events if e['kind']=='creation-intent']
         if intents and intents!=[value]:raise EvidenceError('controller journal intent mismatch')
         if any(e['kind']=='teardown' and e['body'].get('complete') is True for e in j.events):return
@@ -102,26 +105,30 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
         stopping=next((e['body']['observed_epoch'] for e in j.events if e['kind']=='decision' and e['body'].get('action')=='CHECKPOINT_AND_STOP'),None)
         terminating=any(e['kind']=='decision' and e['body'].get('action')=='TERMINATE' for e in j.events)
         missing_since=None
-        mono_deadline=monotonic()+max(0,min(p['external_terminate_epoch']-wall(),p['external_terminate_epoch']-p['input']['now_epoch']))
+        last_success=None;last_success_monotonic=None
         def log(kind,body):
             try:j.append(kind,body)
             except Exception:return False
             return True
-        def terminate(reason):
+        def terminate(reason,*,reconcile=False):
             nonlocal terminating,known
             terminating=True;log('decision',{'action':'TERMINATE','reason':reason,'observed_epoch':int(wall()),'pod_id':known})
-            if known is None:
-                try:
-                    d,_,_=provider_request('identities');matches=[x for x in d['myself']['pods'] if x['name']==w['payload']['name']]
-                    if len(matches)==1 and re.fullmatch('[A-Za-z0-9_-]{1,96}',matches[0]['id']):
-                        known=matches[0]['id'];log('creation-observed',{'id':known,'adopted_from_unique_intent':True})
-                except Exception as e:log('failure',{'stage':'identity-reconciliation',**diagnostic(e)})
             if known is not None:
                 try:
                     _,h,_=provider_request('terminate',{'input':{'podId':known}})
                     log('teardown',{'complete':False,'pod_id':known,'response_sha256':h})
                 except Exception as e:log('failure',{'stage':'termination',**diagnostic(e)})
-        if not intents:
+            if known is None or reconcile:
+                try:
+                    matches=attributed_ids(provider_request,w['payload']['name'])
+                    if known is None and matches:
+                        known=matches[0];log('creation-observed',{'id':known,'adopted_from_unique_intent':True})
+                    for pod_id in matches:
+                        _,h,_=provider_request('terminate',{'input':{'podId':pod_id}})
+                        log('teardown',{'complete':False,'pod_id':pod_id,'response_sha256':h})
+                except Exception as e:log('failure',{'stage':'identity-reconciliation',**diagnostic(e)})
+        first=not intents and not (fences/(value['payload']['name']+'.json')).exists()
+        if first:
             # Creation is authorized only within the short fixed window, with a
             # fresh empty account read and separately armed watchdog. Write once
             # before sending; a crash after this event can NEVER reissue creation.
@@ -134,32 +141,45 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
                 raise EvidenceError('provider clock differs before creation')
             j.append('creation-intent',value)
+            lifetime=Lifetime(j,p,wall=wall,clock=boot,initialize=True)
             try:
                 if not p['input']['now_epoch']<=wall()<=w['creation_latest_epoch']:raise EvidenceError('creation window expired')
                 watchdog_heartbeat(heartbeat,w,int(wall()))
+                if not fence(fences,value,j):raise EvidenceError('creation request already fenced; never repeat')
                 d,h,_=provider_request('create',{'input':value['payload']})
                 pod=d['podFindAndDeployOnDemand']
                 if not re.fullmatch('[A-Za-z0-9_-]{1,96}',pod['id']):raise EvidenceError('invalid created ID')
                 known=pod['id'];j.append('creation-observed',{'id':known,'response_sha256':h})
             except Exception as e:
                 log('failure',{'stage':'creation','reissue':'FORBIDDEN',**diagnostic(e)});terminate('uncertain-or-failed-creation')
+        else:
+            if not intents:j.append('creation-intent',value)
+            # A second journal may adopt/stop the same attempt, never authorize
+            # another request. Legacy missing clock anchors stop immediately.
+            if (fences/(value['payload']['name']+'.json')).exists():fence(fences,value,j)
+            lifetime=Lifetime(j,p,wall=wall,clock=boot,initialize=False)
+        mono_deadline=monotonic()+lifetime.remaining()
         while True:
             now=int(wall())
-            if terminating or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
+            if terminating or lifetime.remaining()<=0 or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
                 terminate('deadline-or-prior-abort-or-clock-rollback')
-            left=min(p['external_terminate_epoch']-wall(),mono_deadline-monotonic())
+            left=min(lifetime.remaining(),p['external_terminate_epoch']-wall(),mono_deadline-monotonic())
             if known is not None and not terminating and 0<left<=21:sleep(min(5,left));continue
+            stage='account'
             try:
-                obs=get_account();pod=match_pod(w,obs,known)
+                obs=get_account();stage='observation';pod=match_pod(w,obs,known)
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale provider read')
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:raise EvidenceError('provider clock differs')
+                last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
                 if pod is None:
                     if known is not None or wall()>p['external_terminate_epoch']+180:
                         if missing_since is None:missing_since=obs['observed_epoch']
                         elif obs['observed_epoch']-missing_since>=15:
                             report={'schema':'ovl.rental-controller-result.v1','complete':True,'pod_id':known,'intent_sha256':expected,
                                 'confirmed_absent_epoch':obs['observed_epoch'],'residual_network_volumes':obs['volume_ids'],
+                                'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb'],
+                                'runtime_identity_admission':'NOT_RUN',
                                 'automatic_provider_termination':'UNVERIFIED','provider_billing_reconciliation':'PENDING','training_admission':'NOT_RUN'}
                             j.append('teardown',report);write_json(directory/'result.json',report);return
                 else:
@@ -169,11 +189,19 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                     if provision_errors(w,pod) or obs['volume_ids'] or obs['autopay'] or len(obs['pods'])!=1:
                         raise EvidenceError('resource shape/account singleton changed')
                     h=watchdog_heartbeat(heartbeat,w,int(wall()),known)
-                    health=read_json(health_path) if health_path.exists() else None
-                    v=normalized(w,obs,pod,h,health,int(wall()));decision=observe(p,v)
+                    health_error=False
+                    try:
+                        health=read_json(health_path) if health_path.exists() else None
+                        v=normalized(w,obs,pod,h,health,int(wall()))
+                    except (EvidenceError,OSError,KeyError,TypeError):
+                        health=None;health_error=True;v=normalized(w,obs,pod,h,None,int(wall()))
+                    decision=observe(p,v)
+                    if health_error and decision['action']!='TERMINATE':
+                        decision['action']='CHECKPOINT_AND_STOP';decision['reasons'].append('invalid-workload-export-health')
                     decision['observed_epoch']=int(wall())
                     debit=max(Decimal(0),Decimal(w['baseline']['balance_usd'])-Decimal(obs['balance_usd']))
-                    if debit>Decimal(p['maximum_charge_micro_usd'])/10**6:raise EvidenceError('observed rental debit exceeded reserved ceiling')
+                    if debit>Decimal(p['input']['outstanding_usd'])+Decimal(p['maximum_charge_micro_usd'])/10**6:
+                        raise EvidenceError('observed debit exceeded prior unsettled plus rental ceiling')
                     if not log('provider-observation',{'account':obs,'normalized':v}):raise EvidenceError('cannot preserve cost observation')
                     if health is not None and health['complete']:terminate('workload-complete-exported')
                     elif decision['action']=='TERMINATE':terminate('supervision-hard-deadline')
@@ -187,16 +215,30 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                             terminate('graceful-stop-interval-exhausted')
                     elif stopping is not None and wall()>=min(stopping+p['input']['checkpoint_grace_seconds'],p['provider_terminate_epoch']):
                         terminate('prior-stop-remains-binding')
-                if not log('provider-observation',{'account':obs,'pod_id':known}):raise EvidenceError('cannot preserve account observation')
+                if pod is None and not log('provider-observation',{'account':obs,'pod_id':known}):raise EvidenceError('cannot preserve account observation')
             except Exception as e:
-                log('failure',{'stage':'supervision',**diagnostic(e)});terminate('invalid-observation-or-evidence')
-            sleep(5)
+                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
+                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):sleep(5);continue
+                log('failure',{'stage':'supervision',**diagnostic(e)});terminate('invalid-observation-or-evidence',reconcile=True)
+            sleep(5 if terminating else 10)
+
+
+def run_guarded(directory,value,expected,heartbeat,health_path,*,provider_request=request,**kwargs):
+    validate(value,expected)
+    try:return run(directory,value,expected,heartbeat,health_path,provider_request=provider_request,**kwargs)
+    except ControllerBusy:raise
+    except Exception:
+        try:
+            for pod_id in attributed_ids(provider_request,value['payload']['name']):
+                provider_request('terminate',{'input':{'podId':pod_id}})
+        except Exception:pass
+        raise
 
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('intent','journal','watchdog-heartbeat','workload-health'):p.add_argument('--'+name,required=True,type=Path)
     p.add_argument('--intent-sha256',required=True);a=p.parse_args()
-    run(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health)
+    run_guarded(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health)
 
 if __name__=='__main__':main()
