@@ -1,0 +1,29 @@
+{
+  "result": "PASS",
+  "scope": "synthetic declarations with real Ed25519 signatures; no checkpoint-byte or numerical replay/public-anchor acceptance",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "result_summary": "424passed3legacyCUDA skips",
+  "source_revision_parent": "ba52e59f6faecd84d33061b163f7461cec846812",
+  "sources": [
+    {
+      "path": "src/ovl_pipeline/production_chain.py",
+      "sha256": "351fb48809aebcb2764fd4bb16e41264d29cf8e72c1f30ed543f34c2f7b09e19"
+    },
+    {
+      "path": "tests/test_production_chain.py",
+      "sha256": "bd38a65a3461f4c7c7c9983a9e1d38e0f32135de6fcaf01a3c34c824639625e8"
+    },
+    {
+      "path": "src/ovl_pipeline/production_contract.py",
+      "sha256": "8e762c3cac07855a035be4848a17a493b10e057a17c96b5bb3f6a1be64c90a15"
+    },
+    {
+      "path": "src/ovl_pipeline/training.py",
+      "sha256": "b90e987247c9f431f68b75cb0866ed536fefc8dc74fa458c8ad6615d161291e5"
+    },
+    {
+      "path": "src/ovl_pipeline/schema.py",
+      "sha256": "6255f646fb441d350ca7d79ac2441edf42af9b1047ab3c7ad6061743299e090c"
+    }
+  ]
+}

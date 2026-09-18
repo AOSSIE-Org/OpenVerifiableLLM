@@ -23,9 +23,22 @@ initialization will be published before production training. Raw reconstruction
 and continuous exact replay are required before any verified release claim.
 
 Current scope: publicly downloaded/replayed synthetic development evidence,
-publisher identity tests, and raw source archival work. Raw archives, when present,
+publisher identity tests, complete raw source archival and a verified public source/preparation commitment. Raw archives
 are under inventory-addressed `raw/` prefixes with per-archive cards and licenses.
-No final source or production precommitment has been signed or anchored yet.
+G01 source identity/availability is complete: all19files were anonymously downloaded
+and rehashed, and the full Wikipedia compressed archive passed decompression and
+upstream checksums. The source/preparation statement was signed at
+[GitHub commit f6d4371](https://github.com/AOSSIE-Org/OpenVerifiableLLM/commit/f6d43711bf0895c7f90974d1bbfd46ccc4aebda6),
+verified against an operator-reconstructed publisher policy, archived at
+[HF4b6a102](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/commit/4b6a102ff5046fabdee21a16edaac12f17319b88),
+and verified again after a fresh anonymous download. Statement SHA-256:
+`ec263b5c3914fd1a8bd25e97fa377b4f8416c38a9ef216d27c203252948b9129`.
+
+Full preparation is now running on local CPU. G02–G10 remain pending; no production
+training registration, GPU training, full production replay or model release exists.
+These checks were performed by the project operator, not an independent third party.
+The [public evidence trace](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/feat/verifiable-wikipedia-pipeline/docs/PUBLIC_EVIDENCE_TRACE.md)
+links scoped checks and failed attempts.
 
 ## Licensing and retention
 
