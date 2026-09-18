@@ -1,0 +1,1 @@
+{"elapsed_ns":21684610,"network_calls":0,"provider_already_confirmed_absent":true,"result":"PASS","result_sha256":"aa2b2154e226cff9f9aa460192b2c0a6b9cfbe00c54922513f05689013669c7e","schema":"ovl.actual-completed-adoption.v1","scope":"actual retained complete export bytes rehashed without network or new workload"}
