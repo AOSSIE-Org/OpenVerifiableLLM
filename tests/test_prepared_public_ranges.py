@@ -125,3 +125,48 @@ def test_slow_response_has_fixed_lifetime_and_one_retry(tmp_path,monkeypatch):
         value=read_json(tmp_path/f'v/attempt-{attempt}.json')
         assert value['error_type']=='TimeoutError' and value['actual_bytes']==1
         assert value['retry_selected'] is (attempt==0)
+
+
+@pytest.mark.parametrize('failures',[0,3,5,6])
+def test_selected_network_backoff_has_fixed_attempt_count_and_full_hash(tmp_path,monkeypatch,failures):
+    from urllib.error import URLError
+    import hashlib
+    calls=[];sleeps=[]
+    class Response(io.BytesIO):
+        url='https://example.invalid/file';status=206
+        headers={'Content-Range':'bytes 0-2/3','Content-Length':'3'}
+    class Opener:
+        def open(self,request,timeout):
+            calls.append(request)
+            if len(calls)<=failures:raise URLError(OSError(11,'explicit temporary network error'))
+            return Response(b'abc')
+    monkeypatch.setattr(m.time,'sleep',sleeps.append)
+    item={'path':'file','bytes':3,'sha256':hashlib.sha256(b'abc').hexdigest()}
+    def run():return m.file_responses(Response.url,item,tmp_path/'v',chunk_bytes=3,workers=1,
+                                     opener_factory=Opener,maximum_attempts=6)
+    if failures==6:
+        with pytest.raises(EvidenceError):run()
+    else:assert run()['actual_sha256']==item['sha256']
+    assert len(calls)==min(failures+1,6)
+    assert sleeps==[5,15,30,60,120][:min(failures,5)]
+    for i in range(min(failures,6)):
+        v=read_json(tmp_path/f'v/range-000000000000/attempt-{i}.json')
+        assert v['reason_type']=='BlockingIOError' and v['reason_errno']==11
+        assert v['retry_selected'] is (i<5)
+
+
+@pytest.mark.parametrize('attempts',[0,7,True,1.5])
+def test_attempt_limits_fail_before_network(tmp_path,attempts):
+    plan,retained,p,revision,api,factory,calls,_=ranged(tmp_path)
+    with pytest.raises(EvidenceError):
+        m.verify(plan,file_hash(plan),revision,retained,tmp_path/'v',api=api,opener_factory=factory,maximum_attempts=attempts)
+    assert not calls
+
+
+def test_expanded_retries_never_retry_protocol_failure(tmp_path,monkeypatch):
+    plan,retained,p,revision,api,factory,calls,_=ranged(tmp_path,'offset');sleeps=[]
+    monkeypatch.setattr(m.time,'sleep',sleeps.append)
+    with pytest.raises(EvidenceError):
+        m.verify(plan,file_hash(plan),revision,retained,tmp_path/'v',api=api,opener_factory=factory,
+                 maximum_attempts=6,workers=1,chunk_bytes=65536)
+    assert len(calls)==1 and not sleeps

@@ -3,7 +3,7 @@
 
 Each accepted range has exact offsets, length and representation size. Hashing is
 in file order even when transfers overlap. A short/transient response has at most
-one fresh range attempt; rejected bytes never enter the whole-file hash. Original
+the selected bounded retry policy; rejected bytes never enter the whole-file hash. Original
 local files remain separately retained. This does not reconstruct data or replay
 training. No credentials, response cache, skipped ranges or sampled acceptance.
 """
@@ -27,11 +27,12 @@ from publish_evidence_archive import REPO,existing,validate
 class ShortResponse(EvidenceError):pass
 
 
-def fetch(url,start,length,total,output,*,opener_factory=None):
-    """At most two complete responses for one explicit, bounded byte interval."""
+def fetch(url,start,length,total,output,*,opener_factory=None,maximum_attempts=2):
+    """Bounded complete responses; only transient failures may retry an interval."""
+    integer(maximum_attempts,1,6,'bounded public range attempts')
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
     factory=opener_factory or (lambda:build_opener(ProxyHandler({})))
-    for attempt in range(2):
+    for attempt in range(maximum_attempts):
         started=time.monotonic();body=bytearray();status=None;selected_headers=None
         headers={'Accept-Encoding':'identity','Cache-Control':'no-cache'}
         if total:headers['Range']=f'bytes={start}-{start+length-1}'
@@ -69,18 +70,24 @@ def fetch(url,start,length,total,output,*,opener_factory=None):
             transient=(isinstance(error,(ShortResponse,TimeoutError,ConnectionError))
                 or isinstance(error,HTTPError) and (error.code==429 or 500<=error.code<=599)
                 or isinstance(error,URLError) and not isinstance(error,HTTPError))
+            retry=transient and attempt+1<maximum_attempts
+            backoff=(5,15,30,60,120)[attempt] if retry else 0
+            reason=getattr(error,'reason',None)
             write_json(output/f'attempt-{attempt}.json',{'schema':'ovl.prepared-public-range-failure.v1',
                 'result':'FAIL','start':start,'length':length,'total':total,'status':status,
                 'actual_bytes':len(body),'partial_sha256':hashlib.sha256(body).hexdigest(),
                 'error_type':type(error).__name__,'http_status':error.code if isinstance(error,HTTPError) else None,
-                'retry_selected':transient and attempt==0,'elapsed_ms':int((time.monotonic()-started)*1000)})
-            if not transient or attempt:raise EvidenceError('public range failed: '+type(error).__name__) from None
-            time.sleep(1)
+                'reason_type':type(reason).__name__ if reason is not None else None,
+                'reason_errno':getattr(reason,'errno',None) if type(getattr(reason,'errno',None)) is int else None,
+                'retry_selected':retry,'backoff_seconds':backoff,'elapsed_ms':int((time.monotonic()-started)*1000)})
+            if not retry:raise EvidenceError('public range failed: '+type(error).__name__) from None
+            time.sleep(backoff)
 
 
-def file_responses(url,item,output,*,chunk_bytes,workers,opener_factory=None,progress=None):
+def file_responses(url,item,output,*,chunk_bytes,workers,opener_factory=None,progress=None,maximum_attempts=2):
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
     integer(chunk_bytes,1,64*1024**2,'bounded range bytes');integer(workers,1,4,'bounded response workers')
+    integer(maximum_attempts,1,6,'bounded public range attempts')
     size=item['bytes'];sha=hashlib.sha256();count=0;receipts=[]
     intervals=iter([(0,0)] if size==0 else ((start,min(chunk_bytes,size-start)) for start in range(0,size,chunk_bytes)))
     pending=deque()
@@ -88,7 +95,8 @@ def file_responses(url,item,output,*,chunk_bytes,workers,opener_factory=None,pro
         def submit():
             try:start,length=next(intervals)
             except StopIteration:return False
-            pending.append((start,length,pool.submit(fetch,url,start,length,size,output/f'range-{start:012d}',opener_factory=opener_factory)))
+            pending.append((start,length,pool.submit(fetch,url,start,length,size,output/f'range-{start:012d}',
+                            opener_factory=opener_factory,maximum_attempts=maximum_attempts)))
             return True
         for _ in range(workers):submit()
         try:
@@ -109,9 +117,10 @@ def file_responses(url,item,output,*,chunk_bytes,workers,opener_factory=None,pro
             'range_receipts_sha256':digest(receipts)}
 
 
-def verify(plan_path,expected,revision,retained,output,*,chunk_bytes=64*1024**2,workers=4,api=None,opener_factory=None):
+def verify(plan_path,expected,revision,retained,output,*,chunk_bytes=64*1024**2,workers=4,api=None,opener_factory=None,maximum_attempts=2):
     plan_path=Path(plan_path);output=Path(output);retained=Path(retained)
     integer(chunk_bytes,1,64*1024**2,'bounded range bytes');integer(workers,1,4,'bounded response workers')
+    integer(maximum_attempts,1,6,'bounded public range attempts')
     require_digest(expected)
     if file_hash(plan_path)!=expected:raise EvidenceError('prepared plan differs from independent selection')
     plan=read_json(plan_path);validate(plan)
@@ -130,7 +139,8 @@ def verify(plan_path,expected,revision,retained,output,*,chunk_bytes=64*1024**2,
     intent={'schema':'ovl.prepared-range-download-intent.v1','plan_sha256':expected,'repo':REPO,'revision':revision,
         'prefix':plan['prefix'],'authentication':'anonymous-no-credentials','local_transport_cache':False,
         'response_bytes_retained':False,'original_files_rehashed':True,'retained_directory':str(retained.resolve()),
-        'chunk_bytes':chunk_bytes,'workers':workers,'maximum_attempts_per_range':2,'response_lifetime_seconds':600,
+        'chunk_bytes':chunk_bytes,'workers':workers,'maximum_attempts_per_range':maximum_attempts,
+        'retry_backoff_seconds':[5,15,30,60,120][:maximum_attempts-1],'response_lifetime_seconds':600,
         'started_utc':datetime.now(timezone.utc).isoformat()}
     write_json(output/'intent.json',intent);receipts=[]
     for index,item in enumerate(plan['files']):
@@ -142,7 +152,7 @@ def verify(plan_path,expected,revision,retained,output,*,chunk_bytes=64*1024**2,
         started=time.monotonic()
         try:
             result=file_responses(url,item,output/f'file-{index:03d}-ranges',chunk_bytes=chunk_bytes,
-                                  workers=workers,opener_factory=opener_factory,progress=progress)
+                                  workers=workers,opener_factory=opener_factory,progress=progress,maximum_attempts=maximum_attempts)
         except Exception as error:
             write_json(output/'failure.json',{'schema':'ovl.prepared-range-download-failure.v1','result':'FAIL',
                 'file_index':index,'path':item['path'],'error_type':type(error).__name__,'complete_files':len(receipts),
@@ -165,8 +175,9 @@ def main():
     for name in ('plan','retained','output'):p.add_argument('--'+name,type=Path,required=True)
     for name in ('plan-sha256','revision'):p.add_argument('--'+name,required=True)
     p.add_argument('--chunk-bytes',type=int,default=64*1024**2);p.add_argument('--workers',type=int,default=4)
+    p.add_argument('--maximum-attempts',type=int,default=2)
     a=p.parse_args()
-    try:print(digest(verify(a.plan,a.plan_sha256,a.revision,a.retained,a.output,chunk_bytes=a.chunk_bytes,workers=a.workers)))
+    try:print(digest(verify(a.plan,a.plan_sha256,a.revision,a.retained,a.output,chunk_bytes=a.chunk_bytes,workers=a.workers,maximum_attempts=a.maximum_attempts)))
     except Exception as error:p.exit(1,'prepared range verification refused: '+type(error).__name__+'; preserve receipts and original files\n')
 
 

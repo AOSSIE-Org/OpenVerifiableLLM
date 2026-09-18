@@ -21,7 +21,7 @@ from ovl_pipeline.production_identity import ProductionPublisherPolicy,PRODUCTIO
 from ovl_pipeline import progress_anchoring as pa
 
 
-def setup(prepared,tmp_path,monkeypatch,damage=None):
+def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
     numerical=tmp_path/'numerical';numerical.mkdir();r,root,envs,key,chain,streams=actual_artifacts(prepared,numerical)
     source=tmp_path/'source';source.mkdir();packet,rr=production_request(source)
     write_json(packet/'registration.json',r);rr['registration_sha256']=root
@@ -66,6 +66,35 @@ def setup(prepared,tmp_path,monkeypatch,damage=None):
         if damage=='wrong-waiting':waiting['boundary_sha256']='0'*64
         write_json(chain/'awaiting-anchor.json',waiting)
         if damage=='checkpoint':(chain/body['checkpoint_path']/'state.safetensors').write_bytes(b'changed')
+        if persistent:
+            import persistent_publication as service
+            # The service hashes complete immutable input trees. Keep its mutable
+            # output/state outside them, including the independently selected source.
+            inputs=tmp_path/f'service-inputs-{index:05d}';inputs.mkdir()
+            source=inputs/'source';source.mkdir()
+            previous=previous or inputs/'empty-prefix'
+            previous.mkdir(exist_ok=True)
+            for name,value in [('production-policy',asdict(pp)),('source-policy',asdict(sp)),
+                               ('config',config),('previous-policies',[asdict(p) for p in (policies or [])])]:
+                write_json(inputs/(name+'.json'),value)
+            args={'packet':str(packet),'registration-bundle':str(bundle/'registration.sigstore.json'),
+                  'source-checkout':str(source),'chain-directory':str(chain),'previous-directory':str(previous),
+                  'output':str(tmp_path/f'publication/boundary-{index:05d}'),
+                  **{name:str(inputs/(name+'.json')) for name in ('production-policy','source-policy','config','previous-policies')}}
+            spec=service.selection(root,digest(selected[-1]),deadline,args,python=Path(sys.executable).resolve())
+            if damage=='service-boundary':spec['boundary_sha256']='c'*64
+            if damage=='service-input-change':
+                original=m.publish
+                def changed(*a,**kw):
+                    result=original(*a,**kw)
+                    (source/'unselected.py').write_text('# changed during publication')
+                    return result
+                monkeypatch.setattr(m,'publish',changed)
+            state=tmp_path/f'service-state-{index:05d}';state.mkdir();write_json(state/'selection.json',spec)
+            result=service.worker(spec,digest(spec),state)
+            assert read_json(state/'result.json')['ack_sha256']==digest(result)
+            with pytest.raises(FileExistsError):service.worker(spec,digest(spec),state)
+            return result
         return m.publish(packet,bundle/'registration.sigstore.json',pp,sp,tmp_path,config,chain,
                          previous or tmp_path/'none',policies or [],tmp_path/f'publication/boundary-{index:05d}',deadline)
     return run,provider,committed
@@ -76,23 +105,34 @@ def file_root(path):
     return file_hash(path)
 
 
-def test_real_checkpoint_publication_precedes_verified_ack_and_links_next(prepared,tmp_path,monkeypatch):
-    run,provider,committed=setup(prepared,tmp_path,monkeypatch)
+@pytest.mark.parametrize('persistent',[False,True])
+def test_real_checkpoint_publication_precedes_verified_ack_and_links_next(prepared,tmp_path,monkeypatch,persistent):
+    run,provider,committed=setup(prepared,tmp_path,monkeypatch,persistent=persistent)
     first=run(0);assert provider.commits==2 and first['checkpoint_download']['result']=='PASS'
     assert first['training_replay']=='NOT_RUN'
     second=run(1,Path(first['anchor_directory']),[pa.ProgressPublisherPolicy(**first['policy'])])
     assert provider.commits==4 and second['index']==1
     assert second['public_prefix_check']['anchors'][0]['statement_sha256']==first['policy']['statement_sha256']
-    with pytest.raises(EvidenceError,match='already exists'):run(0)
+    if not persistent:
+        with pytest.raises(EvidenceError,match='already exists'):run(0)
     assert provider.commits==4
 
 
 @pytest.mark.parametrize('damage',['wrong-waiting','checkpoint','wrong-statement','signature','failed-push'])
-def test_missing_or_changed_evidence_never_acknowledges(prepared,tmp_path,monkeypatch,damage):
-    run,provider,committed=setup(prepared,tmp_path,monkeypatch,damage)
+@pytest.mark.parametrize('persistent',[False,True])
+def test_missing_or_changed_evidence_never_acknowledges(prepared,tmp_path,monkeypatch,damage,persistent):
+    run,provider,committed=setup(prepared,tmp_path,monkeypatch,damage,persistent=persistent)
     with pytest.raises(EvidenceError):run(0)
     assert not(tmp_path/'publication/boundary-00000/ack.json').exists()
     if damage in ('wrong-waiting','checkpoint'):assert provider.commits==0
+
+
+@pytest.mark.parametrize('damage',['service-boundary','service-input-change'])
+def test_service_never_returns_result_for_changed_selected_identity(prepared,tmp_path,monkeypatch,damage):
+    run,provider,_=setup(prepared,tmp_path,monkeypatch,damage,persistent=True)
+    with pytest.raises(EvidenceError):run(0)
+    assert not(tmp_path/'service-state-00000/result.json').exists()
+    assert (tmp_path/'service-state-00000/worker-started.json').exists()
 
 
 def test_restart_pins_original_archive_and_never_republishes_checkpoint(prepared,tmp_path,monkeypatch):
