@@ -37,7 +37,7 @@ def saved_result(path,job):
 
 
 def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker,output,health_file,
-              stop_file,rental_intent_sha256,*,sleep=time.sleep):
+              stop_file,rental_intent_sha256,*,sleep=time.sleep,initial_retention=None):
     """Resume by pinned identity, export all selected roots, retain exact failures.
 
     Health completion is deliberately left to the enclosing coordinator after
@@ -51,6 +51,12 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         raise EvidenceError('stage worker differs from operator selection')
     if job.get('kind') not in ('setup','pilot','export'):
         raise EvidenceError('production/long replay requires dedicated verified checkpoint hooks')
+    if initial_retention is not None:
+        from pilot_retention import InitialRetention
+        if (type(initial_retention) is not InitialRetention or initial_retention.job!=expected_job
+            or initial_retention.health is not health or initial_retention.transport is not transport
+            or initial_retention.health_file!=health_file or job['kind']!='pilot'):
+            raise EvidenceError('initial retention differs from selected pilot stage')
     now=health.now();deadline=job['deadline_epoch']
     integer(deadline,health.plan['input']['now_epoch']+1,health.plan['provider_terminate_epoch'],'stage deadline')
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -131,6 +137,9 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         names=('exit.json','status.json','failure.json','input-progress.json')
         selected={job_root+'/'+name:observation/name for name in names}
         if activity is not None:selected[activity]=observation/'activity.json'
+        if initial_retention is not None:
+            for index,name in enumerate(initial_retention.observation_paths()):
+                selected[name]=observation/f'initial-retention-{index:03d}.json'
         bundle=observe_many(transport,selected,65536,transfer_deadline())
         exit_value=bundle[job_root+'/exit.json'];status=bundle[job_root+'/status.json']
         if exit_value is not None:
@@ -154,6 +163,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         if activity is not None:
             value=bundle[activity]
             if value is not None:health.activity(expected_job,value)
+        if initial_retention is not None:initial_retention.observe(bundle)
         health.write(health_file);sleep(5)
     exports=[]
     for index,name in enumerate(roots):
@@ -176,7 +186,11 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
             verify_inventory(destination/'files',receipt['files'])
         else:
             def progress(operation,counts,total):health.bytes(operation,counts,total=total);health.write(health_file)
-            receipt=export_tree(transport,name,destination,health.plan['external_terminate_epoch'],progress=progress)
+            if initial_retention is None:
+                receipt=export_tree(transport,name,destination,health.plan['external_terminate_epoch'],progress=progress)
+            else:
+                from pod_versioned_export import export
+                receipt=export(transport,name,initial_retention.store,destination,health.plan['external_terminate_epoch'],progress=progress)
         health.exported_files(expected_job,destination/'files',receipt['files'])
         exports.append({'remote_root':name,'directory':str((destination/'files').resolve()),'files':receipt['files']})
         health.write(health_file)

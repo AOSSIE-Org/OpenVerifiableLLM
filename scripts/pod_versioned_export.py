@@ -23,10 +23,12 @@ def retained_object(path,item):
         raise EvidenceError('retained export object differs; preserve and refuse')
 
 
-def export(transport,name,store,output,deadline,*,progress=None,whole_root=False):
+def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None):
     store=regular_directory(store);output=regular_directory(output,fresh=True)
     if store==output or store in output.parents or output in store.parents:raise EvidenceError('object store and snapshots must be separate')
     files=tree(transport,name,deadline,whole_root=whole_root);write_json(output/'inventory.json',files)
+    if expected_files is not None and files!=expected_files:
+        raise EvidenceError('remote snapshot differs from independently selected file inventory')
     prefix='' if whole_root else name+'/'
     target=regular_directory(output/'files');objects=regular_directory(store/'objects');incoming=regular_directory(store/'incoming')
     transfers=[];reused=[];missing=[];selected_hashes=set()

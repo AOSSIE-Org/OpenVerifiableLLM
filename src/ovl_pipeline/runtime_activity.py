@@ -17,17 +17,28 @@ _last=None
 
 
 def update(control,*,clock=time.monotonic):
+    return _emit({'schema':'ovl.runtime-activity.v1','kind':'completed-numerical-update','control':control},clock=clock)
+
+
+def stream_validation(stream_sha256,documents,completed_documents,complete,*,clock=time.monotonic):
+    """A checked row prefix, not training progress or a verification receipt."""
+    return _emit({'schema':'ovl.runtime-stream-validation.v1','stream_sha256':stream_sha256,
+                  'documents':documents,'completed_documents':completed_documents,'complete':complete},
+                 clock=clock,force=complete)
+
+
+def _emit(value,*,clock,force=False):
     global _process,_sequence,_last
     selected=os.environ.get('OVL_ACTIVITY_FILE')
     if not selected:return
     path=Path(selected)
-    if not path.is_absolute() or path.name!='activity.json' or path.is_symlink() or not path.parent.is_dir():
+    if (not path.is_absolute() or path.name!='activity.json' or any(p.is_symlink() for p in [path,*path.parents])
+        or not path.parent.is_dir()):
         raise EvidenceError('activity output must be an explicit regular activity.json in an existing directory')
     now=clock()
-    if _last is not None and 0<=now-_last<30:return
+    if not force and _last is not None and 0<=now-_last<30:return
     if _process is None:_process=uuid.uuid4().hex
     _sequence+=1
-    write_json(path,{'schema':'ovl.runtime-activity.v1','process_instance':_process,'pid':os.getpid(),
-                     'sequence':_sequence,'kind':'completed-numerical-update','control':control,
+    write_json(path,{**value,'process_instance':_process,'pid':os.getpid(),'sequence':_sequence,
                      'scope':'operator-supervision-only-not-training-verification'})
     _last=now

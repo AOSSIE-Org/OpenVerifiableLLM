@@ -22,3 +22,15 @@ def test_telemetry_cannot_write_arbitrary_filename_or_follow_symlink(tmp_path,mo
     monkeypatch.setenv('OVL_ACTIVITY_FILE',str(tmp_path/'activity.json'))
     with pytest.raises(EvidenceError):m.update({})
     assert (tmp_path/'target').read_text()=='preserve'
+
+
+def test_telemetry_rejects_symlink_parent_and_propagates_failed_durable_write(tmp_path,monkeypatch):
+    monkeypatch.setattr(m,'_last',None)
+    actual=tmp_path/'actual';actual.mkdir();alias=tmp_path/'alias';alias.symlink_to(actual,target_is_directory=True)
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(alias/'activity.json'))
+    with pytest.raises(EvidenceError):m.update({})
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(actual/'activity.json'))
+    def fail(*a):raise OSError('injected full disk')
+    monkeypatch.setattr(m,'write_json',fail)
+    with pytest.raises(OSError,match='full disk'):m.update({})
+    assert not (actual/'activity.json').exists()

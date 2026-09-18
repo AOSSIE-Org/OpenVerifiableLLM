@@ -15,7 +15,8 @@ import torch
 
 from . import gpu, schema
 from .canonical import EvidenceError, canonical, confined, digest, read_json, require_digest, write_json
-from .data import batches, validate_stream
+from .data import batches
+from .observed_validation import validate_stream
 from .state import capture, read_state, restore, save_state, state_root
 from .training import code_root
 
