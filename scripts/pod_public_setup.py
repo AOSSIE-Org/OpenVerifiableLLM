@@ -96,7 +96,7 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     if type(offline) is not dict or offline.get('schema')!='ovl.offline-runtime-setup.v1':raise ValueError('offline schema')
     source=path(inputs,offline['source_root']);wheels=path(inputs,offline['wheels'])
     if source==wheels or source in wheels.parents or wheels in source.parents or wheels.exists():raise ValueError('fresh distinct source and wheels required')
-    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=180:raise ValueError('download time bound')
+    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=210:raise ValueError('download time bound')
     output.mkdir(mode=0o700,parents=True)
     with (output/'selected-config.json').open('xb') as f:
         f.write(Path(config).read_bytes());f.flush();os.fsync(f.fileno())

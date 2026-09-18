@@ -36,7 +36,7 @@ Run the pinned entrypoint with the selected image's isolated bootstrap interpret
 ```
 
 The original job/rental deadline remains authoritative. Entry is additionally
-bounded to300seconds, of which at most180seconds are selected for downloads.
+bounded to300seconds, of which at most210seconds are selected for downloads.
 Earlier full offline local installation/audit measured58.6507seconds; that does
 not prove the same elapsed time on a pod. A complete local public download attempt
 failed on a read timeout after48.687seconds and stopped before installation.
@@ -80,3 +80,13 @@ separate corroboration actually exists.
 fresh-process replay and a separate resume probe through the audited launcher.
 It does not supply sustained throughput, corpus coverage, a production model or
 independent third-party verification.
+
+The first remote rehearsal completed75of76wheels; the cuDNN wheel reached
+508559360of553099438bytes at the180second limit. The job failed before installation,
+all88selected evidence files were rehashed off pod, and both guards confirmed
+teardown. Its remaining prefix is exactly reconstructible from the retained
+complete audited public wheel. This measured failure motivates210seconds for
+downloads, leaving90seconds of the unchanged300second setup budget. The prior
+local offline setup measured58.6507seconds;90seconds is a prospective allowance,
+not a measured pod result. A new bounded attempt must test it. No active deadline
+is extended, and production acceptance remains pending.

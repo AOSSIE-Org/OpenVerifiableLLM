@@ -139,3 +139,15 @@ def test_pax_metadata_archive_is_refused_instead_of_silently_interpreted(tmp_pat
     with tarfile.open(a,'w:gz',format=tarfile.PAX_FORMAT) as t:
         i=tarfile.TarInfo(files[0]['path']);i.size=len(data);i.pax_headers={'comment':'unselected metadata'};t.addfile(i,io.BytesIO(data))
     with pytest.raises(ValueError,match='member differs'):m.extract(a,file_hash(a),tmp_path/'out',files)
+
+
+def test_measured_download_cap_does_not_extend_original_total_bound(tmp_path):
+    inputs,config,v=fixture(tmp_path);v['download_seconds']=210;write_json(config,v);calls=[]
+    def stop(argv,**kwargs):
+        calls.append((argv,kwargs));raise RuntimeError('stop before actual network')
+    original=int(time.time())+280
+    with pytest.raises(RuntimeError):m.setup(config,file_hash(config),inputs,tmp_path/'runtime',tmp_path/'evidence',original,execute=stop)
+    assert len(calls)==1 and int(calls[0][0][-1])<=int(time.time())+210 and calls[0][1]['timeout']<=280
+    other=tmp_path/'other';other.mkdir();i,c,v=fixture(other);v['download_seconds']=211;write_json(c,v)
+    with pytest.raises(ValueError,match='download time bound'):m.setup(c,file_hash(c),i,other/'runtime',other/'evidence',int(time.time())+280,execute=stop)
+    assert len(calls)==1
