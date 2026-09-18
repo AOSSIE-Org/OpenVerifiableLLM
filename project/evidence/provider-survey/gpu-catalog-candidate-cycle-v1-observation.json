@@ -1,0 +1,1 @@
+{"schema":"ovl.provider-catalog-observation.v1","observed_epoch":1789747782,"tool":"RunPod MCP list_gpu_types","arguments":{"include":["AVAILABILITY"],"product":["POD"],"cloud":"SECURE","count":1,"minCudaVersion":"13.0"},"scope":"availability/price observation only; no provisioning or measured numerical performance"}

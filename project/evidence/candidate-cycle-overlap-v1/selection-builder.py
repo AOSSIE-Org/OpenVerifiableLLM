@@ -1,0 +1,91 @@
+"""Build one complete candidate cycle plan; no provisioning or process launch."""
+from pathlib import Path
+import sys
+sys.path[:0]=['src','scripts']
+from ovl_pipeline.canonical import read_json,write_json,digest,file_hash,inventory,verify_inventory
+from sustained_pilot_selection import DEADLINE,RECORD
+from run_sustained_pilot import validate
+
+
+def select(base,profile,rental,prepared_plan):
+    base=Path(base);inputs=base/'inputs';remote=profile['remote_root']
+    selected=inventory(inputs,[p.name for p in inputs.iterdir() if p.is_file()])
+    uploads=[{'path':f['path'],'remote_path':'inputs/'+f['path'],'bytes':f['bytes'],'sha256':f['sha256']} for f in selected]
+    required=[{'path':remote+'/'+f['remote_path'],'bytes':f['bytes'],'sha256':f['sha256']} for f in uploads]
+    common={'schema':'ovl.pod-job.v1','cwd':remote,'environment':{'PATH':'/usr/bin:/bin','LANG':'C.UTF-8'},
+            'stop_grace_seconds':15,'minimum_free_bytes':16*1024**3,'required_files':required,'deadline_epoch':DEADLINE}
+    specs=[]
+    def add(name,job,work,reserve,maximum,**bindings):
+        path=inputs/(name+'-template.json');assert not path.exists();write_json(path,job)
+        stage={'name':name,'template_path':path.name,'template_sha256':digest(job),'work_seconds':work,
+            'export_reserve_seconds':reserve,'maximum_export_bytes':maximum,
+            'parent_stage':None,'parent_record_root':None,'parent_binding':None,'validation_binding':None,
+            'download_binding':None,'retention':None,**bindings}
+        specs.append(stage)
+    setup={**common,'kind':'setup','argv':['/usr/bin/python3','-I','-S',remote+'/inputs/pod_public_setup.py',
+        '--config',remote+'/inputs/public-config.json','--config-sha256',file_hash(inputs/'public-config.json'),
+        '--inputs',remote+'/inputs','--runtime',remote+'/runtime','--output',remote+'/setup-evidence','--deadline',DEADLINE],
+        'export_roots':[remote+'/setup-evidence']}
+    add('setup',setup,300,90,16*1024**2)
+    download={**common,'kind':'setup','environment':{**common['environment'],'OVL_ACTIVITY_FILE':remote+'/input-evidence/activity.json'},
+        'argv':['/usr/bin/python3','-I','-S',remote+'/inputs/pod_fetch_prepared.py','--plan',remote+'/inputs/prepared-plan.json',
+                '--plan-sha256',digest(prepared_plan),'--output',remote+'/prepared','--report',remote+'/input-evidence/result.json','--deadline',DEADLINE],
+        'export_roots':[remote+'/input-evidence']}
+    add('prepared-inputs',download,1500,90,16*1024**2,download_binding={'schema':'ovl.public-input-binding.v1',
+        'plan_sha256':digest(prepared_plan),'bytes':sum(f['bytes'] for f in prepared_plan['files'])})
+    python=Path('.ovllm-cache/public-python-v1/python/bin/python3.12')
+    numerical_required=[*required,{'path':remote+'/runtime/public-python/python/bin/python3.12','bytes':python.stat().st_size,'sha256':file_hash(python)},
+        *[{**f,'path':remote+'/prepared/'+f['path']} for f in prepared_plan['files']]]
+    original=Path('.ovllm-cache/production-preparation-v1')
+    stream=read_json(original/'wikipedia/stream.json')
+    selection=read_json(base/'preliminary-selection.json')
+    binding={'schema':'ovl.pilot-record-parent-binding.v1','recipe_sha256':selection['recipe_sha256'],
+        'kernel_sha256':selection['kernel_sha256'],'stream_sha256':digest(stream),'code_root':selection['code_root']}
+    for mode in ('record','replay','resume'):
+        control=remote+'/control-'+mode;output=remote+'/'+mode
+        args=['record' if mode=='record' else 'replay','--stream',remote+'/prepared/wikipedia','--output',output]
+        if mode=='record':args+=['--recipe',remote+'/inputs/source/candidate/recipe.json','--kernel',remote+'/inputs/source/candidate/kernel.json',
+                                 '--updates','8','--warmup-updates','4','--checkpoint-every','4']
+        else:
+            args+=['--record-directory',remote+'/record','--expected-record-sha256',RECORD]
+            if mode=='resume':args+=['--resume-from','1']
+        job={**common,'kind':'pilot','required_files':numerical_required,
+            'environment':{**common['environment'],'OVL_ACTIVITY_FILE':control+'/activity.json'},
+            'argv':[remote+'/runtime/public-python/python/bin/python3.12','-I','-S',remote+'/inputs/pod_sustained_pilot.py',
+                    '--setup-script',remote+'/inputs/pod_runtime_setup.py','--setup-sha256',file_hash(inputs/'pod_runtime_setup.py'),
+                    '--config',remote+'/inputs/offline-config.json','--config-sha256',file_hash(inputs/'offline-config.json'),
+                    '--inputs',remote+'/inputs','--runtime',remote+'/runtime','--control',control,'--deadline',DEADLINE,'--',*args],
+            'export_roots':[output,control]}
+        add(mode,job,900,1200,1024**3,parent_stage=None if mode=='record' else 'record',
+            parent_record_root=None if mode=='record' else remote+'/record',parent_binding=binding,
+            validation_binding={'schema':'ovl.pilot-validation-binding.v1','stream_sha256':digest(stream),'documents':stream['documents']},
+            retention={'schema':'ovl.pilot-initial-retention.v1','mode':mode,'output_root':output,'phase':'wikipedia','maximum_initial_bytes':192*1024**2})
+    plan={'schema':'ovl.sustained-pilot-plan.v1','rental_intent_sha256':digest(rental),'profile_sha256':digest(profile),
+        'worker_sha256':file_hash(Path('scripts/pod_job_worker.py')),'timing':{
+            'transfer_floor_bytes_per_second':1024**2,'hash_floor_bytes_per_second':100*1024**2,
+            'basis':'Development cycle only. Prior actual 53.46MB bulk export took34s; retain1MiB/s planning floor and earlier local100MiB/s conservative hash floor. Each1GiB full export includes ten hash passes and30s overhead, within1200s reserve. Each900s numerical phase allows full runtime audit plus complete22.65GB hash and7.23M-row validation (local230.727374s; not a remote guarantee), eight candidate updates and safe checkpoint writes. Prior synthetic complete three-phase cycle including exports336s does not measure23M compute. Setup measured107s; its existing300s/210s bounds remain. All remote phase and export measurements remain pending; no sustained rate or production admission.'},
+        'uploads':uploads,'stages':specs}
+    from types import SimpleNamespace
+    validate(plan,digest(plan),rental,SimpleNamespace(profile=profile),inputs,Path('scripts/pod_job_worker.py'))
+    write_json(base/'workload-plan.json',plan)
+    return plan
+
+
+if __name__=='__main__':
+    base=Path('.ovllm-cache/sustained-candidate-v2')
+    admission=read_json(base/'qualification-overlap-admission.json')
+    decision=read_json(Path('project/evidence/candidate-cycle-overlap-v1/decision.json'))
+    assert admission['schema']=='ovl.candidate-qualification-overlap.v1' and admission['decision_sha256']==digest(decision)
+    assert admission['on_pod_complete15file_download']=='REQUIRED_BEFORE_PILOT' and admission['production_admission']=='NOT_RUN'
+    integrity=read_json(Path('project/evidence/complete-prepared-integrity-v1/verification.json'))
+    assert digest(integrity)==admission['integrity_sha256'] and integrity['result']=='PASS'
+    prepared=read_json(base/'inputs/prepared-plan.json')
+    full=read_json(Path('.ovllm-cache/full-prepared-publication-v1/plan.json'))
+    uploaded=read_json(Path('.ovllm-cache/full-prepared-publication-v1/upload/upload.json'))
+    assert prepared['preparation_sha256']==full['subject_sha256']==integrity['preparation_sha256']
+    assert prepared['revision']==uploaded['revision'] and prepared['repo']==full['repo']==uploaded['repo']
+    assert all(f in full['files'] for f in prepared['files'])
+    verify_inventory(base/'inputs',read_json(base/'input-inventory.json'))
+    p=select(base,read_json(base/'profile.json'),read_json(base/'rental-intent.json'),prepared)
+    assert [s['name'] for s in p['stages']]==['setup','prepared-inputs','record','replay','resume']
+    print('Validated original-rental candidate cycle plan',digest(p),'No process launched.')
