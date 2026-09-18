@@ -134,7 +134,7 @@ def request_commit(request,r,directory,*,execute=command):
     return revision
 
 
-def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,sleep=time.sleep):
+def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,sleep=time.sleep,progress=None):
     """Bounded wait on the exact pushed commit; no workflow rerun on failure."""
     import json
     integer(deadline,1,2**53-1,'publisher deadline');limit=time.monotonic()+max(0,deadline-wall())
@@ -145,6 +145,31 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
         if runs:
             run=runs[0]
             if run['headSha']!=revision:raise EvidenceError('wrong Actions source identity')
+            if progress is not None:
+                # These finite successful step transitions are cost liveness,
+                # never signer identity or computation verification. Unchanged
+                # polls cannot create another event or extend the deadline.
+                detail=json.loads(execute(['gh','api',f'repos/{REPOSITORY}/actions/runs/{run["databaseId"]}']))
+                if (detail['id']!=run['databaseId'] or detail['run_attempt']!=1 or detail['head_sha']!=revision
+                    or detail['head_branch']!=BRANCH or detail['path']!=PROGRESS_WORKFLOW or detail['event']!='push'):
+                    raise EvidenceError('publication activity has wrong Actions identity')
+                identity={'run_id':run['databaseId'],'revision':revision,'attempt':1}
+                progress('actions-run-observed',identity)
+                jobs=json.loads(execute(['gh','api',f'repos/{REPOSITORY}/actions/runs/{run["databaseId"]}/jobs?per_page=100']))
+                if type(jobs.get('jobs')) is not list or jobs.get('total_count')!=len(jobs['jobs']) or len(jobs['jobs'])>1:
+                    raise EvidenceError('ambiguous or truncated publication jobs')
+                for job in jobs['jobs']:
+                    if job['run_id']!=run['databaseId'] or job['head_sha']!=revision or job['name']!='endorse-progress':
+                        raise EvidenceError('wrong publication job identity')
+                    steps=job['steps']
+                    if type(steps) is not list or len(steps)>32:raise EvidenceError('unbounded publication step list')
+                    numbers=set()
+                    for step in steps:
+                        integer(step['number'],1,32,'publication step number')
+                        if step['number'] in numbers:raise EvidenceError('duplicate publication step')
+                        numbers.add(step['number'])
+                        if step['status']=='completed' and step['conclusion']=='success':
+                            progress(f'actions-step-{step["number"]:02d}',{**identity,'job_id':job['id'],'step_number':step['number'],'name':step['name']})
             if run['status']=='completed':
                 if run['conclusion']!='success':raise EvidenceError('progress endorsement failed; preserve public run')
                 detail=json.loads(execute(['gh','api',f'repos/{REPOSITORY}/actions/runs/{run["databaseId"]}']))
@@ -200,13 +225,18 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     if unpack(md['tree'],ts)['control']!=body['control']:raise EvidenceError('checkpoint control differs')
     output.mkdir(parents=True,exist_ok=True)
     save_once(output/'intent.json',{'schema':'ovl.progress-dispatch-intent.v1','registration_sha256':root,
-              'boundary_sha256':digest(envelopes[-1]),'config_sha256':digest(config),'prior_policies_sha256':digest([asdict(p) for p in previous_policies])})
+              'boundary_sha256':digest(envelopes[-1]),'config_sha256':digest(config),'prior_policies_sha256':digest([asdict(p) for p in previous_policies]),
+              'deadline_epoch':deadline})
+    def activity(stage,identity):
+        from publication_activity import emit
+        emit(output/'activity',root,digest(envelopes[-1]),stage,identity,deadline)
     cpplan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'checkpoint',
             'prefix':f'production-checkpoints/{root}/{body["checkpoint_path"]}',
             'subject_sha256':digest(body['checkpoint']),'files':inventory(checkpoint,['checkpoint.json','state.json','state.safetensors'])}
     archive,downloaded,cpdownload=published(cpplan,checkpoint,output/'checkpoint')
     md,ts=read_state(downloaded,body['checkpoint'])
     if unpack(md['tree'],ts)['control']!=body['control']:raise EvidenceError('downloaded checkpoint control differs')
+    activity('checkpoint-public-download-verified',{'archive':archive,'checkpoint':body['checkpoint']})
     request={'schema':'ovl.progress-signing-request.v1',**{k:config[k] for k in ('registration_request','registration_anchor')},
              'registration_policy':asdict(production_policy),'envelopes':envelopes,'previous_progress':prior,'checkpoint_archive':archive}
     validate_request(request)
@@ -214,14 +244,16 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     save_once(output/'expected-statement.json',value)
     revision=request_commit(request,r,output/'git-request')
     policy=expected_policy(revision,value);save_once(output/'operator-policy.json',asdict(policy))
+    activity('request-public-commit-verified',{'revision':revision,'request_sha256':digest(request)})
     artifact=output/('actions-download-'+uuid.uuid4().hex)
-    actions=actions_artifact(revision,artifact,deadline)
+    actions=actions_artifact(revision,artifact,deadline,progress=activity)
     anchors=output/('checked-prefix-'+uuid.uuid4().hex);anchors.mkdir()
     for i in range(index):copy_anchor(confined(previous_directory,f'progress-{i:05d}'),anchors/f'progress-{i:05d}')
     current=anchors/f'progress-{index:05d}'
     copy_anchor(confined(artifact,f'progress/progress-{index:05d}'),current)
     if read_json(current/'statement.json')!=value:raise EvidenceError('Actions statement differs from preselected operator expectation')
     local_check=verify_prefix(r,root,envelopes,anchors,[*previous_policies,policy],complete=False)
+    activity('actions-anchor-signature-verified',{'policy':asdict(policy),'statement_sha256':digest(value)})
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'progress-anchor',
           'prefix':f'production-progress/{root}/progress-{index:05d}','subject_sha256':digest(value),
           'files':inventory(current,['statement.json','statement.sigstore.json'])}
@@ -231,6 +263,7 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     for i in range(index):copy_anchor(confined(previous_directory,f'progress-{i:05d}'),public_prefix/f'progress-{i:05d}')
     copy_anchor(downloaded,public_prefix/f'progress-{index:05d}')
     checked=verify_prefix(r,root,envelopes,public_prefix,[*previous_policies,policy],complete=False)
+    activity('anchor-public-download-verified',{'archive':public,'policy':asdict(policy),'closing_statement_sha256':checked['closing_statement_sha256']})
     if time.time()>=deadline:raise EvidenceError('publisher deadline expired; preserve public evidence without acknowledging advancement')
     ack={'schema':'ovl.verified-public-progress-ack.v1','registration_sha256':root,'index':index,
          'boundary_sha256':digest(envelopes[-1]),'checkpoint_archive':archive,'archive':public,'policy':asdict(policy),

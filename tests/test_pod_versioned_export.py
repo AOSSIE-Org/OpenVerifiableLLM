@@ -1,0 +1,62 @@
+"""Actual local byte reuse and failure preservation behind an SSH substitute."""
+from pathlib import Path
+import sys,time
+import pytest
+sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
+import pod_versioned_export as m
+from test_pod_transfer import setup
+from ovl_pipeline.canonical import EvidenceError,file_hash
+
+
+def test_new_snapshots_retain_all_files_but_transfer_only_new_content(tmp_path):
+    t,remote,calls,processes=setup(tmp_path);data=remote/'record';data.mkdir()
+    (data/'state-a').write_bytes(b'unchanged safe state bytes');(data/'state-b').write_bytes(b'unchanged safe state bytes')
+    (data/'log').write_bytes(b'first log')
+    before=m.export(t,'record',tmp_path/'store',tmp_path/'first',int(time.time())+30)
+    assert len(before['transfers'])==2 and before['reused_paths']==['state-b']
+    (data/'log').write_bytes(b'second log, first version remains preserved')
+    after=m.export(t,'record',tmp_path/'store',tmp_path/'second',int(time.time())+30)
+    assert len(after['transfers'])==1 and after['reused_paths']==['state-a','state-b']
+    assert (tmp_path/'first/files/log').read_bytes()==b'first log'
+    for file in ('state-a','state-b'):
+        assert (tmp_path/'first/files'/file).stat().st_ino==(tmp_path/'second/files'/file).stat().st_ino
+        assert (tmp_path/'first/files'/file).stat().st_mode&0o777==0o400
+    assert len(after['files'])==3 and after['numerical_verification']=='NOT_RUN'
+
+
+def test_changed_object_or_peer_never_gets_success_receipt(tmp_path):
+    t,remote,calls,processes=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'original')
+    m.export(t,'record',tmp_path/'store',tmp_path/'first',int(time.time())+30)
+    obj=tmp_path/'store/objects'/file_hash(data/'state');obj.chmod(0o600);obj.write_bytes(b'altered!')
+    with pytest.raises(EvidenceError,match='retained export object differs'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'second',int(time.time())+30)
+    assert not(tmp_path/'second/export.json').exists() and obj.read_bytes()==b'altered!'
+
+
+def test_partial_transfer_survives_fresh_retry_and_is_not_credited(tmp_path):
+    t,remote,calls,processes=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'actual complete state')
+    original=t.get
+    def fail(name,destination,*a,**k):
+        destination.with_name(destination.name+'.partial').write_bytes(b'incomplete')
+        raise EvidenceError('explicit interrupted transfer')
+    t.get=fail
+    with pytest.raises(EvidenceError,match='interrupted'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'first',int(time.time())+30)
+    partial=list((tmp_path/'store/incoming').glob('*/verified.partial'));assert len(partial)==1
+    assert not list((tmp_path/'store/objects').iterdir()) and not(tmp_path/'first/export.json').exists()
+    t.get=original;receipt=m.export(t,'record',tmp_path/'store',tmp_path/'retry',int(time.time())+30)
+    assert receipt['result']=='PASS' and partial[0].read_bytes()==b'incomplete'
+
+
+def test_changed_remote_inventory_after_transfer_preserves_every_version(tmp_path):
+    t,remote,calls,processes=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'original')
+    original=t.get
+    def changed(*a,**k):
+        result=original(*a,**k);(data/'state').write_bytes(b'new version');return result
+    t.get=changed
+    with pytest.raises(EvidenceError,match='snapshot changed'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'first',int(time.time())+30)
+    assert (tmp_path/'first/files/state').read_bytes()==b'original' and not(tmp_path/'first/export.json').exists()
+    t.get=original;m.export(t,'record',tmp_path/'store',tmp_path/'retry',int(time.time())+30)
+    assert (tmp_path/'first/files/state').read_bytes()==b'original'
+    assert (tmp_path/'retry/files/state').read_bytes()==b'new version'

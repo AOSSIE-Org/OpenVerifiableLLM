@@ -82,6 +82,11 @@ def load(directory,expected,worker_sha256,*,resolve_executable=True):
     path=regular(directory/'job.json')
     if hash_file(path)!=expected:raise Refusal('job differs from operator selection')
     v=object_file(path)
+    return validate_job(v,resolve_executable=resolve_executable)
+
+
+def validate_job(v,*,resolve_executable=True):
+    """Pure descriptor checks also used by the off-pod preflight before rental."""
     names={'schema','kind','argv','cwd','environment','deadline_epoch','stop_grace_seconds','minimum_free_bytes','required_files','export_roots'}
     if type(v) is not dict or set(v)!=names or v['schema']!='ovl.pod-job.v1':raise Refusal('job schema')
     if v['kind'] not in ('setup','pilot','production-record','full-replay','export'):raise Refusal('job kind')

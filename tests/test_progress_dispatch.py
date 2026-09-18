@@ -49,7 +49,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None):
         committed[n]=digest(value);return revision
     monkeypatch.setattr(m,'request_commit',request)
     fail_once=[damage=='restart-after-upload']
-    def actions(revision,out,deadline):
+    def actions(revision,out,deadline,**kwargs):
         if fail_once[0]:fail_once[0]=False;raise EvidenceError('interrupted after upload')
         value=read_json(out.parent/'expected-statement.json')
         if damage=='wrong-statement':value['boundary_sha256']='a'*64
@@ -57,6 +57,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None):
         write_json(current/'statement.json',value);write_json(current/'statement.sigstore.json',{'explicit-test-double':True})
         return {'explicit-actions-test-double':True,'revision':revision}
     monkeypatch.setattr(m,'actions_artifact',actions)
+    deadline=int(time.time())+600
     def run(index,previous=None,policies=None):
         selected=envs[:index+1];body=selected[-1]['body']
         write_json(chain/'chain.json',{'schema':'ovl.production-chain.v1','complete':False,'boundaries':selected})
@@ -66,7 +67,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None):
         write_json(chain/'awaiting-anchor.json',waiting)
         if damage=='checkpoint':(chain/body['checkpoint_path']/'state.safetensors').write_bytes(b'changed')
         return m.publish(packet,bundle/'registration.sigstore.json',pp,sp,tmp_path,config,chain,
-                         previous or tmp_path/'none',policies or [],tmp_path/f'publication/boundary-{index:05d}',int(time.time())+600)
+                         previous or tmp_path/'none',policies or [],tmp_path/f'publication/boundary-{index:05d}',deadline)
     return run,provider,committed
 
 

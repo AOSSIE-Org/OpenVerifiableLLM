@@ -17,8 +17,9 @@ from pod_checkpoint_handoff import observe
 REMOTE_TREE=r'''
 import hashlib,json,os,stat,sys
 from pathlib import Path
-root,name,missing=sys.argv[1:];base=Path(root)/name
-if not Path(root).is_absolute() or '..' in Path(root).parts or any(x in ('','.','..') for x in name.split('/')):raise ValueError('path')
+root,name,missing,selection=sys.argv[1:];base=Path(root)/name
+if selection not in ('root','subtree') or (selection=='root' and name!='.'):raise ValueError('root selection')
+if not Path(root).is_absolute() or '..' in Path(root).parts or (selection!='root' and any(x in ('','.','..') for x in name.split('/'))):raise ValueError('path')
 for p in [base,*base.parents]:
  if p.is_symlink():raise ValueError('symlink root')
 if not base.exists() and missing=='allow':sys.stdout.write('[]');raise SystemExit(0)
@@ -131,9 +132,12 @@ def job_supervision(transport,job,worker,deadline,*,abandon=False):
     return value
 
 
-def tree(transport,name,deadline,*,allow_missing=False):
-    relative(name);buffer=io.BytesIO()
-    transport.stream(['/usr/bin/python3','-c',REMOTE_TREE,transport.profile['remote_root'],name,'allow' if allow_missing else 'reject'],buffer,16*1024**2,deadline)
+def tree(transport,name,deadline,*,allow_missing=False,whole_root=False):
+    if whole_root:
+        if name!='.':raise EvidenceError('whole profile root requires explicit dot selection')
+    else:relative(name)
+    buffer=io.BytesIO()
+    transport.stream(['/usr/bin/python3','-c',REMOTE_TREE,transport.profile['remote_root'],name,'allow' if allow_missing else 'reject','root' if whole_root else 'subtree'],buffer,16*1024**2,deadline)
     value=parse_json(buffer.getvalue(),canonical_required=False)
     if type(value) is not list or not value and not allow_missing or len(value)>100000:raise EvidenceError('nonempty bounded export inventory required')
     total=0;names=[]
