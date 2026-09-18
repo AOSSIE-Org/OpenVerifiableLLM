@@ -177,3 +177,21 @@ historical serial implementation and current1/8-worker paths, including exact
 file bytes and sampled aggregate RSS. Its prefix result is not full-corpus
 reconstruction or a production forecast. Current evidence is under
 `project/evidence/extraction-workers/advisory/`; all complete-data gates remain.
+
+For complete prepared-artifact integrity and accounting checks, use the separate
+CLI with expected roots selected from trusted source/registration evidence:
+
+```sh
+PYTHONPATH=src .venv/bin/python -m ovl_pipeline.prepared_verification \
+  --prepared PREPARED_DIRECTORY \
+  --expected-preparation-sha256 TRUSTED_PREPARATION_ROOT \
+  --expected-source-sha256 TRUSTED_SOURCE_COMMITMENT_ROOT
+```
+
+It checks every stage inventory, ordered article/exclusion ledger, extracted-text
+digests, complete stream layout and document membership, including the official
+conversation split. Extra files, symlinks, altered roots and inconsistent parents
+fail with a nonzero exit. This mode does not repeat extraction/tokenization or
+training and cannot pass raw reconstruction, full replay or production admission.
+The caller must separately verify publisher identity and select the expected roots;
+copying roots out of an untrusted model directory does not establish authenticity.

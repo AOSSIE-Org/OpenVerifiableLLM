@@ -1,0 +1,27 @@
+{
+  "observed_epoch": 1789692021,
+  "scope": "local synthetic checks only; actual public production corpus and raw reconstruction not performed",
+  "tests": "14targeted;315integrated;3legacyCUDA skips",
+  "files": [
+    {
+      "path": "src/ovl_pipeline/prepared_verification.py",
+      "sha256": "8c5266d607bbbceeb12630394734a8d9230da68a1c0dbb57014c2ad5c4be428f"
+    },
+    {
+      "path": "tests/test_prepared_verification.py",
+      "sha256": "67e92093ae350dc6b1b05bc84fc5ea0b6363bc6d9328c47314aee8165e942f7a"
+    },
+    {
+      "path": "project/evidence/prepared-verification/targeted-tests.txt",
+      "sha256": "4ba95be15aa4624c4b3a9a5b50195f7b4f87407ddb18f634e558017c46c09244"
+    },
+    {
+      "path": "project/evidence/prepared-verification/integrated-tests.txt",
+      "sha256": "29822a4faf28d5ae3c8ff87c48e0c3ea2cbf33b98700355600983e283d8de5ba"
+    },
+    {
+      "path": "project/evidence/prepared-verification/synthetic-complete-integrity.json",
+      "sha256": "ddb89d18009d6f30c756728cc88846936d11d0ad19ceebe15246ce1f464bc73b"
+    }
+  ]
+}
