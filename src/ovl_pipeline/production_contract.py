@@ -37,13 +37,13 @@ def checkpoint_count(updates,primary,recovery):
 
 
 def validate(value):
-    schema.fields(value,'schema scope run_id attempt_id code_revision code_root source_statement_sha256 source_policy_sha256 preparation_sha256 recipe kernel runtime initialization run_public_key coverage recovery_every pilots forecast_input verifier_policy conversation_policy','production registration')
+    schema.fields(value,'schema scope run_id attempt_id code_revision code_root source_statement_sha256 source_bundle_sha256 source_policy_sha256 preparation_sha256 recipe kernel runtime initialization run_public_key coverage recovery_every pilots forecast_input verifier_policy conversation_policy','production registration')
     if value['schema']!='ovl.production-registration.v1' or value['scope']!='complete-wikipedia-and-public-conversation':
         raise EvidenceError('unsupported production registration')
     for name in ('run_id','attempt_id'):identifier(value[name],name)
     if type(value['code_revision']) is not str or not re.fullmatch('[0-9a-f]{40}',value['code_revision']):
         raise EvidenceError('invalid production source revision')
-    for name in ('code_root','source_statement_sha256','source_policy_sha256','preparation_sha256','run_public_key'):
+    for name in ('code_root','source_statement_sha256','source_bundle_sha256','source_policy_sha256','preparation_sha256','run_public_key'):
         require_digest(value[name])
     recipe=value['recipe'];schema.recipe(recipe,gpu=True)
     schema.fields(value['kernel'],'schema precision','production kernel')
@@ -99,4 +99,5 @@ def validate(value):
             'scope':'structure-parent-digests-and-budget-arithmetic-only','primary_boundaries':primary_count,
             'forecast':projected,'publisher_identity':'NOT_RUN','raw_reconstruction':'NOT_RUN',
             'gpu_reproducibility':'NOT_RUN','initial_state_regeneration':'NOT_RUN','provider_guard':'NOT_RUN',
+            'fixed_cost_basis':'NOT_RUN','container_identity':'NOT_RUN','installed_runtime_identity':'NOT_RUN',
             'production_admission':'NOT_RUN'}

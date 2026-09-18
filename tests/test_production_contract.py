@@ -10,7 +10,7 @@ def registration():
     r=recipe(320);r['boundary_every']=30
     v=dict(schema='ovl.production-registration.v1',scope='complete-wikipedia-and-public-conversation',
         run_id='synthetic-structure-check',attempt_id='not-a-real-run',code_revision='1'*40,code_root='2'*64,
-        source_statement_sha256='3'*64,source_policy_sha256='4'*64,preparation_sha256='5'*64,
+        source_statement_sha256='3'*64,source_bundle_sha256='f'*64,source_policy_sha256='4'*64,preparation_sha256='5'*64,
         recipe=r,kernel={'schema':'ovl.gpu-kernel.v1','precision':'bf16'},
         runtime={'container_image':'runpod/pytorch@sha256:'+'6'*64,'dependency_lock_sha256':'7'*64,'compatible_environment_sha256':'8'*64},
         initialization={'state_sha256':'9'*64,'regeneration_report_sha256':'a'*64,'warmup_updates':4},
