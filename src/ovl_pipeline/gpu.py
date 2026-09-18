@@ -118,8 +118,11 @@ def update(model, optimizer, batch, control, total, config, *, expected_flags, m
     if (not _configured or expected_flags != REQUIRED_FLAGS or flags() != REQUIRED_FLAGS or torch.cuda.current_device() != 0
             or next(model.parameters()).device != torch.device("cuda:0")):
         raise EvidenceError("GPU runtime changed after configuration")
-    return training.update(model, optimizer, batch, control, total,
+    result=training.update(model, optimizer, batch, control, total,
                            precision=config["precision"], metrics=metrics)
+    from .runtime_activity import update as observe_completed_update
+    observe_completed_update(result)
+    return result
 
 
 def cpu_identity(raw):

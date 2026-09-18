@@ -162,3 +162,34 @@ def record(packet,registration_bundle,production_policy,source_policy,source_che
                 'training_replay':'NOT_RUN','independent_third_party':False}
         write_json(output/'record.json',report)
         return report
+
+
+def main():
+    import argparse
+    from .anchoring import PublisherPolicy
+    from .canonical import canonical
+    from .production_identity import ProductionPublisherPolicy
+    from .run_key import load
+    p=argparse.ArgumentParser(description=__doc__)
+    for name in ('packet','registration-bundle','production-policy','source-policy','source-checkout',
+                 'wikipedia-stream','conversation-stream','output','key-directory','anchor-directory','progress-policies'):
+        p.add_argument('--'+name,required=True,type=Path)
+    p.add_argument('--registration-sha256',required=True)
+    p.add_argument('--checkpoint-deadline',required=True,type=int)
+    p.add_argument('--resume',action='store_true');a=p.parse_args()
+    try:
+        r=object_at(a.packet,'registration.json')
+        if digest(r)!=a.registration_sha256:raise EvidenceError('registration differs from external selection')
+        key=load(a.key_directory,run_id=r['run_id'],expected_public_key=r['run_public_key'])
+        result=record(a.packet,a.registration_bundle,ProductionPublisherPolicy(**read_json(a.production_policy)),
+                      PublisherPolicy(**read_json(a.source_policy)),a.source_checkout,
+                      {'wikipedia':a.wikipedia_stream,'conversation':a.conversation_stream},a.output,key,
+                      a.anchor_directory,a.progress_policies,a.checkpoint_deadline,resume=a.resume)
+        print(canonical(result).decode());return 0
+    except Exception as error:
+        # Key loader failures are deliberately fixed messages; secret bytes are
+        # never formatted, serialized or supplied in command-line arguments.
+        print(canonical({'result':'FAIL','reason':str(error)}).decode());return 1
+
+
+if __name__=='__main__':raise SystemExit(main())

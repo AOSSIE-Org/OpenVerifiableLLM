@@ -15,7 +15,8 @@ from .canonical import EvidenceError,digest,file_hash,read_json,write_json
 from .runtime_audit import wheel_manifest,verify_installed
 
 MODULES={'ovl_pipeline','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization',
-         'ovl_pipeline.production_replay','ovl_pipeline.production_export','ovl_pipeline.runtime_audit','ovl_pipeline.runtime_launch'}
+         'ovl_pipeline.production_replay','ovl_pipeline.production_record','ovl_pipeline.production_export',
+         'ovl_pipeline.runtime_audit','ovl_pipeline.runtime_launch'}
 DETERMINISTIC_ENV={'CUBLAS_WORKSPACE_CONFIG':':4096:8','TOKENIZERS_PARALLELISM':'false','CUDA_VISIBLE_DEVICES':'0',
                    'OMP_NUM_THREADS':'1','MKL_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1','PYTHONHASHSEED':'0',
                    'USE_PYTORCH_KERNEL_CACHE':'0'}
