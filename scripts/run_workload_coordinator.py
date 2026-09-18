@@ -78,7 +78,10 @@ def validate(plan,expected,rental,transport,inputs,worker):
             raise EvidenceError('overlapping selected finite export roots')
         if any(name in ('inputs','tools') or name.startswith(('inputs/','tools/')) for name in selected_roots):
             raise EvidenceError('finite output overlaps immutable setup input namespace')
-        if 'OVL_ACTIVITY_FILE' in job['environment']:remote_name(transport,job['environment']['OVL_ACTIVITY_FILE'])
+        if 'OVL_ACTIVITY_FILE' in job['environment']:
+            activity=remote_name(transport,job['environment']['OVL_ACTIVITY_FILE'])
+            if activity.startswith('jobs/'):
+                raise EvidenceError('activity must not overlap worker-owned job metadata')
         required={f['path']:f for f in job['required_files']}
         for upload in uploads:
             target=transport.profile['remote_root']+'/'+upload['remote_path']
@@ -115,6 +118,15 @@ def check_export_budget(stage,result):
         raise EvidenceError('retained finite output exceeded selected export budget; no next stage')
 
 
+def journal_stop(directory,expected_rental,pod):
+    """A journaled stop remains binding if its companion file write was lost."""
+    events=Journal(Path(directory))._read()
+    creations=[e['body'] for e in events if e['kind']=='creation-intent']
+    if len(creations)!=1 or digest(creations[0])!=expected_rental:raise EvidenceError('stop journal rental identity differs')
+    if {e['body']['id'] for e in events if e['kind']=='creation-observed'}!={pod}:raise EvidenceError('stop journal pod identity differs')
+    return any(e['kind']=='decision' and e['body'].get('action') in ('CHECKPOINT_AND_STOP','TERMINATE') for e in events)
+
+
 def finalize(health,plan,expected,output,result,health_file,stop):
     """Adopt a prepared final report only after reconstructing its exact inputs."""
     fields(result,'schema plan_sha256 pod_id outcome stages unstarted_stages scope provider_termination production_acceptance','finite result')
@@ -136,7 +148,8 @@ def finalize(health,plan,expected,output,result,health_file,stop):
     if failed:
         if failed!=[len(history)-1] or result['outcome']!='FAILED_OR_ABANDONED':raise EvidenceError('stage failure outcome changed')
     elif result['outcome']=='STOPPED_AFTER_STAGE':
-        if not stop.exists():raise EvidenceError('saved stop has no retained controller marker')
+        if not stop.exists() and not journal_stop(stop.parent,plan['rental_intent_sha256'],health.pod):
+            raise EvidenceError('saved stop has no retained controller marker')
     elif result['outcome']!='EXITED_ZERO' or len(history)!=len(plan['stages']):raise EvidenceError('incomplete plan reported as exited zero')
     final=output/'final';names=['result.json']
     for index,entry in enumerate(history):
@@ -157,7 +170,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
         health=Health(journal,w,transport.profile['pod_id'])
         if health.complete:
             # Read-only post-deadline adoption: do not emit a new live heartbeat.
-            files=read_json(journal.directory/'final-export-inventory.json')
+            files=read_json(confined(journal.directory,'final-export-inventory.json'))
             final=[e['body']['detail'] for e in journal.events if e['body'].get('kind')=='complete']
             if len(final)!=1 or digest(files)!=final[0]['export_inventory_sha256']:raise EvidenceError('completed coordinator export selection changed')
             if Path(final[0]['directory'])!=(output/'final').resolve():raise EvidenceError('completed coordinator directory moved; refuse unverified copied result')
@@ -195,8 +208,11 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             save_once(receipt,{'selection':upload,'operation_sha256':identity,'transfer':transfer})
         for stage,path,job in jobs:
             started=stage['job_sha256'] in health.jobs
-            observation=controller_observation(controller_directory,rental,health.pod,starting=not started)
+            observation=controller_observation(controller_directory,rental,health.pod,starting=False)
             retain_observation(output,observation)
+            if not started and observation['stopping']:
+                if not history:raise EvidenceError('rental is stopping; no new workload')
+                outcome='STOPPED_AFTER_STAGE';break
             if observation['terminated']:raise EvidenceError('rental terminated before required export; preserve and reconcile')
             if not started:watchdog_heartbeat(watchdog_file,w,health.now(),health.pod)
             if not started and job['deadline_epoch']+plan['timing']['export_reserve_seconds']>health.exported+1800:

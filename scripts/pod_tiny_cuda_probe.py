@@ -28,10 +28,15 @@ def probe(setup_script,setup_sha256,config,config_sha256,inputs,runtime,stream,r
     if sha(setup_script)!=setup_sha256 or sha(config)!=config_sha256:raise ValueError('selected launcher/config differs')
     if output.exists():raise ValueError('fresh probe output required')
     if not 0<deadline-time.time()<=900:raise ValueError('bounded original probe deadline required')
+    # This tiny multi-process wrapper deliberately emits no numerical liveness
+    # across process identities. Bound all three audited processes below the
+    # external controller's 300-second no-progress interval, including cleanup.
+    deadline=min(deadline,int(time.time())+240)
+    monotonic_end=time.monotonic()+deadline-time.time()
     output.mkdir(mode=0o700,parents=True)
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PYTHONDONTWRITEBYTECODE':'1'}
     def run(name,args):
-        remaining=deadline-time.time()
+        remaining=min(deadline-time.time(),monotonic_end-time.monotonic())
         if remaining<=0:raise TimeoutError('original probe deadline expired')
         command=[sys.executable,'-I','-S',str(setup_script),'launch','--config',str(config),'--config-sha256',config_sha256,
                  '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/(name+'-launch')),'--module','ovl_pipeline.gpu_pilot','--',*args]
@@ -51,7 +56,7 @@ def probe(setup_script,setup_sha256,config,config_sha256,inputs,runtime,stream,r
         if (value['result']!='PASS' or value['scope']!=scope or value['updates_recomputed']!=count or value['record_sha256']!=record_sha
             or value['initial_state_regenerated'] is not True or value['independent_third_party'] is not False):raise ValueError('incomplete selected probe')
     if s['compared'][-1]!=v['compared'][-1] or len(v['compared'])!=3:raise ValueError('probe final state differs')
-    if sha(record)!=record_sha or time.time()>=deadline:raise ValueError('record changed or original deadline expired')
+    if sha(record)!=record_sha or min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise ValueError('record changed or original deadline expired')
     result={'schema':'ovl.tiny-cuda-probe.v1','result':'PASS','record_sha256':record_sha,
             'replay_sha256':sha(output/'replay/verification.json'),'resume_sha256':sha(output/'resume/verification.json'),
             'scope':'synthetic eight-update actual CUDA record/full fresh-process replay and separate resume only',

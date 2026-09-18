@@ -34,9 +34,28 @@ verified against an operator-reconstructed publisher policy, archived at
 and verified again after a fresh anonymous download. Statement SHA-256:
 `ec263b5c3914fd1a8bd25e97fa377b4f8416c38a9ef216d27c203252948b9129`.
 
-Full preparation is running on local CPU (24.62 million source records observed at10:05UTC, still incomplete). The latest local suite passed1012tests with three existing CUDA skips. A CUDA13-constrained operational diagnostic completed an8MiB round trip, exported and rehashed all20files, then triggered verified teardown; its public GitHub archive was freshly downloaded and checked. Its failed predecessor is also preserved. Both recent diagnostic bills remain pending and their conservative ceilings remain reserved. No paid resource remains running at the recorded checkpoint.
+Original corpus extraction is complete: all 25,859,744 source records were
+accounted for, including 7,232,582 eligible articles. The tokenizer is built;
+full token-stream preparation is running. Clean complete transformation
+reconstruction remains pending. The current local suite passed 1,028 tests with
+three existing CUDA skips; these are implementation checks, not GPU results.
 
-A complete local public-runtime download attempt failed on a network read timeout before installation. Corrected bounded-download and bulk-export paths passed local adversarial checks; an actual tiny CUDA record/full replay/resume is next. G02–G10remain pending; no production training registration, CUDA training result, full production replay or model release exists.
+The second guarded runtime rehearsal downloaded all 76 pinned public wheels
+(3,102,821,057 bytes), installed them offline, and passed the full interpreter and
+package audit in 174 operator-observed seconds. The coordinator then failed during
+observation/recovery. Its stop request was respected, and the CUDA stage was never
+launched. All 193 selected evidence files were preserved, rehashed, published and
+freshly downloaded from
+[GitHub revision 149bce0](https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/149bce0126fa69975d0dd923c7b59d73df18d5de/project/evidence/live-tiny-cuda-v2).
+Both guards confirmed termination; no pods or volumes remain at that checkpoint.
+The failed first rehearsal and prior operational diagnostics are also retained.
+
+Provider billing currently attributes $0.1542562975519104 to the first four
+terminated pods. The two runtime rehearsal rows remain pending; both complete
+$0.575006 ceilings and $0.15 settlement slack remain reserved. Observation and
+recovery corrections are under ordinary advisory review before another bounded
+attempt. G02–G10 remain pending. No production registration, CUDA numerical
+result, full production replay or model release exists.
 These checks were performed by the project operator, not an independent third party.
 The [public evidence trace](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/feat/verifiable-wikipedia-pipeline/docs/PUBLIC_EVIDENCE_TRACE.md)
 links scoped checks and failed attempts.

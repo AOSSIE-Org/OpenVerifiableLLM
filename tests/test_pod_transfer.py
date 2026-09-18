@@ -31,7 +31,8 @@ def setup(tmp_path,*,fault=None):
         else:
             from pod_job_client import REMOTE_TREE
             from pod_bulk_export import REMOTE_BULK
-            assert argv[:2]==['/usr/bin/python3','-c'] and argv[2] in (m.REMOTE_PUT,m.REMOTE_GET,REMOTE_TREE,REMOTE_BULK)
+            from pod_observe import REMOTE_OBSERVE
+            assert argv[:2]==['/usr/bin/python3','-c'] and argv[2] in (m.REMOTE_PUT,m.REMOTE_GET,REMOTE_TREE,REMOTE_BULK,REMOTE_OBSERVE)
             argv[0]=sys.executable;assert argv[3]==profile['remote_root'];argv[3]=str(remote)
         p=subprocess.Popen(argv,**kw);processes.append(p);return p
     return m.Transport(profile,key,known,popen=popen),remote,calls,processes

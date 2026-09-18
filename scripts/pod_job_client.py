@@ -158,7 +158,7 @@ def export_tree(transport,name,output,deadline,*,progress=None):
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=False)
     files=tree(transport,name,deadline);write_json(output/'inventory.json',files)
     target=output/'files';target.mkdir(mode=0o700)
-    if len(files)>=16:
+    if len(files)>=8:
         from pod_bulk_export import receive
         batch=receive(transport,name,files,output/'bulk',deadline,progress=progress)
         for item in files:

@@ -104,6 +104,27 @@ def test_failed_stage_exports_and_stops_without_launching_remaining_plan(tmp_pat
     assert len([c for c in calls if ' start ' in c[-1]])==1
 
 
+def test_journaled_stop_without_stop_file_finalizes_retained_stage(tmp_path,monkeypatch):
+    run,plan,rental,t,remote,calls,controller,heartbeat=fixture(tmp_path,second=True);original=m.run_stage
+    def journal_stop(*a,**k):
+        result=original(*a,**k)
+        with Journal(controller).lease() as j:j.append('decision',{'action':'CHECKPOINT_AND_STOP'})
+        return result
+    monkeypatch.setattr(m,'run_stage',journal_stop)
+    result=run()
+    assert result['outcome']=='STOPPED_AFTER_STAGE' and result['unstarted_stages']==['second']
+    assert read_json(tmp_path/'health.json')['complete'] and not (controller/'stop-request.json').exists()
+    assert len([c for c in calls if ' start ' in c[-1]])==1
+
+
+def test_activity_cannot_overwrite_worker_control_metadata(tmp_path):
+    run,plan,rental,t,remote,calls,controller,heartbeat=fixture(tmp_path)
+    path=tmp_path/'job.json';job=read_json(path);job['environment']['OVL_ACTIVITY_FILE']=t.profile['remote_root']+'/jobs/other/exit.json'
+    write_json(path,job);plan['stages'][0]['job_sha256']=digest(job)
+    with pytest.raises(EvidenceError,match='worker-owned'):run()
+    assert not calls
+
+
 def test_duplicate_coordinator_lease_does_not_touch_remote_job(tmp_path):
     run,plan,rental,t,remote,calls,controller,heartbeat=fixture(tmp_path)
     out=tmp_path/'coordinator';out.mkdir()
