@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from ovl_pipeline.canonical import EvidenceError, canonical
+from ovl_pipeline.canonical import EvidenceError, canonical, digest
 from ovl_pipeline.supervision import Journal, observe, rental_plan
 
 
@@ -153,3 +153,60 @@ with supervision.Journal(Path(sys.argv[1])).lease() as j:
     finally:
         if child.poll() is None:child.kill();child.wait(timeout=10)
         child.stdin.close();child.stdout.close()
+
+
+def revised_plan_input():
+    return {**plan_input(),'schema':'ovl.rental-budget-input.v2',
+            'external_termination_grace_seconds':120,'authorization_sha256':'b'*64}
+
+
+def revised_observation(plan):
+    value=observation(plan)
+    del value['provider_guard_verified'];del value['provider_terminate_epoch']
+    return {**value,'schema':'ovl.supervisor-observation.v2',
+            'terminate_after_request_epoch':plan['provider_terminate_epoch'],
+            'watchdog_observed_epoch':value['now_epoch'],'watchdog_plan_sha256':digest(plan),
+            'watchdog_external_terminate_epoch':plan['external_terminate_epoch'],'watchdog_state':'ARMED'}
+
+
+def test_revised_guard_charges_grace_separately_from_billing_slack():
+    p=rental_plan(revised_plan_input())
+    assert p['external_terminate_epoch']==p['provider_terminate_epoch']+120
+    assert p['billing_ceiling_epoch']==p['external_terminate_epoch']+300
+    assert p['maximum_charge_micro_usd']==1_340_000
+    assert p['automatic_provider_termination']=='UNVERIFIED'
+    assert p['external_watchdog']=='NOT_RUN'
+    tight={**revised_plan_input(),'spent_usd':'29','maximum_seconds':100000}
+    bounded=rental_plan(tight)
+    assert bounded['provider_terminate_epoch']==1800002580  # 120s earlier than v1
+    assert bounded['maximum_charge_micro_usd']==1_000_000
+    assert observe(p,revised_observation(p))['action']=='CONTINUE'
+
+
+@pytest.mark.parametrize('change',[
+    {'external_termination_grace_seconds':119},{'external_termination_grace_seconds':121},
+    {'external_termination_grace_seconds':True},{'authorization_sha256':'invalid'},
+])
+def test_revised_guard_requires_exact_authorized_grace_and_parent(change):
+    with pytest.raises(EvidenceError):rental_plan({**revised_plan_input(),**change})
+
+
+@pytest.mark.parametrize('change',[
+    {'terminate_after_request_epoch':1800003601},{'watchdog_plan_sha256':'c'*64},
+    {'watchdog_external_terminate_epoch':1800003721}, {'watchdog_observed_epoch':1800000069},
+    {'watchdog_observed_epoch':1800000101},{'watchdog_state':'STOPPED'},
+])
+def test_revised_guard_refuses_stale_or_different_watchdog(change):
+    p=rental_plan(revised_plan_input());v={**revised_observation(p),**change}
+    result=observe(p,v)
+    assert result['action']=='CHECKPOINT_AND_STOP'
+    assert 'missing-stale-or-changed-external-watchdog' in result['reasons']
+
+
+def test_revised_external_deadline_terminates_even_with_stale_observation():
+    p=rental_plan(revised_plan_input());v=revised_observation(p)
+    v['now_epoch']=p['external_terminate_epoch']
+    r=observe(p,v)
+    assert r['action']=='TERMINATE' and 'external-termination-deadline' in r['reasons']
+    assert r['automatic_provider_termination']=='UNVERIFIED'
+    assert r['provider_mutation']=='NOT_RUN'

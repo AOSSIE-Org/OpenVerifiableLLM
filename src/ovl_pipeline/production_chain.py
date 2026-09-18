@@ -82,3 +82,41 @@ def verify_chain(registration,expected_registration_sha256,envelopes,*,complete)
             'complete_schedule_checked':len(envelopes)==len(expected),'closing_boundary_sha256':previous,
             'checkpoint_bytes':'NOT_RUN','public_boundary_anchors':'NOT_RUN','training_replay':'NOT_RUN',
             'production_admission':'NOT_RUN'}
+
+
+def verify_artifacts(registration,expected_registration_sha256,envelopes,checkpoint_directory,stream_directories,*,complete):
+    """Check all selected safe state bytes plus entire phase inputs and cursors.
+
+    The caller supplies an independently authenticated registration root. Reading
+    tensors here only verifies artifacts; it never restores them into a model or
+    establishes that the declared optimization trajectory actually happened.
+    """
+    from .canonical import confined
+    from .coverage import schedule_counts
+    from .production_cursors import boundary_cursors
+    from .state import read_state,unpack
+    checked=verify_chain(registration,expected_registration_sha256,envelopes,complete=complete)
+    if type(stream_directories) is not dict or set(stream_directories)!={'wikipedia','conversation'}:
+        raise EvidenceError('both complete phase stream directories required')
+    expected=schedule(registration);maps={}
+    for phase,directory in stream_directories.items():
+        census=schedule_counts(directory,registration['recipe'])
+        if census!=registration['coverage'][phase]:raise EvidenceError('actual full stream census differs from registration')
+        steps=[s['phase_step'] for s in expected if s['phase']==phase]
+        maps[phase]=boundary_cursors(directory,registration['recipe'],census['stream_sha256'],steps)
+    cursor_lookup={phase:{b['step']:b['targets'] for b in m['boundaries']} for phase,m in maps.items()}
+    for envelope in envelopes:
+        b=envelope['body'];c=b['control']
+        if c['cursor']!=cursor_lookup[c['phase']][c['phase_step']]:
+            raise EvidenceError('checkpoint cursor differs from complete input prefix census')
+        path=confined(checkpoint_directory,b['checkpoint_path'])
+        if (any(p.is_symlink() or not p.is_file() for p in path.iterdir()) or
+                {p.name for p in path.iterdir()}!={'checkpoint.json','state.json','state.safetensors'}):
+            raise EvidenceError('unexpected production checkpoint artifacts')
+        metadata,tensors=read_state(path,b['checkpoint'])
+        obj=unpack(metadata['tree'],tensors)
+        if obj.get('control')!=c:raise EvidenceError('safe checkpoint control differs from signed boundary')
+    return {**checked,'schema':'ovl.production-artifact-check.v1',
+            'scope':'authenticated-run-chain-safe-state-bytes-and-complete-input-cursors-only',
+            'checkpoint_bytes':'PASS','full_stream_census':'PASS','cursor_maps':maps,
+            'public_boundary_anchors':'NOT_RUN','training_replay':'NOT_RUN','production_admission':'NOT_RUN'}

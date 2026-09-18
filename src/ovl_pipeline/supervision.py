@@ -20,8 +20,14 @@ from .schema import fields, integer
 
 
 def rental_plan(value):
-    fields(value, "schema attempt_id now_epoch spent_usd outstanding_usd reserved_remaining_usd allowance_usd hourly_upper_usd quote_sha256 maximum_seconds checkpoint_grace_seconds billing_slack_seconds", "rental budget input")
-    if value["schema"] != "ovl.rental-budget-input.v1":raise EvidenceError("unsupported rental budget input")
+    revised = value.get("schema") == "ovl.rental-budget-input.v2"
+    fields(value, "schema attempt_id now_epoch spent_usd outstanding_usd reserved_remaining_usd allowance_usd hourly_upper_usd quote_sha256 maximum_seconds checkpoint_grace_seconds billing_slack_seconds" + (" external_termination_grace_seconds authorization_sha256" if revised else ""), "rental budget input")
+    if value["schema"] not in ("ovl.rental-budget-input.v1", "ovl.rental-budget-input.v2"):raise EvidenceError("unsupported rental budget input")
+    fallback = 0
+    if revised:
+        require_digest(value['authorization_sha256'])
+        integer(value['external_termination_grace_seconds'],120,120,'authorized termination grace')
+        fallback = value['external_termination_grace_seconds']
     if type(value["attempt_id"]) is not str or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,95}", value["attempt_id"]):
         raise EvidenceError("invalid rental attempt")
     require_digest(value["quote_sha256"])
@@ -33,20 +39,23 @@ def rental_plan(value):
         ("spent_usd", "outstanding_usd", "reserved_remaining_usd", "allowance_usd", "hourly_upper_usd")]
     if hourly <= 0 or allowance <= 0:raise EvidenceError("positive all-in quote and allowance required")
     available = min(allowance, OPERATING_LIMIT - spent - outstanding - reserved)
-    seconds = min(maximum, available * 3600 // hourly - slack)
+    seconds = min(maximum, available * 3600 // hourly - slack - fallback)
     if seconds <= grace:
         raise EvidenceError("remaining funds cannot cover rental, checkpoint grace and billing slack")
     # The absolute lifetime starts before provisioning, not when training starts.
-    maximum_charge = ceil_div((seconds + slack) * hourly, 3600)
+    maximum_charge = ceil_div((seconds + fallback + slack) * hourly, 3600)
     if spent + outstanding + reserved + maximum_charge > OPERATING_LIMIT:
         raise EvidenceError("rental would consume protected reserve")
-    return {"schema": "ovl.rental-budget-plan.v1", "input": value, "input_sha256": digest(value),
+    return {"schema": "ovl.rental-budget-plan.v2" if revised else "ovl.rental-budget-plan.v1", "input": value, "input_sha256": digest(value),
             "maximum_charge_micro_usd": maximum_charge,
             "request_checkpoint_epoch": now + seconds - grace,
             "provider_terminate_epoch": now + seconds,
-            "billing_ceiling_epoch": now + seconds + slack,
+            "billing_ceiling_epoch": now + seconds + fallback + slack,
             "protected_reserve_micro_usd": CAP - OPERATING_LIMIT,
-            "provider_guard": "NOT_RUN", "execution_admission": "NOT_RUN"}
+            "provider_guard": "NOT_RUN", "execution_admission": "NOT_RUN",
+            **({'external_terminate_epoch':now+seconds+fallback,
+                'automatic_provider_termination':'UNVERIFIED',
+                'external_watchdog':'NOT_RUN'} if revised else {})}
 
 
 def observe(plan, value):
@@ -57,8 +66,11 @@ def observe(plan, value):
     STOP requires checkpoint/avoid idle compute; unrelated resources are untouched.
     """
     if plan != rental_plan(plan["input"]):raise EvidenceError("rental plan differs from bounded input")
-    fields(value, "schema now_epoch observed_epoch attributed_pod_ids active_pod_ids pod_id gpu_count hourly_usd provider_terminate_epoch provider_guard_verified actual_project_spend_usd outstanding_usd reserved_remaining_usd account_balance_usd progress_epoch last_checkpoint_epoch", "supervisor observation")
-    if value["schema"] != "ovl.supervisor-observation.v1":raise EvidenceError("unsupported observation")
+    revised = plan['schema'] == 'ovl.rental-budget-plan.v2'
+    guard_fields = ('terminate_after_request_epoch watchdog_observed_epoch watchdog_plan_sha256 watchdog_external_terminate_epoch watchdog_state' if revised else
+                    'provider_terminate_epoch provider_guard_verified')
+    fields(value, "schema now_epoch observed_epoch attributed_pod_ids active_pod_ids pod_id gpu_count hourly_usd actual_project_spend_usd outstanding_usd reserved_remaining_usd account_balance_usd progress_epoch last_checkpoint_epoch " + guard_fields, "supervisor observation")
+    if value["schema"] != ('ovl.supervisor-observation.v2' if revised else 'ovl.supervisor-observation.v1'):raise EvidenceError("unsupported observation")
     for k in ("now_epoch", "observed_epoch", "progress_epoch", "last_checkpoint_epoch"):
         integer(value[k], 1, 2**53 - 1, k)
     integer(value["gpu_count"], 0, 1024, "observed GPU count")
@@ -74,7 +86,17 @@ def observe(plan, value):
     reasons = []
     if managed_active != [value["pod_id"]] or value["gpu_count"] != 1:
         reasons.append("project-singleton-or-device-count")
-    if (value["provider_guard_verified"] is not True or
+    if revised:
+        for k in ('terminate_after_request_epoch','watchdog_observed_epoch','watchdog_external_terminate_epoch'):
+            integer(value[k],1,2**53-1,k)
+        require_digest(value['watchdog_plan_sha256'])
+        if (value['terminate_after_request_epoch'] != plan['provider_terminate_epoch'] or
+                value['watchdog_plan_sha256'] != digest(plan) or
+                value['watchdog_external_terminate_epoch'] != plan['external_terminate_epoch'] or
+                not 0 <= now-value['watchdog_observed_epoch'] <= 30 or
+                value['watchdog_state'] != 'ARMED'):
+            reasons.append('missing-stale-or-changed-external-watchdog')
+    elif (value["provider_guard_verified"] is not True or
             type(value["provider_terminate_epoch"]) is not int or
             value["provider_terminate_epoch"] != plan["provider_terminate_epoch"]):
         reasons.append("missing-or-changed-provider-deadline")
@@ -95,17 +117,24 @@ def observe(plan, value):
     # Keep mandatory remaining work reserved; reserves cannot silently shrink.
     if reserved < money(plan["input"]["reserved_remaining_usd"]):
         reasons.append("reservation-regressed")
-    buffer = ceil_div((plan["input"]["checkpoint_grace_seconds"] + plan["input"]["billing_slack_seconds"]) * max(hourly, money(plan["input"]["hourly_upper_usd"])), 3600)
+    buffer = ceil_div((plan["input"]["checkpoint_grace_seconds"] + plan["input"].get('external_termination_grace_seconds',0) + plan["input"]["billing_slack_seconds"]) * max(hourly, money(plan["input"]["hourly_upper_usd"])), 3600)
     if spent + outstanding + reserved + buffer >= OPERATING_LIMIT:
         reasons.append("operating-budget-guard")
     if money(value["account_balance_usd"]) < outstanding + reserved + buffer + CAP - OPERATING_LIMIT:
         reasons.append("account-balance-insufficient-for-reserved-work")
     if now >= plan["request_checkpoint_epoch"]:reasons.append("checkpoint-deadline")
-    return {"schema": "ovl.supervisor-decision.v1", "plan_sha256": digest(plan),
-            "observation_sha256": digest(value), "action": "CHECKPOINT_AND_STOP" if reasons else "CONTINUE",
+    hard_stop = revised and now >= plan['external_terminate_epoch']
+    if hard_stop:reasons.append('external-termination-deadline')
+    return {"schema": "ovl.supervisor-decision.v2" if revised else "ovl.supervisor-decision.v1", "plan_sha256": digest(plan),
+            "observation_sha256": digest(value), "action": "TERMINATE" if hard_stop else "CHECKPOINT_AND_STOP" if reasons else "CONTINUE",
             "reasons": reasons, "managed_active_pod_ids": managed_active,
             "unrelated_active_pod_ids": sorted(set(active) - set(ids)),
-            "provider_mutation": "NOT_RUN"}
+            "provider_mutation": "NOT_RUN",
+            **({'automatic_provider_termination':'UNVERIFIED'} if revised else {})}
+
+
+class ControllerBusy(EvidenceError):
+    """Another live owner holds the journal; a duplicate must not interfere."""
 
 
 class Journal:
@@ -128,7 +157,7 @@ class Journal:
         fd = os.open(self.directory / "controller.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600)
         try:
             try:fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as e:raise EvidenceError("another controller holds the lease") from e
+            except BlockingIOError as e:raise ControllerBusy("another controller holds the lease") from e
             self._fd = fd;self.events = self._read()
             yield self
         finally:

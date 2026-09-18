@@ -120,6 +120,48 @@ def update(model, optimizer, batch, control, total, config, *, expected_flags, m
                            precision=config["precision"], metrics=metrics)
 
 
+def cpu_identity(raw):
+    """Stable exposed x86 CPU descriptors; no hostname/serial/frequency fields."""
+    if type(raw) is not str or len(raw.encode())>4*1024*1024:
+        raise EvidenceError("CPU identity input oversized/invalid")
+    descriptors=[]
+    for block in raw.strip().split("\n\n"):
+        values={}
+        for line in block.splitlines():
+            if ":" not in line:continue
+            name,value=line.split(":",1);name=name.strip()
+            if name in values:raise EvidenceError("duplicate CPU descriptor field")
+            values[name]=value.strip()
+        if "processor" not in values:continue
+        required=("vendor_id","cpu family","model","model name","stepping","flags")
+        if any(not values.get(k) for k in required):raise EvidenceError("incomplete x86 CPU identity")
+        entry={k:values[k] for k in required if k!="flags"}
+        entry["flags"]=sorted(set(values["flags"].split()))
+        entry["microcode"]=values.get("microcode")
+        if entry not in descriptors:descriptors.append(entry)
+    if not descriptors:raise EvidenceError("missing x86 CPU descriptors")
+    from .canonical import canonical
+    return sorted(descriptors,key=canonical)
+
+
+def host_runtime():
+    """Record initialization-relevant host inputs, not an installed-stack audit."""
+    if platform.system()!="Linux" or platform.machine()!="x86_64":
+        raise EvidenceError("GPU host fingerprint supports Linux x86_64 only")
+    declared=Path(sys.executable).resolve(strict=True)
+    executable=Path("/proc/self/exe")
+    actual_stat=executable.stat();declared_stat=declared.stat()
+    if not declared.is_file() or (actual_stat.st_dev,actual_stat.st_ino)!=(declared_stat.st_dev,declared_stat.st_ino):
+        raise EvidenceError("Python executable path differs from running interpreter")
+    with Path("/proc/cpuinfo").open("r") as f:raw=f.read(4*1024*1024+1)
+    return {"schema":"ovl.initialization-host.v1","cpu_descriptors":cpu_identity(raw),
+            "torch_cpu_capability":torch.backends.cpu.get_cpu_capability(),
+            "python_executable_sha256":file_hash(executable),"python_executable_bytes":executable.stat().st_size,
+            "python_implementation":platform.python_implementation(),"python_build":list(platform.python_build()),
+            "python_flags":str(sys.flags),"byteorder":sys.byteorder,
+            "scope":"operator-observed CPU dispatch and interpreter bytes; not hardware attestation or full installed-stack verification"}
+
+
 def environment(config):
     """Compatibility fingerprint plus separately reported physical-device identity.
 
@@ -153,7 +195,7 @@ def environment(config):
             continue
         path = Path(parts[-1])
         if (".so" in path.name and ("/torch/" in str(path) or "/nvidia/" in str(path)
-                or path.name.startswith(("libcuda.","libnvidia-")))):
+                or path.name.startswith(("libcuda.","libnvidia-","libpython")))):
             if not path.is_file():raise EvidenceError("mapped numerical library is missing/deleted")
             if str(path) not in libraries:
                 libraries[str(path)] = {"name":path.name,"bytes":path.stat().st_size,"sha256":file_hash(path)}
@@ -161,6 +203,7 @@ def environment(config):
         raise EvidenceError("missing mapped CUDA driver library identity")
     compatible = {"schema":"ovl.gpu-environment.v1", "kernel":config,
         "python":platform.python_version(),"machine":platform.machine(),"system":platform.system(),
+        "initialization_host":host_runtime(),
         "torch_build":torch.__config__.show(),"cuda_build":torch.version.cuda,
         "cudnn_version":cudnn_version,"driver_version":driver,
         "gpu":{"name":p.name,"compute_capability":[p.major,p.minor],"memory_bytes":p.total_memory,

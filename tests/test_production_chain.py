@@ -3,6 +3,7 @@ import copy
 import pytest
 from nacl.signing import SigningKey
 from test_production_contract import registration
+from test_pipeline import prepared
 from ovl_pipeline.canonical import EvidenceError,digest,sha256
 from ovl_pipeline.production_chain import schedule,verify_chain
 from ovl_pipeline.training import signed
@@ -60,3 +61,70 @@ def test_forged_signed_and_relinked_declarations_rejected(mutation):
     else:v=[]
     resign(v,key)
     with pytest.raises(EvidenceError):verify_chain(r,root,v,complete=True)
+
+
+def actual_artifacts(prepared,tmp_path):
+    """Actual tiny CPU updates and safe checkpoints; invented production parents."""
+    from ovl_pipeline import training
+    from ovl_pipeline.coverage import schedule_counts
+    from ovl_pipeline.data import batches
+    from ovl_pipeline.fixture import recipe
+    from ovl_pipeline.state import capture,save_state,state_root
+    from ovl_pipeline.production_contract import checkpoint_count
+    directory,manifest=prepared;r=registration();r['recipe']=recipe(manifest['tokenizer']['vocab_size'])
+    r['recipe']['boundary_every']=3;r['recovery_every']=1
+    key=SigningKey.generate();r['run_public_key']=bytes(key.verify_key).hex()
+    for phase in ('wikipedia','conversation'):
+        c=schedule_counts(directory/phase,r['recipe']);r['coverage'][phase]=c
+        f=r['forecast_input']['phases'][phase]
+        f.update(updates=c['updates'],recipe_sha256=digest(r['recipe']),stream_sha256=c['stream_sha256'],
+                 schedule_sha256=digest(c),production_checkpoint_every=1,production_checkpoints=c['updates'],
+                 measured_checkpoints=100,measured_checkpoint_every=1)
+    model,opt,control=training.initialize(r['recipe']);r['initialization']['state_sha256']=state_root(*capture(model,opt,control))
+    root=digest(r);values=[];previous=root;out=tmp_path/'checkpoints';out.mkdir()
+    def boundary(kind):
+        nonlocal previous
+        path=f'boundary-{len(values):05d}';m=save_state(out/path,model,opt,control)
+        b={'schema':'ovl.production-boundary.v1','index':len(values),'registration':root,'previous':previous,
+           'kind':kind,'control':control.copy(),'checkpoint_path':path,'checkpoint':m}
+        values.append(signed(b,key));previous=digest(b)
+    boundary('initial')
+    for phase in ('wikipedia','conversation'):
+        if phase=='conversation':opt,control=training._transition(model,r['recipe'],control);boundary('transition')
+        for batch in batches(directory/phase,r['recipe']['context'],r['recipe']['batch_size']):
+            control=training.update(model,opt,batch,control,r['coverage'][phase]['targets'])
+            if control['phase_step']==r['coverage'][phase]['updates']:boundary('base' if phase=='wikipedia' else 'final')
+            elif control['phase_step']%r['recipe']['boundary_every']==0:boundary('progress')
+    return r,root,values,key,out,{'wikipedia':directory/'wikipedia','conversation':directory/'conversation'}
+
+
+def test_actual_full_input_cursors_and_safe_checkpoint_bytes(prepared,tmp_path):
+    from ovl_pipeline.production_chain import verify_artifacts
+    r,root,v,key,out,streams=actual_artifacts(prepared,tmp_path)
+    result=verify_artifacts(r,root,v,out,streams,complete=True)
+    assert result['checkpoint_bytes']=='PASS' and result['full_stream_census']=='PASS'
+    assert result['training_replay']=='NOT_RUN' and result['public_boundary_anchors']=='NOT_RUN'
+
+
+@pytest.mark.parametrize('change',['intermediate-cursor','checkpoint-bytes','checkpoint-control','stream','extra-file'])
+def test_artifact_checker_rejects_relinked_false_cursors_and_altered_state(prepared,tmp_path,change):
+    from ovl_pipeline.production_chain import verify_artifacts
+    from ovl_pipeline.canonical import write_json
+    from ovl_pipeline.state import read_state,unpack,pack,state_root
+    from ovl_pipeline.canonical import inventory
+    from safetensors.torch import save_file
+    r,root,v,key,out,streams=actual_artifacts(prepared,tmp_path)
+    b=v[1]['body'];path=out/b['checkpoint_path']
+    if change=='intermediate-cursor':b['control']['cursor']-=1;resign(v,key)
+    elif change=='checkpoint-bytes':(path/'state.safetensors').write_bytes(b'altered')
+    elif change=='extra-file':(path/'unsafe.pkl').write_bytes(b'extra')
+    elif change=='stream':streams['wikipedia']=streams['conversation']
+    else:
+        md,ts=read_state(path,b['checkpoint']);obj=unpack(md['tree'],ts);obj['control']['cursor']-=1
+        tensors={};tree=pack(obj,tensors)
+        from ovl_pipeline.state import tensor_digest
+        md={'schema':'ovl.state.v1','tree':tree,'tensor_root':tensor_digest(tensors)}
+        save_file(tensors,str(path/'state.safetensors'));write_json(path/'state.json',md)
+        b['checkpoint']={'schema':'ovl.checkpoint.v1','state_root':state_root(md,tensors),'files':inventory(path,['state.json','state.safetensors'])}
+        write_json(path/'checkpoint.json',b['checkpoint']);resign(v,key)
+    with pytest.raises(EvidenceError):verify_artifacts(r,root,v,out,streams,complete=True)

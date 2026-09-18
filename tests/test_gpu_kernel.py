@@ -128,3 +128,30 @@ else:
          "TOKENIZERS_PARALLELISM":"false","OMP_NUM_THREADS":"1","MKL_NUM_THREADS":"1","OPENBLAS_NUM_THREADS":"1",
          "USE_PYTORCH_KERNEL_CACHE":"0","NVIDIA_TF32_OVERRIDE":"0","TORCH_ALLOW_TF32_CUBLAS_OVERRIDE":"0"}
     subprocess.run([sys.executable,"-c",code],env=env,check=True,capture_output=True,text=True)
+
+
+def test_host_fingerprint_observes_actual_interpreter_and_cpu_without_claiming_cuda():
+    from pathlib import Path
+    from ovl_pipeline.canonical import file_hash
+    a=gpu.host_runtime();b=gpu.host_runtime()
+    assert a==b and a['python_executable_sha256']==file_hash(Path(sys.executable).resolve())
+    assert a['cpu_descriptors'] and a['torch_cpu_capability']==torch.backends.cpu.get_cpu_capability()
+    assert 'not hardware attestation' in a['scope']
+    assert gpu._configured is False
+
+
+def test_cpu_identity_ignores_order_and_clock_but_binds_dispatch_inputs():
+    raw='processor : 0\nvendor_id : Vendor\ncpu family : 6\nmodel : 1\nmodel name : CPU\nstepping : 1\nflags : avx2 sse avx2\nmicrocode : 0x1\ncpu MHz : 2000\n'
+    first=gpu.cpu_identity(raw)
+    assert first==gpu.cpu_identity(raw.replace('2000','3000').replace('avx2 sse avx2','sse avx2')+'\n'+raw.replace('processor : 0','processor : 1'))
+    for old,new in [('model : 1','model : 2'),('stepping : 1','stepping : 2'),('avx2','avx512'),('0x1','0x2')]:
+        assert gpu.cpu_identity(raw.replace(old,new))!=first
+    with pytest.raises(EvidenceError):gpu.cpu_identity(raw.replace('flags : avx2 sse avx2\n',''))
+    with pytest.raises(EvidenceError):gpu.cpu_identity('')
+    with pytest.raises(EvidenceError):gpu.cpu_identity(raw+'flags : other\n')
+
+
+def test_host_fingerprint_rejects_replaced_interpreter_path(tmp_path,monkeypatch):
+    other=tmp_path/'python';other.write_bytes(b'not the executing interpreter')
+    monkeypatch.setattr(sys,'executable',str(other))
+    with pytest.raises(EvidenceError,match='running interpreter'):gpu.host_runtime()
