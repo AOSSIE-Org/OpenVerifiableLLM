@@ -116,8 +116,9 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     python_root=runtime/'public-python';payloads,checked=extract(archive,value['interpreter_sha256'],python_root)
     write_json(output/'python-payloads.json',payloads);write_json(output/'python-audit.json',checked)
     python=python_root/'python/bin/python3.12';venv=runtime/'venv'
+    temporary=runtime/'temporary-install';temporary.mkdir(mode=0o700)
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PIP_CONFIG_FILE':'/dev/null',
-         'PIP_NO_INDEX':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONDONTWRITEBYTECODE':'1'}
+         'PIP_NO_INDEX':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONDONTWRITEBYTECODE':'1','TMPDIR':str(temporary)}
     execute([str(python),'-I','-m','venv','--without-pip',str(venv)],env=env,check=True)
     install=output/'offline-install.txt'
     # Use the exact selected local wheels, including Torch's direct-URL lock row.

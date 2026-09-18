@@ -6,6 +6,7 @@ No RunPod/HF credentials or private signing seed are transferred by this client.
 """
 from pathlib import Path
 import io
+import os
 import uuid
 
 from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,parse_json,read_json,require_digest,verify_inventory,write_json
@@ -157,10 +158,17 @@ def export_tree(transport,name,output,deadline,*,progress=None):
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=False)
     files=tree(transport,name,deadline);write_json(output/'inventory.json',files)
     target=output/'files';target.mkdir(mode=0o700)
-    for item in files:
-        destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
-        transport.get(name+'/'+item['path'],destination,{**item,'path':name+'/'+item['path']},deadline,
-                      progress=None if progress is None else lambda counts,item=item:progress(digest({'tree':name,'file':item}),counts,item['bytes']))
+    if len(files)>=16:
+        from pod_bulk_export import receive
+        batch=receive(transport,name,files,output/'bulk',deadline,progress=progress)
+        for item in files:
+            destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+            os.link(confined(Path(batch['files_directory']),item['path']),destination,follow_symlinks=False)
+    else:
+        for item in files:
+            destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+            transport.get(name+'/'+item['path'],destination,{**item,'path':name+'/'+item['path']},deadline,
+                          progress=None if progress is None else lambda counts,item=item:progress(digest({'tree':name,'file':item}),counts,item['bytes']))
     verify_inventory(target,files)
     after=tree(transport,name,deadline);write_json(output/'after-inventory.json',after)
     if after!=files:raise EvidenceError('remote export changed; preserve copies without completion')

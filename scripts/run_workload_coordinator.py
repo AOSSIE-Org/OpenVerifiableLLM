@@ -67,8 +67,8 @@ def validate(plan,expected,rental,transport,inputs,worker):
                 raise EvidenceError('only one initial isolated image-Python setup stage is permitted')
         reserve=timing['export_reserve_seconds'];floor=timing['transfer_floor_bytes_per_second'];hash_floor=timing['hash_floor_bytes_per_second']
         size=stage['maximum_export_bytes']
-        needed=(size+floor-1)//floor+(6*size+hash_floor-1)//hash_floor+30
-        if needed>reserve:raise EvidenceError('export reserve does not cover selected output transfer and six hash passes')
+        needed=(size+floor-1)//floor+(10*size+hash_floor-1)//hash_floor+30
+        if needed>reserve:raise EvidenceError('export reserve does not cover selected output transfer and ten hash passes')
         if job['stop_grace_seconds']+reserve>p['input']['checkpoint_grace_seconds']:
             raise EvidenceError('worker stop grace leaves insufficient export reserve')
         if not p['input']['now_epoch']<job['deadline_epoch']<=p['input']['now_epoch']+1500 or job['deadline_epoch']+reserve>min(p['request_checkpoint_epoch'],p['input']['now_epoch']+1800):

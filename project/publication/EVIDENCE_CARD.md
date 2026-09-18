@@ -34,8 +34,9 @@ verified against an operator-reconstructed publisher policy, archived at
 and verified again after a fresh anonymous download. Statement SHA-256:
 `ec263b5c3914fd1a8bd25e97fa377b4f8416c38a9ef216d27c203252948b9129`.
 
-Full preparation is running on local CPU (22.36 million source records observed at 09:20 UTC, still incomplete). The [finite coordinator checkpoint](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/cafd152d86d6c172c06b376978871890a52230e5/project/evidence/finite-coordinator-v1/checkpoint.json) passed 928 local tests with three CUDA skips. A guarded operational diagnostic subsequently found an incompatible host driver and insufficient transfer timing; it was terminated, both guards verified absence, and its billing ceiling remains reserved. This is failed admission evidence, not CUDA training validation. G02–G10 remain pending; no production
-training registration, GPU training, full production replay or model release exists.
+Full preparation is running on local CPU (24.62 million source records observed at10:05UTC, still incomplete). The latest local suite passed1012tests with three existing CUDA skips. A CUDA13-constrained operational diagnostic completed an8MiB round trip, exported and rehashed all20files, then triggered verified teardown; its public GitHub archive was freshly downloaded and checked. Its failed predecessor is also preserved. Both recent diagnostic bills remain pending and their conservative ceilings remain reserved. No paid resource remains running at the recorded checkpoint.
+
+A complete local public-runtime download attempt failed on a network read timeout before installation. Corrected bounded-download and bulk-export paths passed local adversarial checks; an actual tiny CUDA record/full replay/resume is next. G02–G10remain pending; no production training registration, CUDA training result, full production replay or model release exists.
 These checks were performed by the project operator, not an independent third party.
 The [public evidence trace](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/feat/verifiable-wikipedia-pipeline/docs/PUBLIC_EVIDENCE_TRACE.md)
 links scoped checks and failed attempts.

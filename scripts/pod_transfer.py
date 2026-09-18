@@ -131,7 +131,7 @@ def validate(profile,key,known_hosts):
 
 
 def relative(name):
-    if type(name) is not str or not re.fullmatch(r'[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*',name) or any(x in ('.','..') for x in name.split('/')):
+    if type(name) is not str or not re.fullmatch(r'[A-Za-z0-9_.+-]+(?:/[A-Za-z0-9_.+-]+)*',name) or any(x in ('.','..') for x in name.split('/')):
         raise EvidenceError('unsafe remote relative path')
     if str(PurePosixPath(name))!=name:raise EvidenceError('noncanonical remote path')
     return name

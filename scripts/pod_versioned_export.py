@@ -29,21 +29,35 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
     files=tree(transport,name,deadline,whole_root=whole_root);write_json(output/'inventory.json',files)
     prefix='' if whole_root else name+'/'
     target=regular_directory(output/'files');objects=regular_directory(store/'objects');incoming=regular_directory(store/'incoming')
-    transfers=[];reused=[]
+    transfers=[];reused=[];missing=[];selected_hashes=set()
+    for item in files:
+        obj=confined(objects,item['sha256'])
+        if obj.exists():retained_object(obj,item)
+        elif item['sha256'] not in selected_hashes:
+            missing.append(item);selected_hashes.add(item['sha256'])
+    bulk_files=None
+    if len(missing)>=16:
+        from pod_bulk_export import receive
+        attempt=incoming/uuid.uuid4().hex
+        bulk=receive(transport,name,missing,attempt,deadline,progress=progress,whole_root=whole_root)
+        bulk_files=Path(bulk['files_directory']);transfers.append(bulk)
     for item in files:
         obj=confined(objects,item['sha256'])
         if obj.exists():retained_object(obj,item);reused.append(item['path'])
         else:
-            attempt=regular_directory(incoming/uuid.uuid4().hex,fresh=True);staged=attempt/'verified'
-            transfer=transport.get(prefix+item['path'],staged,{**item,'path':prefix+item['path']},deadline,
-                progress=None if progress is None else lambda counts,item=item:progress(digest({'profile':digest(transport.profile),'tree':name,'file':item}),counts,item['bytes']))
+            if bulk_files is not None:
+                staged=confined(bulk_files,item['path'])
+            else:
+                attempt=regular_directory(incoming/uuid.uuid4().hex,fresh=True);staged=attempt/'verified'
+                transfer=transport.get(prefix+item['path'],staged,{**item,'path':prefix+item['path']},deadline,
+                    progress=None if progress is None else lambda counts,item=item:progress(digest({'profile':digest(transport.profile),'tree':name,'file':item}),counts,item['bytes']))
+                transfers.append(transfer)
             retained_object(staged,item);staged.chmod(0o400)
             try:os.link(staged,obj,follow_symlinks=False)
             except FileExistsError:retained_object(obj,item)
             fd=os.open(objects,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
             try:os.fsync(fd)
             finally:os.close(fd)
-            transfers.append(transfer)
             # Keep both names; no unlink of partial or sole evidence is needed.
         destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
         os.link(obj,destination,follow_symlinks=False)
