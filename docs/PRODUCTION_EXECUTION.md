@@ -65,9 +65,9 @@ The model's provenance does not establish generated-answer factual accuracy.
 `progress_anchoring` uses an exact, separate `anchor-progress.yml` publisher identity.
 Each assertion binds the registration root, exact signed boundary, previous public
 assertion and immutable HF checkpoint inventory. The verifier recomputes signatures
-and transparency inclusion; saved PASS strings cannot replace them. The associated
-signing workflow, remote publication and actual live progress endorsements are still
-to be implemented and exercised. The run signature by itself supplies no public gate.
+and transparency inclusion; saved PASS strings cannot replace them. The [signing workflow](PROGRESS_ENDORSEMENTS.md) is implemented with full
+checkpoint downloads; remote publication/controller integration and actual live
+progress endorsements remain to be exercised. The run signature by itself supplies no public gate.
 
 Pilot replay timing now includes saving every compared verifier checkpoint. Parent
 checks require that overhead and its complete count, so the full-replay forecast
