@@ -1,8 +1,12 @@
 # GPU development pilot and complete update census
 
-This path is development infrastructure. An eight-update synthetic CUDA record passed in the fourth live attempt;
-complete CUDA replay and production admission remain pending. CPU-substitute orchestration tests do not establish GPU
-numerical reproducibility, feasibility, model quality or independent verification.
+This path is development infrastructure. A complete actual CUDA synthetic cycle
+passed: eight recorded updates, full fresh-process replay from regenerated
+initialization, and a separate four-update resume. All nine saved states also
+passed checks after a fresh public download. See
+[the fifth live attempt](../project/evidence/live-tiny-cuda-v5/README.md).
+Sustained representative throughput and production admission remain pending.
+Operator-run replay is not independent third-party verification.
 
 ## Numerical profile
 

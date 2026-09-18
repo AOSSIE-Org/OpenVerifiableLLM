@@ -1,0 +1,1 @@
+{"id":"95q4g7lu90pnte","name":"ovllm-tiny-cuda-5ce2372011384bacbcdd35fa3de371ff","cudaVersion":"13.0","runtime":{"cpu":{"util":0},"gpus":[{"memoryUtil":0,"util":0}],"memory":{"util":0},"ports":[{"ip":"100.65.16.134","private":19123,"public":60672,"type":"http"},{"ip":"213.173.107.76","private":22,"public":17657,"type":"tcp"}],"uptime":10}}

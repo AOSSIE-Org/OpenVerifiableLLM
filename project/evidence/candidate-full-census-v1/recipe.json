@@ -1,0 +1,1 @@
+{"batch_size":16,"boundary_every":1024,"context":512,"init":"normal-0.02-tied-v1","learning_rate":"0.0003","model":{"attn_impl":"manual","dropout":0,"embed_dim":384,"max_seq_len":512,"num_heads":6,"num_layers":6,"vocab_size":32000},"seed":1234,"weight_decay":"0.01"}
