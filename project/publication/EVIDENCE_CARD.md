@@ -34,7 +34,7 @@ verified against an operator-reconstructed publisher policy, archived at
 and verified again after a fresh anonymous download. Statement SHA-256:
 `ec263b5c3914fd1a8bd25e97fa377b4f8416c38a9ef216d27c203252948b9129`.
 
-Full preparation is now running on local CPU. G02–G10 remain pending; no production
+Full preparation is running on local CPU (22.36 million source records observed at 09:20 UTC, still incomplete). The [finite coordinator checkpoint](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/cafd152d86d6c172c06b376978871890a52230e5/project/evidence/finite-coordinator-v1/checkpoint.json) passed 928 local tests with three CUDA skips. A guarded operational diagnostic subsequently found an incompatible host driver and insufficient transfer timing; it was terminated, both guards verified absence, and its billing ceiling remains reserved. This is failed admission evidence, not CUDA training validation. G02–G10 remain pending; no production
 training registration, GPU training, full production replay or model release exists.
 These checks were performed by the project operator, not an independent third party.
 The [public evidence trace](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/feat/verifiable-wikipedia-pipeline/docs/PUBLIC_EVIDENCE_TRACE.md)

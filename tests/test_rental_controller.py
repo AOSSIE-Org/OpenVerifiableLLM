@@ -212,3 +212,26 @@ def test_absence_between_liveness_reads_does_not_prove_teardown(tmp_path):
     f.account=flicker;f.run()
     assert not f.alive
     assert read_json(f.directory/'result.json')['confirmed_absent_epoch']>=f.i['plan']['provider_terminate_epoch']+15
+
+
+def test_cuda13_creation_constraint_is_sent_and_preserved_on_adoption(tmp_path):
+    f=RentalFake(tmp_path);f.value['schema']='ovl.rental-controller-intent.v2'
+    f.value['payload']['allowedCudaVersions']=['13.0','13.2']
+    f.run();assert f.writes==1
+    sent=next(c[1]['input'] for c in f.calls if c[0]=='create')
+    assert sent['allowedCudaVersions']==['13.0','13.2']
+    assert 'allowedCudaVersions' in read_json(f.directory/'result.json')['provider_requested_only_fields']
+    f.run();assert f.writes==1
+
+
+@pytest.mark.parametrize('versions',[[],['12.8'],['13'],[13.0],['13.0','13.0'],['13.2','13.0'],'13.0',None])
+def test_bad_cuda_constraint_refuses_before_provider_calls(tmp_path,versions):
+    f=RentalFake(tmp_path);f.value['schema']='ovl.rental-controller-intent.v2';f.value['payload']['allowedCudaVersions']=versions
+    with pytest.raises(EvidenceError):f.run()
+    assert f.calls==[]
+
+
+def test_cuda_constraint_cannot_be_smuggled_into_old_intent(tmp_path):
+    f=RentalFake(tmp_path);f.value['payload']['allowedCudaVersions']=['13.0']
+    with pytest.raises(EvidenceError):f.run()
+    assert f.calls==[]

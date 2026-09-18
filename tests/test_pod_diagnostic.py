@@ -9,10 +9,10 @@ import pod_diagnostic as m
 
 def test_diagnostic_preserves_complete_roundtrip_and_labels_scope(tmp_path):
     source=tmp_path/'payload'
-    with source.open('wb') as f:f.truncate(64*1024**2)
+    with source.open('wb') as f:f.truncate(8*1024**2)
     def smi(argv,**kwargs):
         assert argv[0]=='/usr/bin/nvidia-smi' and kwargs['timeout']==30
-        return subprocess.CompletedProcess(argv,0,b'Fixture GPU, Fixture UUID, 000, 1, 00:00\n',b'')
+        return subprocess.CompletedProcess(argv,0,b'Fixture GPU, Fixture UUID, 580.65.06, 1, 00:00\n',b'')
     v=m.run(source,tmp_path/'output','Fixture GPU',execute=smi)
     assert v['hash_read_bytes']==1024**3 and v['hash_nanoseconds']>0
     assert (tmp_path/'output/roundtrip.bin').read_bytes()==source.read_bytes()
@@ -22,7 +22,16 @@ def test_diagnostic_preserves_complete_roundtrip_and_labels_scope(tmp_path):
 
 def test_wrong_gpu_refuses_without_success_report(tmp_path):
     source=tmp_path/'payload'
-    with source.open('wb') as f:f.truncate(64*1024**2)
+    with source.open('wb') as f:f.truncate(8*1024**2)
     def smi(argv,**kwargs):return subprocess.CompletedProcess(argv,0,b'Other GPU, Fake UUID, 000, 1, 00:00\n',b'')
     with pytest.raises(ValueError,match='selected GPU'):m.run(source,tmp_path/'output','Selected GPU',execute=smi)
+    assert not(tmp_path/'output/diagnostic.json').exists()
+
+
+def test_old_host_driver_is_preserved_but_not_admitted(tmp_path):
+    source=tmp_path/'payload'
+    with source.open('wb') as f:f.truncate(8*1024**2)
+    def smi(argv,**kwargs):return subprocess.CompletedProcess(argv,0,b'Selected GPU, Fake UUID, 570.172.08, 24564, 00:00\n',b'')
+    with pytest.raises(ValueError,match='R580'):m.run(source,tmp_path/'output','Selected GPU',execute=smi)
+    assert b'570.172.08' in (tmp_path/'output/gpu.csv').read_bytes()
     assert not(tmp_path/'output/diagnostic.json').exists()

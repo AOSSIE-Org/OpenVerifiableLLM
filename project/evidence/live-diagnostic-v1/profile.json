@@ -1,0 +1,1 @@
+{"endpoint_observation_sha256":"de2dc92c7aaebee318dc8b6e81ffe6efd5b42c4714cae0722d1d3181f9d7d5d2","host":"47.47.180.77","host_key_trust":"operator-pinned-TOFU","known_hosts_sha256":"6ae1cf452cb7899471b6f95ed8131a078c279657365c9f67c827e24f616c6acc","pod_id":"5c4zcuwdyyk1y0","port":18473,"remote_root":"/workspace/ovllm/diagnostic-v1","schema":"ovl.pod-ssh-profile.v1","user":"root"}

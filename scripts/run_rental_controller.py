@@ -26,9 +26,17 @@ def validate(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('rental intent differs from selected pin')
     fields(value,'schema watchdog_intent payload quote','rental intent')
-    if value['schema']!='ovl.rental-controller-intent.v1':raise EvidenceError('unsupported rental controller intent')
+    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2'):raise EvidenceError('unsupported rental controller intent')
     w=value['watchdog_intent'];p=validate_intent(w,digest(w));payload=value['payload']
-    fields(payload,'name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports','creation payload')
+    names='name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports'
+    if value['schema']=='ovl.rental-controller-intent.v2':names+=' allowedCudaVersions'
+    fields(payload,names,'creation payload')
+    if value['schema']=='ovl.rental-controller-intent.v2':
+        versions=payload['allowedCudaVersions']
+        if (type(versions) is not list or not 1<=len(versions)<=16
+            or any(type(v) is not str or not re.fullmatch(r'13\.[0-9]{1,2}',v) for v in versions)
+            or versions!=sorted(set(versions),key=lambda v:int(v.split('.')[1]))):
+            raise EvidenceError('explicit unique ordered CUDA13 host versions required')
     if any(payload[k]!=v for k,v in w['payload'].items()):raise EvidenceError('creation differs from watchdog identity/deadline')
     if payload['cloudType']!='SECURE' or payload['startSsh'] is not True or payload['startJupyter'] is not False:
         raise EvidenceError('secure SSH-only rental required')
@@ -180,7 +188,7 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                         elif obs['observed_epoch']-missing_since>=15:
                             report={'schema':'ovl.rental-controller-result.v1','complete':True,'pod_id':known,'intent_sha256':expected,
                                 'confirmed_absent_epoch':obs['observed_epoch'],'residual_network_volumes':obs['volume_ids'],
-                                'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb'],
+                                'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb']+(['allowedCudaVersions'] if 'allowedCudaVersions' in value['payload'] else []),
                                 'runtime_identity_admission':'NOT_RUN',
                                 'automatic_provider_termination':'UNVERIFIED','provider_billing_reconciliation':'PENDING','training_admission':'NOT_RUN'}
                             j.append('teardown',report);write_json(directory/'result.json',report);return
