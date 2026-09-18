@@ -39,6 +39,8 @@ def test_continuous_pilot_replay_and_separately_labeled_resume(cpu_runtime,prepa
     assert replay["updates_recomputed"]==9 and len(replay["compared"])==len(record["boundaries"])
     assert replay["scope"]=="fresh-initialization-continuous-pilot-replay"
     assert replay["timed_checkpoints"]==record["timed_checkpoints"]==5
+    assert replay['verifier_checkpoint_overhead_included'] is True
+    assert replay['verifier_checkpoints_saved']==len(record['boundaries'])
     assert replay["measured_targets"]==record["measured_targets"]
     assert replay["measured_full_batch_updates"]==record["measured_full_batch_updates"]
     assert replay["measured_ms"]>0 and replay["setup_including_warmup_ms"]>0
@@ -67,7 +69,8 @@ def test_wrong_checkpoint_fails_continuous_comparison(cpu_runtime,prepared,tmp_p
     path=tmp_path/"record/boundary-00001/state.safetensors";data=bytearray(path.read_bytes());data[-1]^=1;path.write_bytes(data)
     with pytest.raises(EvidenceError,match="hash mismatch"):
         gpu_pilot.replay(directory/"conversation",tmp_path/"record",digest(value),tmp_path/"bad")
-    assert not (tmp_path/"bad").exists()
+    assert not (tmp_path/"bad/verification.json").exists()
+    assert (tmp_path/"bad/verifier-boundary-00000/checkpoint.json").exists()
 
 
 def test_changed_kernel_code_environment_and_schedule_are_not_replayable(cpu_runtime,prepared,tmp_path,monkeypatch):

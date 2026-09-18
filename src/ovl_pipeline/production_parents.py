@@ -99,6 +99,9 @@ def validate_parents(registration,*,source,source_policy,prepared,initial_record
         equal(len(record['boundaries']),len(steps),'complete pilot boundary schedule')
         equal(record['timed_checkpoints'],len(steps)-1,'timed pilot checkpoints')
         equal(len(replay['compared']),len(record['boundaries']),'all pilot boundaries')
+        if replay.get('verifier_checkpoint_overhead_included') is not True:
+            raise EvidenceError('pilot replay omits verifier checkpoint overhead')
+        equal(replay.get('verifier_checkpoints_saved'),len(record['boundaries']),'complete verifier checkpoint count')
         previous=digest(settings)
         for index,(expected,actual) in enumerate(zip(record['boundaries'],replay['compared'])):
             fields(expected,'index step control path checkpoint previous','pilot boundary')

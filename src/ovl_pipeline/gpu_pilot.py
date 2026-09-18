@@ -161,6 +161,9 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
         md,tensors=read_state(confined(record_directory,b["path"]),b["checkpoint"])
         actual=state_root(*capture(model,opt,control))
         if actual!=state_root(md,tensors):raise EvidenceError(f"pilot state mismatch at boundary {position}")
+        if not output.exists():output.mkdir(parents=True,exist_ok=False)
+        own=save_state(output/f'verifier-boundary-{position:05d}',model,opt,control)
+        if own['state_root']!=actual:raise EvidenceError('pilot verifier state changed during capture')
         compared.append({"index":position,"state_root":actual});position+=1
     compare()  # Always regenerate boundary zero; never load it as initialization.
     if resume_from is not None:
@@ -195,9 +198,11 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
             "setup_including_warmup_ms":(setup_ns+999999)//1000000,
             "warmup_excluded":True,"overhead_included":True,
             "eligible_for_forecast_comparison":resume_from is None and value["eligible_duration_for_forecast"] is True,
+            "verifier_checkpoint_overhead_included":True,
+            "verifier_checkpoints_saved":len(compared),
             "performed_by":"project-operator","independent_third_party":False,
             "production_training_coverage":"NOT_RUN","production_admission":"NOT_RUN"}
-    output.mkdir(parents=True,exist_ok=False);write_json(output/"verification.json",report)
+    write_json(output/"verification.json",report)
     return report
 
 

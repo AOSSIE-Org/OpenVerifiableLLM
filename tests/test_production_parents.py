@@ -43,6 +43,7 @@ def parents():
             'boundaries':boundaries,'measured_full_batch_updates':100,'measured_ms':600000,'eligible_duration_for_forecast':True,
             'timed_checkpoints':10,'warmup_excluded':True,'overhead_included':True,'measured_targets':4800}
         replay={'schema':'ovl.gpu-pilot-replay.v1','scope':'fresh-initialization-continuous-pilot-replay','result':'PASS',
+            'verifier_checkpoint_overhead_included':True,'verifier_checkpoints_saved':len(boundaries),
             'resume_from':None,'initial_state_regenerated':True,'record_sha256':digest(record),'environment':env,
             'updates_recomputed':100,'compared':[{'index':b['index'],'state_root':b['checkpoint']['state_root']} for b in boundaries],
             'measured_ms':610000,'eligible_for_forecast_comparison':True,'measured_targets':4800,'measured_full_batch_updates':100,'timed_checkpoints':10}
@@ -103,3 +104,13 @@ def test_review_report_counterexamples(change):
     else:record['measured_targets']+=1;p['pilot_replays']['wikipedia']['measured_targets']+=1
     rebind(r,p)
     with pytest.raises(EvidenceError):validate_parents(r,**p)
+
+
+@pytest.mark.parametrize('change',['missing','false','count'])
+def test_replay_forecast_requires_actual_verifier_checkpoint_overhead(change):
+    r,p=parents();replay=p['pilot_replays']['wikipedia']
+    if change=='missing':del replay['verifier_checkpoint_overhead_included']
+    elif change=='false':replay['verifier_checkpoint_overhead_included']=False
+    else:replay['verifier_checkpoints_saved']-=1
+    rebind(r,p)
+    with pytest.raises(EvidenceError,match='verifier checkpoint'):validate_parents(r,**p)
