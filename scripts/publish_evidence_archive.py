@@ -47,6 +47,9 @@ def validate(plan):
     elif kind=='python-runtime':
         if plan['prefix']!='runtime-python/'+root:raise EvidenceError('Python distribution prefix differs')
         names=['SHA256SUMS','acquisition.json','distribution.tar.gz','payloads.json']
+    elif kind=='operational-evidence':
+        if plan['prefix']!='operational-evidence/'+root:raise EvidenceError('operational evidence prefix differs')
+        names=['checkpoint.json','retained-export-inventory.json','retained-exports.tar.gz']
     elif kind in exact:
         prefix,names=exact[kind]
         if prefix is not None and plan['prefix']!=prefix:raise EvidenceError('registration publication prefix differs')
@@ -67,7 +70,8 @@ def validate(plan):
             p!='preparation.json' and not re.fullmatch(r'(corpus|tokenizer|conversation-selection|wikipedia|conversation|conversation-validation)/[a-zA-Z0-9_.-]+',p) for p in paths)):
         raise EvidenceError('unexpected prepared-data publication paths')
     marker={'prepared':'preparation.json','progress-anchor':'statement.json','checkpoint':'checkpoint.json',
-            'registration-packet':'registration.json','release-anchor':'release.json','python-runtime':'distribution.tar.gz'}.get(kind)
+            'registration-packet':'registration.json','release-anchor':'release.json','python-runtime':'distribution.tar.gz',
+            'operational-evidence':'checkpoint.json'}.get(kind)
     if marker and next(e['sha256'] for e in entries if e['path']==marker)!=root:
         raise EvidenceError('publication subject differs from exact manifest/statement bytes')
 
