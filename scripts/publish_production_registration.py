@@ -36,6 +36,8 @@ def expected_policy(revision,registration):
 
 def request_commit(request,r,directory,*,execute=command):
     """Dedicated clone only; never stage the owner's working tree or force-push."""
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     validate_request(request);name=f"project/production-commitments/{r['run_id']}-{r['attempt_id']}.json"
     if not directory.exists():directory.mkdir()
     clone=directory/'checkout';intent=directory/'intent.json';saved=directory/'commit.json'
@@ -139,6 +141,8 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
 
 
 def publish(packet,expected_registration,source_policy,source_checkout,output,deadline,*,progress=None):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     integer(deadline,1,2**53-1,'registration publication deadline')
     if time.time()>=deadline:raise EvidenceError('registration publication deadline expired')
     if type(source_policy) is not PublisherPolicy:raise EvidenceError('independent source publisher policy required')

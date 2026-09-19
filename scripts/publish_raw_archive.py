@@ -60,6 +60,8 @@ def validate_plan(plan):
 
 
 def upload(plan_path, staging, output):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     plan = read_json(plan_path);validate_plan(plan)
     if output.exists() or staging.is_symlink():
         raise EvidenceError("fresh upload receipt directory and regular staging root required")

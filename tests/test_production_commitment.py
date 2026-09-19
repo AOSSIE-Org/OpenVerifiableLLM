@@ -119,9 +119,17 @@ def test_source_commit_edge_cases(tmp_path,monkeypatch,case):
     elif case=='nested':
         p=tmp_path/'src/ovl_pipeline/nested/a.py';p.parent.mkdir();p.write_text('nested');r['code_revision']=commit()['GITHUB_SHA']
     elif case=='nonregular':
-        (tmp_path/'src/ovl_pipeline/link.txt').symlink_to('a.py');r['code_revision']=commit()['GITHUB_SHA']
+        # Build deliberately invalid input in this disposable, remote-free Git
+        # fixture. Publication hooks must keep rejecting symlink commits; the
+        # production verifier must independently reject an existing bad tree.
+        assert not git('remote')
+        (tmp_path/'src/ovl_pipeline/link.txt').symlink_to('a.py')
+        git('add','.')
+        bad=git('commit-tree',git('write-tree'),'-p',git('rev-parse','HEAD'),'-m','synthetic invalid source tree')
+        git('update-ref','HEAD',bad)
+        r['code_revision']=bad
     else:(tmp_path/'src/model.py').unlink()
-    with pytest.raises(EvidenceError):m.verify_code(tmp_path,r)
+    with pytest.raises(EvidenceError,match='nonregular source' if case=='nonregular' else None):m.verify_code(tmp_path,r)
 
 
 def test_real_kernel_and_release_tooling_share_the_exact_registered_code_root(tmp_path):

@@ -113,7 +113,7 @@ def test_other_supported_archive_kinds_preserve_closed_subject_roots(tmp_path,ki
     assert pub.download(pp,api.sha,tmp_path/'download',api=api,fetch_file=api.fetch)['semantic_verification']=='NOT_RUN'
 
 
-@pytest.mark.parametrize('kind',['registration-packet','release-evidence','release-anchor','python-runtime','operational-evidence'])
+@pytest.mark.parametrize('kind',['registration-packet','release-evidence','release-anchor','python-runtime'])
 def test_new_closed_evidence_kinds_have_complete_anonymous_byte_roundtrip(tmp_path,kind):
     from ovl_pipeline.production_anchoring import PACKET_FILES
     from ovl_pipeline.production_release import EVIDENCE

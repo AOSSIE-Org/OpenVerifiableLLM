@@ -89,6 +89,8 @@ def existing(api,plan,revision):
 
 
 def upload(plan_path,staging,output,*,api=None):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     plan=read_json(plan_path);validate(plan)
     if output.exists():raise EvidenceError('existing publication intent/result; reconcile rather than repeat upload')
     fd=lease(plan_path.with_name(plan_path.name+'.publication.lock'))
@@ -100,6 +102,8 @@ def upload(plan_path,staging,output,*,api=None):
             if p.is_symlink() or not(p.is_dir() or p.is_file()):raise EvidenceError('nonregular staged evidence')
             if p.is_file():actual.append(p.relative_to(staging).as_posix())
         if sorted(actual)!=[e['path'] for e in plan['files']]:raise EvidenceError('staging contains unregistered files')
+        from ovl_pipeline.publication_privacy import review_export
+        review_export(plan,staging,plan_path.with_name(plan_path.name+'.review.json'))
         api=api or HfApi(endpoint='https://huggingface.co')
         info=api.repo_info(REPO,repo_type='dataset')
         if info.private or not re.fullmatch('[0-9a-f]{40}',info.sha):raise EvidenceError('existing public pinned parent required')

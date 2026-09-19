@@ -83,6 +83,8 @@ def copy_anchor(source,destination):
 
 def request_commit(request,r,directory,*,execute=command):
     """Dedicated clone only; never stage the owner's working tree or force-push."""
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     validate_request(request);name=f"project/progress-commitments/{r['run_id']}-{r['attempt_id']}-boundary-{len(request['envelopes'])-1:05d}.json"
     if not directory.exists():directory.mkdir()
     clone=directory/'checkout';intent=directory/'intent.json';saved=directory/'commit.json'
@@ -275,6 +277,8 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
 
 def publish(packet,bundle,production_policy,source_policy,source_checkout,config,chain_directory,
             previous_directory,previous_policies,output,deadline):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     output.mkdir(parents=True,exist_ok=True)
     fd=transport.lease(output/'.publisher.lock')
     try:

@@ -60,3 +60,20 @@ openverifiable-smoke/
 
 # Active local transfer logs; immutable receipts are retained separately.
 .ovllm-cache-acquisition.stderr.log
+
+# Private operator and AI coordination material: retain locally, never publish.
+/AUTONOMOUS_START.md
+/PROJECT_GOAL.md
+/project/goal_state.json
+/project/RESUME.md
+/project/LIVE_HANDOFF_INTEGRATION.md
+/project/PRODUCTION_INTEGRATION.md
+/project/RELEASE_INTEGRATION.md
+/project/evidence/**/advisory/
+/project/evidence/**/*advisory*
+/project/evidence/**/usage-monitor*
+/project/evidence/rtx5090-steering-20260919/
+/project/evidence/provider-recovery-window-20260919/
+
+# New operational work stays local; reviewed technical reports have a separate root.
+/project/evidence/

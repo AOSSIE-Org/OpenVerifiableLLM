@@ -1,9 +1,9 @@
 # OpenVerifiableLLM
 
-The current Wikipedia execution goal is recorded in [PROJECT_GOAL.md](PROJECT_GOAL.md),
-with the [end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md),
-[autonomous starting prompt](AUTONOMOUS_START.md), and
-[progress state](project/goal_state.json). The [synthetic pipeline fixture](docs/PIPELINE_FORMAT.md) now exercises raw-data
+The Wikipedia pipeline is described in the
+[end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md).
+Private operator instructions and working progress records are kept locally.
+The [synthetic pipeline fixture](docs/PIPELINE_FORMAT.md) now exercises raw-data
 reconstruction, safe checkpoints, continuous two-phase replay and export/inference.
 Production training and public trust gates remain pending. The existing
 artifact verifier and sampled replay do not yet satisfy its full reconstruction and

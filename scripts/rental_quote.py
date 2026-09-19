@@ -13,7 +13,7 @@ from ovl_pipeline.canonical import EvidenceError,digest,file_hash,require_digest
 from ovl_pipeline.schema import fields,integer
 
 AUTHORIZATION_SHA256='12bbf07875add059c338ae35255fbb6c2bfbda16c102310395312a7474f93e80'
-AUTHORIZATION=Path(__file__).resolve().parents[1]/'project/evidence/cost-guard-revision-20260918/authorization.json'
+AUTHORIZATION=Path.home()/'.local/share/openverifiablellm/authorizations/cost-guard-revision-20260918.json'
 STORAGE_URL='https://docs.runpod.io/pods/pricing'
 
 
@@ -60,6 +60,8 @@ def validate_quote(quote,payload,plan):
     upper=format(computed.quantize(Decimal('0.000001'),rounding=ROUND_CEILING),'f')
     if plan['input']['hourly_upper_usd']!=upper or plan['input']['quote_sha256']!=digest(quote):
         raise EvidenceError('rental rate/quote root differs from complete compute and storage arithmetic')
-    if plan['input']['authorization_sha256']!=AUTHORIZATION_SHA256 or file_hash(AUTHORIZATION)!=AUTHORIZATION_SHA256:
+    if (not AUTHORIZATION.is_file() or AUTHORIZATION.is_symlink()
+            or plan['input']['authorization_sha256']!=AUTHORIZATION_SHA256
+            or file_hash(AUTHORIZATION)!=AUTHORIZATION_SHA256):
         raise EvidenceError('rental authorization differs from retained owner instruction')
     return upper

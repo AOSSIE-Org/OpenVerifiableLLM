@@ -34,6 +34,8 @@ def check_tree(directory,names):
 
 
 def commit_pending(output,api):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     intent=read_json(output/'intent.json');repo=intent['repo'];created=read_json(output/'created.json')
     if created['repo']!=repo or created['intent_sha256']!=digest(intent):raise EvidenceError('created repository differs from intent')
     if (output/'commit-intent.json').exists():raise EvidenceError('commit already attempted; read-only reconciliation required')
@@ -70,6 +72,8 @@ def check_destinations(statement,output,*,api=None):
 
 
 def publish(phase,statement,bundle,policy,payloads,output,*,api=None):
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
     if phase not in ('base','chat'):raise EvidenceError('explicit model phase required')
     if output.exists():raise EvidenceError('existing publication intent; adopt it rather than repeat creation')
     fd=lease(output.with_name(output.name+'.publication.lock'))
