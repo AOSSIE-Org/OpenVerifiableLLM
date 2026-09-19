@@ -41,6 +41,36 @@ history maintenance, use the [current provenance status](../project/evidence/his
 and independently select fresh publisher policies. Do not edit old signed payloads
 or substitute a rewritten commit inside an old statement.
 
+A supplemental source assertion can endorse relocated raw inputs while the original
+statement remains the preparation and reconstruction parent. Select both policies
+separately, retaining the historical signing revision in the original policy. After
+the supplemental assertion has actually been signed and downloaded, check:
+
+```sh
+TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python scripts/verify_source_relocation.py \
+  --original-statement original-statement.json --original-bundle original.sigstore.json \
+  --original-policy selected-original-policy.json \
+  --relocated-statement supplemental-statement.json --relocated-bundle supplemental.sigstore.json \
+  --relocated-policy selected-supplemental-policy.json \
+  --preparation original-preparation.json --preparation-sha256 "$PREPARATION_SHA256" \
+  --reconstruction-checkpoint original-reconstruction-checkpoint.json \
+  --reconstruction-checkpoint-sha256 "$RECONSTRUCTION_CHECKPOINT_SHA256" \
+  --execution-observation original-execution-observation.json
+```
+
+The two digest variables are independently selected original object identities.
+The reconstruction digest covers the whole checkpoint, not only its nested report.
+The checker requires a new attempt, signing revision and archive revision, with all
+other source fields identical. It reports a relationship between two endorsements;
+it does not check current URL availability or perform data reconstruction or replay.
+The supplemental signature covers its full source assertion. The checker assigns
+its location-only role; signing does not enforce that role on other consumers.
+
+Keep the original source statement, original policy and original preparation in the
+production packet. Run the relocation check separately and complete all required
+public downloads. The assembler does not automatically consume a relocation result
+or waive its original exact-parent, complete-reconstruction and full-replay checks.
+
 The forecast calculator in `ovl_pipeline.budget` uses exact monetary units, reserves
 $10 beyond the $90 operating limit, requires at least ten-minute measurements, and
 charges for both complete phases and full replay with a 25% runtime margin. It is

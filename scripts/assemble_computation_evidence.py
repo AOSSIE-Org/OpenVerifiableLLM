@@ -8,6 +8,7 @@ The strict fresh-work production_verify command remains unchanged.
 """
 from pathlib import Path
 import time
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from ovl_pipeline.canonical import (EvidenceError, canonical, confined, digest, file_hash,
     inventory, parse_json, read_json, sha256, verify_inventory, write_json)
@@ -30,9 +31,28 @@ def complete_tree(root, files):
     verify_inventory(root,files)
 
 
+class RejectEvidenceRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise EvidenceError('pinned GitHub evidence must not redirect')
+
+
 def public_object(reference):
     from ovl_pipeline.source_commitment import fetch_metadata
-    public_reference(reference);data=fetch_metadata(reference['url'])
+    public_reference(reference)
+    url=reference['url']
+    if url.startswith('https://raw.githubusercontent.com/'):
+        # public_reference already confines this URL to the approved repository,
+        # an immutable commit and a technical evidence path. Keep this transport
+        # separate from the frozen preparation downloader's upstream host policy.
+        request=Request(url,headers={'Accept-Encoding':'identity','Cache-Control':'no-cache'})
+        with build_opener(RejectEvidenceRedirects()).open(request,timeout=60) as response:
+            if (response.status!=200 or response.url!=url
+                    or response.headers.get('Content-Encoding','identity')!='identity'):
+                raise EvidenceError('unexpected pinned GitHub evidence response')
+            data=response.read(16*1024*1024+1)
+        if len(data)>16*1024*1024:raise EvidenceError('public execution evidence exceeds byte bound')
+    else:
+        data=fetch_metadata(url)
     if sha256(data)!=reference['sha256']:raise EvidenceError('actual public execution evidence differs')
     return parse_json(data,canonical_required=True)
 

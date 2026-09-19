@@ -14,9 +14,32 @@ trust graph verify. Old signed payloads have not been edited.
 All fourteen source files in the original preparation recipe match the cleaned
 source at `df019e2fb1e15d6c30486e2c63735be706423bf5`. The raw Wikipedia and
 public conversation inputs, prepared data, tokenizer and retained safe states
-keep their original bytes. A new source request changes only its attempt identity
-and archive revision; it is not yet endorsed. These facts preserve the applicability
-of earlier computational checks without granting a new signature or replay pass.
+keep their original bytes. A supplemental source request selects the current archive
+and a new attempt identity; signing will bind its actual new signing revision. It is
+not yet endorsed. It supplies current raw-source locations only. The original signed
+source statement remains the parent of the original preparation and reconstruction.
+The supplemental statement must not replace that parent in a production registration.
+These facts preserve the applicability of earlier computational checks without
+granting a new signature or replay pass.
+
+`scripts/verify_source_relocation.py` checks the original and supplemental assertions
+under two separately supplied publisher policies. It permits only changes to the
+attempt identity, signing revision and archive revision, requiring all three to differ.
+It checks the unchanged preparation manifest and complete reconstruction checkpoint
+against independently selected hashes.
+It does not execute reconstruction, download the full raw/prepared corpus, or admit
+production. Its location mapping derives from the two verified assertions; it does
+not newly sign or establish the truth of the older reconstruction report.
+The supplemental signature endorses an entire source assertion. Its use solely for
+raw-source locations is a rule of this checker and the documented integration, not
+a restriction encoded in that signature. Location availability, prepared artifacts
+and the other evidence files require their separate complete download checks.
+
+The historical policy retains its original signing revision. The supplemental policy
+must independently select the actual new signing revision and statement digest after
+publication. A draft statement or a policy supplied by its artifact cannot select its
+own trusted identity. All production, reconstruction and replay parent checks remain
+exact; no old report is edited to name the supplemental statement.
 
 The two relocated technical archives retain their original payload identities:
 
