@@ -26,20 +26,24 @@ def validate(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('rental intent differs from selected pin')
     fields(value,'schema watchdog_intent payload quote','rental intent')
-    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2'):raise EvidenceError('unsupported rental controller intent')
+    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3'):raise EvidenceError('unsupported rental controller intent')
     w=value['watchdog_intent'];p=validate_intent(w,digest(w));payload=value['payload']
     names='name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports'
-    if value['schema']=='ovl.rental-controller-intent.v2':names+=' allowedCudaVersions'
+    explicit_cuda=value['schema'] in ('ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3')
+    if explicit_cuda:names+=' allowedCudaVersions'
     fields(payload,names,'creation payload')
-    if value['schema']=='ovl.rental-controller-intent.v2':
+    if explicit_cuda:
         versions=payload['allowedCudaVersions']
         if (type(versions) is not list or not 1<=len(versions)<=16
             or any(type(v) is not str or not re.fullmatch(r'13\.[0-9]{1,2}',v) for v in versions)
             or versions!=sorted(set(versions),key=lambda v:int(v.split('.')[1]))):
             raise EvidenceError('explicit unique ordered CUDA13 host versions required')
     if any(payload[k]!=v for k,v in w['payload'].items()):raise EvidenceError('creation differs from watchdog identity/deadline')
-    if payload['cloudType']!='SECURE' or payload['startSsh'] is not True or payload['startJupyter'] is not False:
-        raise EvidenceError('secure SSH-only rental required')
+    clouds=('SECURE','COMMUNITY') if value['schema']=='ovl.rental-controller-intent.v3' else ('SECURE',)
+    if payload['cloudType'] not in clouds or payload['startSsh'] is not True or payload['startJupyter'] is not False:
+        raise EvidenceError('selected cloud and SSH-only rental required')
+    quote_schema='ovl.rental-quote.v2' if value['schema']=='ovl.rental-controller-intent.v3' else 'ovl.rental-quote.v1'
+    if value['quote'].get('schema')!=quote_schema:raise EvidenceError('quote version differs from rental intent')
     if payload['ports']!='22/tcp':raise EvidenceError('only SSH port may be exposed')
     if payload['dockerArgs']!='':raise EvidenceError('only immutable image entrypoint may start')
     if type(payload['gpuTypeId']) is not str or not re.fullmatch(r'[A-Za-z0-9 ._-]{1,96}',payload['gpuTypeId']):raise EvidenceError('invalid selected GPU')
