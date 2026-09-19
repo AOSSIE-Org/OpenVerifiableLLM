@@ -1,0 +1,11 @@
+Id=ovllm-rtx5090-feasibility-v1-controller.service
+ActiveState=inactive
+SubState=dead
+Result=success
+NRestarts=0
+
+Id=ovllm-rtx5090-feasibility-v1-watchdog.service
+ActiveState=active
+SubState=running
+Result=success
+NRestarts=0

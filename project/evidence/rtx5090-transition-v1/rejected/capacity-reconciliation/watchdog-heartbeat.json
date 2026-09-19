@@ -1,0 +1,1 @@
+{"automatic_provider_termination":"UNVERIFIED","external_terminate_epoch":1789816978,"intent_sha256":"a6a1f06ee1368502e0298b0b9909f2bdeaf9932dde157e8b45ada40c56c9b182","observed_epoch":1789794061,"pid":2549221,"plan_sha256":"69d581031d6ed0312d2108bdb0eb611b02e89a833433729ee887818ca80f81a2","pod_id":null,"schema":"ovl.external-watchdog-heartbeat.v1","state":"ARMED"}
