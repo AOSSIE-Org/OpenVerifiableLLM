@@ -72,14 +72,19 @@ def validate_parents(registration,*,source,source_policy,prepared,initial_record
         equal(digest(replay),r['pilots'][phase]['replay_sha256'],'pilot replay')
         equal(record.get('schema'),'ovl.gpu-pilot-record.v1','pilot schema')
         equal(record.get('scope'),'development-gpu-pilot-only','pilot scope')
-        equal(replay.get('schema'),'ovl.gpu-pilot-replay.v1','replay schema')
+        if replay.get('schema') not in ('ovl.gpu-pilot-replay.v1','ovl.gpu-pilot-replay.v2'):raise EvidenceError('unknown replay schema')
         equal(replay.get('scope'),'fresh-initialization-continuous-pilot-replay','full pilot replay scope')
         equal(replay.get('result'),'PASS','pilot replay result')
         if replay.get('resume_from') is not None or replay.get('initial_state_regenerated') is not True:
             raise EvidenceError('segment/resume pilot cannot replace complete replay')
         equal(replay['record_sha256'],digest(record),'replay record parent')
         settings=record['settings']
-        equal(settings.get('schema'),'ovl.gpu-pilot-settings.v1','pilot settings schema')
+        from .pilot_delivery import settings_delivery, policy as delivery_policy
+        delivered=settings_delivery(settings)
+        if delivered is not None and replay['schema']!='ovl.gpu-pilot-replay.v2':raise EvidenceError('pilot replay omits delivery')
+        if replay['schema']=='ovl.gpu-pilot-replay.v2':
+            rp=delivery_policy(replay['delivery'])
+            if rp['mode']!='replay' or rp['phase']!=phase:raise EvidenceError('pilot replay delivery differs')
         equal(settings.get('scope'),'development-gpu-pilot-only','pilot settings scope')
         if settings.get('requested_updates') is not None:raise EvidenceError('fixed-update pilot cannot admit sustained forecast')
         integer(settings.get('requested_seconds'),600,3600,'sustained pilot duration')

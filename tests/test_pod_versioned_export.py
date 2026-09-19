@@ -60,3 +60,21 @@ def test_changed_remote_inventory_after_transfer_preserves_every_version(tmp_pat
     t.get=original;m.export(t,'record',tmp_path/'store',tmp_path/'retry',int(time.time())+30)
     assert (tmp_path/'first/files/state').read_bytes()==b'original'
     assert (tmp_path/'retry/files/state').read_bytes()==b'new version'
+
+
+@pytest.mark.parametrize('kind',['logical','uncached'])
+def test_terminal_bounds_reject_before_any_payload_transfer(tmp_path,kind):
+    t,remote,calls,_=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'actual state')
+    with pytest.raises(EvidenceError,match=kind+' export bound'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'export',int(time.time())+30,
+                 maximum_bytes=1 if kind=='logical' else 100,maximum_uncached_bytes=1 if kind=='uncached' else 100)
+    assert not list((tmp_path/'store/incoming').glob('*')) and not(tmp_path/'export/export.json').exists()
+
+
+def test_terminal_bounds_rehash_reused_bytes_and_count_actual_uncached_payload(tmp_path):
+    t,remote,calls,_=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'actual state')
+    m.export(t,'record',tmp_path/'store',tmp_path/'initial',int(time.time())+30)
+    (data/'log').write_bytes(b'new')
+    result=m.export(t,'record',tmp_path/'store',tmp_path/'final',int(time.time())+30,maximum_bytes=15,maximum_uncached_bytes=3)
+    assert result['bounds']['selected_missing_bytes']==3 and result['reused_paths']==['state']
+    assert len(result['files'])==2 and len(result['transfers'])==1

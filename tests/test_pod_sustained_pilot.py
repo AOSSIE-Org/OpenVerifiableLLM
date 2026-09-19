@@ -28,6 +28,8 @@ def audited(config,expected,inputs,runtime,output,module,arguments):
     sha=hashlib.sha256(helper.read_bytes()).hexdigest();deadline=int(time.time())+30
     if change=='helper':sha='f'*64
     elif change=='deadline':deadline=int(time.time())-1
+    elif change=='measured-window':deadline=int(time.time())+2100
+    elif change=='excess-window':deadline=int(time.time())+2102
     elif change=='existing':control.mkdir()
     args=['record','--seconds','600','--output',str(tmp_path/'numerical')]
     if change=='action':args[0]='setup'
@@ -50,7 +52,13 @@ def test_single_selected_audit_receives_exact_action_and_activity_and_never_retr
     assert again.returncode!=0 and json.loads((control/'audit/called.json').read_text())==called
 
 
-@pytest.mark.parametrize('damage',['helper','deadline','existing','activity','action'])
+@pytest.mark.parametrize('damage',['helper','deadline','excess-window','existing','activity','action'])
 def test_foreign_expired_or_reused_job_refused_before_audit(tmp_path,damage):
     result,control,_,_=launch(tmp_path,change=damage)
     assert result.returncode!=0 and not (control/'audit/called.json').exists()
+
+
+def test_measured_longer_window_keeps_one_audited_process(tmp_path):
+    result,control,_,_=launch(tmp_path,change='measured-window')
+    assert result.returncode==0,result.stderr
+    assert (control/'audit/called.json').is_file()

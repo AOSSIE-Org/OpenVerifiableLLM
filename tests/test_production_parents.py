@@ -114,3 +114,22 @@ def test_replay_forecast_requires_actual_verifier_checkpoint_overhead(change):
     else:replay['verifier_checkpoints_saved']-=1
     rebind(r,p)
     with pytest.raises(EvidenceError,match='verifier checkpoint'):validate_parents(r,**p)
+
+
+@pytest.mark.parametrize('damage',[None,'missing-replay-delivery','wrong-phase','unknown-settings','legacy-hidden-delivery'])
+def test_delivered_pilot_reports_preserve_original_forecast_and_parent_gates(damage):
+    r,p=parents();record=p['pilot_records']['wikipedia'];replay=p['pilot_replays']['wikipedia']
+    policy={'schema':'ovl.pilot-delivery-policy.v1','session':'a'*64,'mode':'record','phase':'wikipedia',
+            'deadline_epoch':2000,'copy_timeout_seconds':120,'maximum_checkpoint_bytes':10*1024**2}
+    record['settings'].update(schema='ovl.gpu-pilot-settings.v2',delivery=policy)
+    replay.update(schema='ovl.gpu-pilot-replay.v2',delivery={**policy,'mode':'replay','session':'b'*64})
+    if damage=='missing-replay-delivery':replay['schema']='ovl.gpu-pilot-replay.v1';replay.pop('delivery')
+    elif damage=='wrong-phase':replay['delivery']['phase']='conversation'
+    elif damage=='unknown-settings':record['settings']['schema']='ovl.gpu-pilot-settings.v3'
+    elif damage=='legacy-hidden-delivery':record['settings']['schema']='ovl.gpu-pilot-settings.v1'
+    previous=digest(record['settings'])
+    for b in record['boundaries']:b['previous']=previous;previous=digest(b)
+    rebind(r,p)
+    if damage is None:assert validate_parents(r,**p)['production_admission']=='NOT_RUN'
+    else:
+        with pytest.raises(EvidenceError):validate_parents(r,**p)

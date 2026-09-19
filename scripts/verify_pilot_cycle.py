@@ -10,6 +10,7 @@ from ovl_pipeline.canonical import EvidenceError,confined,digest,read_json,requi
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.state import read_state,unpack
 from pilot_record_parent import check as check_record
+from ovl_pipeline import pilot_delivery
 
 
 def complete_inventory(directory,files):
@@ -27,7 +28,8 @@ def complete_inventory(directory,files):
 def replay_states(directory,files,record,expected,*,resume_from):
     directory=Path(directory);complete_inventory(directory,files)
     report=read_json(confined(directory,'verification.json'))
-    fields(report,'schema result record_sha256 scope updates_recomputed initial_state_regenerated resume_from compared environment measured_targets measured_full_batch_updates timed_checkpoints measured_ms setup_including_warmup_ms warmup_excluded overhead_included eligible_for_forecast_comparison verifier_checkpoint_overhead_included verifier_checkpoints_saved performed_by independent_third_party production_training_coverage production_admission','retained pilot replay report')
+    delivered=report.get('schema')=='ovl.gpu-pilot-replay.v2'
+    fields(report,('delivery ' if delivered else '')+'schema result record_sha256 scope updates_recomputed initial_state_regenerated resume_from compared environment measured_targets measured_full_batch_updates timed_checkpoints measured_ms setup_including_warmup_ms warmup_excluded overhead_included eligible_for_forecast_comparison verifier_checkpoint_overhead_included verifier_checkpoints_saved performed_by independent_third_party production_training_coverage production_admission','retained pilot replay report')
     boundaries=record['boundaries']
     if resume_from is not None:integer(resume_from,1,len(boundaries)-2,'selected resume boundary')
     if report['resume_from'] is not None:integer(report['resume_from'],1,len(boundaries)-2,'reported resume boundary')
@@ -41,7 +43,7 @@ def replay_states(directory,files,record,expected,*,resume_from):
     opening=0 if resume_from is None else boundaries[resume_from]['step']
     indices=list(range(len(boundaries))) if resume_from is None else [0,*range(resume_from,len(boundaries))]
     scope='fresh-initialization-continuous-pilot-replay' if resume_from is None else 'training-resume-continuation-probe'
-    if (report['schema']!='ovl.gpu-pilot-replay.v1' or report['result']!='PASS'
+    if (report['schema'] not in ('ovl.gpu-pilot-replay.v1','ovl.gpu-pilot-replay.v2') or report['result']!='PASS'
         or report['record_sha256']!=expected or report['scope']!=scope
         or report['resume_from']!=resume_from or report['updates_recomputed']!=record['updates']-opening
         or report['initial_state_regenerated'] is not True or report['performed_by']!='project-operator'
@@ -74,6 +76,13 @@ def replay_states(directory,files,record,expected,*,resume_from):
         if (checkpoint['state_root']!=boundaries[i]['checkpoint']['state_root']
             or unpack(metadata['tree'],tensors)['control']!=boundaries[i]['control']):
             raise EvidenceError('retained replay safe state differs from selected record')
+    if pilot_delivery.settings_delivery(record['settings']) is not None and not delivered and resume_from is None:
+        raise EvidenceError('retained replay omitted selected delivery')
+    if delivered:
+        selected=pilot_delivery.policy(report['delivery'])
+        if selected['mode']!='replay' or selected['phase']!=record['settings']['stream']['phase'] or resume_from is not None:
+            raise EvidenceError('retained replay delivery selection differs')
+        expected_paths.update(pilot_delivery.verify_tree(directory,selected,pilot_delivery.origin(pilot_delivery.binding(record['settings']),expected),boundaries))
     if {f['path'] for f in files}!=expected_paths:raise EvidenceError('retained verifier tree has unselected or missing files')
     return {'report_sha256':digest(report),'checked_boundaries':indices,'actual_safe_states':len(indices),
             'scope':scope,'updates_reported_recomputed':report['updates_recomputed']}

@@ -23,12 +23,18 @@ def retained_object(path,item):
         raise EvidenceError('retained export object differs; preserve and refuse')
 
 
-def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None):
+def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None,maximum_bytes=None,maximum_uncached_bytes=None):
     store=regular_directory(store);output=regular_directory(output,fresh=True)
     if store==output or store in output.parents or output in store.parents:raise EvidenceError('object store and snapshots must be separate')
     files=tree(transport,name,deadline,whole_root=whole_root);write_json(output/'inventory.json',files)
     if expected_files is not None and files!=expected_files:
         raise EvidenceError('remote snapshot differs from independently selected file inventory')
+    if (maximum_bytes is None)!=(maximum_uncached_bytes is None):raise EvidenceError('both export bounds required')
+    if maximum_bytes is not None:
+        from ovl_pipeline.schema import integer
+        integer(maximum_bytes,0,2**40,'remaining logical export bytes')
+        integer(maximum_uncached_bytes,0,2**40,'remaining uncached export bytes')
+        if sum(f['bytes'] for f in files)>maximum_bytes:raise EvidenceError('logical export bound exceeded before transfer')
     prefix='' if whole_root else name+'/'
     target=regular_directory(output/'files');objects=regular_directory(store/'objects');incoming=regular_directory(store/'incoming')
     transfers=[];reused=[];missing=[];selected_hashes=set()
@@ -37,6 +43,9 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
         if obj.exists():retained_object(obj,item)
         elif item['sha256'] not in selected_hashes:
             missing.append(item);selected_hashes.add(item['sha256'])
+    missing_bytes=sum(f["bytes"] for f in missing)
+    if maximum_uncached_bytes is not None and missing_bytes>maximum_uncached_bytes:
+        raise EvidenceError("uncached export bound exceeded before transfer")
     bulk_files=None
     if len(missing)>=16:
         from pod_bulk_export import receive
@@ -73,4 +82,7 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
              'files_directory':str(target),'object_store':str(store),
              'scope':'complete stable selected peer tree rehashed off pod; read-only hardlinks share physical bytes',
              'independent_physical_copies':False,'numerical_verification':'NOT_RUN'}
+    if maximum_bytes is not None:
+        receipt.update(schema='ovl.offpod-versioned-tree-export.v2',bounds={'maximum_bytes':maximum_bytes,
+            'maximum_uncached_bytes':maximum_uncached_bytes,'selected_missing_bytes':missing_bytes})
     write_json(output/'export.json',receipt);return receipt

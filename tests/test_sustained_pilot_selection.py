@@ -35,6 +35,19 @@ def test_measured_phase_is_frozen_once_and_adopted_after_its_deadline(tmp_path):
     with pytest.raises(EvidenceError,match='lost its original'):derive(s,t,tmp_path/'job','b'*64,PLAN,7000)
 
 
+def test_longer_measured_pilot_window_still_uses_original_rental_and_deadline(tmp_path):
+    t=descriptor();s=stage(t);s['work_seconds']=2100
+    selected=derive(s,t,tmp_path/'job','b'*64,PLAN,2000)
+    assert selected[2]['deadline_epoch']==4100
+    assert derive(s,t,tmp_path/'job','b'*64,PLAN,5000)==selected
+    for name,seconds,kind,now in [('too-long',2101,'pilot',2000),
+                                  ('setup',1501,'setup',2000),
+                                  ('late',2100,'pilot',8000)]:
+        changed=copy.deepcopy(t);changed['kind']=kind
+        selection={**s,'work_seconds':seconds,'template_sha256':digest(changed)}
+        with pytest.raises(EvidenceError):derive(selection,changed,tmp_path/name,'b'*64,PLAN,now)
+
+
 @pytest.mark.parametrize('damage',['remaining','grace','template','production','changed-adoption','changed-deadline'])
 def test_no_shortened_phase_renewal_or_foreign_job(tmp_path,damage):
     t=descriptor();s=stage(t);p=copy.deepcopy(PLAN);now=2000

@@ -12,12 +12,12 @@ from pod_job_client import job_supervision,save_once
 from run_workload_stage import run_stage
 
 
-def stop_and_retain(transport,health,job_file,job_root,worker,worker_root,output,health_file,stop_file,rental_root,*,sleep=time.sleep,initial_retention=None):
+def stop_and_retain(transport,health,job_file,job_root,worker,worker_root,output,health_file,stop_file,rental_root,*,sleep=time.sleep,initial_retention=None,terminal_limits=None):
     output=Path(output)
     if not(output/'launch/launch-intent.json').exists():raise EvidenceError('no fenced stage to stop; never invent a launch')
     if health.jobs.get(job_root,{}).get('finished'):
         return run_stage(transport,health,job_file,job_root,worker,worker_root,output,health_file,stop_file,rental_root,
-                         sleep=sleep,initial_retention=initial_retention)
+                         sleep=sleep,initial_retention=initial_retention,terminal_limits=terminal_limits)
     marker=output/'dispatch-stop.json'
     save_once(marker,{'schema':'ovl.sustained-dispatch-stop.v1','job_sha256':job_root,
                       'reason':'local dispatcher failure; stop and preserve all declared outputs'})
@@ -45,4 +45,4 @@ def stop_and_retain(transport,health,job_file,job_root,worker,worker_root,output
     # The existing stage path adopts the old fence and immediately observes the
     # actual terminal worker record. It cannot launch another numerical process.
     return run_stage(transport,health,job_file,job_root,worker,worker_root,output,health_file,stop_file,rental_root,
-                     sleep=sleep,initial_retention=initial_retention)
+                     sleep=sleep,initial_retention=initial_retention,terminal_limits=terminal_limits)

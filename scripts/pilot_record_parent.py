@@ -6,7 +6,7 @@ required. No remote report or selected PASS field substitutes for retained bytes
 """
 from pathlib import Path
 
-from ovl_pipeline import schema
+from ovl_pipeline import schema, pilot_delivery
 from ovl_pipeline.canonical import EvidenceError,confined,digest,read_json,require_digest,verify_inventory
 from ovl_pipeline.state import read_state,unpack
 
@@ -28,7 +28,8 @@ def check(directory,files,binding):
         or value.get('result')!='RECORDED_NOT_REPLAYED' or value.get('production_admission')!='NOT_RUN'):
         raise EvidenceError('complete development record required')
     settings=value['settings']
-    if settings.get('schema')!='ovl.gpu-pilot-settings.v1' or settings.get('scope')!='development-gpu-pilot-only':
+    delivery=pilot_delivery.settings_delivery(settings)
+    if settings.get('scope')!='development-gpu-pilot-only':
         raise EvidenceError('wrong pilot settings')
     for key in ('recipe','kernel','stream'):
         if digest(settings[key])!=binding[key+'_sha256']:raise EvidenceError('record differs from selected '+key)
@@ -61,5 +62,6 @@ def check(directory,files,binding):
         roots.append(boundary['checkpoint']['state_root']);previous=digest(boundary);previous_targets=targets
     if previous_targets!=value['measured_targets'] or value['timed_checkpoints']!=len(steps)-1:
         raise EvidenceError('record work differs from retained trajectory')
+    if delivery is not None:pilot_delivery.verify_tree(directory,delivery,pilot_delivery.origin(binding),boundaries)
     return {'schema':'ovl.retained-pilot-record-parent.v1','record_sha256':digest(value),'record':value,
             'files':files,'state_roots':roots,'scope':'complete retained bytes and safe-state/control ancestry; arithmetic NOT_RUN'}

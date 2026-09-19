@@ -37,7 +37,7 @@ def saved_result(path,job):
 
 
 def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker,output,health_file,
-              stop_file,rental_intent_sha256,*,sleep=time.sleep,initial_retention=None):
+              stop_file,rental_intent_sha256,*,sleep=time.sleep,initial_retention=None,terminal_limits=None):
     """Resume by pinned identity, export all selected roots, retain exact failures.
 
     Health completion is deliberately left to the enclosing coordinator after
@@ -53,17 +53,26 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         raise EvidenceError('production/long replay requires dedicated verified checkpoint hooks')
     if initial_retention is not None:
         from pilot_retention import InitialRetention
-        if (type(initial_retention) is not InitialRetention or initial_retention.job!=expected_job
+        from pilot_checkpoint_retention import CheckpointRetention
+        if (type(initial_retention) not in (InitialRetention,CheckpointRetention) or initial_retention.job!=expected_job
             or initial_retention.health is not health or initial_retention.transport is not transport
             or initial_retention.health_file!=health_file or job['kind']!='pilot'):
             raise EvidenceError('initial retention differs from selected pilot stage')
+    if terminal_limits is not None:
+        from pilot_checkpoint_retention import CheckpointRetention
+        if type(initial_retention) is not CheckpointRetention:raise EvidenceError('terminal reuse limits require verified checkpoint delivery')
+        fields(terminal_limits,'maximum_bytes maximum_uncached_bytes','terminal export limits')
+        for k in terminal_limits:integer(terminal_limits[k],1,2**40,k)
+        if terminal_limits['maximum_uncached_bytes']!=initial_retention.selection['maximum_uncached_export_bytes']:
+            raise EvidenceError('terminal uncached limit differs from selected retention')
     now=health.now();deadline=job['deadline_epoch']
     integer(deadline,health.plan['input']['now_epoch']+1,health.plan['provider_terminate_epoch'],'stage deadline')
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=True)
     stage_file=output/'stage-result.json'
     launch_intent=output/'launch/launch-intent.json'
     if not stage_file.exists() and not launch_intent.exists():
-        if now>=health.plan['request_checkpoint_epoch'] or not 0<deadline-now<=1500:
+        maximum_work=2100 if initial_retention is not None else 1500
+        if now>=health.plan['request_checkpoint_epoch'] or not 0<deadline-now<=maximum_work:
             marker=output/'unlaunched-stage.json'
             if not marker.exists():write_json(marker,{'schema':'ovl.unlaunched-stage-refusal.v1','job_sha256':expected_job,
                 'observed_epoch':now,'reason':'compute/graceful deadline before launch fence','execution':'NOT_STARTED_BY_THIS_COORDINATOR',
@@ -165,7 +174,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
             if value is not None:health.activity(expected_job,value)
         if initial_retention is not None:initial_retention.observe(bundle)
         health.write(health_file);sleep(5)
-    exports=[]
+    exports=[];logical_bytes=0;uncached_bytes=0
     for index,name in enumerate(roots):
         destination=output/f'export-{index:03d}'
         # One fresh retry after a preserved incomplete transfer. A malformed
@@ -190,7 +199,17 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
                 receipt=export_tree(transport,name,destination,health.plan['external_terminate_epoch'],progress=progress)
             else:
                 from pod_versioned_export import export
-                receipt=export(transport,name,initial_retention.store,destination,health.plan['external_terminate_epoch'],progress=progress)
+                bounds={} if terminal_limits is None else {'maximum_bytes':terminal_limits['maximum_bytes']-logical_bytes,
+                    'maximum_uncached_bytes':terminal_limits['maximum_uncached_bytes']-uncached_bytes}
+                receipt=export(transport,name,initial_retention.store,destination,health.plan['external_terminate_epoch'],progress=progress,**bounds)
+        if terminal_limits is not None:
+            if receipt['schema']!='ovl.offpod-versioned-tree-export.v2':raise EvidenceError('bounded export receipt required')
+            bound=receipt['bounds'];fields(bound,'maximum_bytes maximum_uncached_bytes selected_missing_bytes','retained export bounds')
+            if bound['maximum_bytes']!=terminal_limits['maximum_bytes']-logical_bytes or bound['maximum_uncached_bytes']!=terminal_limits['maximum_uncached_bytes']-uncached_bytes:
+                raise EvidenceError('retained terminal budgets differ')
+            integer(bound['selected_missing_bytes'],0,bound['maximum_uncached_bytes'],'retained uncached bytes')
+            logical_bytes+=sum(f['bytes'] for f in receipt['files']);uncached_bytes+=bound['selected_missing_bytes']
+            if logical_bytes>terminal_limits['maximum_bytes']:raise EvidenceError('retained logical terminal bound exceeded')
         health.exported_files(expected_job,destination/'files',receipt['files'])
         exports.append({'remote_root':name,'directory':str((destination/'files').resolve()),'files':receipt['files']})
         health.write(health_file)

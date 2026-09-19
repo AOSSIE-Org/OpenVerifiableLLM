@@ -15,6 +15,7 @@ from pod_job_client import save_once
 from pod_transfer import relative
 from sustained_health import SustainedHealth
 from pilot_retention import InitialRetention
+from pilot_checkpoint_retention import CheckpointRetention,selection as delivery_selection,command_selection
 from pilot_record_parent import check as check_parent
 from sustained_pilot_selection import derive,DEADLINE,RECORD
 from run_rental_controller import validate as validate_rental,watchdog_heartbeat
@@ -50,14 +51,20 @@ def validate(plan,expected,rental,transport,inputs,worker):
         fields(s,'name template_path template_sha256 work_seconds export_reserve_seconds maximum_export_bytes parent_stage parent_record_root parent_binding validation_binding download_binding retention','sustained stage')
         relative(s['name']);relative(s['template_path']);require_digest(s['template_sha256'])
         if '/' in s['name'] or s['name'] in prior:raise EvidenceError('unique flat stage names required')
-        integer(s['work_seconds'],1,1500,'stage work seconds');integer(s['export_reserve_seconds'],60,1800,'stage export reserve')
+        integer(s['work_seconds'],1,1500 if initialization else 2100,'stage work seconds');integer(s['export_reserve_seconds'],60,1800,'stage export reserve')
         integer(s['maximum_export_bytes'],1,2**40,'complete stage export bound')
-        size=s['maximum_export_bytes'];needed=(size+timing['transfer_floor_bytes_per_second']-1)//timing['transfer_floor_bytes_per_second']+(10*size+timing['hash_floor_bytes_per_second']-1)//timing['hash_floor_bytes_per_second']+30
+        size=s['maximum_export_bytes'];uncached=size
+        if s['retention'] is not None and s['retention'].get('schema')=='ovl.pilot-checkpoint-retention.v1':
+            delivery_selection(s['retention']);uncached=s['retention']['maximum_uncached_export_bytes']
+            if uncached>size:raise EvidenceError('uncached terminal bound exceeds logical bound')
+        needed=(uncached+timing['transfer_floor_bytes_per_second']-1)//timing['transfer_floor_bytes_per_second']+(10*size+timing['hash_floor_bytes_per_second']-1)//timing['hash_floor_bytes_per_second']+30
         if needed>s['export_reserve_seconds']:raise EvidenceError('complete terminal export budget lacks transfer/hash reserve')
         template=read_json(confined(Path(inputs),s['template_path']))
         if digest(template)!=s['template_sha256'] or template.get('deadline_epoch')!=DEADLINE:
             raise EvidenceError('immutable original-deadline template required')
         if template.get('kind') not in ('setup','pilot','export'):raise EvidenceError('sustained dispatcher cannot admit production')
+        if template['kind']!='pilot' and s['work_seconds']>1500:
+            raise EvidenceError('non-pilot stage exceeds original work bound')
         from pod_job_worker import validate_job,Refusal
         probe={**template,'deadline_epoch':rental_plan['input']['now_epoch']+s['work_seconds'],
                'argv':[str(rental_plan['input']['now_epoch']+s['work_seconds']) if a==DEADLINE else 'a'*64 if a==RECORD else a for a in template['argv']]}
@@ -129,10 +136,18 @@ def validate(plan,expected,rental,transport,inputs,worker):
             b=s['parent_binding'];fields(b,'schema recipe_sha256 kernel_sha256 stream_sha256 code_root','selected pilot record binding')
             if b['schema']!='ovl.pilot-record-parent-binding.v1':raise EvidenceError('wrong record binding schema')
             for key in ('recipe_sha256','kernel_sha256','stream_sha256','code_root'):require_digest(b[key])
-            r=s['retention'];fields(r,'schema mode output_root phase maximum_initial_bytes','selected initial pilot retention')
-            if r['schema']!='ovl.pilot-initial-retention.v1' or r['mode'] not in ('record','replay','resume') or r['phase'] not in ('wikipedia','conversation'):
-                raise EvidenceError('wrong selected initial pilot retention')
-            integer(r['maximum_initial_bytes'],1,s['maximum_export_bytes'],'selected initial snapshot bytes')
+            r=s['retention']
+            if r.get('schema')=='ovl.pilot-checkpoint-retention.v1':
+                delivery_selection(r);command_selection(template,r,DEADLINE)
+                if r['binding']!=b:raise EvidenceError('checkpoint delivery parent differs')
+                integer(r['maximum_checkpoint_bytes'],1,s['maximum_export_bytes'],'selected checkpoint bytes')
+                needed_copy=(r['maximum_checkpoint_bytes']+timing['transfer_floor_bytes_per_second']-1)//timing['transfer_floor_bytes_per_second']+(10*r['maximum_checkpoint_bytes']+timing['hash_floor_bytes_per_second']-1)//timing['hash_floor_bytes_per_second']+30
+                if needed_copy>r['copy_timeout_seconds']:raise EvidenceError('checkpoint copy budget lacks transfer/hash reserve')
+            else:
+                fields(r,'schema mode output_root phase maximum_initial_bytes','selected initial pilot retention')
+                if r['schema']!='ovl.pilot-initial-retention.v1' or r['mode'] not in ('record','replay','resume') or r['phase'] not in ('wikipedia','conversation'):
+                    raise EvidenceError('wrong selected initial pilot retention')
+                integer(r['maximum_initial_bytes'],1,s['maximum_export_bytes'],'selected initial snapshot bytes')
             if s['retention']['output_root'] not in template['export_roots']:raise EvidenceError('initial checkpoint root not exported')
             if s['validation_binding']['stream_sha256']!=s['parent_binding']['stream_sha256']:
                 raise EvidenceError('pilot validation and record parents differ')
@@ -320,7 +335,8 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             if stage['download_binding'] is not None:download_bindings[job_root]=stage['download_binding']
             hook=None
             if stage['retention'] is not None:
-                hook=InitialRetention(transport,health,job,job_root,stage['retention'],output/'initial-retention'/stage['name'],health_file,output/'objects')
+                retention_class=CheckpointRetention if stage['retention']['schema']=='ovl.pilot-checkpoint-retention.v1' else InitialRetention
+                hook=retention_class(transport,health,job,job_root,stage['retention'],output/'initial-retention'/stage['name'],health_file,output/'objects')
             elif not started and job['deadline_epoch']+stage['export_reserve_seconds']>health.exported+1800:
                 raise EvidenceError('uncheckpointed stage cannot fit unchanged export age')
             stage_output=output/'stages'/stage['name'];failure_path=stage_output/'dispatch-failure.json'
@@ -330,7 +346,9 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             if failure is None:
                 try:
                     result=run_stage(transport,health,path,job_root,worker,plan['worker_sha256'],stage_output,
-                                     health_file,stop,plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook)
+                                     health_file,stop,plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook,
+                                     **({} if type(hook) is not CheckpointRetention else {'terminal_limits':{'maximum_bytes':stage['maximum_export_bytes'],
+                                         'maximum_uncached_bytes':hook.selection['maximum_uncached_export_bytes']}}))
                 except Exception as error:
                     if not(stage_output/'launch/launch-intent.json').exists():raise
                     failure={'schema':'ovl.sustained-stage-dispatch-failure.v1','job_sha256':job_root,'error_type':type(error).__name__,
@@ -339,7 +357,9 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             if failure is not None:
                 from sustained_pilot_abort import stop_and_retain
                 result=stop_and_retain(transport,health,path,job_root,worker,plan['worker_sha256'],stage_output,health_file,stop,
-                                      plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook)
+                                      plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook,
+                                      **({} if type(hook) is not CheckpointRetention else {'terminal_limits':{'maximum_bytes':stage['maximum_export_bytes'],
+                                          'maximum_uncached_bytes':hook.selection['maximum_uncached_export_bytes']}}))
             checked=retained_stage(stage,output,transport.profile)
             if checked!=result:raise EvidenceError('retained sustained result changed')
             check_export_budget(stage,result)
