@@ -35,8 +35,11 @@ and can differ after legitimate trust-root updates.
 
 Small immutable evidence is committed to this source PR and archived at fixed
 revisions of the authorized AOSSIE evidence dataset. Actions artifacts are temporary
-transport, not the sole public archive. `project/goal_state.json` indexes actual
-checks and public receipts; no smoke test passes G01–G10.
+transport, not the sole public archive. Private operator progress is kept locally. Public evidence inventories and scoped
+reports identify actual checks; no smoke test passes G01–G10. After repository
+history maintenance, use the [current provenance status](../project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md)
+and independently select fresh publisher policies. Do not edit old signed payloads
+or substitute a rewritten commit inside an old statement.
 
 The forecast calculator in `ovl_pipeline.budget` uses exact monetary units, reserves
 $10 beyond the $90 operating limit, requires at least ten-minute measurements, and
