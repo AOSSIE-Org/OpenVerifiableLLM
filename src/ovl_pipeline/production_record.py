@@ -11,7 +11,7 @@ import time
 
 from .anchoring import bounded_bytes
 from .canonical import EvidenceError,confined,digest,parse_json,read_json,write_json
-from .production_observation import schedule_counts
+from .production_observation import schedule_counts,checked_stream_scope
 from .initialization import process_identity
 from .production_anchoring import object_at,verify_packet
 from .production_chain import verify_artifacts,verify_chain
@@ -69,6 +69,7 @@ def save_or_adopt(path,event,output):
     return save_state(path,event.model,event.optimizer,event.control)
 
 
+@checked_stream_scope
 def record(packet,registration_bundle,production_policy,source_policy,source_checkout,stream_directories,
            output,signing_key,anchor_directory,policy_file,checkpoint_deadline,*,resume=False):
     integer(checkpoint_deadline,1,2**53-1,'checkpoint stop deadline')

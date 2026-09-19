@@ -14,6 +14,7 @@ from .anchoring import PublisherPolicy
 from .canonical import EvidenceError,canonical,confined,digest,read_json,write_json
 from .production_anchoring import object_at,verify_packet
 from .production_chain import verify_artifacts
+from .production_observation import checked_stream_scope
 from .production_identity import ProductionPublisherPolicy
 from .progress_anchoring import ProgressPublisherPolicy,verify_prefix
 from .state import capture,read_state,save_state,state_root,tensor_digest
@@ -33,6 +34,7 @@ def authenticate(packet,registration_bundle,production_policy,source_policy,sour
     return r,log['boundaries'],{'registration':endorsement,'progress':anchors}
 
 
+@checked_stream_scope
 def replay(packet,registration_bundle,production_policy,source_policy,source_checkout,
            chain_directory,progress_directory,progress_policies,stream_directories,output):
     if output.exists():raise EvidenceError('replay output must be fresh; preserve earlier attempts')

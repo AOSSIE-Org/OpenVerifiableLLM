@@ -81,3 +81,15 @@ production admission separately retains the slower-rate forecast, mandatory 25%
 runtime margin, full rental envelope, $90 stop and $10 reserve. Both decisions
 are immutable and adopted on restart. Tests and operator timings cannot confer
 independent verification or authorize a production update.
+
+Production startup also has to fit the unchanged 1,800-second durable-export age.
+Within one recording/replay invocation, complete stream semantic validation may be
+reused only after freshly checking every file's complete size, path and SHA-256
+against the identical manifest. The first semantic scan is followed by another
+full byte check before reuse becomes possible. Independent coverage and boundary
+cursor enumerations still run completely. No persisted/prover receipt populates
+this cache; every invocation, including recording resume, starts empty. Exceptions
+clear the scope, and changed bytes or manifest roots require rejection or fresh
+semantic validation. This retains the existing immutable-input and trusted-host
+assumptions; it does not claim protection against a hostile host changing memory
+or files during computation. Reuse grants no progress, export or replay credit.

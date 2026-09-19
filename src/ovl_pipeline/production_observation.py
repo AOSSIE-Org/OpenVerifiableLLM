@@ -6,23 +6,50 @@ after its consumer resumes; final success emits only after all checks return.
 No source module globals, numerical state or preparation implementation changes.
 """
 import os
+from contextvars import ContextVar
+from functools import wraps
 from pathlib import Path
 import threading
 import time
 from types import FunctionType
 
-from . import data,runtime_activity
-from .canonical import EvidenceError,digest,read_json
+from . import data,runtime_activity,schema
+from .canonical import EvidenceError,digest,read_json,verify_inventory
 
 _lock=threading.RLock()
 _pass_index=0
 _iterating=False
 MAX_PASSES=16
+_checked_streams=ContextVar('production_checked_streams',default=None)
+
+
+def checked_stream_scope(function):
+    """Reuse semantic checks only for freshly rehashed identical bytes in one call.
+
+    No persisted/prover proof can populate this process-local cache. Every use
+    still checks the complete manifest schema and every file's size/path/hash.
+    Coverage and cursor enumerations remain separate, complete computations.
+    The scope is discarded on success or failure, including recording resumes.
+    This has the same immutable-input/host trust assumption as uncached memmaps;
+    it does not protect against a hostile host changing bytes during a scan.
+    """
+    @wraps(function)
+    def wrapped(*args,**kwargs):
+        if _checked_streams.get() is not None:raise EvidenceError('nested checked stream scope refused')
+        token=_checked_streams.set({})
+        try:return function(*args,**kwargs)
+        finally:_checked_streams.reset(token)
+    return wrapped
 
 
 def _scan(original,kind,directory,manifest,args):
     global _iterating
-    if not os.environ.get('OVL_ACTIVITY_FILE'):return original(*args)
+    if not os.environ.get('OVL_ACTIVITY_FILE'):
+        if kind=='stream-validation' or _checked_streams.get() is None:return original(*args)
+        checked=FunctionType(original.__code__,{**original.__globals__,'validate_stream':validate_stream},
+                             original.__name__,original.__defaults__,original.__closure__)
+        checked.__kwdefaults__=original.__kwdefaults__
+        return checked(*args)
     if not _lock.acquire(blocking=False):raise EvidenceError('concurrent production scans refused')
     entered=False
     try:
@@ -60,18 +87,31 @@ def _scan(original,kind,directory,manifest,args):
 
 
 def validate_stream(directory,manifest):
-    return _scan(data.validate_stream,'stream-validation',directory,manifest,(directory,manifest))
+    cache=_checked_streams.get()
+    key=(str(Path(directory).absolute()),digest(manifest))
+    if cache is not None and key in cache:
+        schema.stream(manifest)
+        # Never rely on mtime, inode, a prior hash receipt or caller assertion.
+        verify_inventory(directory,manifest['files'])
+        return cache[key]
+    result=_scan(data.validate_stream,'stream-validation',directory,manifest,(directory,manifest))
+    if cache is not None:
+        if len(cache)>=2:raise EvidenceError('production validation scope exceeds two streams')
+        # Bind completed semantic work to bytes still matching the same root.
+        verify_inventory(directory,manifest['files'])
+        cache[key]=result
+    return result
 
 
 def schedule_counts(directory,recipe):
     from .coverage import schedule_counts as original
-    if not os.environ.get('OVL_ACTIVITY_FILE'):return original(directory,recipe)
+    if not os.environ.get('OVL_ACTIVITY_FILE') and _checked_streams.get() is None:return original(directory,recipe)
     manifest=read_json(Path(directory)/'stream.json')
     return _scan(original,'coverage-census',directory,manifest,(directory,recipe))
 
 
 def boundary_cursors(directory,recipe,expected_stream_sha256,steps):
     from .production_cursors import boundary_cursors as original
-    if not os.environ.get('OVL_ACTIVITY_FILE'):return original(directory,recipe,expected_stream_sha256,steps)
+    if not os.environ.get('OVL_ACTIVITY_FILE') and _checked_streams.get() is None:return original(directory,recipe,expected_stream_sha256,steps)
     manifest=read_json(Path(directory)/'stream.json')
     return _scan(original,'boundary-cursor-census',directory,manifest,(directory,recipe,expected_stream_sha256,steps))

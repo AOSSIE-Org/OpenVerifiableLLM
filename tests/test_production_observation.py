@@ -101,7 +101,7 @@ def test_nested_row_iterator_is_rejected_without_mutating_source_globals(prepare
     assert data.rows is nested and {e['stream_sha256'] for e in observations}=={digest(wiki)}
 
 
-def test_actual_complete_cpu_replay_observes_all_nine_scans_and_keeps_state_checks(cpu_runtime,prepared,tmp_path,monkeypatch,observations):
+def test_actual_complete_cpu_replay_rehashes_reused_validation_and_keeps_all_state_checks(cpu_runtime,prepared,tmp_path,monkeypatch,observations):
     from test_production_replay import setup
     registration,envelopes,key,prover,run=setup(prepared,tmp_path,monkeypatch)
     result=run(tmp_path/'observed-verifier')
@@ -109,13 +109,13 @@ def test_actual_complete_cpu_replay_observes_all_nine_scans_and_keeps_state_chec
     assert result['targets_recomputed']=={p:c['targets'] for p,c in registration['coverage'].items()}
     assert result['initial_state_regenerated'] is True and result['prover_checkpoints_restored'] is False
     final=[e for e in observations if e['complete']]
-    assert [e['pass_index'] for e in final]==list(range(1,10))
-    assert [e['operation'] for e in final].count('stream-validation')==5
+    assert [e['pass_index'] for e in final]==list(range(1,7))
+    assert [e['operation'] for e in final].count('stream-validation')==2
     assert [e['operation'] for e in final].count('coverage-census')==2
     assert [e['operation'] for e in final].count('boundary-cursor-census')==2
 
 
-def test_cpu_record_recovery_checks_thirteen_scans_under_explicit_fresh_observer_state(cpu_runtime,prepared,tmp_path,monkeypatch,observations):
+def test_cpu_record_recovery_revalidates_with_fresh_scope_under_explicit_observer_reset(cpu_runtime,prepared,tmp_path,monkeypatch,observations):
     from test_production_record import setup
     from ovl_pipeline import production_record as recorder
     registration,expected,key,streams,run=setup(prepared,tmp_path,monkeypatch)
@@ -130,7 +130,7 @@ def test_cpu_record_recovery_checks_thirteen_scans_under_explicit_fresh_observer
         return {'explicit-test-double':True}
     monkeypatch.setattr(recorder,'await_anchor',anchor)
     with pytest.raises(EvidenceError,match='interrupted publisher'):run()
-    assert len([e for e in observations if e['complete']])==5
+    assert len([e for e in observations if e['complete']])==4
     # This is a same-process CPU test with explicit observer reset, not evidence
     # that a new OS process or actual public endorsement ran.
     monkeypatch.setattr(m,'_pass_index',0)
@@ -138,4 +138,4 @@ def test_cpu_record_recovery_checks_thirteen_scans_under_explicit_fresh_observer
     observations.clear()
     result=run(resume=True)
     assert result['result']=='RECORDED_NOT_REPLAYED' and result['recording_resumed'] is True
-    assert [e['pass_index'] for e in observations if e['complete']]==list(range(1,14))
+    assert [e['pass_index'] for e in observations if e['complete']]==list(range(1,9))
