@@ -6,6 +6,7 @@ admission or converts telemetry into verification. Derivations and launch fences
 are adopted once. Complete output retention precedes every successor stage.
 """
 from pathlib import Path
+from contextlib import nullcontext
 import time
 
 from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,inventory,read_json,require_digest
@@ -25,10 +26,19 @@ from run_workload_stage import run_stage,saved_result,remote_name
 
 def validate(plan,expected,rental,transport,inputs,worker):
     require_digest(expected)
-    fields(plan,'schema rental_intent_sha256 profile_sha256 worker_sha256 timing uploads stages','sustained development plan')
-    if digest(plan)!=expected or plan['schema'] not in ('ovl.sustained-pilot-plan.v1','ovl.initialization-cycle-plan.v1'):
+    phase=plan.get('schema') in ('ovl.sustained-pilot-plan.v2','ovl.initialization-cycle-plan.v2')
+    fields(plan,'schema rental_intent_sha256 profile_sha256 worker_sha256 timing uploads stages'+
+           (' prior_jobs completion_scope' if phase else ''),'sustained development plan')
+    if digest(plan)!=expected or plan['schema'] not in ('ovl.sustained-pilot-plan.v1','ovl.initialization-cycle-plan.v1',
+                                                      'ovl.sustained-pilot-plan.v2','ovl.initialization-cycle-plan.v2'):
         raise EvidenceError('selected sustained plan differs')
-    initialization=plan['schema']=='ovl.initialization-cycle-plan.v1'
+    if phase:
+        if plan['completion_scope']!='phase-only-under-production-run-coordinator':raise EvidenceError('explicit enclosing run completion required')
+        prior=plan['prior_jobs']
+        if type(prior) is not list or len(prior)>128:raise EvidenceError('bounded exact prior-job selection required')
+        for job in prior:require_digest(job)
+        if prior!=sorted(set(prior)):raise EvidenceError('prior jobs must be sorted and unique')
+    initialization=plan['schema'] in ('ovl.initialization-cycle-plan.v1','ovl.initialization-cycle-plan.v2')
     watchdog,rental_plan=validate_rental(rental,plan['rental_intent_sha256'])
     if digest(transport.profile)!=plan['profile_sha256'] or file_hash(Path(worker))!=plan['worker_sha256']:
         raise EvidenceError('selected sustained endpoint/worker differs')
@@ -244,7 +254,10 @@ def finalize(health,plan,expected,output,result,health_file,stop):
         actual=retained_stage(stage,output,profile);check_export_budget(stage,actual)
         if entry!={'name':stage['name'],'job_sha256':job,'result_sha256':digest(actual),'exit':actual['exit']}:
             raise EvidenceError('saved sustained result differs from retained bytes')
-    if set(health.jobs)!={e['job_sha256'] for e in history}:raise EvidenceError('sustained result omits launched jobs')
+    prior=set(plan.get('prior_jobs',[]));current={e['job_sha256'] for e in history}
+    if (set(health.jobs)!=prior|current or prior&current
+        or any(not health.jobs[j]['finished'] for j in prior)):
+        raise EvidenceError('sustained result omits launched jobs or changes prior phase')
     if result['unstarted_stages']!=[s['name'] for s in plan['stages'][len(history):]]:raise EvidenceError('unstarted sustained stages differ')
     failed=[i for i,e in enumerate(history) if e['exit']['state']!='EXITED' or e['exit']['exit_code']!=0]
     if result['failure'] is not None:
@@ -257,30 +270,84 @@ def finalize(health,plan,expected,output,result,health_file,stop):
     elif result['outcome']=='STOPPED_AFTER_STAGE':
         if not stop.exists() and not journal_stop(stop.parent,plan['rental_intent_sha256'],health.pod):raise EvidenceError('retained sustained stop lacks original marker')
     elif result['outcome']!='EXITED_ZERO' or len(history)!=len(plan['stages']):raise EvidenceError('incomplete sustained work cannot report zero exits')
-    if plan['schema']=='ovl.initialization-cycle-plan.v1' and result['outcome']=='EXITED_ZERO':
+    if plan['schema'] in ('ovl.initialization-cycle-plan.v1','ovl.initialization-cycle-plan.v2') and result['outcome']=='EXITED_ZERO':
         save_once(output/'initialization-consistency.json',initialization_result(plan,output,profile))
     final=output/'final';names=['result.json']
     for i,entry in enumerate(history):
         dest=final/f'stage-{i:03d}';dest.mkdir(mode=0o700,exist_ok=True)
         name='exit.json' if entry['exit']['state']=='EXITED' else 'abandoned.json'
         save_once(dest/name,entry['exit']);names.append(f'stage-{i:03d}/{name}')
-    if health.complete:
+    if 'completion_scope' in plan:
+        if health.complete:raise EvidenceError('completed rental cannot adopt an unfinished run phase')
+        # All phase exits and complete retained outputs were rechecked above.
+        # Its completion cannot finish the enclosing rental or renew either clock.
+        save_once(output/'phase-retention.json',{'schema':'ovl.sustained-phase-retention.v1',
+            'plan_sha256':expected,'result_sha256':digest(result),
+            'prior_jobs':plan['prior_jobs'],'phase_jobs':sorted(current),
+            'rental_complete':False,'production_admission':'NOT_RUN'})
+        health.write(health_file)
+    elif health.complete:
         files=read_json(health.journal.directory/'final-export-inventory.json');health._check_final(final,files)
         if health.lifetime.remaining()>0:health.write(health_file)
     else:health.finish(final,inventory(final,names));health.write(health_file)
     return result
 
 
-def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs,worker,output,health_file,*,sleep=time.sleep):
+def prior_phase_roots(health,prior):
+    """Recheck original descriptors from their retained control-root exports."""
+    roots=[];inputs=[]
+    for job in prior:
+        found=[]
+        for event in health.journal.events:
+            body=event['body']
+            if body.get('kind')!='export' or body['detail']['job_sha256']!=job:continue
+            detail=body['detail'];manifest=read_json(health.journal.directory/'export-manifests'/(detail['export_sha256']+'.json'))
+            if digest(manifest)!=detail['manifest_sha256'] or manifest['job_sha256']!=job:
+                raise EvidenceError('prior phase export manifest changed')
+            entries=[f for f in manifest['files'] if f['path']=='job.json']
+            if not entries:continue
+            p=Path(detail['directory'])/'job.json'
+            if p.is_symlink() or p.stat().st_size!=entries[0]['bytes'] or file_hash(p)!=entries[0]['sha256']:
+                raise EvidenceError('prior phase job descriptor bytes changed')
+            value=read_json(p)
+            if digest(value)!=job:raise EvidenceError('prior phase descriptor selects another job')
+            found.append(value)
+        if not found or any(v!=found[0] for v in found):raise EvidenceError('prior phase lacks unique retained job descriptor')
+        value=found[0]
+        if value['kind'] in ('production-record','full-replay'):raise EvidenceError('development phase cannot follow production')
+        roots.extend(value['export_roots']);inputs.extend(f['path'] for f in value['required_files'])
+    return roots,inputs
+
+
+def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs,worker,output,health_file,*,sleep=time.sleep,run_health=None):
     watchdog,rental_plan,stages=validate(plan,expected,rental,transport,inputs,worker)
+    phase='completion_scope' in plan
+    if phase:
+        from production_run_health import ProductionRunHealth
+        if (type(run_health) is not ProductionRunHealth or run_health.journal._fd is None
+            or run_health.root!=digest(watchdog) or run_health.pod!=transport.profile['pod_id']
+            or run_health.complete):raise EvidenceError('phase requires the leased original production run health')
+        if any(j not in run_health.jobs or not run_health.jobs[j]['finished'] for j in plan['prior_jobs']):
+            raise EvidenceError('prior run phase is missing or unfinished')
+        old_roots,old_inputs=prior_phase_roots(run_health,plan['prior_jobs'])
+        for _,template in stages:
+            for new in template['export_roots']:
+                if (any(new==old or new.startswith(old+'/') or old.startswith(new+'/') for old in old_roots)
+                    or any(p==new or p.startswith(new+'/') for p in old_inputs)):
+                    raise EvidenceError('new phase output overlaps retained work or immutable inputs')
+    elif run_health is not None:raise EvidenceError('historical whole-rental plan cannot be changed into a run phase')
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=True)
     stop=Path(controller_directory)/'stop-request.json'
-    parent_kind='initialization' if plan['schema']=='ovl.initialization-cycle-plan.v1' else 'pilot'
-    with Journal(output/'health-journal').lease() as journal:
-        if journal.events and not(output/'selected-plan.json').exists():raise EvidenceError('sustained health lost its selected plan')
+    parent_kind='initialization' if plan['schema'] in ('ovl.initialization-cycle-plan.v1','ovl.initialization-cycle-plan.v2') else 'pilot'
+    with (nullcontext(run_health.journal) if phase else Journal(output/'health-journal').lease()) as journal:
+        if not(output/'selected-plan.json').exists() and ((not phase and journal.events) or (phase and any(output.iterdir()))):
+            raise EvidenceError('sustained health lost its selected plan')
         save_once(output/'selected-plan.json',plan)
         save_once(output/'selected-profile.json',transport.profile)
-        bindings={};download_bindings={};derived={}
+        bindings=run_health.bindings if phase else {};download_bindings=run_health.download_bindings if phase else {};derived={}
+        def bind(target,job,value):
+            if job in target and target[job]!=value:raise EvidenceError('run phase changes a selected job contract')
+            target[job]=value
         # Reconstruct every historical contract before health journal adoption,
         # including completed jobs. No peer-supplied replacement binding is used.
         for stage,template in stages:
@@ -289,13 +356,20 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             selection={k:stage[k] for k in ('name','template_sha256','work_seconds','export_reserve_seconds','parent_record_root')}
             value=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,0,parent=parent,parent_kind=parent_kind)
             derived[stage['name']]=value
-            if stage['validation_binding'] is not None:bindings[value[1]]=stage['validation_binding']
-            if stage['download_binding'] is not None:download_bindings[value[1]]=stage['download_binding']
+            if stage['validation_binding'] is not None:bind(bindings,value[1],stage['validation_binding'])
+            if stage['download_binding'] is not None:bind(download_bindings,value[1],stage['download_binding'])
         health_class=SustainedHealth
         if parent_kind=='initialization':
             from initialization_health import InitializationCycleHealth
             health_class=InitializationCycleHealth
-        health=health_class(journal,watchdog,transport.profile['pod_id'],bindings,download_bindings)
+        health=run_health if phase else health_class(journal,watchdog,transport.profile['pod_id'],bindings,download_bindings)
+        if phase and set(health.jobs)-set(plan['prior_jobs'])-set(v[1] for v in derived.values()):
+            raise EvidenceError('run phase omits another launched job')
+        if phase and not derived:
+            total=sum(u['bytes'] for u in plan['uploads']);floor=plan['timing']['transfer_floor_bytes_per_second']
+            needed=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+(total+floor-1)//floor
+            if health.now()+needed>rental_plan['request_checkpoint_epoch']:
+                raise EvidenceError('complete next phase cannot fit remaining original work window')
         if health.complete or (output/'final/result.json').exists():
             return finalize(health,plan,expected,output,read_json(output/'final/result.json'),health_file,stop)
         upload_dir=output/'uploads';upload_dir.mkdir(mode=0o700,exist_ok=True)
@@ -305,7 +379,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
                 saved=read_json(receipt)
                 if saved.get('selection')!=u or saved.get('operation_sha256')!=identity:raise EvidenceError('sustained upload receipt changed')
                 continue
-            if health.jobs:raise EvidenceError('launched stage lacks original input transfer receipt')
+            if set(health.jobs)-set(plan.get('prior_jobs',[])):raise EvidenceError('launched stage lacks original input transfer receipt')
             retain_observation(output,controller_observation(controller_directory,rental,health.pod,starting=True))
             watchdog_heartbeat(watchdog_file,watchdog,health.now(),health.pod)
             if stop.exists() or health.now()>=rental_plan['request_checkpoint_epoch']:raise EvidenceError('stop forbids setup transfer')
@@ -331,8 +405,8 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
                 selection={k:stage[k] for k in ('name','template_sha256','work_seconds','export_reserve_seconds','parent_record_root')}
                 derived[stage['name']]=derive(selection,template,output/'derived'/stage['name'],expected,rental_plan,health.now(),parent=parent,parent_kind=parent_kind)
             path,job_root,job=derived[stage['name']]
-            if stage['validation_binding'] is not None:bindings[job_root]=stage['validation_binding']
-            if stage['download_binding'] is not None:download_bindings[job_root]=stage['download_binding']
+            if stage['validation_binding'] is not None:bind(bindings,job_root,stage['validation_binding'])
+            if stage['download_binding'] is not None:bind(download_bindings,job_root,stage['download_binding'])
             hook=None
             if stage['retention'] is not None:
                 retention_class=CheckpointRetention if stage['retention']['schema']=='ovl.pilot-checkpoint-retention.v1' else InitialRetention

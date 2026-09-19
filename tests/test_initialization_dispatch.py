@@ -1,8 +1,10 @@
 """Initializer orchestration with real CPU states/transfers and explicit process doubles."""
 from pathlib import Path
+import sys
 import time
 import pytest
 
+sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
 import run_sustained_pilot as m
 from test_sustained_pilot_dispatch import fixture
 from test_pipeline import prepared
@@ -41,9 +43,29 @@ def selected(tmp_path,prepared):
 
 
 @pytest.mark.parametrize('interrupted',[False,True])
+@pytest.mark.parametrize('phase_only',[False,True])
 def test_actual_cpu_initial_states_and_full_retention_precede_regeneration_and_adoption(
-        tmp_path,prepared,cpu_runtime,distinct_process_observations,monkeypatch,interrupted):
+        tmp_path,prepared,cpu_runtime,distinct_process_observations,monkeypatch,interrupted,phase_only):
     run,plan,rental,t,remote,calls,r,kernel,data=selected(tmp_path,prepared);executions=[]
+    if phase_only:
+        from production_run_health import ProductionRunHealth
+        from ovl_pipeline.supervision import Journal
+        plan.update(schema='ovl.initialization-cycle-plan.v2',prior_jobs=[],
+                    completion_scope='phase-only-under-production-run-coordinator')
+        def run():
+            bindings={}
+            # Recover every selected contract before adopting the shared journal.
+            for selected_stage in plan['stages']:
+                p=tmp_path/'sustained/derived'/selected_stage['name']/'selection.json'
+                if p.exists():bindings[read_json(p)['job_sha256']]=selected_stage['validation_binding']
+            with Journal(tmp_path/'run-health').lease() as journal:
+                h=ProductionRunHealth(journal,rental['watchdog_intent'],t.profile['pod_id'],None,bindings,{})
+                result=m.run(plan,digest(plan),rental,tmp_path/'controller',tmp_path/'watchdog.json',t,tmp_path,
+                    Path(__file__).parents[1]/'scripts/pod_job_worker.py',tmp_path/'sustained',tmp_path/'health.json',
+                    run_health=h,sleep=lambda _:time.sleep(.01))
+                assert not h.complete and not read_json(tmp_path/'health.json')['complete']
+                assert read_json(tmp_path/'sustained/phase-retention.json')['rental_complete'] is False
+                return result
     def stage(transport,h,job_file,root,worker,worker_root,out,health_file,stop,rental_root,*,sleep,initial_retention):
         assert initial_retention is None
         job=read_json(job_file);args=job['argv'][job['argv'].index('--')+1:];action=args[0]

@@ -34,7 +34,8 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
         raise EvidenceError('exact production job required')
     if Path(worker_file).is_symlink() or file_hash(Path(worker_file))!=expected_worker:
         raise EvidenceError('production worker differs from selection')
-    if type(health) is not ProductionHealth:raise EvidenceError('production retention health required')
+    from production_run_health import ProductionRunHealth
+    if type(health) not in (ProductionHealth,ProductionRunHealth):raise EvidenceError('production retention health required')
     binding=health.bindings.get(expected_job)
     if (binding is None or binding['control'] is not control or Path(binding['job_file'])!=Path(job_file)
         or binding['worker_sha256']!=expected_worker):raise EvidenceError('stage differs from health binding')
