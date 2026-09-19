@@ -1,0 +1,1 @@
+{"filesystem_free_bytes":200069492736,"filesystem_total_bytes":613954273280,"full_stage_capacity_guaranteed":false,"maximum_preserved_stages":8,"minimum_free_percent":20,"observed_at":"2026-09-18T13:08:07.981494+00:00","preserved_bytes":0,"preserved_directories":[],"replacement_lower_bound_bytes":0,"schema":"ovl.preparation-storage.v1"}
