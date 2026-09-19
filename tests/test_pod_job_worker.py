@@ -180,3 +180,28 @@ def test_closed_worker_terminal_schemas_match_publisher_canonical_encoding():
         value={'schema':'ovl.workload-job-abandonment.v1','job_sha256':'a'*64,'state':'ABANDONED','observed_child':child,
                'exit_code':'UNAVAILABLE','scope':'supervisor absent; recorded child stopped or absent; no successful computation claim'}
         assert m.encoded(value)==canonical(value)
+
+
+def test_readonly_liveness_observes_process_reaped_after_proc_open_as_absent(monkeypatch):
+    """Linux returns ESRCH on an already-open /proc stat after task removal."""
+    child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(.2)'],start_new_session=True)
+    identity=m.process_identity(child.pid);original=Path.read_text;selected=Path('/proc')/str(child.pid)/'stat'
+    def read(path,*args,**kwargs):
+        if path!=selected:return original(path,*args,**kwargs)
+        with path.open() as stream:
+            child.wait(timeout=5)
+            return stream.read()  # Actual kernel ESRCH, not a fabricated status.
+    monkeypatch.setattr(Path,'read_text',read)
+    try:assert m.alive(identity) is False
+    finally:
+        if child.poll() is None:child.kill();child.wait(timeout=5)
+
+
+def test_readonly_liveness_does_not_swallow_permission_or_malformed_identity(monkeypatch):
+    identity={'pid':123,'start_ticks':1,'process_group':123}
+    def forbidden(*args):raise PermissionError('explicit inaccessible process')
+    monkeypatch.setattr(m,'process_identity',forbidden)
+    with pytest.raises(PermissionError):m.alive(identity)
+    monkeypatch.setattr(m,'process_identity',lambda *args:{**identity,'start_ticks':2})
+    assert m.alive(identity) is False
+    with pytest.raises(m.Refusal,match='identity changed'):m.signal_owned(identity,signal.SIGTERM)

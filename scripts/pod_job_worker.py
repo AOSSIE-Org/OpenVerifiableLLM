@@ -147,7 +147,10 @@ def alive(identity):
         if process_identity(identity['pid'])!=identity:return False
         text=Path(f'/proc/{identity["pid"]}/stat').read_text()
         return text[text.rfind(')')+2:].split()[0] not in ('Z','X')
-    except FileNotFoundError:return False
+    # A task may disappear after /proc was opened but before read(). Linux
+    # then returns ESRCH rather than ENOENT. Both observations mean absent;
+    # permission, malformed metadata and signaling identity failures stay strict.
+    except (FileNotFoundError,ProcessLookupError):return False
 
 
 def metadata(directory,name,expected):
