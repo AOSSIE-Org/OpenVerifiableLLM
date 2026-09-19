@@ -68,6 +68,10 @@ def replay_states(directory,files,record,expected,*,resume_from):
     if report['measured_full_batch_updates']>report['updates_recomputed']:
         raise EvidenceError('retained replay full batch count exceeds updates')
     expected_paths={'verification.json'}
+    if (directory/'timing.json').exists():
+        from ovl_pipeline.phase_timing import validate
+        validate(read_json(directory/'timing.json'),report,scope='operator-pilot-phase-timing')
+        expected_paths.add('timing.json')
     for i in indices:
         name=f'verifier-boundary-{i:05d}';state=confined(directory,name)
         expected_paths.update(name+'/'+p for p in ('checkpoint.json','state.json','state.safetensors'))

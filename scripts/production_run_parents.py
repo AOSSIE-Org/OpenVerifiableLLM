@@ -12,10 +12,15 @@ from verify_pilot_cycle import replay_states,verify as check_cycle
 from run_sustained_pilot import retained_stage,initialization_result
 
 
-def qualification(plan,expected,output,profile):
+def qualification(plan,expected,output,profile,*,prepared_qualification=None):
     if digest(plan)!=expected:raise EvidenceError('qualification plan differs from original selection')
     wanted={'setup','prepared-inputs','cuda-record','cuda-replay','cuda-resume',
             'wikipedia-record','wikipedia-replay','conversation-record','conversation-replay'}
+    if prepared_qualification is not None:
+        if (prepared_qualification.get('result')!='PASS' or prepared_qualification['pod_id']!=profile['pod_id']
+            or 'prepared_qualification_sha256' in prepared_qualification):
+            raise EvidenceError('only one same-host optimization may reuse checked preparation')
+        wanted-={'setup','prepared-inputs'}
     stages={s['name']:s for s in plan['stages']}
     if len(stages)!=len(plan['stages']) or set(stages)!=wanted:
         raise EvidenceError('complete focused qualification cycle and both sustained pairs required')
@@ -41,24 +46,39 @@ def qualification(plan,expected,output,profile):
     record=read_json(Path(tiny['record']['directory'])/'record.json')
     cycle=check_cycle(tiny['record']['directory'],tiny['record']['files'],stages['cuda-record']['parent_binding'],digest(record),
         tiny['replay']['directory'],tiny['replay']['files'],tiny['resume']['directory'],tiny['resume']['files'],resume_from=1)
-    reports={};replays={};checks={};settings=[record['settings']]
+    reports={};replays={};checks={};settings=[record['settings']];profiles={}
     for phase in ('wikipedia','conversation'):
         recording=numerical(phase+'-record');replaying=numerical(phase+'-replay')
         parent=check_record(Path(recording['directory']),recording['files'],stages[phase+'-record']['parent_binding'])
         checks[phase]=replay_states(Path(replaying['directory']),replaying['files'],parent['record'],parent['record_sha256'],resume_from=None)
         reports[phase]=parent['record'];replays[phase]=read_json(Path(replaying['directory'])/'verification.json')
         settings.append(parent['record']['settings'])
+        for mode,entry,report in [('record',recording,reports[phase]),('replay',replaying,replays[phase])]:
+            path=Path(entry['directory'])/'timing.json'
+            if path.exists():
+                from ovl_pipeline.phase_timing import validate
+                profiles[phase+'-'+mode]=validate(read_json(path),report,scope='operator-pilot-phase-timing')
     common=settings[0]
     for selected in settings[1:]:
         if any(selected[k]!=common[k] for k in ('recipe','kernel','code_root','warmup_updates')):
             raise EvidenceError('qualification stages use different numerical selections')
         if selected['environment']['compatible']!=common['environment']['compatible']:
             raise EvidenceError('qualification stages do not share a compatible host runtime')
-    return {'schema':'ovl.retained-same-host-qualification.v1','result':'PASS','plan_sha256':expected,
+    result={'schema':'ovl.retained-same-host-qualification.v1','result':'PASS','plan_sha256':expected,
         'pod_id':profile['pod_id'],'cycle':cycle,'pilot_records':reports,'pilot_replays':replays,'pair_checks':checks,
         'compatible_environment_sha256':digest(common['environment']['compatible']),
         'scope':'complete retained states and successful job observations; no new numerical execution or production admission',
         'production_admission':'NOT_RUN','independent_third_party':False}
+    if profiles:result['profiles']=profiles
+    if prepared_qualification is not None:
+        for phase in ('wikipedia','conversation'):
+            before=prepared_qualification['pilot_records'][phase]['settings'];after=reports[phase]['settings']
+            if any(before[k]!=after[k] for k in ('code_root','stream','kernel','warmup_updates')):
+                raise EvidenceError('optimization must reuse the same frozen code and complete prepared inputs')
+        if result['compatible_environment_sha256']!=prepared_qualification['compatible_environment_sha256']:
+            raise EvidenceError('optimization host runtime changed')
+        result['prepared_qualification_sha256']=digest(prepared_qualification)
+    return result
 
 
 def initialization(plan,expected,output,profile,qualified):

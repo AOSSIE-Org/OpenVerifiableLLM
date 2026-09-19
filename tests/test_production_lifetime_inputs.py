@@ -62,3 +62,25 @@ def test_changed_remote_parent_is_not_overwritten(tmp_path):
     p=remote/'production-inputs/packet/registration.json';p.parent.mkdir(parents=True);p.write_bytes(b'preserve conflicting remote bytes')
     with pytest.raises(EvidenceError):m.inputs(run,spec,a)
     assert p.read_bytes()==b'preserve conflicting remote bytes'
+
+
+def test_v2_adoption_rebuilds_every_completed_predecessor_without_rerunning(tmp_path,monkeypatch):
+    calls=[]
+    monkeypatch.setattr(m,'restore_phase_bindings',lambda plan,root,out,bindings,downloads:calls.append((out.name,plan['prior_jobs'])))
+    spec={'schema':'ovl.production-lifetime-invocation.v2','selection':{'phases':{}},'initialization':{}}
+    for number,name in enumerate(('qualification','optimization','initialization-baseline','initialization-candidate'),1):
+        plan={'schema':'explicit-phase-double','prior_jobs':[]};path=tmp_path/(name+'.json');write_json(path,plan)
+        output=tmp_path/name
+        item={'plan':str(path),'inputs':str(tmp_path),'output':str(output)}
+        if name.startswith('initialization-'):spec['initialization'][name.removeprefix('initialization-')]=item
+        else:spec[name]=item
+        spec['selection']['phases'][name]=digest(plan)
+        if number<=2:
+            (output/'final').mkdir(parents=True)
+            write_json(output/'final/result.json',{'stages':[{'job_sha256':str(number)*64}]})
+    result=m.selected_phases(spec,{}, {})
+    assert set(result)==set(spec['selection']['phases'])
+    assert calls==[('qualification',[]),('optimization',['1'*64]),('initialization-baseline',['1'*64,'2'*64]),('initialization-candidate',['1'*64,'2'*64])]
+    output=tmp_path/'initialization-candidate';output.mkdir()
+    write_json(output/'selected-plan.json',{'schema':'explicit-phase-double','prior_jobs':['1'*64]})
+    with pytest.raises(EvidenceError,match='parent selection'):m.selected_phases(spec,{}, {})

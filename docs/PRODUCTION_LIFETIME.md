@@ -48,3 +48,36 @@ checkpoint handling and do not establish a controlled hardware comparison.
 Current evidence is local integration testing with actual tiny CPU trajectories,
 file transfers and explicit provider/identity substitutes. This entrypoint has
 not yet executed real-data production or supplied independent verification.
+
+The v2 invocation adds one frozen `optimization` phase and separate baseline/
+candidate initialization and registration templates. Its v2 run selection pins
+`optimization_policy` and all four phase hashes before the rental starts. The
+candidate phase contains the seven numerical stages; it reuses the completed
+same-host runtime setup and complete prepared input checks. It may not change
+code, kernel, streams, warmup or compatible runtime. Its new numerical recipe
+must complete tiny record/full replay/resume and both sustained record/full
+replay pairs. No running source or original deadline is changed.
+
+`--profile-timing` on each pilot writes a separate parent-bound `timing.json`.
+Exclusive wall categories cover batch preparation, coverage/transcript hashing,
+host-to-device transfer, numerical update, checkpoint serialization/comparison
+and durable acknowledgement wait. CUDA events observe the numerical stream
+interval; it includes host-dispatch gaps and is not a kernel-busy counter. Event
+collection overhead remains in total elapsed time. Controller sidecars separate
+file transfer (including transport integrity checks), remaining export inventory/
+hashing/storage, safe-state validation and acknowledgement transfer. These are
+completed-attempt observations; neither clock is subtracted from the other.
+Public anchoring is not performed by the pilot delivery protocol and receives no
+measurement or verification credit from its ACKs.
+
+The one candidate doubles batch size and halves checkpoint intervals (rounding
+an odd pilot interval upward). It runs only when numerical-update wall time is
+the largest category and at least half of the extrapolated complete workload.
+Otherwise the baseline is retained, with the observed bottleneck recorded. A
+candidate is kept only if measured record-plus-replay rates, complete corpus
+counts and setup times clear all pinned minimum percentage, absolute saving and
+qualification-payback thresholds. Estimates have no runtime/price margins;
+production admission separately retains the slower-rate forecast, mandatory 25%
+runtime margin, full rental envelope, $90 stop and $10 reserve. Both decisions
+are immutable and adopted on restart. Tests and operator timings cannot confer
+independent verification or authorize a production update.

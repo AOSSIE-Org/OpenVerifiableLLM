@@ -51,13 +51,15 @@ def hook_for(t,h,job,s,tmp):
     return CheckpointRetention(t,h,job,root,s,tmp/'retention',tmp/'health.json',tmp/'store')
 
 
-def test_actual_record_full_replay_with_delivery_and_fresh_safe_state_checks(cpu_runtime,prepared,tmp_path,monkeypatch):
+@pytest.mark.parametrize('profile_timing',[False,True])
+def test_actual_record_full_replay_with_delivery_and_fresh_safe_state_checks(cpu_runtime,prepared,tmp_path,monkeypatch,profile_timing):
     t,remote,calls,_=setup(tmp_path);directory,manifest=prepared;r=recipe(manifest['tokenizer']['vocab_size'])
     kernel={'schema':'ovl.gpu-kernel.v1','precision':'fp32'}
     binding=d.binding({'recipe':r,'kernel':kernel,'stream':read_json(directory/'wikipedia/stream.json'),'code_root':gpu_pilot.code_root()})
     original=d.Delivery;reports={};all_files={}
     for mode in ('record','replay'):
         area=tmp_path/mode;area.mkdir();s=selected(t,mode,binding);job=job_for(t,s,None if mode=='record' else digest(reports['record']))
+        if profile_timing:job['argv'].append('--profile-timing')
         with Journal(area/'journal').lease() as journal:
             h=Health(journal,intent(),t.profile['pod_id']);hook=hook_for(t,h,job,s,area)
             def sender(output,policy,origin):
@@ -73,6 +75,15 @@ def test_actual_record_full_replay_with_delivery_and_fresh_safe_state_checks(cpu
                     m.setattr(gpu_pilot,'restore',lambda *a:pytest.fail('full replay may not restore prover state'))
                     result=gpu_pilot.replay(directory/'wikipedia',remote/'record',digest(reports['record']),remote/mode,delivery=selected_policy(s,job['deadline_epoch']))
             assert len(h.exports)==4 and hook.index==4 and result['measured_ms']>=120
+            if profile_timing:
+                from ovl_pipeline.phase_timing import validate
+                for index in range(4):
+                    checkpoint=area/'retention'/f'checkpoint-{index:05d}'
+                    profile=read_json(checkpoint/'timing.json')
+                    validate(profile,{'job_sha256':digest(job),'request_sha256':digest(read_json(checkpoint/'request.json'))},
+                        scope='operator-checkpoint-controller-completed-attempt-only')
+                    names={e['operation'] for e in profile['measurements']}
+                    assert {'safe_state_verification_and_health','acknowledgement_transfer','export_inventory_hashing_and_storage'}<=names
             before=len(calls);credited=h.exported
             adopted=hook_for(t,h,job,s,area)
             assert not adopted.observe({hook.marker:read_json(remote/mode/'delivery/request.json')})

@@ -20,7 +20,7 @@ from torch.nn import functional as F
 
 from model import TinyGPT
 from .canonical import EvidenceError, canonical, confined, digest, file_hash, inventory, read_json, sha256, write_json
-from . import schema
+from . import schema, phase_timing
 from .data import batches, check_coverage, rows, validate_stream
 from .state import capture, read_state, restore, save_state, state_root, tensor_digest
 
@@ -133,24 +133,27 @@ def update(model, optimizer, batch, control, total, *, precision="fp32", metrics
         raise EvidenceError("kernel requires FP32 master parameters on one device")
     if any(t.device.type != "cpu" for t in batch.values()):
         raise EvidenceError("coverage and transcript require original CPU batch tensors")
-    next_cursor = check_coverage(batch, control["cursor"], total)
-    batch_root = tensor_digest(batch)
-    inputs, targets, valid = (batch[n].to(device) for n in ("inputs", "targets", "mask"))
-    context = torch.autocast("cuda", dtype=torch.bfloat16, cache_enabled=False) if precision == "bf16" else nullcontext()
-    with context:
-        logits = model(inputs)
-        losses = F.cross_entropy(logits.flatten(0, 1), targets.flatten(), reduction="none")
-        valid = valid.flatten()
-        loss = losses[valid].sum() / valid.sum()
-    if not torch.isfinite(loss):
-        raise EvidenceError("nonfinite loss")
-    loss.backward()
-    if any(p.grad is not None and not torch.isfinite(p.grad).all() for p in model.parameters()):
-        raise EvidenceError("nonfinite gradients")
-    optimizer.step()
-    if any(not torch.isfinite(p).all() for p in model.parameters()):
-        raise EvidenceError("nonfinite updated parameter")
-    optimizer.zero_grad(set_to_none=True)
+    with phase_timing.observe("coverage_and_batch_hash"):
+        next_cursor = check_coverage(batch, control["cursor"], total)
+        batch_root = tensor_digest(batch)
+    with phase_timing.observe("host_to_device"):
+        inputs, targets, valid = (batch[n].to(device) for n in ("inputs", "targets", "mask"))
+    with phase_timing.observe("numerical_update", cuda=device.type == "cuda"):
+        context = torch.autocast("cuda", dtype=torch.bfloat16, cache_enabled=False) if precision == "bf16" else nullcontext()
+        with context:
+            logits = model(inputs)
+            losses = F.cross_entropy(logits.flatten(0, 1), targets.flatten(), reduction="none")
+            valid = valid.flatten()
+            loss = losses[valid].sum() / valid.sum()
+        if not torch.isfinite(loss):
+            raise EvidenceError("nonfinite loss")
+        loss.backward()
+        if any(p.grad is not None and not torch.isfinite(p.grad).all() for p in model.parameters()):
+            raise EvidenceError("nonfinite gradients")
+        optimizer.step()
+        if any(not torch.isfinite(p).all() for p in model.parameters()):
+            raise EvidenceError("nonfinite updated parameter")
+        optimizer.zero_grad(set_to_none=True)
     if metrics is not None:
         metrics.update(loss_float64_hex=struct.pack(">d",loss.item()).hex(),
                        targets=next_cursor-control["cursor"])

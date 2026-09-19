@@ -1,5 +1,7 @@
 """Deliver every pilot checkpoint before acknowledging further GPU updates."""
 from pathlib import Path
+import time
+from contextlib import nullcontext
 
 from ovl_pipeline import pilot_delivery
 from ovl_pipeline.canonical import EvidenceError,canonical,digest,read_json,sha256,verify_inventory
@@ -8,6 +10,18 @@ from ovl_pipeline.state import read_state,unpack
 from pod_job_client import save_once
 from pod_versioned_export import export
 from run_workload_stage import remote_name
+
+
+class TimedReads:
+    """Observe actual selected transfer calls; never alter their arguments."""
+    def __init__(self,transport,profiler):self.transport=transport;self.profiler=profiler;self.elapsed=0
+    def __getattr__(self,name):return getattr(self.transport,name)
+    def get(self,*args,**kwargs):
+        started=time.monotonic_ns()
+        with self.profiler.measure('file_transfer_and_transport_verification'):
+            result=self.transport.get(*args,**kwargs)
+        self.elapsed+=time.monotonic_ns()-started
+        return result
 
 
 def selection(value):
@@ -62,6 +76,7 @@ class CheckpointRetention:
         self.origin=pilot_delivery.origin(value['binding'],record)
         self.root=remote_name(transport,value['output_root']);self.marker=self.root+'/delivery/request.json'
         self.index=0;self.previous=digest(self.policy);self.last=None
+        self.profile_timing='--profile-timing' in job['argv'];self.profiler=None
         save_once(self.output/'selection.json',{'job_sha256':job_sha256,'selection':value,'profile_sha256':digest(transport.profile)})
         # Re-read retained complete bytes before adopting prior acknowledgements.
         while (self.output/f'checkpoint-{self.index:05d}'/'ack.json').exists():
@@ -104,14 +119,16 @@ class CheckpointRetention:
         return [{'path':'checkpoint.json','bytes':len(encoded),'sha256':sha256(encoded)},*request['checkpoint']['files']]
 
     def _ack(self,dest,request):
-        retained,directory,files=self._check_retained(dest,request)
-        self.health.exported_files(self.job,directory,files);self.health.write(self.health_file)
+        with self.profiler.measure('safe_state_verification_and_health') if self.profiler else nullcontext():
+            retained,directory,files=self._check_retained(dest,request)
+            self.health.exported_files(self.job,directory,files);self.health.write(self.health_file)
         ack=pilot_delivery.acknowledgement(request,digest(retained))
         save_once(dest/'ack.json',ack)
         if self.health.now()>=request['copy_deadline_epoch']:raise EvidenceError('checkpoint acknowledgement deadline expired')
         # Same bytes may be redelivered after a lost SSH response. No deadline
         # changes, new computation, or durable-export age credit is granted.
-        result=self.transport.put(self.root+f'/delivery/ack-{request["index"]:05d}.json',dest/'ack.json',request['copy_deadline_epoch'])
+        with self.profiler.measure('acknowledgement_transfer') if self.profiler else nullcontext():
+            result=self.transport.put(self.root+f'/delivery/ack-{request["index"]:05d}.json',dest/'ack.json',request['copy_deadline_epoch'])
         if result['sha256']!=digest(ack) or result['bytes_sent']!=len(canonical(ack)):raise EvidenceError('acknowledgement delivery differs')
         save_once(dest/'ack-delivery.json',{'schema':'ovl.pilot-ack-delivery.v1','request_sha256':digest(request),'ack_sha256':digest(ack)})
 
@@ -132,6 +149,9 @@ class CheckpointRetention:
             raise EvidenceError('invalid or expired fixed checkpoint deadline')
         dest=self.output/f'checkpoint-{self.index:05d}';dest.mkdir(mode=0o700,exist_ok=True)
         save_once(dest/'request.json',request)
+        from ovl_pipeline.phase_timing import Collector
+        self.profiler=Collector() if self.profile_timing else None
+        if self.profiler:self.profiler.phase='controller-observed-attempt'
         if not (dest/'retained.json').exists():
             snapshot=dest/'snapshot-000'
             if snapshot.exists() and not(snapshot/'export.json').exists():snapshot=dest/'snapshot-001'
@@ -141,10 +161,17 @@ class CheckpointRetention:
             else:
                 def progress(operation,counts,total):
                     self.health.bytes(operation,counts,total=total);self.health.write(self.health_file)
-                receipt=export(self.transport,self.root+'/'+request['path'],self.store,snapshot,deadline,
+                observed=TimedReads(self.transport,self.profiler) if self.profiler else self.transport
+                started=time.monotonic_ns()
+                receipt=export(observed,self.root+'/'+request['path'],self.store,snapshot,deadline,
                                progress=progress,expected_files=self._files(request))
+                if self.profiler:self.profiler.add_wall('export_inventory_hashing_and_storage',time.monotonic_ns()-started-observed.elapsed)
             save_once(dest/'retained.json',{'schema':'ovl.pilot-retained-checkpoint.v1','job_sha256':self.job,
                 'request_sha256':digest(request),'receipt':str((snapshot/'export.json').resolve()),'receipt_sha256':digest(receipt)})
         self._ack(dest,request)
+        if self.profiler:
+            save_once(dest/'timing.json',self.profiler.report({'job_sha256':self.job,'request_sha256':digest(request)},
+                scope='operator-checkpoint-controller-completed-attempt-only'))
+        self.profiler=None
         self.previous=digest(request);self.last=request;self.index+=1
         return True

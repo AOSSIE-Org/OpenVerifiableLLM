@@ -27,11 +27,14 @@ def transport(profile,key,known):return Transport(profile,key,known)
 
 def selected_phases(spec,bindings,downloads):
     result={};previous=[]
-    for name in ('qualification','initialization'):
-        item=spec[name];fields(item,'plan inputs output','lifetime phase locations')
+    optimized=spec.get('schema')=='ovl.production-lifetime-invocation.v2'
+    names=('qualification','optimization','initialization-baseline','initialization-candidate') if optimized else ('qualification','initialization')
+    for name in names:
+        item=spec['initialization'][name.removeprefix('initialization-')] if name.startswith('initialization-') else spec[name]
+        fields(item,'plan inputs output','lifetime phase locations')
         plan=read_json(Path(item['plan']));expected=spec['selection']['phases'][name]
         if digest(plan)!=expected or plan['prior_jobs']!=[]:raise EvidenceError('selected original phase template differs')
-        resolved={**plan,'prior_jobs':previous}
+        resolved={**plan,'prior_jobs':sorted(previous)}
         out=Path(item['output'])
         if (out/'selected-plan.json').exists() and read_json(out/'selected-plan.json')!=resolved:
             raise EvidenceError('original resolved phase parent selection differs')
@@ -78,8 +81,14 @@ def inputs(run,spec,a):
 
 
 def run(spec,expected):
-    fields(spec,'schema selection rental controller watchdog profile key known_hosts worker output health qualification initialization registration_template source_statement source_bundle source_policy preparation source_checkout run_key static_files input_inventory','production lifetime invocation')
-    if spec['schema']!='ovl.production-lifetime-invocation.v1' or digest(spec)!=expected:raise EvidenceError('selected lifetime invocation differs')
+    optimized=spec.get('schema')=='ovl.production-lifetime-invocation.v2'
+    fields(spec,'schema selection rental controller watchdog profile key known_hosts worker output health qualification initialization registration_template source_statement source_bundle source_policy preparation source_checkout run_key static_files input_inventory'+(' optimization' if optimized else ''),'production lifetime invocation')
+    if spec['schema'] not in ('ovl.production-lifetime-invocation.v1','ovl.production-lifetime-invocation.v2') or digest(spec)!=expected:raise EvidenceError('selected lifetime invocation differs')
+    if optimized:
+        fields(spec['initialization'],'baseline candidate','selected initialization variants')
+        fields(spec['registration_template'],'baseline candidate','selected registration variants')
+        if spec['selection']['schema']!='ovl.production-run-selection.v2':raise EvidenceError('optimization invocation requires bounded selection')
+    elif spec['selection']['schema']!='ovl.production-run-selection.v1':raise EvidenceError('legacy invocation cannot omit optimization')
     # Every path in this caller-owned input inventory is explicit and confined;
     # no filesystem orientation, credential discovery or private-project search.
     fields(spec['input_inventory'],'directory files','pinned lifetime inputs')
@@ -102,7 +111,10 @@ def run(spec,expected):
             if not final.exists():raise EvidenceError('earlier failed paid work closed; no replacement launch')
             return read_json(final)
         q=owner.phase('qualification',*phases['qualification'])
-        initial=owner.phase('initialization',*phases['initialization'])
+        variant='baseline'
+        if optimized:variant,q=owner.optimize(phases['optimization'])
+        name='initialization-'+variant if optimized else 'initialization'
+        initial=owner.phase(name,*phases[name])
         decision=output/'registration-selection.json'
         if not decision.exists():save_once(decision,{'invocation_sha256':expected,'selected_epoch':owner.health.now(),
                     'qualification_sha256':digest(q),'initialization_sha256':digest(initial)})
@@ -110,7 +122,8 @@ def run(spec,expected):
         if (selected['invocation_sha256']!=expected or selected['qualification_sha256']!=digest(q)
             or selected['initialization_sha256']!=digest(initial)):
             raise EvidenceError('original registration parents changed')
-        r,basis=registration(read_json(Path(spec['registration_template'])),q,initial,owner.rental,selected['selected_epoch'])
+        template=spec['registration_template'][variant] if optimized else spec['registration_template']
+        r,basis=registration(read_json(Path(template)),q,initial,owner.rental,selected['selected_epoch'])
         save_once(output/'forecast-basis.json',basis)
         a=owner.register(r,read_json(Path(spec['source_statement'])),Path(spec['source_bundle']),
              PublisherPolicy(**read_json(Path(spec['source_policy']))),read_json(Path(spec['preparation'])),Path(spec['source_checkout']))

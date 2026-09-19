@@ -61,20 +61,24 @@ def restore_phase_bindings(plan,expected,output,bindings,downloads):
 class Run:
     def __init__(self,selection,expected,rental,control,worker,controller,watchdog_file,output,health_file,
                  bindings,downloads,*,sleep=time.sleep):
-        fields(selection,'schema rental_intent_sha256 profile_sha256 worker_sha256 phases timing object_store','enclosing production selection')
-        if selection['schema']!='ovl.production-run-selection.v1' or digest(selection)!=expected:
+        optimized=selection.get('schema')=='ovl.production-run-selection.v2'
+        fields(selection,'schema rental_intent_sha256 profile_sha256 worker_sha256 phases timing object_store'+(' optimization_policy' if optimized else ''),'enclosing production selection')
+        if selection['schema'] not in ('ovl.production-run-selection.v1','ovl.production-run-selection.v2') or digest(selection)!=expected:
             raise EvidenceError('original enclosing run selection differs')
         self.watchdog,self.plan=validate_rental(rental,selection['rental_intent_sha256'])
         if digest(control.profile)!=selection['profile_sha256'] or file_hash(worker)!=selection['worker_sha256']:
             raise EvidenceError('enclosing run endpoint or worker differs')
-        fields(selection['phases'],'qualification initialization','selected development phases')
+        fields(selection['phases'],'qualification optimization initialization-baseline initialization-candidate' if optimized else 'qualification initialization','selected development phases')
+        if optimized:
+            from pilot_optimization import policy
+            policy(selection['optimization_policy'])
         fields(selection['timing'],'registration_seconds record_seconds replay_seconds export_seconds checkpoint_policy publication_policy','enclosing fixed phase budgets')
         for name in ('registration_seconds','export_seconds'):integer(selection['timing'][name],1,1500,name)
         for name in ('record_seconds','replay_seconds'):integer(selection['timing'][name],1,7*86400,name)
         self.selection=selection;self.root=expected;self.rental=rental;self.control=control;self.worker=worker
         self.controller=controller;self.watchdog_file=watchdog_file;self.output=output;self.health_file=health_file
         self.bindings=bindings;self.downloads=downloads;self.sleep=sleep;self.stack=ExitStack()
-        self.qualified=self.initial=None;self.authenticated=None;self.stage_results={};self.phase_jobs={}
+        self.qualified=self.initial=None;self.baseline=self.candidate=None;self.authenticated=None;self.stage_results={};self.phase_jobs={}
         self.active_stage=None
         self.store=Path(selection['object_store'])
         if not self.store.is_absolute() or self.store.is_symlink():raise EvidenceError('explicit regular absolute content store required')
@@ -115,13 +119,24 @@ class Run:
         watchdog_heartbeat(self.watchdog_file,self.watchdog,self.health.now(),self.control.profile['pod_id'])
 
     def phase(self,name,plan,expected,inputs,output):
-        if name not in ('qualification','initialization') or self.selection['phases'][name]!=expected:
+        if name not in self.selection['phases'] or self.selection['phases'][name]!=expected:
             raise EvidenceError('phase differs from original run selection')
-        if plan['schema']!=('ovl.sustained-pilot-plan.v2' if name=='qualification' else 'ovl.initialization-cycle-plan.v2'):
+        initialization=name.startswith('initialization')
+        if plan['schema']!=('ovl.initialization-cycle-plan.v2' if initialization else 'ovl.sustained-pilot-plan.v2'):
             raise EvidenceError('phase cannot close the enclosing rental')
-        if name=='initialization' and self.qualified is None:raise EvidenceError('initialization requires checked qualification first')
+        if initialization and self.qualified is None:raise EvidenceError('initialization requires checked qualification first')
+        if name=='optimization' and self.baseline is None:raise EvidenceError('optimization requires checked baseline first')
+        if name=='optimization':
+            from pilot_optimization import screen
+            planned=screen(self.baseline,self.selection['optimization_policy'])
+            if planned['decision']!='TRY_ONE_BATCH_DOUBLING' or read_json(self.output/'optimization-screen.json')!=planned:
+                raise EvidenceError('candidate launch lacks its measured bottleneck decision')
+        if initialization and self.selection['schema']=='ovl.production-run-selection.v2':
+            chosen=read_json(self.output/'optimization-decision.json')['selected']
+            if name!='initialization-'+chosen:raise EvidenceError('initialization differs from selected optimization outcome')
         if plan['prior_jobs']!=[]:raise EvidenceError('enclosing phase template must leave prior-job selection to coordinator')
-        selected={**plan,'prior_jobs':[] if name=='qualification' else self.phase_jobs['qualification']}
+        previous=sorted(j for n,items in self.phase_jobs.items() if n!=name for j in items)
+        selected={**plan,'prior_jobs':[] if name=='qualification' else previous}
         expected=digest(selected);plan=selected
         if (output/'selected-plan.json').exists() and read_json(output/'selected-plan.json')!=plan:
             raise EvidenceError('original resolved phase changed')
@@ -131,12 +146,40 @@ class Run:
             development.run(plan,expected,self.rental,self.controller,self.watchdog_file,self.control,inputs,
                 self.worker,output,self.health_file,sleep=self.sleep,run_health=self.health)
         if name=='qualification':
-            result=parents.qualification(plan,expected,output,self.control.profile);self.qualified=result
+            result=parents.qualification(plan,expected,output,self.control.profile);self.qualified=self.baseline=result
+        elif name=='optimization':
+            result=parents.qualification(plan,expected,output,self.control.profile,prepared_qualification=self.baseline);self.candidate=result
         else:
             result=parents.initialization(plan,expected,output,self.control.profile,self.qualified);self.initial=result
         self.phase_jobs[name]=sorted(e['job_sha256'] for e in read_json(final)['stages'])
         save_once(self.output/(name+'-parents.json'),result)
         return result
+
+    def optimize(self,phase):
+        """At most one frozen candidate; an interruption adopts the same choice."""
+        from pilot_optimization import screen,choose
+        if self.baseline is None:raise EvidenceError('checked baseline required before profiling decision')
+        value=self.selection['optimization_policy'];selected=screen(self.baseline,value)
+        save_once(self.output/'optimization-screen.json',selected)
+        if selected['decision']=='TRY_ONE_BATCH_DOUBLING':
+            started=self.output/'optimization-start.json'
+            if not started.exists():save_once(started,{'screen_sha256':digest(selected),'epoch':self.health.now()})
+            begin=read_json(started)
+            if begin['screen_sha256']!=digest(selected):raise EvidenceError('optimization start selection changed')
+            candidate=self.phase('optimization',*phase)
+            finished=self.output/'optimization-end.json'
+            if not finished.exists():save_once(finished,{'candidate_sha256':digest(candidate),'epoch':self.health.now()})
+            end=read_json(finished)
+            if end['candidate_sha256']!=digest(candidate):raise EvidenceError('completed candidate selection changed')
+            for stamp in (begin['epoch'],end['epoch']):integer(stamp,1,2**53-1,'original optimization clock')
+            if end['epoch']<begin['epoch']:raise EvidenceError('optimization duration clock regressed')
+            decision=choose(self.baseline,candidate,value,max(1,(end['epoch']-begin['epoch'])*1000))
+        else:
+            decision={'schema':'ovl.single-optimization-no-trial.v1','screen_sha256':digest(selected),
+                      'selected':'baseline','reason':selected['reason'],'candidate_execution':'NOT_RUN'}
+        save_once(self.output/'optimization-decision.json',decision)
+        self.qualified=self.candidate if decision['selected']=='candidate' else self.baseline
+        return decision['selected'],self.qualified
 
     def forecast_window(self,r):
         """Cost and phase selection must cover the actual qualified full work."""

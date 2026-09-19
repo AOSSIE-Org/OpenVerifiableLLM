@@ -13,7 +13,7 @@ import time
 
 import torch
 
-from . import gpu, schema, pilot_delivery
+from . import gpu, schema, pilot_delivery, phase_timing
 from .canonical import EvidenceError, canonical, confined, digest, read_json, require_digest, write_json
 from .data import batches
 from .observed_validation import validate_stream
@@ -72,7 +72,8 @@ def record(directory, recipe, config, output, *, updates=None, seconds=None, war
     schema.recipe(recipe,gpu=True);gpu.validate_config(config)
     if output.exists():raise EvidenceError("pilot output must be fresh; preserve failed attempts")
     setup_started=time.monotonic_ns()
-    stream=read_json(confined(directory,"stream.json"));validate_stream(directory,stream)
+    stream=read_json(confined(directory,"stream.json"))
+    with phase_timing.observe("stream_validation"):validate_stream(directory,stream)
     if delivery is not None and (delivery["mode"]!="record" or delivery["phase"]!=stream["phase"]):
         raise EvidenceError("record delivery selection differs")
     model,opt,control,expected_flags,environment=initialize(directory,recipe,config,stream,warmup_updates)
@@ -88,19 +89,22 @@ def record(directory, recipe, config, output, *, updates=None, seconds=None, war
     def boundary():
         if len(boundaries)>=4096:raise EvidenceError("pilot checkpoint schedule exhausted; incomplete run preserved")
         path=f"boundary-{len(boundaries):05d}"
-        checkpoint=save_state(output/path,model,opt,control)
+        with phase_timing.observe("checkpoint_serialization"):checkpoint=save_state(output/path,model,opt,control)
         b={"index":len(boundaries),"step":control["global_step"],"control":control.copy(),
            "path":path,"checkpoint":checkpoint,"previous":digest(boundaries[-1]) if boundaries else digest(settings)}
         boundaries.append(b)
-        if sender is not None:sender.checkpoint(path,checkpoint,control)
+        if sender is not None:
+            with phase_timing.observe("durable_delivery_wait"):sender.checkpoint(path,checkpoint,control)
         write_json(output/"progress.json",{"settings_sha256":digest(settings),"boundaries":boundaries,"complete":False})
     boundary()
     torch.cuda.synchronize();setup_ns=time.monotonic_ns()-setup_started
+    phase_timing.phase("measured")
     started=time.monotonic_ns();measured_targets=0;count=0;full_batches=0
     it=cycling_batches(directory,recipe)
     with (output/"updates.jsonl").open("wb") as log:
         while True:
-            cycle,batch=next(it);metrics={}
+            with phase_timing.observe("batch_preparation"):cycle,batch=next(it)
+            metrics={}
             control=advance(model,opt,control,cycle,batch,stream["targets"],config,expected_flags,metrics)
             count+=1;measured_targets+=metrics["targets"]
             full_batches+=int(batch["inputs"].shape[0]==recipe["batch_size"])
@@ -143,7 +147,8 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
         pilot_delivery.policy(delivery)
         if resume_from is not None or delivery["mode"]!="replay" or delivery["phase"]!=stream["phase"]:
             raise EvidenceError("delivery requires full replay with selected phase")
-    schema.recipe(recipe,gpu=True);gpu.validate_config(config);validate_stream(directory,stream)
+    schema.recipe(recipe,gpu=True);gpu.validate_config(config)
+    with phase_timing.observe("stream_validation"):validate_stream(directory,stream)
     if settings["code_root"]!=code_root():raise EvidenceError("pilot code differs")
     schema.integer(value["updates"],1,1_000_000,"recorded pilot updates")
     interval=settings["checkpoint_every"];schema.integer(interval,1,1_000_000,"pilot checkpoint interval")
@@ -176,13 +181,15 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
         nonlocal position
         b=boundaries[position]
         if b["control"]!=control:raise EvidenceError("pilot control/schedule mismatch")
-        md,tensors=read_state(confined(record_directory,b["path"]),b["checkpoint"])
-        actual=state_root(*capture(model,opt,control))
+        with phase_timing.observe("checkpoint_comparison"):
+            md,tensors=read_state(confined(record_directory,b["path"]),b["checkpoint"])
+            actual=state_root(*capture(model,opt,control))
         if actual!=state_root(md,tensors):raise EvidenceError(f"pilot state mismatch at boundary {position}")
         if not output.exists():output.mkdir(parents=True,exist_ok=False)
-        own=save_state(output/f'verifier-boundary-{position:05d}',model,opt,control)
+        with phase_timing.observe("checkpoint_serialization"):own=save_state(output/f'verifier-boundary-{position:05d}',model,opt,control)
         if own['state_root']!=actual:raise EvidenceError('pilot verifier state changed during capture')
-        if sender is not None:sender.checkpoint(f"verifier-boundary-{position:05d}",own,control)
+        if sender is not None:
+            with phase_timing.observe("durable_delivery_wait"):sender.checkpoint(f"verifier-boundary-{position:05d}",own,control)
         compared.append({"index":position,"state_root":actual});position+=1
     compare()  # Always regenerate boundary zero; never load it as initialization.
     if resume_from is not None:
@@ -193,10 +200,11 @@ def replay(directory, record_directory, expected_record_sha256, output, *, resum
         position=resume_from;compare()
     opening=control["global_step"]
     torch.cuda.synchronize();setup_ns=time.monotonic_ns()-setup_started
+    phase_timing.phase("measured")
     before_compared=len(compared);started=time.monotonic_ns();targets=full_batches=0
     it=cycling_batches(directory,recipe)
     for index in range(value["updates"]):
-        cycle,batch=next(it)
+        with phase_timing.observe("batch_preparation"):cycle,batch=next(it)
         if index<opening:continue
         metrics={}
         control=advance(model,opt,control,cycle,batch,stream["targets"],config,expected_flags,metrics)
@@ -234,6 +242,7 @@ def main():
     b=subs.add_parser("replay");b.add_argument("--record-directory",type=Path,required=True)
     b.add_argument("--expected-record-sha256",required=True);b.add_argument("--resume-from",type=int)
     for sub in (a,b):
+        sub.add_argument("--profile-timing",action="store_true")
         sub.add_argument("--stream",type=Path,required=True);sub.add_argument("--output",type=Path,required=True)
         sub.add_argument("--delivery-session");sub.add_argument("--delivery-deadline",type=int)
         sub.add_argument("--delivery-timeout",type=int);sub.add_argument("--delivery-maximum-bytes",type=int)
@@ -247,10 +256,15 @@ def main():
                 "mode":args.action,"phase":read_json(confined(args.stream,"stream.json"))["phase"],
                 "deadline_epoch":args.delivery_deadline,"copy_timeout_seconds":args.delivery_timeout,
                 "maximum_checkpoint_bytes":args.delivery_maximum_bytes})
-        if args.action=="record":
-            result=record(args.stream,read_json(args.recipe),read_json(args.kernel),args.output,
-                          updates=args.updates,seconds=args.seconds,warmup_updates=args.warmup_updates,checkpoint_every=args.checkpoint_every,delivery=delivery)
-        else:result=replay(args.stream,args.record_directory,args.expected_record_sha256,args.output,resume_from=args.resume_from,delivery=delivery)
+        from contextlib import nullcontext
+        profiler=phase_timing.Collector() if args.profile_timing else None
+        with profiler.activate() if profiler is not None else nullcontext():
+            if args.action=="record":
+                result=record(args.stream,read_json(args.recipe),read_json(args.kernel),args.output,
+                              updates=args.updates,seconds=args.seconds,warmup_updates=args.warmup_updates,checkpoint_every=args.checkpoint_every,delivery=delivery)
+            else:result=replay(args.stream,args.record_directory,args.expected_record_sha256,args.output,resume_from=args.resume_from,delivery=delivery)
+        if profiler is not None:
+            write_json(args.output/"timing.json",profiler.report(result,scope="operator-pilot-phase-timing"))
         print(canonical({"result":result["result"],"report_sha256":digest(result),"output":str(args.output)}).decode())
     except Exception as e:
         print(canonical({"result":"FAIL","reason":str(e)}).decode());return 1

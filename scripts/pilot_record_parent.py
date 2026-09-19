@@ -28,6 +28,9 @@ def check(directory,files,binding):
         or value.get('result')!='RECORDED_NOT_REPLAYED' or value.get('production_admission')!='NOT_RUN'):
         raise EvidenceError('complete development record required')
     settings=value['settings']
+    if (directory/'timing.json').exists():
+        from ovl_pipeline.phase_timing import validate
+        validate(read_json(directory/'timing.json'),value,scope='operator-pilot-phase-timing')
     delivery=pilot_delivery.settings_delivery(settings)
     if settings.get('scope')!='development-gpu-pilot-only':
         raise EvidenceError('wrong pilot settings')
