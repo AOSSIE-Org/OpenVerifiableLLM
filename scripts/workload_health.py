@@ -34,6 +34,8 @@ def terminal_status(value,job):
 
 class Health:
     def __init__(self,journal,watchdog_intent,pod_id,*,wall=time.time,clock=boot_clock):
+        from threading import RLock
+        self._publication_lock=RLock();self._clock_lock=RLock()
         self.journal=journal;self.wall=wall;self.root=digest(watchdog_intent)
         self.plan=validate_intent(watchdog_intent,self.root);self.pod=pod_id
         if type(pod_id) is not str or not re.fullmatch('[A-Za-z0-9_-]{1,96}',pod_id):raise EvidenceError('invalid adopted pod ID')
@@ -71,10 +73,11 @@ class Health:
         self.complete=self.complete or body['completes']
 
     def now(self):
-        if self.lifetime.remaining()<=0:raise EvidenceError('workload deadline/boot/clock changed; stop without renewing health')
-        now=int(self.wall())
-        if now<max(self.progress,self.exported):raise EvidenceError('workload clock regressed')
-        return now
+        with self._clock_lock:
+            if self.lifetime.remaining()<=0:raise EvidenceError('workload deadline/boot/clock changed; stop without renewing health')
+            now=int(self.wall())
+            if now<max(self.progress,self.exported):raise EvidenceError('workload clock regressed')
+            return now
 
     def event(self,kind,detail,*,progress=False,export=False,complete=False):
         if self.complete:raise EvidenceError('completed workload cannot acquire new work')
@@ -274,6 +277,24 @@ class Health:
             files=read_json(confined(self.journal.directory,'final-export-inventory.json'))
             if digest(files)!=final[0]['export_inventory_sha256']:raise EvidenceError('final export inventory changed after restart')
             self._check_final(Path(final[0]['directory']),files);self._complete_verified=True
-        value={'schema':'ovl.rental-workload-health.v1','intent_sha256':self.root,'pod_id':self.pod,
-               'observed_epoch':self.now(),'progress_epoch':self.progress,'exported_checkpoint_epoch':self.exported,'complete':self.complete}
-        write_json(Path(path),value);return value
+        return self.pulse(path)
+
+    def pulse(self,path):
+        """Publish observed health without credit or expensive final revalidation.
+
+        The owner may call this while an existing verification/transfer is busy.
+        Progress/export ages and both original clocks remain unchanged. A replayed
+        completion cannot be published until write() rechecks its actual bytes.
+        No journal mutation or provider observation is supplied by this method.
+        """
+        with self._publication_lock:
+            if self.journal._fd is None:raise EvidenceError('health publication requires its original journal lease')
+            # Sample credited ages before the observation clock. The main owner
+            # may advance them concurrently; publishing older credit is safe,
+            # whereas reading a newer age after now() could look like the future.
+            progress=self.progress;exported=self.exported
+            complete=bool(self.complete and self._complete_verified)
+            value={'schema':'ovl.rental-workload-health.v1','intent_sha256':self.root,'pod_id':self.pod,
+                   'observed_epoch':self.now(),'progress_epoch':progress,'exported_checkpoint_epoch':exported,
+                   'complete':complete}
+            write_json(Path(path),value);return value
