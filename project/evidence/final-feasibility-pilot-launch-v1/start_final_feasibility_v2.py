@@ -1,0 +1,59 @@
+from pathlib import Path
+import sys,subprocess,runpy,json,os
+sys.path[:0]=['src','scripts']
+from ovl_pipeline.canonical import read_json,write_json,digest,file_hash
+from pod_transfer import Transport
+from run_sustained_pilot import validate
+root=Path.cwd();out=root/'.ovllm-cache/final-feasibility-v1'
+e=json.loads((out/'endpoint-observation.json').read_text())
+endpoint=e['ssh']['direct'];assert endpoint; events=[json.loads(p.read_text()) for p in sorted((out/'controller').glob('event-*.json'))]; assert [v['body']['id'] for v in events if v['kind']=='creation-observed']==[e['id']]
+print('Selected provider endpoint',endpoint)
+known=out/'known-hosts';assert not known.exists()
+r=subprocess.run(['ssh-keyscan','-T','15','-t','ed25519','-p',str(endpoint['port']),endpoint['host']],capture_output=True,timeout=20)
+assert r.returncode==0 and len(r.stdout)<65536
+# ssh-keyscan may emit its SSH banner as a comment on stdout. Require exactly
+# one actual key with the exact endpoint, key type and ed25519 wire structure.
+lines=[line for line in r.stdout.splitlines() if line and not line.startswith(b'#')]
+assert len(lines)==1
+parts=lines[0].split();expected_host=(endpoint['host'] if endpoint['port']==22 else '['+endpoint['host']+']:'+str(endpoint['port'])).encode()
+assert len(parts)==3 and parts[0]==expected_host and parts[1]==b'ssh-ed25519'
+wire=__import__('base64').b64decode(parts[2],validate=True)
+assert len(wire)==51 and wire[:19]==bytes.fromhex('0000000b')+b'ssh-ed25519'+bytes.fromhex('00000020')
+known.write_bytes(lines[0]+b'\n');known.chmod(0o600)
+profile={'schema':'ovl.pod-ssh-profile.v1','pod_id':e['id'],'host':endpoint['host'],'port':endpoint['port'],'user':'root','remote_root':'/workspace/ovllm/final-feasibility-v1','endpoint_observation_sha256':file_hash(out/'endpoint-observation.json'),'known_hosts_sha256':file_hash(known),'host_key_trust':'operator-pinned-TOFU'}
+write_json(out/'profile.json',profile)
+from ovl_pipeline.canonical import verify_inventory
+base=out
+state=read_json(root/'project/goal_state.json',canonical_required=False)
+assert state['acceptance']['G01']['status']=='passed' and state['acceptance']['G02']['status']=='passed'
+integrity=read_json(Path('project/evidence/complete-prepared-integrity-v1/verification.json'))
+assert integrity['result']=='PASS'
+prepared=read_json(base/'inputs/prepared-plan.json')
+full=read_json(Path('.ovllm-cache/full-prepared-publication-v1/plan.json'))
+uploaded=read_json(Path('.ovllm-cache/full-prepared-publication-v1/upload/upload.json'))
+assert prepared['preparation_sha256']==full['subject_sha256']==integrity['preparation_sha256']
+assert prepared['revision']==uploaded['revision'] and prepared['repo']==full['repo']==uploaded['repo']
+assert all(f in full['files'] for f in prepared['files'])
+verify_inventory(base/'inputs',read_json(base/'input-inventory.json'))
+select=runpy.run_path('.ovllm-cache/select_final_pilot_v1.py')['select']
+select(out,profile,read_json(out/'rental-intent.json'),prepared)
+plan=read_json(out/'workload-plan.json');rental=read_json(out/'rental-intent.json')
+key=Path.home()/'.local/share/openverifiablellm/ssh/runpod-ed25519';inputs=out/'inputs';worker=root/'scripts/pod_job_worker.py'
+transport=Transport(profile,key,known);validate(plan,digest(plan),rental,transport,inputs,worker)
+unit=f"""[Unit]
+Description=OpenVerifiableLLM final-recipe sustained Wiki and conversation full replay
+StartLimitIntervalSec=60
+StartLimitBurst=3
+[Service]
+Type=simple
+WorkingDirectory={root}
+Environment=PYTHONPATH={root}/src:{root}/scripts
+ExecStart={root}/.venv/bin/python {root}/scripts/run_sustained_pilot.py --plan {out}/workload-plan.json --plan-sha256 {digest(plan)} --rental-intent {out}/rental-intent.json --controller-journal {out}/controller --watchdog-heartbeat {out}/watchdog/heartbeat.json --profile {out}/profile.json --key {key} --known-hosts {known} --inputs {inputs} --worker {worker} --output {out}/workload --health {out}/health.json
+Restart=on-failure
+RestartSec=5
+MemoryMax=4G
+StandardOutput=append:{out}/workload.stdout
+StandardError=append:{out}/workload.stderr
+"""
+u=Path.home()/'.config/systemd/user/ovllm-final-feasibility-v1-workload.service';assert not u.exists();u.write_text(unit);(out/'workload.service').write_text(unit)
+print('Selected complete candidate plan',digest(plan),'Unit prepared, not launched.')
