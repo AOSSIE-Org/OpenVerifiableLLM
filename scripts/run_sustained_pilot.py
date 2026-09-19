@@ -24,6 +24,13 @@ from run_workload_coordinator import controller_observation,retain_observation,c
 from run_workload_stage import run_stage,saved_result,remote_name
 
 
+def upload_seconds(plan, upload):
+    timing=plan['timing']
+    floor=timing.get('upload_floor_bytes_per_second',timing['transfer_floor_bytes_per_second'])
+    hashing=(3*upload['bytes']+timing['hash_floor_bytes_per_second']-1)//timing['hash_floor_bytes_per_second']
+    return (upload['bytes']+floor-1)//floor+hashing+30
+
+
 def validate(plan,expected,rental,transport,inputs,worker):
     require_digest(expected)
     phase=plan.get('schema') in ('ovl.sustained-pilot-plan.v2','ovl.initialization-cycle-plan.v2')
@@ -42,7 +49,10 @@ def validate(plan,expected,rental,transport,inputs,worker):
     watchdog,rental_plan=validate_rental(rental,plan['rental_intent_sha256'])
     if digest(transport.profile)!=plan['profile_sha256'] or file_hash(Path(worker))!=plan['worker_sha256']:
         raise EvidenceError('selected sustained endpoint/worker differs')
-    timing=plan['timing'];fields(timing,'transfer_floor_bytes_per_second hash_floor_bytes_per_second basis','sustained timing')
+    timing=plan['timing'];fields(timing,'transfer_floor_bytes_per_second hash_floor_bytes_per_second basis'+
+        (' upload_floor_bytes_per_second' if 'upload_floor_bytes_per_second' in timing else ''),'sustained timing')
+    if 'upload_floor_bytes_per_second' in timing:
+        integer(timing['upload_floor_bytes_per_second'],65536,2**34,'upload transfer floor')
     for k in ('transfer_floor_bytes_per_second','hash_floor_bytes_per_second'):integer(timing[k],65536,2**34,k)
     if type(timing['basis']) is not str or not 1<=len(timing['basis'])<=4096:raise EvidenceError('explicit measured timing basis required')
     if type(plan['uploads']) is not list or len(plan['uploads'])>100000:raise EvidenceError('bounded selected uploads required')
@@ -50,6 +60,7 @@ def validate(plan,expected,rental,transport,inputs,worker):
     for u in plan['uploads']:
         fields(u,'path remote_path bytes sha256','sustained upload');relative(u['path']);relative(u['remote_path']);require_digest(u['sha256'])
         integer(u['bytes'],0,180*timing['transfer_floor_bytes_per_second'],'bounded upload retry window')
+        integer(upload_seconds(plan,u),30,900,'bounded setup upload window')
         if not u['remote_path'].startswith('inputs/') or u['remote_path'] in uploaded:raise EvidenceError('distinct immutable input upload paths required')
         local=confined(Path(inputs),u['path'])
         if not local.is_file() or local.stat().st_size!=u['bytes']:raise EvidenceError('selected upload missing/changed size')
@@ -175,7 +186,7 @@ def validate(plan,expected,rental,transport,inputs,worker):
         prior[s['name']]=s;prior_templates[s['name']]=template;stages.append((s,template))
     if initialization and initialization_actions!=['record','verify']:
         raise EvidenceError('initialization cycle requires exactly one record followed by fresh regeneration')
-    minimum=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+(total+timing['transfer_floor_bytes_per_second']-1)//timing['transfer_floor_bytes_per_second']
+    minimum=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+sum(upload_seconds(plan,u) for u in plan['uploads'])
     if minimum>rental_plan['request_checkpoint_epoch']-rental_plan['input']['now_epoch']:
         raise EvidenceError('complete selected phase budgets exceed unchanged rental work window')
     return watchdog,rental_plan,stages
@@ -366,8 +377,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
         if phase and set(health.jobs)-set(plan['prior_jobs'])-set(v[1] for v in derived.values()):
             raise EvidenceError('run phase omits another launched job')
         if phase and not derived:
-            total=sum(u['bytes'] for u in plan['uploads']);floor=plan['timing']['transfer_floor_bytes_per_second']
-            needed=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+(total+floor-1)//floor
+            needed=sum(s['work_seconds']+s['export_reserve_seconds'] for s,_ in stages)+sum(upload_seconds(plan,u) for u in plan['uploads'])
             if health.now()+needed>rental_plan['request_checkpoint_epoch']:
                 raise EvidenceError('complete next phase cannot fit remaining original work window')
         if health.complete or (output/'final/result.json').exists():
@@ -383,11 +393,13 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
             retain_observation(output,controller_observation(controller_directory,rental,health.pod,starting=True))
             watchdog_heartbeat(watchdog_file,watchdog,health.now(),health.pod)
             if stop.exists() or health.now()>=rental_plan['request_checkpoint_epoch']:raise EvidenceError('stop forbids setup transfer')
+            seconds=upload_seconds(plan,u)
+            deadline=min(rental_plan['request_checkpoint_epoch'],health.now()+seconds)
             local=confined(Path(inputs),u['path'])
             if file_hash(local)!=u['sha256']:raise EvidenceError('selected input bytes changed')
             def progress(counts):health.bytes(identity,counts,total=u['bytes'],direction='send');health.write(health_file)
-            seconds=(u['bytes']+plan['timing']['transfer_floor_bytes_per_second']-1)//plan['timing']['transfer_floor_bytes_per_second']+30
-            result=transport.put(u['remote_path'],local,min(rental_plan['request_checkpoint_epoch'],health.now()+seconds),progress=progress)
+            result=transport.put(u['remote_path'],local,deadline,progress=progress)
+            if health.now()>=deadline:raise EvidenceError('setup upload acknowledgement exceeded original window')
             if result['sha256']!=u['sha256'] or result['bytes_sent']!=u['bytes']:raise EvidenceError('uploaded input differs')
             save_once(receipt,{'selection':u,'operation_sha256':identity,'transfer':result})
         history=[];outcome='EXITED_ZERO';failure=None
