@@ -1,4 +1,6 @@
 from pathlib import Path
+import sys
+sys.path.insert(0,str(Path(__file__).parents[1]/"scripts"))
 import os
 import pytest
 from ovl_pipeline.canonical import EvidenceError,digest,file_hash,inventory,read_json,write_json
