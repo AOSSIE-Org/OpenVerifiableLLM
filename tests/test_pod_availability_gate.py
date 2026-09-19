@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import pytest
 sys.path.insert(0,str(Path(__file__).parents[1]/'scripts'))
-from pod_availability_gate import check
+from pod_availability_gate import check,check_cloud
 from ovl_pipeline.canonical import EvidenceError
 
 
@@ -44,3 +44,44 @@ def test_unavailable_malformed_or_over_budget_refused(field,value):
 @pytest.mark.parametrize('now',[999,1601,True])
 def test_stale_or_invalid_observation_refused(now):
     with pytest.raises(EvidenceError):checked(sample(),now)
+
+
+def community():
+    o=sample();o['request']['cloud']='COMMUNITY'
+    o['response'].update(community=True,price={'secure':'.99','community':'.69'})
+    return o
+
+
+def community_checked(o):
+    return check_cloud(o,now=1001,gpu_id='test-gpu',cuda_versions=['13.0','13.2'],
+                       maximum_hourly_usd='.69',cloud='COMMUNITY')
+
+
+def test_community_requires_explicit_selection_and_uses_only_its_lane():
+    o=community();before=copy.deepcopy(o)
+    result=community_checked(o)
+    assert result['cloud']=='COMMUNITY' and result['hourly_usd']=='0.69'
+    assert result['available_cuda_versions']==['13.2'] and o==before
+    with pytest.raises(EvidenceError):checked(o)
+    with pytest.raises(EvidenceError):community_checked(sample())
+
+
+@pytest.mark.parametrize('damage',['request-cloud','missing-lane','unavailable-lane','other-lane-cheaper',
+                                  'nonfinite','unavailable-stock','serverless','missing-cuda'])
+def test_community_cannot_borrow_secure_price_or_other_availability(damage):
+    o=community()
+    if damage=='request-cloud':o['request']['cloud']='SECURE'
+    elif damage=='missing-lane':del o['response']['community']
+    elif damage=='unavailable-lane':o['response']['community']=False
+    elif damage=='other-lane-cheaper':o['response']['price']={'secure':'.01','community':'.70'}
+    elif damage=='nonfinite':o['response']['price']['community']='NaN'
+    elif damage=='unavailable-stock':o['response']['availability']='NONE'
+    elif damage=='serverless':o['request']['product']=['SERVERLESS']
+    else:o['response']['cudaVersions']=[]
+    with pytest.raises(EvidenceError):community_checked(o)
+
+
+@pytest.mark.parametrize('cloud',[None,'SPOT','community',False])
+def test_unsupported_cloud_fails_before_catalog_selection(cloud):
+    with pytest.raises(EvidenceError):check_cloud(community(),now=1001,gpu_id='test-gpu',
+        cuda_versions=['13.0','13.2'],maximum_hourly_usd='.69',cloud=cloud)

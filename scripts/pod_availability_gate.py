@@ -8,18 +8,28 @@ from ovl_pipeline.canonical import EvidenceError
 
 
 def check(observation,*,now,gpu_id,cuda_versions,maximum_hourly_usd):
+    """Preserve the historical secure-only request and receipt format."""
+    value=check_cloud(observation,now=now,gpu_id=gpu_id,cuda_versions=cuda_versions,
+                      maximum_hourly_usd=maximum_hourly_usd,cloud='SECURE')
+    return {k:v for k,v in value.items() if k not in ('cloud','hourly_usd')}|{'secure_hourly_usd':value['hourly_usd']}
+
+
+def check_cloud(observation,*,now,gpu_id,cuda_versions,maximum_hourly_usd,cloud):
+    """Explicit future cloud selection; an observation never admits a rental."""
+    if cloud not in ('SECURE','COMMUNITY'):raise EvidenceError('explicit supported POD cloud required')
+    lane=cloud.lower()
     expected={'id':gpu_id,'include':['AVAILABILITY'],'product':['POD'],
-              'cloud':'SECURE','count':1,'cudaVersions':cuda_versions}
+              'cloud':cloud,'count':1,'cudaVersions':cuda_versions}
     if observation.get('request')!=expected or type(observation['request'].get('count')) is not int:
-        raise EvidenceError('exact single secure POD and CUDA-scoped request required')
+        raise EvidenceError('exact single selected-cloud POD and CUDA-scoped request required')
     epoch=observation.get('observed_epoch')
     if type(epoch) is not int or type(now) is not int or not 0<=now-epoch<=600:
         raise EvidenceError('stale or invalid POD availability observation')
     gpu=observation.get('response')
-    if type(gpu) is not dict or gpu.get('id')!=gpu_id or gpu.get('secure') is not True:
+    if type(gpu) is not dict or gpu.get('id')!=gpu_id or gpu.get(lane) is not True:
         raise EvidenceError('POD GPU identity mismatch')
     if gpu.get('availability') not in ('LOW','MEDIUM','HIGH'):
-        raise EvidenceError('selected secure POD GPU unavailable')
+        raise EvidenceError('selected POD GPU unavailable')
     versions=gpu.get('cudaVersions')
     if type(versions) is not list or not versions or len(cuda_versions)!=len(set(cuda_versions)):
         raise EvidenceError('invalid CUDA availability inventory')
@@ -32,10 +42,10 @@ def check(observation,*,now,gpu_id,cuda_versions,maximum_hourly_usd):
     if seen!=set(cuda_versions) or not available:
         raise EvidenceError('selected CUDA versions unavailable or missing')
     try:
-        rate=Decimal(str(gpu['price']['secure']));cap=Decimal(maximum_hourly_usd)
+        rate=Decimal(str(gpu['price'][lane]));cap=Decimal(maximum_hourly_usd)
         if not rate.is_finite() or not cap.is_finite() or not 0<rate<=cap:raise ValueError()
     except (KeyError,TypeError,ValueError,InvalidOperation):
-        raise EvidenceError('invalid or over-budget secure POD quote') from None
-    return {'gpu_id':gpu_id,'secure_hourly_usd':format(rate,'f'),
+        raise EvidenceError('invalid or over-budget selected POD quote') from None
+    return {'gpu_id':gpu_id,'cloud':cloud,'hourly_usd':format(rate,'f'),
             'available_cuda_versions':available,'observed_epoch':epoch,
             'scope':'POD-scoped availability observation; not a reservation or creation authorization'}
