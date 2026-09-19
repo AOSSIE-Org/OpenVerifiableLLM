@@ -1,0 +1,103 @@
+diff --git a/scripts/probe_provider_deadline.py b/scripts/probe_provider_deadline.py
+index c0ca344..c2bcf38 100644
+--- a/scripts/probe_provider_deadline.py
++++ b/scripts/probe_provider_deadline.py
+@@ -48,12 +48,27 @@ def diagnostic(error):
+                if isinstance(error,ProviderFailure) else {})}
+ 
+ 
++PROVIDER_READ_RECOVERY_SECONDS = 120
++PROVIDER_READ_RETRY_SECONDS = 25  # 5s backoff + bounded 18s read + scheduling margin
++
++
+ def transient_read_grace(error, now, last_success, monotonic_now, last_success_monotonic, fallback_epoch, fallback):
+-    # Up to30s since a successful read, followed by at most5s wait +20s request.
+-    # No grace for auth, malformed data, identity, storage, create or teardown errors.
+-    return (isinstance(error,ProviderFailure) and error.transient and not fallback
+-            and last_success is not None and 0<=now-last_success<30
+-            and 0<=monotonic_now-last_success_monotonic<30 and now+25<fallback_epoch)
++    # A communication outage is not an integrity failure. Recovery consumes the
++    # existing rental allowance; it never extends an absolute stop deadline.
++    # Reserve a whole retry within BOTH clocks' windows, anchored to the last
++    # successful read. Failed reads/heartbeats cannot renew this allowance.
++    # Callers use this only for account reads, never creation or mutation retries.
++    retryable = (isinstance(error,ProviderFailure) and error.transient
++                 and ((error.category == 'transport' and error.status is None)
++                      or (error.category == 'http' and type(error.status) is int
++                          and (error.status == 429 or 500 <= error.status <= 599))))
++    if not retryable or fallback or last_success is None or last_success_monotonic is None:
++        return False
++    retry = PROVIDER_READ_RETRY_SECONDS
++    window = PROVIDER_READ_RECOVERY_SECONDS
++    return (0 <= now-last_success <= window-retry
++            and 0 <= monotonic_now-last_success_monotonic <= window-retry
++            and now+retry < fallback_epoch)
+ 
+ 
+ 
+diff --git a/scripts/run_external_watchdog.py b/scripts/run_external_watchdog.py
+index 5733b2b..4db6524 100644
+--- a/scripts/run_external_watchdog.py
++++ b/scripts/run_external_watchdog.py
+@@ -139,7 +139,8 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
+                            'automatic_provider_termination':'UNVERIFIED'})
+             except Exception as e:
+                 if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
+-                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):
++                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry',
++                                     'provider_observed_epoch':last_success,'stop_limit_epoch':p['external_terminate_epoch']}):
+                         write_json(directory/'heartbeat.json',{'schema':'ovl.external-watchdog-heartbeat.v1','observed_epoch':int(wall()),
+                             'provider_observed_epoch':last_success,'pid':os.getpid(),'pod_id':known,'intent_sha256':expected,
+                             'plan_sha256':digest(p),'external_terminate_epoch':p['external_terminate_epoch'],'state':'ARMED',
+diff --git a/scripts/run_rental_controller.py b/scripts/run_rental_controller.py
+index 155c7ff..2aee933 100644
+--- a/scripts/run_rental_controller.py
++++ b/scripts/run_rental_controller.py
+@@ -227,8 +227,14 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
+                         terminate('prior-stop-remains-binding')
+                 if pod is None and not log('provider-observation',{'account':obs,'pod_id':known}):raise EvidenceError('cannot preserve account observation')
+             except Exception as e:
+-                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
+-                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):sleep(5);continue
++                # Observation recovery must not postpone scheduled checkpointing
++                # or an already requested graceful stop, even with no new reads.
++                recovery_limit = min(p['external_terminate_epoch'],
++                    p['request_checkpoint_epoch'] if stopping is None else
++                    min(stopping+p['input']['checkpoint_grace_seconds'],p['provider_terminate_epoch']))
++                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,recovery_limit,terminating)):
++                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry',
++                                     'provider_observed_epoch':last_success,'stop_limit_epoch':recovery_limit}):sleep(5);continue
+                 log('failure',{'stage':'supervision',**diagnostic(e)});terminate('invalid-observation-or-evidence',reconcile=True)
+             sleep(5 if terminating else 10)
+ 
+diff --git a/tests/test_deadline_probe.py b/tests/test_deadline_probe.py
+index af3810c..4ed83e5 100644
+--- a/tests/test_deadline_probe.py
++++ b/tests/test_deadline_probe.py
+@@ -153,8 +153,10 @@ def test_transient_grace_refuses_stale_backward_clock_or_near_deadline():
+     from probe_provider_deadline import ProviderFailure,transient_read_grace
+     error=ProviderFailure('transport',transient=True)
+     assert transient_read_grace(error,20,0,20,0,100,False)
+-    assert not transient_read_grace(error,30,0,20,0,100,False)
+-    assert not transient_read_grace(error,20,0,30,0,100,False)
++    assert transient_read_grace(error,50,0,50,0,200,False)
++    assert transient_read_grace(error,95,0,95,0,200,False)
++    assert not transient_read_grace(error,96,0,20,0,200,False)
++    assert not transient_read_grace(error,20,0,96,0,200,False)
+     assert not transient_read_grace(error,-1,0,20,0,100,False)
+     assert not transient_read_grace(error,20,0,20,0,45,False)
+     assert not transient_read_grace(error,20,0,20,0,100,True)
+diff --git a/tests/test_provider_bounded_read.py b/tests/test_provider_bounded_read.py
+index 5564a21..21c53cb 100644
+--- a/tests/test_provider_bounded_read.py
++++ b/tests/test_provider_bounded_read.py
+@@ -38,7 +38,8 @@ def test_whole_call_deadline_kills_and_reaps_slow_owned_read(tmp_path):
+     pid=int(pidfile.read_text());assert not Path(f'/proc/{pid}').exists()
+     with pytest.raises(ChildProcessError):os.waitpid(pid,os.WNOHANG)
+     assert transient_read_grace(error.value,28,0,28,0,100,False)
+-    assert not transient_read_grace(error.value,30,0,30,0,100,False)
++    assert transient_read_grace(error.value,50,0,50,0,200,False)
++    assert not transient_read_grace(error.value,120,0,120,0,200,False)
+ 
+ 
+ @pytest.mark.parametrize('category,status,transient',[('transport',None,True),('http',503,True),('http',401,False),('invalid-response-Refused',None,False)])

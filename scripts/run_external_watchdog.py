@@ -139,7 +139,8 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                            'automatic_provider_termination':'UNVERIFIED'})
             except Exception as e:
                 if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
-                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):
+                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry',
+                                     'provider_observed_epoch':last_success,'stop_limit_epoch':p['external_terminate_epoch']}):
                         write_json(directory/'heartbeat.json',{'schema':'ovl.external-watchdog-heartbeat.v1','observed_epoch':int(wall()),
                             'provider_observed_epoch':last_success,'pid':os.getpid(),'pod_id':known,'intent_sha256':expected,
                             'plan_sha256':digest(p),'external_terminate_epoch':p['external_terminate_epoch'],'state':'ARMED',

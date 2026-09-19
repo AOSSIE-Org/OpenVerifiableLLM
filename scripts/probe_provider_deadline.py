@@ -48,12 +48,27 @@ def diagnostic(error):
                if isinstance(error,ProviderFailure) else {})}
 
 
+PROVIDER_READ_RECOVERY_SECONDS = 120
+PROVIDER_READ_RETRY_SECONDS = 25  # 5s backoff + bounded 18s read + scheduling margin
+
+
 def transient_read_grace(error, now, last_success, monotonic_now, last_success_monotonic, fallback_epoch, fallback):
-    # Up to30s since a successful read, followed by at most5s wait +20s request.
-    # No grace for auth, malformed data, identity, storage, create or teardown errors.
-    return (isinstance(error,ProviderFailure) and error.transient and not fallback
-            and last_success is not None and 0<=now-last_success<30
-            and 0<=monotonic_now-last_success_monotonic<30 and now+25<fallback_epoch)
+    # A communication outage is not an integrity failure. Recovery consumes the
+    # existing rental allowance; it never extends an absolute stop deadline.
+    # Reserve a whole retry within BOTH clocks' windows, anchored to the last
+    # successful read. Failed reads/heartbeats cannot renew this allowance.
+    # Callers use this only for account reads, never creation or mutation retries.
+    retryable = (isinstance(error,ProviderFailure) and error.transient
+                 and ((error.category == 'transport' and error.status is None)
+                      or (error.category == 'http' and type(error.status) is int
+                          and (error.status == 429 or 500 <= error.status <= 599))))
+    if not retryable or fallback or last_success is None or last_success_monotonic is None:
+        return False
+    retry = PROVIDER_READ_RETRY_SECONDS
+    window = PROVIDER_READ_RECOVERY_SECONDS
+    return (0 <= now-last_success <= window-retry
+            and 0 <= monotonic_now-last_success_monotonic <= window-retry
+            and now+retry < fallback_epoch)
 
 
 

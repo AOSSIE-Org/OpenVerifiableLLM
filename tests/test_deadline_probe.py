@@ -153,8 +153,10 @@ def test_transient_grace_refuses_stale_backward_clock_or_near_deadline():
     from probe_provider_deadline import ProviderFailure,transient_read_grace
     error=ProviderFailure('transport',transient=True)
     assert transient_read_grace(error,20,0,20,0,100,False)
-    assert not transient_read_grace(error,30,0,20,0,100,False)
-    assert not transient_read_grace(error,20,0,30,0,100,False)
+    assert transient_read_grace(error,50,0,50,0,200,False)
+    assert transient_read_grace(error,95,0,95,0,200,False)
+    assert not transient_read_grace(error,96,0,20,0,200,False)
+    assert not transient_read_grace(error,20,0,96,0,200,False)
     assert not transient_read_grace(error,-1,0,20,0,100,False)
     assert not transient_read_grace(error,20,0,20,0,45,False)
     assert not transient_read_grace(error,20,0,20,0,100,True)

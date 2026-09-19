@@ -227,8 +227,14 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                         terminate('prior-stop-remains-binding')
                 if pod is None and not log('provider-observation',{'account':obs,'pod_id':known}):raise EvidenceError('cannot preserve account observation')
             except Exception as e:
-                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,p['external_terminate_epoch'],terminating)):
-                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry'}):sleep(5);continue
+                # Observation recovery must not postpone scheduled checkpointing
+                # or an already requested graceful stop, even with no new reads.
+                recovery_limit = min(p['external_terminate_epoch'],
+                    p['request_checkpoint_epoch'] if stopping is None else
+                    min(stopping+p['input']['checkpoint_grace_seconds'],p['provider_terminate_epoch']))
+                if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,recovery_limit,terminating)):
+                    if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry',
+                                     'provider_observed_epoch':last_success,'stop_limit_epoch':recovery_limit}):sleep(5);continue
                 log('failure',{'stage':'supervision',**diagnostic(e)});terminate('invalid-observation-or-evidence',reconcile=True)
             sleep(5 if terminating else 10)
 
