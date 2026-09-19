@@ -237,6 +237,21 @@ def host_runtime():
             "scope":"operator-observed CPU dispatch and interpreter bytes; not hardware attestation or full installed-stack verification"}
 
 
+def verification_runtime_imports():
+    """Load the same verifier extensions before every numerical fingerprint.
+
+    Production authenticates public anchors before initialization. Pilots and
+    initialization must observe those pinned extensions too; removing them from
+    the complete mapped-library inventory would hide a real runtime difference.
+    This imports code only: no network request, signature receipt or trust credit.
+    """
+    if importlib.metadata.version('sigstore') != '4.5.0':
+        raise EvidenceError('unsupported verification runtime version')
+    modules=('sigstore.models','sigstore.verify','sigstore.verify.policy')
+    for name in modules:importlib.import_module(name)
+    return list(modules)
+
+
 def environment(config):
     """Compatibility fingerprint plus separately reported physical-device identity.
 
@@ -247,6 +262,7 @@ def environment(config):
     validate_config(config)
     if not _configured:
         raise EvidenceError("GPU runtime has not been configured")
+    verifier_imports=verification_runtime_imports()
     query = subprocess.check_output(["nvidia-smi", "--query-gpu=index,name,uuid,driver_version",
                                      "--format=csv,noheader,nounits"], text=True)
     devices = list(csv.reader(query.splitlines(), skipinitialspace=True))
@@ -277,6 +293,7 @@ def environment(config):
                "multiprocessors":p.multi_processor_count,"warp_size":getattr(p,"warp_size",None)},
         "flags":flags(),"blas_workspaces":workspaces(),"packages":sorted(distributions,key=lambda e:e["name"]),
         "loaded_numerical_libraries":libraries,
+        "verification_runtime_imports":verifier_imports,
         "mapped_library_scope":"all file-backed shared ELF images at fingerprint time; path device/inode checked, not in-memory execution attestation",
         "environment":{n:os.environ.get(n) for n in ["CUBLAS_WORKSPACE_CONFIG","CUBLASLT_WORKSPACE_SIZE",
             "TORCH_CUBLASLT_UNIFIED_WORKSPACE","CUDA_VISIBLE_DEVICES",
