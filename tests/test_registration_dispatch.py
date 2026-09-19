@@ -56,6 +56,15 @@ def test_publication_and_restart_reverify_actual_bytes_and_external_policy(tmp_p
     assert first['production_policy']['workflow']==m.PRODUCTION_WORKFLOW
 
 
+def test_registration_reports_completed_finite_gates_only(tmp_path,monkeypatch):
+    packet,r,source,provider,calls=configured(tmp_path,monkeypatch);events=[]
+    m.publish(packet,digest(r),source,tmp_path,tmp_path/'publisher',int(time.time())+300,
+              progress=lambda stage,identity:events.append((stage,identity)))
+    assert [stage for stage,_ in events]==['checkpoint-public-download-verified','request-public-commit-verified',
+        'actions-anchor-signature-verified','anchor-public-download-verified']
+    assert events[0][1]['kind']=='registration-packet'
+
+
 @pytest.mark.parametrize('damage',['registration','source-policy','packet-parent','changed-deadline','wrong-bundle','changed-actions','corrupt-public'])
 def test_changed_evidence_never_produces_registration_receipt(tmp_path,monkeypatch,damage):
     packet,r,source,provider,calls=configured(tmp_path,monkeypatch);out=tmp_path/'publisher';deadline=int(time.time())+300

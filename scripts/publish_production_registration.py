@@ -138,7 +138,7 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
     raise EvidenceError('publisher deadline reached; checkpoint remains preserved and unacknowledged')
 
 
-def publish(packet,expected_registration,source_policy,source_checkout,output,deadline):
+def publish(packet,expected_registration,source_policy,source_checkout,output,deadline,*,progress=None):
     integer(deadline,1,2**53-1,'registration publication deadline')
     if time.time()>=deadline:raise EvidenceError('registration publication deadline expired')
     if type(source_policy) is not PublisherPolicy:raise EvidenceError('independent source publisher policy required')
@@ -162,15 +162,17 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
         'files':identity['packet_inventory']}
     archive,downloaded,receipt=published(plan,packet,output/'packet-publication')
     if time.time()>=deadline:raise EvidenceError('packet publication exceeded original deadline')
+    if progress is not None:progress('checkpoint-public-download-verified',{'kind':'registration-packet','archive':archive})
     request={'schema':'ovl.production-signing-request.v1','registration_sha256':expected_registration,
         'packet':archive,'source_policy':asdict(source_policy)}
     validate_request(request);save_once(output/'request.json',request)
     revision=request_commit(request,r,output/'request-commit',execute=bounded_command)
+    if progress is not None:progress('request-public-commit-verified',{'revision':revision,'request_sha256':digest(request)})
     policy=expected_policy(revision,r)
     save_once(output/'operator-selected-policy.json',asdict(policy))
     action_receipt=output/'actions.json';action_directory=output/'actions'
     if not action_receipt.exists():
-        result=actions_artifact(revision,action_directory,deadline,execute=bounded_command)
+        result=actions_artifact(revision,action_directory,deadline,execute=bounded_command,progress=progress)
         save_once(action_receipt,result)
     action=read_json(action_receipt)
     if (action.get('revision')!=revision or action.get('attempt')!=1
@@ -181,6 +183,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
     bundle=confined(action_directory,'registration.sigstore.json')
     checked=verify_packet(downloaded,bundle,policy,source_policy,
         policy_origin='operator-reconstructed-from-source',source_checkout=source_checkout)
+    if progress is not None:progress('actions-anchor-signature-verified',{'policy':asdict(policy),'bundle_sha256':file_hash(bundle)})
     staging=output/'anchor-staging';staging.mkdir(exist_ok=True)
     dest=staging/'registration.sigstore.json'
     if dest.exists():
@@ -194,6 +197,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
     final=verify_packet(downloaded,downloaded_anchor/'registration.sigstore.json',policy,source_policy,
         policy_origin='operator-reconstructed-from-source',source_checkout=source_checkout)
     if time.time()>=deadline:raise EvidenceError('registration publication completed after original deadline')
+    if progress is not None:progress('anchor-public-download-verified',{'archive':anchor,'policy':asdict(policy)})
     result={'schema':'ovl.public-registration-publication.v1','result':'PASS','registration_sha256':expected_registration,
         'request_sha256':digest(request),'request_revision':revision,'production_policy':asdict(policy),
         'packet':archive,'registration_anchor':anchor,

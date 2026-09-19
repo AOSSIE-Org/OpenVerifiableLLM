@@ -120,3 +120,43 @@ def test_real_production_retention_adopts_after_completed_setup_without_new_cloc
     with Journal(path).lease() as j:
         h=ProductionRunHealth(j,w,control.profile['pod_id'],r,bindings,{})
         assert h.retained(root)[1]['terminal']==result['terminal'] and not h.complete
+
+
+def registration_health(j,c,registration=None):
+    return ProductionRunHealth(j,intent(),'owned-pod',registration or {'explicit-test-registration':True},{},{},
+        wall=lambda:c.now,clock=lambda:{'boot_id':c.boot,'boottime_ms':c.ms})
+
+
+def publication(h,stage='actions-run-observed',deadline=NOW+200):
+    return {'schema':'ovl.publication-activity.v1','registration_sha256':h.registration_root,
+        'boundary_sha256':h.registration_root,'stage':stage,'identity':{'run_id':123},'identity_sha256':digest({'run_id':123}),
+        'deadline_epoch':deadline,'scope':'operator-publication-liveness-only-not-training-or-signer-verification'}
+
+
+def test_registration_progress_is_finite_and_replayed_without_export_credit(tmp_path):
+    c=Clock();path=tmp_path/'journal'
+    with Journal(path).lease() as j:
+        h=registration_health(j,c);v=publication(h);c.advance(30)
+        assert h.registration_activity(v);assert h.progress==NOW+30 and h.exported==NOW and not h.complete
+        c.advance(30);assert not h.registration_activity(v);assert h.progress==NOW+30
+    with Journal(path).lease() as j:
+        h=registration_health(j,c);assert not h.registration_activity(v);assert h.progress==NOW+30
+        assert h.registration_activity(publication(h,'actions-step-01'));assert h.exported==NOW
+    with Journal(path).lease() as j:
+        with pytest.raises(EvidenceError):registration_health(j,c,{'different-registration':True})
+
+
+@pytest.mark.parametrize('damage',['deadline','expired','changed-root','overlap','changed-stage-identity','unknown-stage'])
+def test_invalid_registration_progress_never_receives_credit(tmp_path,damage):
+    c=Clock()
+    with Journal(tmp_path/'journal').lease() as j:
+        h=registration_health(j,c);v=publication(h);assert h.registration_activity(v)
+        if damage=='deadline':v=publication(h,'actions-step-01',NOW+201)
+        elif damage=='expired':c.advance(201)
+        elif damage=='changed-root':v['registration_sha256']='0'*64
+        elif damage=='overlap':h.start_job({**SELECTION,'job_sha256':D,'kind':'setup'})
+        elif damage=='changed-stage-identity':v['identity']={'run_id':999};v['identity_sha256']=digest(v['identity'])
+        else:v['stage']='arbitrary-clock-tick'
+        before=len(j.events)
+        with pytest.raises(EvidenceError):h.registration_activity(v)
+        assert len(j.events)==before and h.exported==NOW and not h.complete
