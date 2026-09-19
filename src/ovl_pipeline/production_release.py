@@ -108,7 +108,8 @@ def reports(r,directory):
     ProgressPublisherPolicy(**c['final_progress']['policy']).validate()
     reconstruction=values['reconstruction'];replay=values['replay'];verification=values['verification'];evaluation=values['evaluation'];exports=values['exports']
     fields(reconstruction,'result scope preparation_sha256 source_commitment_sha256 full_reconstruction_compared execution_observation_sha256 stages_executed_this_run stages_adopted_from_local_cache training_replay production_training_admission','reconstruction report')
-    fields(verification,'schema result registration_sha256 scope checks endorsements reconstruction reconstructed_artifacts replay_report_sha256 replay_process exports evaluation_sha256 raw_inputs base_model_root chat_model_root reconstruction_and_input_validation_ms total_ms performed_by attested_by locally_recomputed independent_third_party public_release_download_verification factual_accuracy','complete computation report')
+    composed=verification.get('schema')=='ovl.complete-computation-verification.v2'
+    fields(verification,'schema result registration_sha256 scope checks endorsements reconstruction reconstructed_artifacts replay_report_sha256 replay_process exports evaluation_sha256 raw_inputs base_model_root chat_model_root reconstruction_and_input_validation_ms total_ms performed_by attested_by locally_recomputed independent_third_party public_release_download_verification factual_accuracy'+(' execution' if composed else ''),'complete computation report')
     fields(replay,'schema result scope registration_sha256 session_sha256 chain_sha256 endorsements artifact_check comparisons recovery_checkpoints updates_recomputed targets_recomputed initial_state_regenerated prover_checkpoints_restored base_model_root chat_model_root setup_ms numerical_replay_ms performed_by independent_third_party raw_transformation_reconstruction public_download_verification cost_guard_admission end_to_end_release_verification','numerical replay report')
     fields(evaluation,'schema registration_sha256 split stream_sha256 subset_sampling recipe runtime models factual_accuracy independent_third_party','held-out evaluation report')
     fields(exports,'schema status registration_sha256 chain_sha256 exports endorsements prepared_artifact_check full_raw_reconstruction continuous_numerical_replay public_download_verification factual_accuracy','candidate export report')
@@ -118,14 +119,20 @@ def reports(r,directory):
         or reconstruction.get('source_commitment_sha256')!=r['source_statement_sha256']
         or reconstruction.get('stages_executed_this_run')!=STAGES or reconstruction.get('stages_adopted_from_local_cache')!=[]):
         raise EvidenceError('release lacks complete fresh reconstruction assertion')
-    if (verification.get('schema')!='ovl.complete-computation-verification.v1' or verification.get('result')!='PASS'
+    if (verification.get('schema') not in ('ovl.complete-computation-verification.v1','ovl.complete-computation-verification.v2') or verification.get('result')!='PASS'
         or verification['scope']!='complete-raw-transformations-fresh-initialization-all-updates-both-exported-models'
         or verification.get('registration_sha256')!=root or verification.get('checks')!=CHECKS
         or verification.get('attested_by') is not None or verification.get('public_release_download_verification')!='NOT_RUN'
-        or verification.get('locally_recomputed') is not True or verification.get('independent_third_party') is not False
+        or verification.get('locally_recomputed') is not (not composed) or verification.get('independent_third_party') is not False
         or verification.get('reconstruction')!=reconstruction or verification.get('replay_report_sha256')!=digest(replay)
         or verification.get('evaluation_sha256')!=digest(evaluation)):
         raise EvidenceError('complete computation assertion missing or disconnected')
+    if composed:
+        from .production_composition import validate as validate_composition
+        validate_composition(verification['execution'],r,reconstruction,replay,verification['replay_process'])
+        if (verification['performed_by']!='project-operator-separate-recorded-executions'
+            or verification['execution']['assembly']['raw_inventory_sha256']!=verification['raw_inputs']['complete_inventory_sha256']):
+            raise EvidenceError('composed computation scope or raw inventory differs')
     if (replay.get('schema')!='ovl.production-numerical-replay.v1' or replay.get('result')!='PASS'
         or replay['scope']!='fresh-regenerated-initialization-continuous-two-phase-all-update-state-comparison'
         or replay['independent_third_party'] is not False
@@ -244,6 +251,9 @@ def prepare_payloads(r,report_directory,exports,source_checkout,output,*,source_
         shutil.copyfile(license,directory/'LICENSE')
         repo=model_repo(r,phase,publication);parameters=sum(p.numel() for p in model.parameters())
         description='Wikipedia base model' if phase=='base' else 'conversational derivative of the Wikipedia base model'
+        execution_note=('The reconstruction and replay were separate recorded executions. The final report assembly '
+                        'rechecked their artifacts and evaluated the models; it did not rerun those computations.\n\n'
+                        if values['verification']['schema']=='ovl.complete-computation-verification.v2' else '')
         card=f'''---
 license: gpl-3.0
 language: en
@@ -266,6 +276,7 @@ that operator report. It is not independent third-party verification. Run the
 to recompute the declared computation on the stated compatible environment.
 Checking the publisher signature alone does not replay training.
 
+{execution_note}\
 Registration SHA-256: `{digest(r)}`. Model tensor root: `{root}`.
 The signed `release.json` binds payloads, source identity and public evidence.
 Choose the release publisher trust policy independently; do not trust a policy

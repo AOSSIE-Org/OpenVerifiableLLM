@@ -61,3 +61,47 @@ The implementation's tiny test executes real synthetic raw transformations, CPU
 training/replay, safe exports, full held-out evaluation and deterministic inference.
 Publisher and GPU-launch adapters are explicit test substitutes. That coverage is
 not actual production or independent verification evidence.
+
+## Joining separately executed operator work
+
+An operator may complete the clean data reconstruction before renting a GPU, then
+perform the complete continuous replay later. This preserves the same numerical
+and corpus requirements while avoiding a second reconstruction solely to place
+both operations inside one command. Use the fresh-work command above to execute
+your own complete verification.
+
+`scripts/assemble_computation_evidence.py` produces an explicitly different
+`ovl.complete-computation-verification.v2` report from those retained executions:
+
+```bash
+TOKENIZERS_PARALLELISM=false PYTHONPATH=src:scripts TRUSTED_CPU_PYTHON \
+  scripts/assemble_computation_evidence.py \
+  --selection ASSEMBLY_SELECTION.json --selection-sha256 EXTERNALLY_SELECTED_SHA256
+```
+
+The caller selects the registration and publisher policies, immutable public
+execution evidence, complete original reconstruction observation, audited replay
+launch and successful worker termination, complete retained output inventories,
+raw/prepared data, recorded and verifier states, and both exports. The command
+authenticates the registration and all public primary boundaries again, downloads
+and checks the selected public execution documents, rehashes every raw/prepared
+input and retained output, compares every required primary and recovery safe
+state, verifies both export mappings, and executes complete held-out evaluation
+and fixed inference checks. It rejects partial replay, adopted reconstruction
+stages, altered bytes, missing audits, failed exits and disconnected parents.
+
+The earlier reconstruction must itself have freshly executed all six stages;
+neither sampled transformations nor cached preparation qualifies. Its original
+execution report and timing remain identified separately. `total_ms` measures
+the assembly command; `reconstruction_and_input_validation_ms` retains the
+earlier complete reconstruction duration. The report uses `locally_recomputed:
+false`, names the separate operator executions, and explicitly records zero new
+numerical updates and no new raw transformations during assembly. It does not
+claim that matching saved states proves their training trajectory. The original
+audited continuous replay execution supplies the operator's execution evidence;
+the retained process observations are not hardware attestation.
+
+Both report versions retain all existing release coverage, ancestry, model,
+evaluation and scope checks. A release using v2 also explains the separate
+executions in its model cards. Neither assembly, a signed report, nor a public
+download constitutes independent third-party recomputation.
