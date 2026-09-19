@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","pod_id":"pa68h8bg9lzf7u","reason":"observation-or-evidence-failure"},"kind":"decision","observed_epoch":1789791294,"previous":"053cdbb8006e5d2e9ee25db4feb4e1f0477d1fba0b1decbf9d4ad6df0796876d","schema":"ovl.controller-event.v1","sequence":155}

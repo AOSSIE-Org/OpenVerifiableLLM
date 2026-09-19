@@ -14,6 +14,7 @@ from pod_observe import observe_many
 from pod_job_client import launch,reconcile_launch,export_tree,job_supervision
 from pod_transfer import relative
 from workload_health import terminal_status
+from pod_observation_retry import read as bounded_read
 
 
 def remote_name(transport,path):
@@ -126,7 +127,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
             marker=output/'request-stop';write_json(marker,requested)
             receipt=transport.put(job_root+'/request-stop',marker,transfer_deadline())
             write_json(output/'stop-delivery.json',receipt);stop_delivered=True
-        supervision=job_supervision(transport,expected_job,expected_worker,transfer_deadline())
+        supervision=bounded_read('supervision',transport,(expected_job,expected_worker),health,health_file,observation,sleep=sleep)
         write_json(observation/'supervision.json',supervision)
         if supervision['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):
             abandoned=job_supervision(transport,expected_job,expected_worker,transfer_deadline(),abandon=True)
@@ -149,7 +150,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         if initial_retention is not None:
             for index,name in enumerate(initial_retention.observation_paths()):
                 selected[name]=observation/f'initial-retention-{index:03d}.json'
-        bundle=observe_many(transport,selected,65536,transfer_deadline())
+        bundle=bounded_read('metadata',transport,selected,health,health_file,observation,sleep=sleep)
         exit_value=bundle[job_root+'/exit.json'];status=bundle[job_root+'/status.json']
         if exit_value is not None:
             fields(exit_value,'schema job_sha256 state exit_code','workload terminal observation')

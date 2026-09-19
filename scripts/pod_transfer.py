@@ -20,6 +20,22 @@ import time
 from ovl_pipeline.canonical import EvidenceError,confined,file_hash,parse_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
 
+
+class TransientTransportError(EvidenceError):
+    """Failed transport only; no identity, framing or content verification credit."""
+
+
+def process_failure(code, errors):
+    # Diagnostics stay private; only this closed category may be retried by a
+    # read-only caller. Authentication/host-key/unknown failures remain fatal.
+    denied = (b'host key', b'host identification', b'permission denied', b'authentication')
+    transient = (b'connection timed out', b'connection reset', b'connection refused',
+                 b'connection closed', b'network is unreachable', b'no route to host')
+    diagnostic = bytes(errors).lower()
+    if code == 255 and not any(s in diagnostic for s in denied) and any(s in diagnostic for s in transient):
+        return TransientTransportError('SSH connection failed; diagnostics withheld')
+    return EvidenceError('SSH transfer process failed; diagnostics withheld')
+
 # This receives only a fixed root, confined relative path, length/hash and an
 # explicit replacement bit. It drains and verifies the complete input before an
 # atomic installation. It never evaluates a command from a downloaded artifact.
@@ -169,7 +185,7 @@ class Transport:
         try:
             while selector.get_map():
                 left=min(end-self.monotonic(),deadline-self.wall())
-                if left<=0:raise EvidenceError('transfer deadline reached; rental deadline is unchanged')
+                if left<=0:raise TransientTransportError('transfer deadline reached; rental deadline is unchanged')
                 for key,events in selector.select(min(1,left)):
                     channel=key.fileobj
                     if key.data=='input':
@@ -195,8 +211,12 @@ class Transport:
                 if progress is not None and counts!=last_counts and now-last_observed>=2:
                     progress({'bytes_sent':in_count,'bytes_received':out_count});last_counts=counts;last_observed=now
             left=min(end-self.monotonic(),deadline-self.wall())
-            if left<=0:raise EvidenceError('transfer deadline reached before process exit')
-            if process.wait(timeout=left)!=0 or not input_done:raise EvidenceError('SSH transfer process failed; diagnostics withheld')
+            if left<=0:raise TransientTransportError('transfer deadline reached before process exit')
+            try:code=process.wait(timeout=left)
+            except subprocess.TimeoutExpired:
+                raise TransientTransportError('transfer deadline reached before process exit') from None
+            if code!=0:raise process_failure(code,errors)
+            if not input_done:raise EvidenceError('SSH transfer input incomplete')
             if progress is not None and (in_count,out_count)!=last_counts:progress({'bytes_sent':in_count,'bytes_received':out_count})
             return {'bytes_sent':in_count,'bytes_received':out_count,'process_exit_code':0,'pod_id':self.profile['pod_id'],
                     'endpoint_observation_sha256':self.profile['endpoint_observation_sha256'],'host_key_trust':self.profile['host_key_trust']}

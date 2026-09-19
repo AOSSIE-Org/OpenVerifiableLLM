@@ -58,6 +58,13 @@ def transient_read_grace(error, now, last_success, monotonic_now, last_success_m
 
 
 def request(operation, variables=None):
+    if operation in ('account','identities'):
+        from provider_bounded_read import call
+        return call(operation,variables,_request_direct,ProviderFailure,diagnostic)
+    return _request_direct(operation,variables)
+
+
+def _request_direct(operation, variables=None):
     if operation not in OPERATIONS:raise EvidenceError('unknown provider operation')
     q=OPERATIONS[operation]
     req=Request(ENDPOINT,data=json.dumps({'query':q,'variables':variables or {}}).encode(),
