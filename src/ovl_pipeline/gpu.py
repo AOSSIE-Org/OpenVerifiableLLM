@@ -253,7 +253,7 @@ def verification_runtime_imports():
 
 
 def environment(config):
-    """Compatibility fingerprint plus separately reported physical-device identity.
+    """Public compatibility fingerprint without physical-device identifiers.
 
     Loaded library bytes and distribution RECORD identities supplement the required
     immutable container and wheel lock. This function alone cannot attest the host
@@ -263,12 +263,12 @@ def environment(config):
     if not _configured:
         raise EvidenceError("GPU runtime has not been configured")
     verifier_imports=verification_runtime_imports()
-    query = subprocess.check_output(["nvidia-smi", "--query-gpu=index,name,uuid,driver_version",
+    query = subprocess.check_output(["nvidia-smi", "--query-gpu=index,name,driver_version",
                                      "--format=csv,noheader,nounits"], text=True)
     devices = list(csv.reader(query.splitlines(), skipinitialspace=True))
-    if len(devices) != 1 or len(devices[0]) != 4:
+    if len(devices) != 1 or len(devices[0]) != 3:
         raise EvidenceError("provider GPU inventory is not one physical GPU")
-    _, _, gpu_uuid, driver = devices[0]
+    _, _, driver = devices[0]
     p = torch.cuda.get_device_properties(0)
     cudnn_version = torch.backends.cudnn.version()  # Load before mapped-library capture.
     distributions = []
@@ -303,5 +303,5 @@ def environment(config):
             "PYTHONHASHSEED","TOKENIZERS_PARALLELISM"]},
         "attention":"manual","compiler":"eager-no-compile","grad_scaler":"none",
         "autocast_cache":False,"parameter_dtype":"float32","optimizer":"explicit-nonfused-AdamW-v1"}
-    return {"compatible":compatible,"physical_observation":{"gpu_uuid":gpu_uuid,"nvidia_smi":query},
+    return {"compatible":compatible,
             "reproducibility_validation":"NOT_RUN","production_admission":"NOT_RUN"}
