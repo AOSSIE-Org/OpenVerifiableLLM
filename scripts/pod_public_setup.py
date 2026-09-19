@@ -48,7 +48,9 @@ def extract(archive,expected,root,files):
     if type(files) is not list or not 1<=len(files)<=10000:raise ValueError('bounded source inventory required')
     names=[];total=0
     for item in files:
-        if set(item)!={'path','bytes','sha256'} or type(item['bytes']) is not int or not 0<=item['bytes']<=16*1024**2:raise ValueError('source member bound')
+        # A real Git object pack may exceed 16 MiB. The unchanged 64 MiB
+        # aggregate bound still limits all selected source and Git bytes.
+        if set(item)!={'path','bytes','sha256'} or type(item['bytes']) is not int or not 0<=item['bytes']<=64*1024**2:raise ValueError('source member bound')
         p=path(root,item['path'])
         if '__pycache__' in p.parts or p.suffix in ('.pyc','.pyo'):raise ValueError('source bytecode refused')
         if not re.fullmatch('[0-9a-f]{64}',item['sha256']):raise ValueError('source digest')

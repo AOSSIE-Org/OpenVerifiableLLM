@@ -40,6 +40,23 @@ def test_selected_archive_is_reconstructed_exactly(tmp_path):
     assert file_hash(out/files[0]['path'])==files[0]['sha256']
 
 
+def test_git_pack_sized_member_preserves_hash_checks_and_total_bound(tmp_path):
+    data=b'complete selected Git pack fixture\n'*(600000)
+    assert 16*1024**2<len(data)<64*1024**2
+    name='.git/objects/pack/pack-fixture.pack';a=tmp_path/'source.tar.gz'
+    files=[{'path':name,'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()}]
+    with tarfile.open(a,'w:gz',format=tarfile.USTAR_FORMAT) as t:
+        member=tarfile.TarInfo(name);member.size=len(data);t.addfile(member,io.BytesIO(data))
+    m.extract(a,file_hash(a),tmp_path/'out',files)
+    assert (tmp_path/'out'/name).read_bytes()==data
+    bad=[{**files[0],'sha256':'0'*64}]
+    with pytest.raises(ValueError,match='source bytes'):m.extract(a,file_hash(a),tmp_path/'changed',bad)
+    for bad in ([{**files[0],'bytes':64*1024**2+1}],
+                [{**files[0],'path':n,'bytes':40*1024**2} for n in ('a','b')]):
+        with pytest.raises(ValueError,match='bound'):m.extract(a,file_hash(a),tmp_path/'oversize',bad)
+        assert not (tmp_path/'oversize').exists()
+
+
 @pytest.mark.parametrize('fault',['traversal','symlink','hardlink','size','bytes','extra','bad-pin','bytecode','duplicate','preserve-existing'])
 def test_bad_archive_has_no_success_and_preserves_partial(tmp_path,fault):
     a,files=archive(tmp_path,fault);out=tmp_path/'out';pin=file_hash(a)
