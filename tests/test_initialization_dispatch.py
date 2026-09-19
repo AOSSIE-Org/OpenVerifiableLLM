@@ -111,6 +111,13 @@ def test_actual_cpu_initial_states_and_full_retention_precede_regeneration_and_a
         write_json(stage_path,original_stage);write_json(final_path,original_final)
     result=run();assert result['outcome']=='EXITED_ZERO' and executions==['record','verify']
     assert read_json(tmp_path/'sustained/initialization-consistency.json')['result']=='PASS'
+    from production_run_parents import initialization as select_initialization
+    initial_record=read_json(remote/'record/record.json')
+    qualified={'pod_id':t.profile['pod_id'],'compatible_environment_sha256':digest(initial_record['environment']['compatible'])}
+    selected_parent=select_initialization(plan,digest(plan),tmp_path/'sustained',t.profile,qualified)
+    assert selected_parent['record']==initial_record and selected_parent['retained_check']['result']=='PASS'
+    with pytest.raises(EvidenceError):
+        select_initialization(plan,digest(plan),tmp_path/'sustained',t.profile,{**qualified,'compatible_environment_sha256':'0'*64})
     before=len(calls);assert run()==result and len(calls)==before and executions==['record','verify']
     # A locally rewritten report must not relabel a retained audit as another
     # root even if its bytes and the updated enclosing report hash still match.

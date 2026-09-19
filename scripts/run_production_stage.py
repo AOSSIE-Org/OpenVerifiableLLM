@@ -164,7 +164,11 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
             values=bounded_read('metadata',activity_transport,{activity_name:observation/'activity.json'},health,health_file,observation,sleep=sleep)
             if values[activity_name] is not None:health.activity(expected_job,values[activity_name])
         checkpoint.poll()
-        if publisher is not None and requested is None:publisher.poll()
+        if publisher is not None and requested is None:
+            publication=publisher.poll()
+            if publication is not None and publication.get('schema')=='ovl.production-boundary-completion.v1':
+                from consolidate_boundary_storage import consolidate
+                consolidate(publisher.output,publication,checkpoint.store)
         health.write(health_file);sleep(5)
     intent_file=output/'terminal-export-intent.json'
     if not intent_file.exists():
