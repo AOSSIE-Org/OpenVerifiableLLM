@@ -1,0 +1,6 @@
+{
+  "observed_epoch": 1789778423,
+  "returncode": 0,
+  "stdout": "# 81.27.69.179:22858 SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13.14\n[81.27.69.179]:22858 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPPDGEpwNVh+CckAjAXnUd5yTdLwn3+BATCjJ/EpFB7E\n",
+  "stderr": ""
+}
