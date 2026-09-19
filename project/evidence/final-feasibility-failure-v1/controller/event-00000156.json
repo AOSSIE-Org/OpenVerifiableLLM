@@ -1,0 +1,1 @@
+{"body":{"category":"transport","error_type":"ProviderFailure","http_status":null,"stage":"supervision","transient":true},"kind":"failure","observed_epoch":1789791294,"previous":"d43c72df18ecd577c8f2de074c012d89b8a1f745864428dac30d97606d81b43c","schema":"ovl.controller-event.v1","sequence":156}

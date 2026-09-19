@@ -1,0 +1,6 @@
+{
+  "execution_admission": "NOT_RUN",
+  "reason": "provider read failed: HTTPError",
+  "resource_mutation": "NOT_RUN",
+  "result": "UNAVAILABLE"
+}

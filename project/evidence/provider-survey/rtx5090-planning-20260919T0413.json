@@ -1,0 +1,61 @@
+{
+  "schema": "ovl.future-hardware-planning-observation.v1",
+  "scope": "Planning only; not an admission or reservation. Refresh after current4090 termination/reconciliation.",
+  "observed_utc": "2026-09-19T04:15:13.935Z",
+  "query": {
+    "id": "NVIDIA GeForce RTX 5090",
+    "include": [
+      "AVAILABILITY"
+    ],
+    "product": [
+      "POD"
+    ],
+    "cloud": "SECURE",
+    "count": 1,
+    "cudaVersions": [
+      "13.0",
+      "13.2"
+    ]
+  },
+  "response": {
+    "availability": "LOW",
+    "community": true,
+    "cudaVersions": [
+      {
+        "available": true,
+        "version": "13.0"
+      },
+      {
+        "available": true,
+        "version": "13.2"
+      }
+    ],
+    "dataCenters": [
+      {
+        "availability": "LOW",
+        "id": "EU-RO-1",
+        "name": "EU-RO-1"
+      },
+      {
+        "availability": "LOW",
+        "id": "EUR-IS-1",
+        "name": "EUR-IS-1"
+      }
+    ],
+    "id": "NVIDIA GeForce RTX 5090",
+    "manufacturer": "NVIDIA",
+    "maxCount": {
+      "community": 8,
+      "secure": 8
+    },
+    "memory": 32,
+    "name": "RTX 5090",
+    "pool": "ADA_32_PRO",
+    "price": {
+      "community": 0.69,
+      "secure": 0.99,
+      "serverless": 1.58
+    },
+    "secure": true
+  }
+}

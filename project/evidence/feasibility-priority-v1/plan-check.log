@@ -1,0 +1,78 @@
+{
+  "schema": "ovl.feasibility-pilot-plan-check.v1",
+  "result": "PASS",
+  "scope": "local plan arithmetic and real validator only; historical quote and explicit fake endpoint; NO provisioning authority",
+  "stages": [
+    {
+      "name": "setup",
+      "work_seconds": 300,
+      "export_reserve_seconds": 90,
+      "maximum_export_bytes": 16777216
+    },
+    {
+      "name": "prepared-inputs",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 90,
+      "maximum_export_bytes": 16777216
+    },
+    {
+      "name": "record",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 1200,
+      "maximum_export_bytes": 1073741824
+    },
+    {
+      "name": "replay",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 1200,
+      "maximum_export_bytes": 1073741824
+    },
+    {
+      "name": "resume",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 1200,
+      "maximum_export_bytes": 1073741824
+    },
+    {
+      "name": "wiki-timed-record",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 900,
+      "maximum_export_bytes": 805306368
+    },
+    {
+      "name": "wiki-timed-replay",
+      "work_seconds": 1500,
+      "export_reserve_seconds": 900,
+      "maximum_export_bytes": 805306368
+    }
+  ],
+  "minimum_seconds": 14913,
+  "selected_work_window_seconds": 16500,
+  "maximum_charge_micro_usd": 4809058,
+  "hypothetical_allocation_micro_usd": 89592370,
+  "checks": [
+    {
+      "case": "missing-input-check",
+      "result": "REJECTED",
+      "reason": "invalid sustained template: required input inventory"
+    },
+    {
+      "case": "missing-full-replay-parent",
+      "result": "REJECTED",
+      "reason": "undeclared parent record"
+    },
+    {
+      "case": "insufficient-export",
+      "result": "REJECTED",
+      "reason": "complete terminal export budget lacks transfer/hash reserve"
+    },
+    {
+      "case": "insufficient-total-time",
+      "result": "REJECTED",
+      "reason": "complete selected phase budgets exceed unchanged rental work window"
+    }
+  ],
+  "builder_sha256": "4cc49e2d9c2abda26c9770cb90fa2721b3015980671decac1b1abad1cf202cec",
+  "production": "NOT_RUN",
+  "forecast": "NOT_MEASURED"
+}

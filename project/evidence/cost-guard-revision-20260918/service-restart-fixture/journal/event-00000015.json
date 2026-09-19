@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","pod_id":"fixture-only-no-real-pod","reason":"deadline-or-prior-abort-or-clock-rollback"},"kind":"decision","observed_epoch":1789697769,"previous":"5600b2260b97650b3ec3ef930275354cf192b16bdd4f8f50ff67d482908b175c","schema":"ovl.controller-event.v1","sequence":15}

@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "query": {
+      "bucketSize": "day",
+      "endTime": "2026-09-19T00:00:00Z",
+      "startTime": "2026-09-18T00:00:00Z"
+    },
+    "recordCount": 6,
+    "totals": {
+      "cpuAmount": 0,
+      "diskAmount": 0.0028703706775559112,
+      "gpuAmount": 0.43028930807486176,
+      "totalAmount": 0.4331596787524177
+    },
+    "uniquePodCount": 6
+  },
+  "records": [
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0.0013888890389353037,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.16369642689824104,
+      "podId": "1orop0453holh3",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.16508531593717635
+    },
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.03805408999323845,
+      "podId": "5c4zcuwdyyk1y0",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.03805408999323845
+    },
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0.0009259260259568691,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.11289213923737407,
+      "podId": "grm4udi8oj3nhz",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.11381806526333094
+    },
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.019999999552965164,
+      "podId": "lrsbh9avgltuxm",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.019999999552965164
+    },
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0.00046296301297843456,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.04755425173789263,
+      "podId": "s707l9y2437ivs",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.04801721475087106
+    },
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0.00009259259968530387,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.048092400655150414,
+      "podId": "xkwf7fhdiwgx44",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.04818499325483572
+    }
+  ]
+}

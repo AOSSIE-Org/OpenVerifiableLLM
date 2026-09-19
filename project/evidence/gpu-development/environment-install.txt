@@ -1,0 +1,28 @@
+Using Python 3.12.14 environment at: .ovllm-cache/gpu-venv
+Resolved 76 packages in 1.54s
+Downloading triton (235.4MiB)
+Downloading networkx (2.0MiB)
+Downloading sympy (6.0MiB)
+Downloading cuda-bindings (6.8MiB)
+Downloading nvidia-nvjitlink (40.5MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading torch (528.9MiB)
+Downloading nvidia-cusparse (139.2MiB)
+Downloading nvidia-cufft (204.2MiB)
+Downloading nvidia-cufile (1.2MiB)
+Downloading nvidia-cuda-runtime (2.1MiB)
+ Downloaded networkx
+ Downloaded nvidia-cufile
+ Downloaded sympy
+ Downloaded cuda-bindings
+ Downloaded nvidia-nvjitlink
+ Downloaded nvidia-cuda-runtime
+Downloading nvidia-nvshmem-cu13 (57.6MiB)
+  × Failed to download `nvidia-cuda-nvrtc==13.0.88`
+  ├─▶ Request failed after 3 retries in 104.6s
+  ├─▶ Failed to fetch:
+  │   `https://pypi.nvidia.com/nvidia-cuda-nvrtc/nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl`
+  ├─▶ error sending request for url
+  │   (https://pypi.nvidia.com/nvidia-cuda-nvrtc/nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl)
+  ├─▶ client error (Connect)
+  ╰─▶ operation timed out

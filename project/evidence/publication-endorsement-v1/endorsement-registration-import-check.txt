@@ -1,0 +1,12 @@
+usage: production_commitment.py [-h] [--select] [--output OUTPUT]
+
+Append-only Actions endorsement of a public production registration packet.
+This authenticates the source anchor and checks report relationships, source
+code and dependency pins. Endorsing operator reports does not verify their
+computations. The production executor must additionally satisfy its live
+admission gates.
+
+options:
+  -h, --help       show this help message and exit
+  --select
+  --output OUTPUT

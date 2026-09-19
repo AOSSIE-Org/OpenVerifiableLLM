@@ -1,0 +1,39 @@
+{
+  "schema": "ovl.oasst-acquisition-survey.v1",
+  "scope": "verified raw acquisition; production source commitment pending",
+  "repo": "OpenAssistant/oasst1",
+  "revision": "fdf72ae0827c1cda404aff25b6603abec9e3399b",
+  "files": [
+    {
+      "path": "LICENSE",
+      "bytes": 11357,
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "upstream_blob_id": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64",
+      "upstream_lfs_sha256": null
+    },
+    {
+      "path": "README.md",
+      "bytes": 10168,
+      "sha256": "68483ac2fcc2f3f7779f453352363827678070ef35b6d746ccb2ca6958540fff",
+      "upstream_blob_id": "7973fcd39f6489029d0b5e7409f0ed9e6cee468a",
+      "upstream_lfs_sha256": null
+    },
+    {
+      "path": "data/train-00000-of-00001-b42a775f407cee45.parquet",
+      "bytes": 39516251,
+      "sha256": "bbfadf5ed1278ba2208c837fdcad865adf65f5df55d80abadab2745db13fcb5e",
+      "upstream_blob_id": "43a49ea628a6d6796a840df5654ad653962f6648",
+      "upstream_lfs_sha256": "bbfadf5ed1278ba2208c837fdcad865adf65f5df55d80abadab2745db13fcb5e"
+    },
+    {
+      "path": "data/validation-00000-of-00001-134b8fd0c89408b6.parquet",
+      "bytes": 2080179,
+      "sha256": "24002597bb13a7edd42d92f773762f25e285f72c31a70449393d0ded1dc7b416",
+      "upstream_blob_id": "4ef9b2b05c183c9a82319c90fbb86291ac1e745d",
+      "upstream_lfs_sha256": "24002597bb13a7edd42d92f773762f25e285f72c31a70449393d0ded1dc7b416"
+    }
+  ],
+  "operator_observed_utc": "2026-09-17T17:47:36.446419+00:00",
+  "client": "huggingface_hub 1.32.0; token=False",
+  "raw_directory": ".ovllm-cache/oasst1/fdf72ae0827c1cda404aff25b6603abec9e3399b"
+}

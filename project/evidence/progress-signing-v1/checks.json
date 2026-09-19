@@ -1,0 +1,35 @@
+{
+  "schema": "ovl.development-checks.v1",
+  "parent_revision": "c00034b402127f870bdfbbe5c03f9724265320fc",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "result": "529 passed, 3 existing CUDA-dependent skips",
+  "scope": "public progress builder/download/ancestry composition tests; no actual production signing",
+  "sources": [
+    {
+      "path": "src/ovl_pipeline/progress_commitment.py",
+      "sha256": "199710879f279b31cb1b175263006a171836a30da7321441799f469ac796cda9"
+    },
+    {
+      "path": "src/ovl_pipeline/progress_anchoring.py",
+      "sha256": "9ec5acbfe260b358ebb48130db4a9753523b46216e3a86a9a45c859a58d59e75"
+    },
+    {
+      "path": ".github/workflows/anchor-progress.yml",
+      "sha256": "ae138992f22cd0cbccf324f4e6890462fd167373678ad221594d0b69158b11a2"
+    },
+    {
+      "path": "tests/test_progress_commitment.py",
+      "sha256": "9b1316157496cdc76018a86568f9e016081e0c7a97e93d314b2a085143313861"
+    }
+  ],
+  "checks": [
+    "Real temporary Git append-only selection and reused/deleted/modified path rejection",
+    "Actual tiny CPU safe checkpoint downloaded and decoded with real run signatures; publisher adapter explicitly doubled",
+    "Standalone forced anonymous downloader rejects unsafe/mutable/incomplete inputs before network and verifies every selected byte",
+    "Frozen source preparation contract validate_contract still passes in original locked environment",
+    "Workflow YAML parsed; actual Actions no-request path pending"
+  ],
+  "failed_attempt": "First focused suite had a test fixture missing parents=True for its temporary directory. Failure log preserved; corrected tests then integrated suite passed.",
+  "actual_progress_signature": "NOT_RUN",
+  "numerical_training_replay": "NOT_RUN"
+}

@@ -1,0 +1,51 @@
+Using Python 3.12.14 environment at: .ovllm-cache/gpu-venv
+Resolved 76 packages in 531ms
+Downloading torch (528.9MiB)
+Downloading nvidia-cufft (204.2MiB)
+Downloading nvidia-cuda-nvrtc (86.0MiB)
+Downloading nvidia-nccl-cu13 (206.0MiB)
+Downloading nvidia-cusolver (191.6MiB)
+Downloading triton (236.5MiB)
+Downloading nvidia-nvshmem-cu13 (57.6MiB)
+Downloading nvidia-cudnn-cu13 (527.5MiB)
+Downloading nvidia-cuda-cupti (10.2MiB)
+Downloading nvidia-cublas (403.5MiB)
+Downloading nvidia-curand (56.8MiB)
+Downloading nvidia-cusparse (139.2MiB)
+Downloading nvidia-cusparselt-cu13 (162.3MiB)
+Downloading setuptools (1.2MiB)
+ Downloaded setuptools
+ Downloaded torch
+ Downloaded nvidia-cuda-cupti
+ Downloaded nvidia-curand
+ Downloaded nvidia-nvshmem-cu13
+ Downloaded nvidia-cuda-nvrtc
+ Downloaded nvidia-cusparse
+ Downloaded nvidia-cusparselt-cu13
+ Downloaded nvidia-cusolver
+ Downloaded nvidia-cufft
+ Downloaded nvidia-nccl-cu13
+ Downloaded triton
+  × Failed to download `triton==3.8.0`
+  ╰─▶ Hash mismatch for `triton==3.8.0`
+
+      Expected:
+        sha256:07a88b13e4f7e8b1769094238ab75109a5db2a8160a24ddc49c24d2efa44cb58
+        sha256:197b0576cbcf354f27a2abdae638c72c03d93f2574844052887b0c98fd8f8e1c
+        sha256:2ec2140bcaa058ef161bf8a1522d980f10202c2f62d23f893c0be8290d20ac4f
+        sha256:3025e1fd8c2f8657837ec7bd09acb527044d25b03bcc0554ade5232527268e31
+        sha256:36a5b33463ec87b9504793fe3f5e776cbad272cabf9ba517d06bae7e9a15d9b1
+        sha256:4608ffa1182461eb33cd1d655cf122225fb14d4d055a7e7549a779a6d0e94b04
+        sha256:489efe56641e1bc5d3df3c9f3ba9bcc7bb8dee40691ae88ccf549388737951a2
+        sha256:5446f2fdc5c3cec10547ce12cffad50991cc39c5bde2ecf89364c7c48af1b1aa
+        sha256:6973b07d551b0fa2f6816d3cb30bffb85dc76c32987c2c5e3ed9e1e150a93cc9
+        sha256:6d6003f9d86f63dba4621c81b83b9bc4cf0aeb8a8445bee305160dacdd7486e9
+        sha256:aee2fb2acf63ecf929b068ed11b88a31fdac0d27008ff4b04ab65aa4cb514994
+        sha256:bc34cb0bf49c074ce8c12470169f0c4349aec588a91a8f677d95ccd917976f71
+        sha256:c0ded038dd6920ece820be4d56183d8db8d818c39fb4a0916247665a164a7aad
+        sha256:c1884ba5e90fc4108fd8191239bcb8305de753251fee3a58da6381b874f234cb
+        sha256:d88352123b2b05b46eff74464e12420c45e0d6dc5ebd279046c994c88f01abca
+        sha256:f4da08a8da64fdebccfeed7a833e473cfb7c670f585a2fe1faf8d49beab3e1bd
+
+      Computed:
+        sha256:e91ffa46d095b252248297292dd22bcbacd53a125a0c2eefbbbf74925a320bc3

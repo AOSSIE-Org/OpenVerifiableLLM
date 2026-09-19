@@ -1,0 +1,8 @@
+{
+  "exception_type": "NativeError",
+  "failure_category": "cli_nonzero_exit",
+  "note": "Raw stream/stderr and process receipt retained privately; no automatic retry.",
+  "retry": false,
+  "status": "failed-or-unknown",
+  "time": 1789671761.217899
+}

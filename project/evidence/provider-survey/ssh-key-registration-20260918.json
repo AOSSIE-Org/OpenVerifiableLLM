@@ -1,0 +1,11 @@
+{
+  "schema": "ovl.operator-ssh-key-registration.v1",
+  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID0KruDaN/Dax6IuzVDS8komNi+b7pXv2WTwmy673l+C openverifiablellm-runpod-20260918",
+  "fingerprint": "SHA256:wCrYJa9i/k9QVA/rixm4G1NqrZcp1RcY7xnrSwa9mJA",
+  "provider_readback": "PASS",
+  "previous_key_count": 0,
+  "registered_key_count": 1,
+  "private_key_location": "owner-private local task directory only; never published or placed in run evidence",
+  "resource_provisioning": "NOT_RUN",
+  "observed_utc": "2026-09-18 05:57:49 UTC"
+}

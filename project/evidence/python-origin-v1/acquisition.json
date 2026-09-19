@@ -1,0 +1,44 @@
+{
+  "actual_full_hashes": "PASS",
+  "checksum_file_entry": "PASS",
+  "downloads": [
+    {
+      "bytes": 34143739,
+      "file": "cpython-3.12.14+20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+      "sha256": "5acfa3e9ba26b51ae161c83aff278da915b590d22373a424b2ba55b8afe91fcc",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.12.14%2B20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+    },
+    {
+      "bytes": 124665,
+      "file": "SHA256SUMS",
+      "sha256": "0e27ff80c0075aa29730035faf2b94a00498f348131c6e8997cbbb5b77584966",
+      "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/SHA256SUMS"
+    }
+  ],
+  "installed_bytes": "NOT_RUN",
+  "observed_utc": "2026-09-18T04:34:45.701940+00:00",
+  "release": {
+    "assets": [
+      {
+        "browser_download_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/cpython-3.12.14%2B20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "digest": "sha256:5acfa3e9ba26b51ae161c83aff278da915b590d22373a424b2ba55b8afe91fcc",
+        "id": 514667525,
+        "name": "cpython-3.12.14+20260814-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "size": 34143739
+      },
+      {
+        "browser_download_url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260814/SHA256SUMS",
+        "digest": "sha256:0e27ff80c0075aa29730035faf2b94a00498f348131c6e8997cbbb5b77584966",
+        "id": 514670175,
+        "name": "SHA256SUMS",
+        "size": 124665
+      }
+    ],
+    "id": 370704815,
+    "published_at": "2026-08-14T16:59:53Z",
+    "tag_name": "20260814",
+    "target_commitish": "38d35dcf0e212ca02eed8ebc11d0c92906387d56"
+  },
+  "reproducible_source_build": "NOT_RUN",
+  "schema": "ovl.public-python-acquisition.v1"
+}

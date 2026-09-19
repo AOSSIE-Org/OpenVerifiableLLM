@@ -1,0 +1,40 @@
+{
+  "probedCudaVersions": [
+    "13.0"
+  ],
+  "items": [
+    {
+      "id": "NVIDIA GeForce RTX 4090",
+      "displayName": "RTX 4090",
+      "memoryGb": 24,
+      "secureCloud": true,
+      "communityCloud": true,
+      "cudaVersions": {
+        "13.0": {
+          "stock": "Low",
+          "pricePerHr": 0.74
+        }
+      }
+    },
+    {
+      "id": "NVIDIA GeForce RTX 5090",
+      "displayName": "RTX 5090",
+      "memoryGb": 32,
+      "secureCloud": true,
+      "communityCloud": true,
+      "cudaVersions": {
+        "13.0": {
+          "stock": "Out",
+          "pricePerHr": null
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "total": 2,
+    "returned": 2,
+    "offset": 0,
+    "truncated": false,
+    "nextCursor": null
+  }
+}

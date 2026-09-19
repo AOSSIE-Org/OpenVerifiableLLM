@@ -1,0 +1,43 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_readonly_liveness_observes_process_reaped_after_proc_open_as_absent ___
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fd08c23a090>
+
+    def test_readonly_liveness_observes_process_reaped_after_proc_open_as_absent(monkeypatch):
+        """Linux returns ESRCH on an already-open /proc stat after task removal."""
+        child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(.2)'],start_new_session=True)
+        identity=m.process_identity(child.pid);original=Path.read_text;selected=Path('/proc')/str(child.pid)/'stat'
+        def read(path,*args,**kwargs):
+            if path!=selected:return original(path,*args,**kwargs)
+            with path.open() as stream:
+                child.wait(timeout=5)
+                return stream.read()  # Actual kernel ESRCH, not a fabricated status.
+        monkeypatch.setattr(Path,'read_text',read)
+>       try:assert m.alive(identity) is False
+                   ^^^^^^^^^^^^^^^^^
+
+tests/test_pod_job_worker.py:195: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+scripts/pod_job_worker.py:147: in alive
+    if process_identity(identity['pid'])!=identity:return False
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+scripts/pod_job_worker.py:124: in process_identity
+    text=Path(f'/proc/{pid}/stat').read_text();tail=text[text.rfind(')')+2:].split()
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+path = PosixPath('/proc/3300038/stat'), args = (), kwargs = {}
+
+    def read(path,*args,**kwargs):
+        if path!=selected:return original(path,*args,**kwargs)
+        with path.open() as stream:
+            child.wait(timeout=5)
+>           return stream.read()  # Actual kernel ESRCH, not a fabricated status.
+                   ^^^^^^^^^^^^^
+E           ProcessLookupError: [Errno 3] No such process
+
+tests/test_pod_job_worker.py:193: ProcessLookupError
+=========================== short test summary info ============================
+FAILED tests/test_pod_job_worker.py::test_readonly_liveness_observes_process_reaped_after_proc_open_as_absent
+1 failed in 0.26s

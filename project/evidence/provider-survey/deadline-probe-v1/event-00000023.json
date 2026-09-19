@@ -1,0 +1,1 @@
+{"body":{"complete":false,"pod_id":"lrsbh9avgltuxm","termination_response_sha256":"0373bebbde87f1634b29f543eeaca33d40573abb587cf8505eec9b038544cf9d"},"kind":"teardown","observed_epoch":1789689708,"previous":"44c021ea56aee893891b7701e1e0bdb774b923502fe024be6504d93913ff8419","schema":"ovl.controller-event.v1","sequence":23}

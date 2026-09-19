@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "query": {
+      "bucketSize": "hour",
+      "endTime": "2026-09-19T07:00:00Z",
+      "podId": "i3qz59mirj7969",
+      "startTime": "2026-09-19T05:00:00Z"
+    },
+    "recordCount": 1,
+    "totals": {
+      "cpuAmount": 0,
+      "diskAmount": 0.01018518500495702,
+      "gpuAmount": 0.8261885509127751,
+      "totalAmount": 0.8363737359177321
+    },
+    "uniquePodCount": 1
+  },
+  "records": [
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0.01018518500495702,
+      "endTime": "2026-09-19T06:00:00Z",
+      "gpuAmount": 0.8261885509127751,
+      "podId": "i3qz59mirj7969",
+      "startTime": "2026-09-19T05:00:00Z",
+      "totalAmount": 0.8363737359177321
+    }
+  ]
+}

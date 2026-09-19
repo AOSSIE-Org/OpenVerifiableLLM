@@ -1,0 +1,122 @@
+........................................................................ [ 66%]
+....................................                                     [100%]
+==================================== PASSES ====================================
+_ test_ci_release_parent_policies_must_predate_request_and_select_ancestors[missing] _
+----------------------------- Captured stderr call -----------------------------
+fatal: path 'project/release-policies/test-attempt-release-1.json' does not exist in 'HEAD^'
+_ test_ci_release_parent_policies_must_predate_request_and_select_ancestors[same-commit] _
+----------------------------- Captured stderr call -----------------------------
+fatal: path 'project/release-policies/test-attempt-release-1.json' exists on disk, but not in 'HEAD^'
+_ test_ci_release_parent_policies_must_predate_request_and_select_ancestors[unknown-ancestor] _
+----------------------------- Captured stderr call -----------------------------
+fatal: Not a valid commit name ffffffffffffffffffffffffffffffffffffffff
+=========================== short test summary info ============================
+PASSED tests/test_production_release.py::test_final_inventory_binds_both_safe_models_and_honest_operator_scope
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[signature-is-replay]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[third-party]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[bad-model-root]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[tag]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[foreign-repo]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[unknown-schema]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[missing-payload]
+PASSED tests/test_production_release.py::test_release_manifest_refuses_wrong_identity_or_overstated_claims[wrong-report-parent]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[subset]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[cache]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[restore-prover]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[replay-gap]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[scope]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[foreign-root]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[evaluation-count]
+PASSED tests/test_production_release.py::test_rehashed_release_evidence_cannot_hide_missing_work_or_payload[extra-private-file]
+PASSED tests/test_production_release.py::test_separate_publication_identity_preserves_training_and_selects_new_destinations
+PASSED tests/test_production_release.py::test_model_cards_pin_sources_evidence_and_demonstration_scope
+PASSED tests/test_production_release.py::test_rehashed_operator_reports_cannot_overstate_scope[attested-computation]
+PASSED tests/test_production_release.py::test_rehashed_operator_reports_cannot_overstate_scope[early-public-verification]
+PASSED tests/test_production_release.py::test_rehashed_operator_reports_cannot_overstate_scope[verified-export]
+PASSED tests/test_production_release.py::test_rehashed_operator_reports_cannot_overstate_scope[truthy-list]
+PASSED tests/test_release_commitment.py::test_ancestry_downloads_actual_safe_states_without_claiming_replay[False]
+PASSED tests/test_release_commitment.py::test_ancestry_downloads_actual_safe_states_without_claiming_replay[True]
+PASSED tests/test_release_commitment.py::test_failed_parent_identity_or_bytes_cannot_become_release_verification[signature]
+PASSED tests/test_release_commitment.py::test_failed_parent_identity_or_bytes_cannot_become_release_verification[checkpoint]
+PASSED tests/test_release_commitment.py::test_failed_parent_identity_or_bytes_cannot_become_release_verification[external-policy]
+PASSED tests/test_release_commitment.py::test_release_requests_are_append_only_and_unambiguous
+PASSED tests/test_release_commitment.py::test_request_and_workflow_or_dependency_edit_cannot_share_signing_commit[release_commitment]
+PASSED tests/test_release_commitment.py::test_request_and_workflow_or_dependency_edit_cannot_share_signing_commit[production_commitment]
+PASSED tests/test_release_commitment.py::test_request_and_workflow_or_dependency_edit_cannot_share_signing_commit[progress_commitment]
+PASSED tests/test_release_commitment.py::test_ci_release_parent_policies_must_predate_request_and_select_ancestors[None]
+PASSED tests/test_release_commitment.py::test_ci_release_parent_policies_must_predate_request_and_select_ancestors[missing]
+PASSED tests/test_release_commitment.py::test_ci_release_parent_policies_must_predate_request_and_select_ancestors[same-commit]
+PASSED tests/test_release_commitment.py::test_ci_release_parent_policies_must_predate_request_and_select_ancestors[unknown-ancestor]
+PASSED tests/test_release_download.py::test_fresh_public_models_full_parents_and_actual_greedy_inference_without_replay_claim
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[signature]
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[weight]
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[extra]
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[private]
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[tag]
+PASSED tests/test_release_download.py::test_bad_public_releases_fail_closed_without_final_verification[bundle-differs]
+PASSED tests/test_release_download.py::test_full_mode_calls_actual_complete_transformations_and_continuous_cpu_fixture_replay[False]
+PASSED tests/test_release_download.py::test_full_mode_calls_actual_complete_transformations_and_continuous_cpu_fixture_replay[True]
+PASSED tests/test_release_download.py::test_changed_inference_is_not_accepted_as_compatible
+PASSED tests/test_model_publication.py::test_new_repository_only_and_preserved_write_ahead_without_download_credit
+PASSED tests/test_model_publication.py::test_uncertain_commit_recovers_without_another_mutation
+PASSED tests/test_model_publication.py::test_uncertain_creation_preserves_empty_repo_and_does_not_guess_ownership
+PASSED tests/test_model_publication.py::test_successful_creation_can_resume_only_if_commit_was_never_attempted
+PASSED tests/test_model_publication.py::test_no_remote_write_for_untrusted_or_unregistered_payload[signature]
+PASSED tests/test_model_publication.py::test_no_remote_write_for_untrusted_or_unregistered_payload[extra]
+PASSED tests/test_model_publication.py::test_no_remote_write_for_untrusted_or_unregistered_payload[bytes]
+PASSED tests/test_model_publication.py::test_no_remote_write_for_untrusted_or_unregistered_payload[existing-destination]
+PASSED tests/test_model_publication.py::test_destination_preflight_is_read_only_and_records_occupation[False]
+PASSED tests/test_model_publication.py::test_destination_preflight_is_read_only_and_records_occupation[True]
+PASSED tests/test_model_publication.py::test_uncertain_presend_commit_preserves_old_repo_and_allows_new_publication_identity
+PASSED tests/test_production_verify.py::test_complete_reconstruction_replay_export_and_all_validation_targets
+PASSED tests/test_production_verify.py::test_full_profile_cannot_accept_partial_cached_or_missing_work[raw-byte]
+PASSED tests/test_production_verify.py::test_full_profile_cannot_accept_partial_cached_or_missing_work[adopted-stage]
+PASSED tests/test_production_verify.py::test_full_profile_cannot_accept_partial_cached_or_missing_work[missing-stage]
+PASSED tests/test_production_verify.py::test_full_profile_cannot_accept_partial_cached_or_missing_work[partial-replay]
+PASSED tests/test_production_verify.py::test_full_profile_cannot_accept_partial_cached_or_missing_work[missing-replay]
+PASSED tests/test_production_verify.py::test_evaluation_refuses_a_sample_even_with_correct_stream_manifest
+PASSED tests/test_production_verify.py::test_failed_child_exit_cannot_consume_its_saved_pass_report
+PASSED tests/test_production_commitment.py::test_full_public_packet_download
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[repo]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[revision]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[prefix]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[missing]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[duplicate]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[size]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[root]
+PASSED tests/test_production_commitment.py::test_public_request_restrictions[source-identity]
+PASSED tests/test_production_commitment.py::test_public_download_cannot_trust_manifest_only[bytes]
+PASSED tests/test_production_commitment.py::test_public_download_cannot_trust_manifest_only[size]
+PASSED tests/test_production_commitment.py::test_public_download_cannot_trust_manifest_only[extra]
+PASSED tests/test_production_commitment.py::test_append_only_commit_selection
+PASSED tests/test_production_commitment.py::test_code_commit_and_dependency_identity
+PASSED tests/test_production_commitment.py::test_real_current_source_digest_matches_git_then_rejects_drift
+PASSED tests/test_production_commitment.py::test_source_commit_edge_cases[not-ancestor]
+PASSED tests/test_production_commitment.py::test_source_commit_edge_cases[nested]
+PASSED tests/test_production_commitment.py::test_source_commit_edge_cases[nonregular]
+PASSED tests/test_production_commitment.py::test_source_commit_edge_cases[missing]
+PASSED tests/test_progress_commitment.py::test_closed_progress_request_shapes
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[tag]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[outside-repo]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[missing-checkpoint]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[extra-checkpoint]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[oversized]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[missing-parent]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[wrong-policy]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[wrong-root]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[unknown]
+PASSED tests/test_progress_commitment.py::test_malformed_progress_request_refused[empty-chain]
+PASSED tests/test_progress_commitment.py::test_download_is_anonymous_forced_and_full_bytes_checked
+PASSED tests/test_progress_commitment.py::test_remote_metadata_or_download_failure_is_not_verification[bytes]
+PASSED tests/test_progress_commitment.py::test_remote_metadata_or_download_failure_is_not_verification[tree]
+PASSED tests/test_progress_commitment.py::test_remote_metadata_or_download_failure_is_not_verification[size]
+PASSED tests/test_progress_commitment.py::test_remote_metadata_or_download_failure_is_not_verification[failure]
+PASSED tests/test_progress_commitment.py::test_progress_requests_are_one_append_only_file_at_head
+PASSED tests/test_progress_commitment.py::test_generate_downloads_real_safe_state_and_checks_prior_ancestry[None]
+PASSED tests/test_progress_commitment.py::test_generate_downloads_real_safe_state_and_checks_prior_ancestry[checkpoint-control]
+PASSED tests/test_progress_commitment.py::test_generate_downloads_real_safe_state_and_checks_prior_ancestry[prior-signature]
+PASSED tests/test_progress_commitment.py::test_standalone_downloader_revalidates_before_any_network[repo]
+PASSED tests/test_progress_commitment.py::test_standalone_downloader_revalidates_before_any_network[tag]
+PASSED tests/test_progress_commitment.py::test_standalone_downloader_revalidates_before_any_network[path]
+PASSED tests/test_progress_commitment.py::test_standalone_downloader_revalidates_before_any_network[missing]
+108 passed in 59.40s

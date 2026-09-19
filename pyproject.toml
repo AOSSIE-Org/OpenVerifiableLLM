@@ -20,11 +20,16 @@ dependencies = [
   "pyyaml>=6.0.2",
 ]
 
+[project.optional-dependencies]
+pipeline = ["sigstore==4.5.0", "rfc8785==0.1.4", "tokenizers==0.23.2", "mwparserfromhell==0.7.2", "defusedxml==0.7.1", "pyarrow==25.0.1"]
+
 [project.scripts]
 ovllm = "ovllm:main"
+ovllm-pipeline = "ovl_pipeline.__main__:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+packages = ["ovl_pipeline"]
 py-modules = [
   "artifacts",
   "config",

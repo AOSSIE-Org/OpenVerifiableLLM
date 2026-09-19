@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/pytorch/pytorch/v2.14.0/aten/src/ATen/cuda/CUDABlas.cpp",
+      "bytes": 97546,
+      "sha256": "1d81d9e5e68ba45636e8635cb8e7905f24044e1f4eb1449ed26be505be6bbcee"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/pytorch/pytorch/v2.14.0/aten/src/ATen/cuda/CublasHandlePool.cpp",
+      "bytes": 18293,
+      "sha256": "2dfaea7f42cb654bf4db6bddedbfd5f2661d92c6d96f2c90652f3d9c162baf2c"
+    }
+  ],
+  "finding": "CUDABlas.cpp BF16 GEMM helper at lines1074-1078 emits the FP16-labelled split-K error. It is a GEMM dispatch guard, not a Python setter guard. CublasHandlePool.cpp parses LT workspace in KiB and unified mode caps it at the cuBLAS byte size.",
+  "scope": "pinned-tag official upstream source observation; installed binary identity separately bound by wheel audits"
+}

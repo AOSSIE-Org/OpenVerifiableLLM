@@ -1,0 +1,24 @@
+{
+  "schema": "ovl.development-checks.v1",
+  "parent_revision": "e9c22c7e51acda916003cbca922f660293e1f49f",
+  "result": "572 passed, 3 existing CUDA-dependent skips",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "sources": [
+    {
+      "path": "scripts/run_rental_controller.py",
+      "sha256": "090611dec8fdcfed6786f7ea89b202aa20a0dfd46e337407a391a2bfacef4318"
+    },
+    {
+      "path": "tests/test_rental_controller.py",
+      "sha256": "4601e85073de23020396ff624477b052b8db4ec1b4b2e2eee1e648bce0f221e0"
+    }
+  ],
+  "checks": [
+    "Durable intent precedes one request; lost response and process-death recovery never recreate.",
+    "Fresh exact ARMED watchdog required; stale watchdog and cost debit failure cause early teardown.",
+    "Graceful stop persists over restart; complete export health triggers prompt teardown.",
+    "Two fresh absence observations required; billing explicitly remains pending.",
+    "Actual corrected progress and registration Actions no-request paths succeeded at e9c22c7."
+  ],
+  "scope": "Fake-provider lifecycle tests only. Actual deployment, workload/export dispatcher and paid pilot admission pending. No production gate credit."
+}

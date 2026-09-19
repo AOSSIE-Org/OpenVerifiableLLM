@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "query": {
+      "bucketSize": "day",
+      "endTime": "2026-09-19T00:00:00Z",
+      "podId": "vpwchobbslrgpq",
+      "startTime": "2026-09-18T00:00:00Z"
+    },
+    "recordCount": 1,
+    "totals": {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "gpuAmount": 0.011894733645021915,
+      "totalAmount": 0.011894733645021915
+    },
+    "uniquePodCount": 1
+  },
+  "records": [
+    {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "endTime": "2026-09-19T00:00:00Z",
+      "gpuAmount": 0.011894733645021915,
+      "podId": "vpwchobbslrgpq",
+      "startTime": "2026-09-18T00:00:00Z",
+      "totalAmount": 0.011894733645021915
+    }
+  ]
+}

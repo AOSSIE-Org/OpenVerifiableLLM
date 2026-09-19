@@ -1,0 +1,48 @@
+{
+  "schema": "ovl.development-checks.v1",
+  "parent_revision": "8fb7130a0e9a94cd126e950a5a9e78dff9cbf793",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "result": "547 passed, 3 existing CUDA-dependent skips",
+  "sources": [
+    {
+      "path": "scripts/publish_evidence_archive.py",
+      "sha256": "2e6c3968de7cb3b33e0fe85b5404d14ff9352725411d5bc0900402118c859ace"
+    },
+    {
+      "path": "tests/test_evidence_publication.py",
+      "sha256": "1219c1f0cfe80ee32d6137a0425adb92bbc9e8bc3286091a47dd35c256c3e5cf"
+    },
+    {
+      "path": "requirements/endorsement.in",
+      "sha256": "78f5931f3b74ac7fd170492881222292b296382c0b9cfb809c1abebfeed3d212"
+    },
+    {
+      "path": "requirements/endorsement.lock",
+      "sha256": "349eebac5546a4a7b8d07cad5fad596c0efcf87c9f2a0f0839610b43de97ba46"
+    },
+    {
+      "path": ".github/workflows/anchor-production.yml",
+      "sha256": "596e057ba8ecda6a2dc1278fbbe86a424577e645531dd3fffdc4a76f7a1afa01"
+    },
+    {
+      "path": ".github/workflows/anchor-progress.yml",
+      "sha256": "d372b8847eb67c179a456cbce60d9c6de72fd2e6a9b016da55da0e909b0af734"
+    }
+  ],
+  "checks": [
+    "Fresh extra-lock environment imports both builders and replay CLI.",
+    "Actual tiny full fixture and separate-process raw reconstruction/full replay verification passed.",
+    "Original signed preparation contract still validates in the extra-lock environment; frozen preparation bytes unchanged.",
+    "Immutable publication transport tests cover full bytes, uncertain creation reconciliation, exact prefix inventories, public revision pins and leases."
+  ],
+  "failed_attempt": {
+    "workflow": 35300876849,
+    "conclusion": "FAILURE",
+    "reason": "Preparation-only environment lacked PyNaCl; failure occurred before request selection/signing. Separate constrained endorsement lock adds PyNaCl and safetensors without editing the frozen preparation lock."
+  },
+  "limitations": [
+    "Transport metadata/download checks are not signature/state or training verification.",
+    "No actual production request/signature, rental or CUDA acceptance.",
+    "Corrected Actions paths pending real CI."
+  ]
+}

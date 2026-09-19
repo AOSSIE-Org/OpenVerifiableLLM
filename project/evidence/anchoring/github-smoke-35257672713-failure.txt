@@ -1,0 +1,17 @@
+identity-smoke	Sign with ambient GitHub Actions OIDC	﻿2026-09-17T18:15:17.6086730Z ##[group]Run python -m sigstore sign --no-default-files --bundle anchor-smoke/statement.sigstore.json anchor-smoke/statement.json
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6088067Z [36;1mpython -m sigstore sign --no-default-files --bundle anchor-smoke/statement.sigstore.json anchor-smoke/statement.json[0m
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6126578Z shell: /usr/bin/bash -e {0}
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6126852Z env:
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6127065Z   PYTHONPATH: src
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6127626Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.14/x64
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6128110Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.14/x64/lib/pkgconfig
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6128557Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6128958Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6129362Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.14/x64
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6129766Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.14/x64/lib
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:17.6130106Z ##[endgroup]
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:19.2960911Z usage: sigstore [-h] [-v] [-V]
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:19.2962115Z                 [--staging | --instance URL | --trust-config FILE]
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:19.2962608Z                 COMMAND ...
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:19.2963319Z sigstore: error: --no-default-files may not be combined with --bundle.
+identity-smoke	Sign with ambient GitHub Actions OIDC	2026-09-17T18:15:19.3735951Z ##[error]Process completed with exit code 2.

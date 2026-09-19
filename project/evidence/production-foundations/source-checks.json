@@ -1,0 +1,31 @@
+{
+  "observed_epoch": 1789692800,
+  "scope": "closed-contract, policy and initialization orchestration tests; CPU runtime/process substitutes explicitly used; no actualCUDA/production credit",
+  "files": [
+    {
+      "path": "src/ovl_pipeline/production_contract.py",
+      "sha256": "8ee7268e17b540c5e55caceafb405f0f3d58ab1f5aaf5de483e76c35eb29584d"
+    },
+    {
+      "path": "src/ovl_pipeline/production_identity.py",
+      "sha256": "fd63300d1091b8e3b17d6543da313d96b150e6972a4eb168ac64d74814375d9b"
+    },
+    {
+      "path": "src/ovl_pipeline/initialization.py",
+      "sha256": "e672cd8e89658c203f4909e876628225f23e3974a7d5c57bf2fe496928040a58"
+    },
+    {
+      "path": "tests/test_production_contract.py",
+      "sha256": "5e46356eb882117d60ffc81b6563ba05d0319f7704da10157220c249a6cc7d73"
+    },
+    {
+      "path": "tests/test_production_identity.py",
+      "sha256": "5f4946adf7899db466e9a11f1c1f1a0737fdc4fbae81ee2989234c23c1002445"
+    },
+    {
+      "path": "tests/test_initialization.py",
+      "sha256": "af337ca298e8380f018a1d11842d66c6be5d5a69e604523cf1a05cee03f26dd4"
+    }
+  ],
+  "harness_correction": "Initial adversarial test wrote nonexistent tensors.safetensors rather than actual state.safetensors; original failure retained. Corrected byte-mutation case passes, and unregistered checkpoint files now separately rejected."
+}

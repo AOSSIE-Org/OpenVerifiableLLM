@@ -1,0 +1,16 @@
+# Candidate Linux CUDA13.0 pilot environment. Not production-frozen or GPU-validated.
+--index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cu130
+numpy==2.5.3
+tokenizers==0.23.2
+mwparserfromhell==0.7.2
+defusedxml==0.7.1
+pyarrow==25.0.1
+rfc8785==0.1.4
+torch==2.14.0+cu130
+sigstore==4.5.0
+# Preserve versions already exercised by the local fixture environment.
+filelock==3.32.3
+setuptools==78.1.0
+safetensors==0.8.0
+PyNaCl==1.6.2

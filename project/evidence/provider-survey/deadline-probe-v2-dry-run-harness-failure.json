@@ -1,0 +1,1 @@
+{"result": "REFUSED_BEFORE_MUTATION", "reason": "raw MCP quote uses float prices; closed canonical parser rejects floats; normalized decimal strings in separate retained quote", "resource_created": false}

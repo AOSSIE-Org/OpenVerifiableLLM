@@ -1,0 +1,531 @@
+{
+  "added_after_selection": [
+    {
+      "bytes": 4692312,
+      "name": "_pydantic_core.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "95f68ef2535a5102a03442e073d4906c01211b208902f56e24ec23cea402b5a0"
+    },
+    {
+      "bytes": 14389392,
+      "name": "_rust.abi3.so",
+      "sha256": "3d6423664bffe926fd91d1913d1c5ddda5c31ee7ff1cae06fc8b71c47c9501a1"
+    },
+    {
+      "bytes": 7017440,
+      "name": "_rust.abi3.so",
+      "sha256": "cec5ada79a8754fbbf000fec318f8d54bc902029ea65cc31e720840a01930cf3"
+    },
+    {
+      "bytes": 169424,
+      "name": "cd.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "b16e644c978a0f7661a6c7b8640556f645bc5840c752b2d8e80c67fdb1f1857d"
+    },
+    {
+      "bytes": 18744,
+      "name": "libnss_mdns4_minimal.so.2",
+      "sha256": "bfcba7a8768010d3315c38fa21ea43372759779fef52a85f03d10e28ee347029"
+    },
+    {
+      "bytes": 313840,
+      "name": "md.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "8efd70bb6f5b91f780b0aaf9eaaaed9e2098321c015853c569ef52bb6534df1b"
+    }
+  ],
+  "after_verification": [
+    {
+      "bytes": 10721,
+      "name": "_C.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "b09d26e7781dffdf26001f7f89d85fc1e7866c9d241cde7ecc5277e11950d6e0"
+    },
+    {
+      "bytes": 348856,
+      "name": "_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "9bc1d08072255a5ec2db10fc75df1dd9e73097a75cd9150cfe875ebd6712f17c"
+    },
+    {
+      "bytes": 10637297,
+      "name": "_multiarray_umath.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "ceec5ba13ab88318632307fdd2df74f317fa293ce77be559c4298ddd1f4306b0"
+    },
+    {
+      "bytes": 4692312,
+      "name": "_pydantic_core.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "95f68ef2535a5102a03442e073d4906c01211b208902f56e24ec23cea402b5a0"
+    },
+    {
+      "bytes": 14389392,
+      "name": "_rust.abi3.so",
+      "sha256": "3d6423664bffe926fd91d1913d1c5ddda5c31ee7ff1cae06fc8b71c47c9501a1"
+    },
+    {
+      "bytes": 7017440,
+      "name": "_rust.abi3.so",
+      "sha256": "cec5ada79a8754fbbf000fec318f8d54bc902029ea65cc31e720840a01930cf3"
+    },
+    {
+      "bytes": 1223000,
+      "name": "_safetensors_rust.abi3.so",
+      "sha256": "e6f17a9e9846bc2bc4ad94cc5431746b59785de3d2681ef2666e8890ae192dfb"
+    },
+    {
+      "bytes": 3714848,
+      "name": "_sodium.abi3.so",
+      "sha256": "554206748472a39920ad95a26b6c217ce65439fd58d755a0f05457b3cbfbb57f"
+    },
+    {
+      "bytes": 366592,
+      "name": "_tokenizer.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "47343d68fe9e045365a5662efd0044e9780289d6d2143ad31872f9e1f491325f"
+    },
+    {
+      "bytes": 231801,
+      "name": "_umath_linalg.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "19d024507f73b42889baeb00f9da0004e33a42ed7a78fd77662fd6236e930d78"
+    },
+    {
+      "bytes": 169424,
+      "name": "cd.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "b16e644c978a0f7661a6c7b8640556f645bc5840c752b2d8e80c67fdb1f1857d"
+    },
+    {
+      "bytes": 254864,
+      "name": "ld-linux-x86-64.so.2",
+      "sha256": "bda779ea9e9ad234f60315477d7cfd0bdde861cd8ddd9df8cdaf62f18c4cec14"
+    },
+    {
+      "bytes": 2190608,
+      "name": "libc.so.6",
+      "sha256": "85e64f97e348786a8fb4d9f3d52fec289e2fb86bba20f0731dfe61990525e0f7"
+    },
+    {
+      "bytes": 1553824,
+      "name": "libc10.so",
+      "sha256": "9c142dbe5f1c5291e57605586bf22eaa07cd27da720825b1cf02fc2f6eb8047e"
+    },
+    {
+      "bytes": 14408,
+      "name": "libdl.so.2",
+      "sha256": "59d725ca30596a9863f4fa2552a7125f834842abc86b40890231c129358965d2"
+    },
+    {
+      "bytes": 187120,
+      "name": "libgcc_s.so.1",
+      "sha256": "9d339ecb409578d6a5d587e6c537a8f9589b8a13fefba30d167433a4b5758bee"
+    },
+    {
+      "bytes": 2862249,
+      "name": "libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "sha256": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160"
+    },
+    {
+      "bytes": 2115417,
+      "name": "libgomp.so.1",
+      "sha256": "dcb9bd5cc517b0a23cf5923864abeee11ee00ba11abe9b3089388f50f7ba4628"
+    },
+    {
+      "bytes": 1198376,
+      "name": "libm.so.6",
+      "sha256": "1c488db6f4fe8cecb72456bc018de000b7a9b539c2994864b0416b5e8371b3d8"
+    },
+    {
+      "bytes": 18744,
+      "name": "libnss_mdns4_minimal.so.2",
+      "sha256": "bfcba7a8768010d3315c38fa21ea43372759779fef52a85f03d10e28ee347029"
+    },
+    {
+      "bytes": 14408,
+      "name": "libpthread.so.0",
+      "sha256": "1327fc40710691dbd94e88b6cf4efce27fefe8fbb93f7d1164a75b4dccaea696"
+    },
+    {
+      "bytes": 275553,
+      "name": "libquadmath-2284e583-a9307bba.so.0.0.0",
+      "sha256": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4"
+    },
+    {
+      "bytes": 14624,
+      "name": "librt.so.1",
+      "sha256": "9f3cc59207bcaaac74aaf7aca961f4816f0f4d945e4bd1c3cb98ec516becf161"
+    },
+    {
+      "bytes": 24325657,
+      "name": "libscipy_openblas64_-f48b354e.so",
+      "sha256": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+    },
+    {
+      "bytes": 41328,
+      "name": "libshm.so",
+      "sha256": "7846821a00be2750f0c718c69396bd3c3e54924d52ecce347ab610ee9079149a"
+    },
+    {
+      "bytes": 2735712,
+      "name": "libstdc++.so.6.0.35",
+      "sha256": "5bb0d21308f123b6ad46c6f35b42cedfcb8d6d439a53aa3dae04d880aaffdde3"
+    },
+    {
+      "bytes": 8032,
+      "name": "libtorch.so",
+      "sha256": "28b3d3926e0674eda7dcdf26c27dfd05cb455d681d11cb84fdbf7e0df72f3f7b"
+    },
+    {
+      "bytes": 438232064,
+      "name": "libtorch_cpu.so",
+      "sha256": "cc3d0101c16504ba021abe6794c98122f744ec8cf077bd0178f630f320b24aeb"
+    },
+    {
+      "bytes": 8264,
+      "name": "libtorch_global_deps.so",
+      "sha256": "2e5d497259a62960d95f4a7719abaeb24745429b49ffdf58e67672140205eb99"
+    },
+    {
+      "bytes": 32676952,
+      "name": "libtorch_python.so",
+      "sha256": "0282680cad07d1e92d92a586caf2563280072dbc4d2283759a5fce63f01a500f"
+    },
+    {
+      "bytes": 14408,
+      "name": "libutil.so.1",
+      "sha256": "1d5fdfec85a9c4ca1e7a8c3125aac07c92d551b902a02fdd6bbdf8c66c9e4c4a"
+    },
+    {
+      "bytes": 121272,
+      "name": "libz.so.1.3.1",
+      "sha256": "47b61967895b30e8c0c6818dd633ffeb87711cf637c688f981896f0dd84ce23b"
+    },
+    {
+      "bytes": 313840,
+      "name": "md.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "8efd70bb6f5b91f780b0aaf9eaaaed9e2098321c015853c569ef52bb6534df1b"
+    },
+    {
+      "bytes": 11317624,
+      "name": "tokenizers.abi3.so",
+      "sha256": "7c4ddf7ad4251a646d324151b4d698da59531fdd892ea3abd24a6f323fcb1d6b"
+    }
+  ],
+  "baseline": [
+    {
+      "bytes": 10721,
+      "name": "_C.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "b09d26e7781dffdf26001f7f89d85fc1e7866c9d241cde7ecc5277e11950d6e0"
+    },
+    {
+      "bytes": 348856,
+      "name": "_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "9bc1d08072255a5ec2db10fc75df1dd9e73097a75cd9150cfe875ebd6712f17c"
+    },
+    {
+      "bytes": 10637297,
+      "name": "_multiarray_umath.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "ceec5ba13ab88318632307fdd2df74f317fa293ce77be559c4298ddd1f4306b0"
+    },
+    {
+      "bytes": 1223000,
+      "name": "_safetensors_rust.abi3.so",
+      "sha256": "e6f17a9e9846bc2bc4ad94cc5431746b59785de3d2681ef2666e8890ae192dfb"
+    },
+    {
+      "bytes": 3714848,
+      "name": "_sodium.abi3.so",
+      "sha256": "554206748472a39920ad95a26b6c217ce65439fd58d755a0f05457b3cbfbb57f"
+    },
+    {
+      "bytes": 366592,
+      "name": "_tokenizer.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "47343d68fe9e045365a5662efd0044e9780289d6d2143ad31872f9e1f491325f"
+    },
+    {
+      "bytes": 231801,
+      "name": "_umath_linalg.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "19d024507f73b42889baeb00f9da0004e33a42ed7a78fd77662fd6236e930d78"
+    },
+    {
+      "bytes": 254864,
+      "name": "ld-linux-x86-64.so.2",
+      "sha256": "bda779ea9e9ad234f60315477d7cfd0bdde861cd8ddd9df8cdaf62f18c4cec14"
+    },
+    {
+      "bytes": 2190608,
+      "name": "libc.so.6",
+      "sha256": "85e64f97e348786a8fb4d9f3d52fec289e2fb86bba20f0731dfe61990525e0f7"
+    },
+    {
+      "bytes": 1553824,
+      "name": "libc10.so",
+      "sha256": "9c142dbe5f1c5291e57605586bf22eaa07cd27da720825b1cf02fc2f6eb8047e"
+    },
+    {
+      "bytes": 14408,
+      "name": "libdl.so.2",
+      "sha256": "59d725ca30596a9863f4fa2552a7125f834842abc86b40890231c129358965d2"
+    },
+    {
+      "bytes": 187120,
+      "name": "libgcc_s.so.1",
+      "sha256": "9d339ecb409578d6a5d587e6c537a8f9589b8a13fefba30d167433a4b5758bee"
+    },
+    {
+      "bytes": 2862249,
+      "name": "libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "sha256": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160"
+    },
+    {
+      "bytes": 2115417,
+      "name": "libgomp.so.1",
+      "sha256": "dcb9bd5cc517b0a23cf5923864abeee11ee00ba11abe9b3089388f50f7ba4628"
+    },
+    {
+      "bytes": 1198376,
+      "name": "libm.so.6",
+      "sha256": "1c488db6f4fe8cecb72456bc018de000b7a9b539c2994864b0416b5e8371b3d8"
+    },
+    {
+      "bytes": 14408,
+      "name": "libpthread.so.0",
+      "sha256": "1327fc40710691dbd94e88b6cf4efce27fefe8fbb93f7d1164a75b4dccaea696"
+    },
+    {
+      "bytes": 275553,
+      "name": "libquadmath-2284e583-a9307bba.so.0.0.0",
+      "sha256": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4"
+    },
+    {
+      "bytes": 14624,
+      "name": "librt.so.1",
+      "sha256": "9f3cc59207bcaaac74aaf7aca961f4816f0f4d945e4bd1c3cb98ec516becf161"
+    },
+    {
+      "bytes": 24325657,
+      "name": "libscipy_openblas64_-f48b354e.so",
+      "sha256": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+    },
+    {
+      "bytes": 41328,
+      "name": "libshm.so",
+      "sha256": "7846821a00be2750f0c718c69396bd3c3e54924d52ecce347ab610ee9079149a"
+    },
+    {
+      "bytes": 2735712,
+      "name": "libstdc++.so.6.0.35",
+      "sha256": "5bb0d21308f123b6ad46c6f35b42cedfcb8d6d439a53aa3dae04d880aaffdde3"
+    },
+    {
+      "bytes": 8032,
+      "name": "libtorch.so",
+      "sha256": "28b3d3926e0674eda7dcdf26c27dfd05cb455d681d11cb84fdbf7e0df72f3f7b"
+    },
+    {
+      "bytes": 438232064,
+      "name": "libtorch_cpu.so",
+      "sha256": "cc3d0101c16504ba021abe6794c98122f744ec8cf077bd0178f630f320b24aeb"
+    },
+    {
+      "bytes": 8264,
+      "name": "libtorch_global_deps.so",
+      "sha256": "2e5d497259a62960d95f4a7719abaeb24745429b49ffdf58e67672140205eb99"
+    },
+    {
+      "bytes": 32676952,
+      "name": "libtorch_python.so",
+      "sha256": "0282680cad07d1e92d92a586caf2563280072dbc4d2283759a5fce63f01a500f"
+    },
+    {
+      "bytes": 14408,
+      "name": "libutil.so.1",
+      "sha256": "1d5fdfec85a9c4ca1e7a8c3125aac07c92d551b902a02fdd6bbdf8c66c9e4c4a"
+    },
+    {
+      "bytes": 121272,
+      "name": "libz.so.1.3.1",
+      "sha256": "47b61967895b30e8c0c6818dd633ffeb87711cf637c688f981896f0dd84ce23b"
+    },
+    {
+      "bytes": 11317624,
+      "name": "tokenizers.abi3.so",
+      "sha256": "7c4ddf7ad4251a646d324151b4d698da59531fdd892ea3abd24a6f323fcb1d6b"
+    }
+  ],
+  "mode": "baseline",
+  "removed_after_selection": [],
+  "schema": "ovl.verifier-library-closure-probe.v1",
+  "scope": "local CPU real public-source signature/log verification; not CUDA compatibility or production execution",
+  "selected_before_verification": [
+    {
+      "bytes": 10721,
+      "name": "_C.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "b09d26e7781dffdf26001f7f89d85fc1e7866c9d241cde7ecc5277e11950d6e0"
+    },
+    {
+      "bytes": 348856,
+      "name": "_cffi_backend.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "9bc1d08072255a5ec2db10fc75df1dd9e73097a75cd9150cfe875ebd6712f17c"
+    },
+    {
+      "bytes": 10637297,
+      "name": "_multiarray_umath.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "ceec5ba13ab88318632307fdd2df74f317fa293ce77be559c4298ddd1f4306b0"
+    },
+    {
+      "bytes": 1223000,
+      "name": "_safetensors_rust.abi3.so",
+      "sha256": "e6f17a9e9846bc2bc4ad94cc5431746b59785de3d2681ef2666e8890ae192dfb"
+    },
+    {
+      "bytes": 3714848,
+      "name": "_sodium.abi3.so",
+      "sha256": "554206748472a39920ad95a26b6c217ce65439fd58d755a0f05457b3cbfbb57f"
+    },
+    {
+      "bytes": 366592,
+      "name": "_tokenizer.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "47343d68fe9e045365a5662efd0044e9780289d6d2143ad31872f9e1f491325f"
+    },
+    {
+      "bytes": 231801,
+      "name": "_umath_linalg.cpython-312-x86_64-linux-gnu.so",
+      "sha256": "19d024507f73b42889baeb00f9da0004e33a42ed7a78fd77662fd6236e930d78"
+    },
+    {
+      "bytes": 254864,
+      "name": "ld-linux-x86-64.so.2",
+      "sha256": "bda779ea9e9ad234f60315477d7cfd0bdde861cd8ddd9df8cdaf62f18c4cec14"
+    },
+    {
+      "bytes": 2190608,
+      "name": "libc.so.6",
+      "sha256": "85e64f97e348786a8fb4d9f3d52fec289e2fb86bba20f0731dfe61990525e0f7"
+    },
+    {
+      "bytes": 1553824,
+      "name": "libc10.so",
+      "sha256": "9c142dbe5f1c5291e57605586bf22eaa07cd27da720825b1cf02fc2f6eb8047e"
+    },
+    {
+      "bytes": 14408,
+      "name": "libdl.so.2",
+      "sha256": "59d725ca30596a9863f4fa2552a7125f834842abc86b40890231c129358965d2"
+    },
+    {
+      "bytes": 187120,
+      "name": "libgcc_s.so.1",
+      "sha256": "9d339ecb409578d6a5d587e6c537a8f9589b8a13fefba30d167433a4b5758bee"
+    },
+    {
+      "bytes": 2862249,
+      "name": "libgfortran-83c28eba-468e71e5.so.5.0.0",
+      "sha256": "a6a368328d02a5d8a149746f13f6268f8cc9192df5c18777b25c3c9b5ef52160"
+    },
+    {
+      "bytes": 2115417,
+      "name": "libgomp.so.1",
+      "sha256": "dcb9bd5cc517b0a23cf5923864abeee11ee00ba11abe9b3089388f50f7ba4628"
+    },
+    {
+      "bytes": 1198376,
+      "name": "libm.so.6",
+      "sha256": "1c488db6f4fe8cecb72456bc018de000b7a9b539c2994864b0416b5e8371b3d8"
+    },
+    {
+      "bytes": 14408,
+      "name": "libpthread.so.0",
+      "sha256": "1327fc40710691dbd94e88b6cf4efce27fefe8fbb93f7d1164a75b4dccaea696"
+    },
+    {
+      "bytes": 275553,
+      "name": "libquadmath-2284e583-a9307bba.so.0.0.0",
+      "sha256": "6bc3069003caec1f075be3c51ae8355332f081fa9465910c4b5724e7fe7d8ad4"
+    },
+    {
+      "bytes": 14624,
+      "name": "librt.so.1",
+      "sha256": "9f3cc59207bcaaac74aaf7aca961f4816f0f4d945e4bd1c3cb98ec516becf161"
+    },
+    {
+      "bytes": 24325657,
+      "name": "libscipy_openblas64_-f48b354e.so",
+      "sha256": "432e1c1739731468ba305771af96773939e43016643e2d630f58cb45b6670e96"
+    },
+    {
+      "bytes": 41328,
+      "name": "libshm.so",
+      "sha256": "7846821a00be2750f0c718c69396bd3c3e54924d52ecce347ab610ee9079149a"
+    },
+    {
+      "bytes": 2735712,
+      "name": "libstdc++.so.6.0.35",
+      "sha256": "5bb0d21308f123b6ad46c6f35b42cedfcb8d6d439a53aa3dae04d880aaffdde3"
+    },
+    {
+      "bytes": 8032,
+      "name": "libtorch.so",
+      "sha256": "28b3d3926e0674eda7dcdf26c27dfd05cb455d681d11cb84fdbf7e0df72f3f7b"
+    },
+    {
+      "bytes": 438232064,
+      "name": "libtorch_cpu.so",
+      "sha256": "cc3d0101c16504ba021abe6794c98122f744ec8cf077bd0178f630f320b24aeb"
+    },
+    {
+      "bytes": 8264,
+      "name": "libtorch_global_deps.so",
+      "sha256": "2e5d497259a62960d95f4a7719abaeb24745429b49ffdf58e67672140205eb99"
+    },
+    {
+      "bytes": 32676952,
+      "name": "libtorch_python.so",
+      "sha256": "0282680cad07d1e92d92a586caf2563280072dbc4d2283759a5fce63f01a500f"
+    },
+    {
+      "bytes": 14408,
+      "name": "libutil.so.1",
+      "sha256": "1d5fdfec85a9c4ca1e7a8c3125aac07c92d551b902a02fdd6bbdf8c66c9e4c4a"
+    },
+    {
+      "bytes": 121272,
+      "name": "libz.so.1.3.1",
+      "sha256": "47b61967895b30e8c0c6818dd633ffeb87711cf637c688f981896f0dd84ce23b"
+    },
+    {
+      "bytes": 11317624,
+      "name": "tokenizers.abi3.so",
+      "sha256": "7c4ddf7ad4251a646d324151b4d698da59531fdd892ea3abd24a6f323fcb1d6b"
+    }
+  ],
+  "verification": {
+    "bundle_sha256": "0c6ae5768243604783d5347be823d31253a311bd64069894c038c85463d7cc3e",
+    "identity": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/.github/workflows/anchor-pipeline.yml@refs/heads/feat/verifiable-wikipedia-pipeline",
+    "independent_policy_selection_cryptographically_established": false,
+    "independent_witness": "NOT_RUN",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "locally_recomputed": [
+      "signature",
+      "certificate_identity",
+      "certificate_source_revision",
+      "log_inclusion",
+      "signed_log_checkpoint"
+    ],
+    "log_consistency_between_observations": "NOT_RUN",
+    "policy_origin_operator_label": "caller-supplied",
+    "policy_sha256": "8098c1791172db75b868fbcc89e20d16b4bc956789837a951888ad75d4b166fc",
+    "production_admission": "NOT_RUN",
+    "result": "PASS",
+    "schema": "ovl.anchor-verification.v2",
+    "scope": "artifact-publisher-identity-and-log-inclusion-only",
+    "sigstore_version": "4.5.0",
+    "source_revision": "f6d43711bf0895c7f90974d1bbfd46ccc4aebda6",
+    "statement_sha256": "ec263b5c3914fd1a8bd25e97fa377b4f8416c38a9ef216d27c203252948b9129",
+    "training_replay": "NOT_RUN",
+    "transparency": {
+      "checkpoint_envelope_bytes_sha256": "685e0cab32150377d7c8c50d6f5198bd0db6f42952c9f064d929fb0f56a9f3f8",
+      "log_id": {
+        "keyId": "wNI9atQGlz+VWfO6LRygH4QUfY/8W4RFwiT5i5WRgB0="
+      },
+      "proof_tree_index": "2760000014",
+      "tree_root_hash_base64": "6Em0Q9vk/TDBiqhcDsB78Od7Ykf1dz2jyvOQENhWqy0=",
+      "tree_size": "2760000057"
+    },
+    "trust_root_export_note": "diagnostic snapshot of TUF-delivered roots; may change over time, not a stable root identifier",
+    "trust_root_source": "sigstore-production-tuf",
+    "trusted_root_export_sha256": "a7752f49a4ae0076c5b85eace5bfbb6f58b6cb0dec31ba71803f25d20987d12e"
+  }
+}

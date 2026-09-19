@@ -1,0 +1,5 @@
+Complete operator-run raw-to-prepared reconstruction passed. All six stages executed in a fresh output directory; no stage cache was adopted. The complete22-file inventory was separately rehashed and matched the published prepared inventory. Raw inputs came from the previously fully verified public archive; the driver reverified all raw bytes and the source commitment before transformations.
+
+The actual command and original launch intent are retained here. To reproduce, use the pinned source commitment and raw archive identified in that intent, the published preparation lock/environment, an independently configured publisher policy, a fresh output directory, and the public preparation.json with --compare-preparation. Absolute paths in the actual command are this operator’s local locations, not private input dependencies.
+
+This verifies data transformations, not production training or generated-answer factual accuracy. It was performed by the project operator, not an independent third party.

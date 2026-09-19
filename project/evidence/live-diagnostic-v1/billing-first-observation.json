@@ -1,0 +1,9 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\n  \"metadata\": {\n    \"query\": {\n      \"bucketSize\": \"day\",\n      \"endTime\": \"2026-09-19T00:00:00Z\",\n      \"podId\": \"5c4zcuwdyyk1y0\",\n      \"startTime\": \"2026-09-18T00:00:00Z\"\n    },\n    \"recordCount\": 0,\n    \"totals\": {\n      \"cpuAmount\": 0,\n      \"diskAmount\": 0,\n      \"gpuAmount\": 0,\n      \"totalAmount\": 0\n    },\n    \"uniquePodCount\": 0\n  },\n  \"records\": []\n}"
+    }
+  ],
+  "isError": false
+}

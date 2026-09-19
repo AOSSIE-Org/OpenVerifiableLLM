@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","pod_id":"lrsbh9avgltuxm","reason":"native deadline overdue or observed resource guard failure"},"kind":"decision","observed_epoch":1789689707,"previous":"af4e53249a8af8b20f3eab56435d0ee77a81c8c53ab99944768bc09adc46c3e5","schema":"ovl.controller-event.v1","sequence":22}

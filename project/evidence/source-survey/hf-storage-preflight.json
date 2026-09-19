@@ -1,0 +1,22 @@
+{
+  "scope": "project dataset storage observation; not a guaranteed capacity reservation",
+  "observed_utc": "2026-09-17T19:11:59.802427+00:00",
+  "organization": "AOSSIE",
+  "plan_reported": null,
+  "repositories": [
+    {
+      "id": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+      "type": "dataset",
+      "updatedAt": "2026-09-17T17:48:15.301Z",
+      "visibility": "public",
+      "storage": 613515,
+      "storagePercent": 100
+    }
+  ],
+  "public_storage_policy": "best effort; no paid add-on authorized",
+  "individual_file_hard_limit_bytes_documented": 500000000000,
+  "candidate_raw_dump_bytes": 25680955982,
+  "limits_source": "https://huggingface.co/docs/hub/storage-limits",
+  "quota_remaining_bytes": "NOT_REPORTED",
+  "large_upload_and_complete_download": "NOT_RUN"
+}

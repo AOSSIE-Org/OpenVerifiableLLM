@@ -1,0 +1,13 @@
+{
+  "observed_at": "2026-09-18T00:15:00Z",
+  "scope": "Approximate local observation time; empty records remain pending settlement, not zero cost",
+  "response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "{\n  \"metadata\": {\n    \"query\": {\n      \"bucketSize\": \"hour\",\n      \"endTime\": \"2026-09-18T01:00:00Z\",\n      \"podId\": \"lrsbh9avgltuxm\",\n      \"startTime\": \"2026-09-17T23:00:00Z\"\n    },\n    \"recordCount\": 0,\n    \"totals\": {\n      \"cpuAmount\": 0,\n      \"diskAmount\": 0,\n      \"gpuAmount\": 0,\n      \"totalAmount\": 0\n    },\n    \"uniquePodCount\": 0\n  },\n  \"records\": []\n}"
+      }
+    ],
+    "isError": false
+  }
+}

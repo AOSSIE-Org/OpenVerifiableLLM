@@ -1,0 +1,21 @@
+{
+  "observed_at": "2026-09-18T00:05:57.525Z",
+  "scope": "billing may lag; empty records do not mean zero cost",
+  "metadata": {
+    "query": {
+      "bucketSize": "hour",
+      "endTime": "2026-09-18T01:00:00Z",
+      "podId": "lrsbh9avgltuxm",
+      "startTime": "2026-09-17T23:00:00Z"
+    },
+    "recordCount": 0,
+    "totals": {
+      "cpuAmount": 0,
+      "diskAmount": 0,
+      "gpuAmount": 0,
+      "totalAmount": 0
+    },
+    "uniquePodCount": 0
+  },
+  "records": []
+}

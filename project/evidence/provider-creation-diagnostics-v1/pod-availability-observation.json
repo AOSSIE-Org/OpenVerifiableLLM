@@ -1,0 +1,59 @@
+{
+  "observed_epoch": 1789760820,
+  "request": {
+    "id": "NVIDIA GeForce RTX 4090",
+    "include": [
+      "AVAILABILITY"
+    ],
+    "product": [
+      "POD"
+    ],
+    "cloud": "SECURE",
+    "count": 1,
+    "cudaVersions": [
+      "13.0",
+      "13.2"
+    ]
+  },
+  "response": {
+    "availability": "LOW",
+    "community": true,
+    "cudaVersions": [
+      {
+        "available": true,
+        "version": "13.0"
+      },
+      {
+        "available": true,
+        "version": "13.2"
+      }
+    ],
+    "dataCenters": [
+      {
+        "availability": "LOW",
+        "id": "EU-RO-1",
+        "name": "EU-RO-1"
+      },
+      {
+        "availability": "LOW",
+        "id": "US-IL-1",
+        "name": "US-IL-1"
+      }
+    ],
+    "id": "NVIDIA GeForce RTX 4090",
+    "manufacturer": "NVIDIA",
+    "maxCount": {
+      "community": 8,
+      "secure": 8
+    },
+    "memory": 24,
+    "name": "RTX 4090",
+    "pool": "ADA_24",
+    "price": {
+      "community": 0.34,
+      "secure": 0.74,
+      "serverless": 1.1
+    },
+    "secure": true
+  }
+}

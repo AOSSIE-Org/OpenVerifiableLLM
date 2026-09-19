@@ -1,0 +1,52 @@
+{
+  "active_progress": "Setup, public inputs and four-update CUDA record exited zero and complete declared files retained. Full pilot replay started; resume and sustained timings pending.",
+  "budget": "Closed4090 provider bill now0.3426506348187104USD; active5090 has no posted bucket yet. All existing ceilings retained; no reserve funds released.",
+  "checks": "1560 passed, 3 existing CUDA skips; clean and adversarial falsifiability contract and legacy chain smoke passed. These are development checks, not final CUDA/full production replay acceptance.",
+  "deployment": "Future attempt only. Existing 5090 rental i3qz59mirj7969 uses runtime source9f89a411c99c7ca6918965dc53ef79f90f8b4598. No job/service restarted to adopt recovery.",
+  "files": [
+    {
+      "bytes": 366,
+      "path": "active-5090-billing.json",
+      "sha256": "ce584436cf547a7358523b499fab6ba82b4040dfb252134a2ddd42873267953d"
+    },
+    {
+      "bytes": 275,
+      "path": "ci.json",
+      "sha256": "56326932945395f451dcfefbeed48655cba5da2eb2a7636fc591aee2d1511df6"
+    },
+    {
+      "bytes": 112900,
+      "path": "ci.log",
+      "sha256": "1b05120a74134f1ac239f1d5ffc006d98cd00307c54cc49572ca961b8197ce3e"
+    },
+    {
+      "bytes": 968,
+      "path": "closed-4090-billing.json",
+      "sha256": "69760d928e383087810ecf418595224da06d56f72642010156ac323410dccba4"
+    },
+    {
+      "bytes": 1997,
+      "path": "public-source-download.json",
+      "sha256": "764909dbfdc01bd1a2e13cfcfeae91c998baa6be54a4ec12a39cd620ba7883a3"
+    }
+  ],
+  "public_ci": {
+    "conclusion": "success",
+    "createdAt": "2026-09-19T05:13:32Z",
+    "databaseId": 35423381049,
+    "headSha": "bd05060512247590c77ae19375beb31a65dd6b1d",
+    "status": "completed",
+    "updatedAt": "2026-09-19T05:21:40Z",
+    "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/actions/runs/35423381049"
+  },
+  "recorded_at": "2026-09-19T05:23:51.195385+00:00",
+  "result": "PUBLIC_CI_AND_ACTUAL_SOURCE_DOWNLOAD_PASS",
+  "schema": "ovl.provider-recovery-validation.v1",
+  "source_download": {
+    "path": "project/evidence/provider-recovery-validation-v1/public-source-download.json",
+    "scope": "All 12 changed files, 229243 bytes, anonymously downloaded and compared to exact commit blobs.",
+    "sha256": "764909dbfdc01bd1a2e13cfcfeae91c998baa6be54a4ec12a39cd620ba7883a3"
+  },
+  "source_pull_request": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/101",
+  "source_revision": "bd05060512247590c77ae19375beb31a65dd6b1d"
+}

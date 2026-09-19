@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","observed_epoch":1789731200,"pod_id":"juxoj79yxzv4w1","reason":"deadline-or-prior-abort-or-clock-rollback"},"kind":"decision","observed_epoch":1789731200,"previous":"27353f41ee573d083852457f451b9024a054fb9c76d619f7534a9704282bb417","schema":"ovl.controller-event.v1","sequence":45}

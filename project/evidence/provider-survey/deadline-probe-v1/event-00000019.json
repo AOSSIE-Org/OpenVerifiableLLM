@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","pod_id":"lrsbh9avgltuxm","reason":"emergency abort"},"kind":"decision","observed_epoch":1789689687,"previous":"a69f147b09ac440330eefe1a984008a6f1a527b128431b8b933bdf46ad6dfb9b","schema":"ovl.controller-event.v1","sequence":19}

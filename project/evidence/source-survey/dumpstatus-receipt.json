@@ -1,0 +1,9 @@
+{
+  "file": "dumpstatus.json",
+  "url": "https://dumps.wikimedia.org/enwiki/20260901/dumpstatus.json",
+  "client": "curl; explicit project User-Agent",
+  "sha256": "66d367145245742d278ef5278df6e9000b51ae7628e71919b90e5ade754add2f",
+  "bytes": 643669,
+  "operator_observed_utc": "2026-09-17T17:28:59.108467+00:00",
+  "scope": "source survey only, not public source commitment"
+}

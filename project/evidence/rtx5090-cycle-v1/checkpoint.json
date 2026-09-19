@@ -1,0 +1,47 @@
+{
+  "command": "TOKENIZERS_PARALLELISM=false .venv/bin/python .ovllm-cache/verify_5090_cycle_v1.py",
+  "files": [
+    {
+      "bytes": 23823,
+      "path": "cuda-record-report.json",
+      "sha256": "75fc0bb287bf61ee1c95f1ffb09a2cb01b9d2c60ab18b8ed2ef4f0ddea71a0d3"
+    },
+    {
+      "bytes": 20897,
+      "path": "cuda-replay-report.json",
+      "sha256": "ba367269fd5335a2f3645a3d617311f0cedb94067ae96a6325823ee86f51f033"
+    },
+    {
+      "bytes": 20883,
+      "path": "cuda-resume-report.json",
+      "sha256": "3e6d113d1418bd7c63620368bc949873212078fe077722c1d844b3b0f5f193be"
+    },
+    {
+      "bytes": 5436,
+      "path": "selection.json",
+      "sha256": "811560c6a650263e299b7e0985acce9aa085f2846ce93710cbeeac30109383c6"
+    },
+    {
+      "bytes": 999,
+      "path": "verification.json",
+      "sha256": "5671f71ed42b842c048a77b8fe802ba8e55567b8622cf4083de7dff588591845"
+    },
+    {
+      "bytes": 1499,
+      "path": "verify_cycle.py",
+      "sha256": "9add42abcbe3bf85b38651c4e4f383ecf3f573fefa587087573efccc7f45b27e"
+    }
+  ],
+  "forecast": "NOT_ELIGIBLE_FIXED_UPDATE_PROBE; sustained Wikipedia/conversation plus fullpilot replays stillrunning",
+  "guard": "Existing onepod/rentaldeadline/budget unchanged; originalcontroller/watchdogactive.",
+  "numerical_code_root": "964b187d2d56141ca7ff53f8ba389b817b806f6b3608c779adb4bc58b3bcab06",
+  "pod_id": "i3qz59mirj7969",
+  "production_issue": "Separate CPU-only probe identifies differing mapped-library closure after real source signature verification. Investigate/fix only for future pinned source; preserve current run and all evidence.",
+  "provider_automatic_termination": "UNVERIFIED",
+  "recorded_at": "2026-09-19T05:34:48.906413+00:00",
+  "result": "PASS",
+  "schema": "ovl.rtx5090-cycle-checkpoint.v1",
+  "scope": "Actual CUDA four-update record, complete sequential four-update pilot replay from regenerated initial state and two-update resume from middle boundary; all nine retained safe states rehashed locally. Not full corpus training/replay or independent third-party verification.",
+  "source_revision": "9f89a411c99c7ca6918965dc53ef79f90f8b4598",
+  "verification_sha256": "5671f71ed42b842c048a77b8fe802ba8e55567b8622cf4083de7dff588591845"
+}

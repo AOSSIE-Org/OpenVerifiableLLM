@@ -1,0 +1,1 @@
+{"body":{"action":"TERMINATE","observed_epoch":1789731194,"pod_id":"juxoj79yxzv4w1","reason":"workload-complete-exported"},"kind":"decision","observed_epoch":1789731194,"previous":"09b2d3f5072a076a335da98f6f8648b50be73084cb813f93437f28ef631514b1","schema":"ovl.controller-event.v1","sequence":43}

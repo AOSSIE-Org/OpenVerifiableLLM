@@ -1,0 +1,23 @@
+{
+  "schema": "ovl.public-container-origin-observation.v1",
+  "observed_utc": "2026-09-18T05:33:32.851610+00:00",
+  "registry": "https://registry-1.docker.io",
+  "repo": "runpod/pytorch",
+  "observed_tag": "1.0.2-cu1281-torch280-ubuntu2404",
+  "index_digest": "sha256:0a360022e8de4375af99430f84e8b38951acc397252163a37ceac7204d01be35",
+  "image": "runpod/pytorch@sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851",
+  "config_digest": "sha256:02b731f844d2fbc4dd0de87253081363864327c7931b1ae2b5daa60abc600c51",
+  "platform": {
+    "os": "linux",
+    "architecture": "amd64"
+  },
+  "compressed_layer_bytes": 10564340940,
+  "layer_count": 34,
+  "upstream_dockerfile_source_observation": "https://github.com/runpod/containers/tree/cde073a33d1588ad73bad7b8dcfe7bf4ad9aded7",
+  "actual_metadata_download_hash_checks": "PASS",
+  "layer_downloads": "NOT_RUN",
+  "upstream_build_reproduction": "NOT_RUN",
+  "runtime_container_attestation": "NOT_RUN",
+  "production_admission": "NOT_RUN",
+  "credential_scope": "anonymous-public-pull token retained only in process memory"
+}

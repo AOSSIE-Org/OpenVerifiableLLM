@@ -1,0 +1,11 @@
+{
+  "repo_id": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+  "repo_type": "dataset",
+  "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+  "initial_revision": "d77732c56f6e887840a93d551145a11e2cb14730",
+  "readme_revision": "5049f6d06475f260a4d3dd8760c5edcc8bdfc539",
+  "commit_url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/commit/5049f6d06475f260a4d3dd8760c5edcc8bdfc539",
+  "operator_observed_utc": "2026-09-17T17:49:08.394715+00:00",
+  "scope": "actual public create/write permission confirmed; no production artifact or storage quota claim",
+  "earlier_attempt": "Repo creation succeeded; initial README upload rejected for relative license_link. Fixed HTTPS license link and added referenced file before this commit."
+}

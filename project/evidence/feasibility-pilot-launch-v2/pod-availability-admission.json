@@ -1,0 +1,1 @@
+{"observation_sha256":"7b5cb5e92dbd034e952c166e84ba68b4dc3f2deffd164353b4c47bf38b8f2479","selection":{"available_cuda_versions":["13.0","13.2"],"gpu_id":"NVIDIA GeForce RTX 4090","observed_epoch":1789778233,"scope":"POD-scoped availability observation; not a reservation or creation authorization","secure_hourly_usd":"0.74"}}

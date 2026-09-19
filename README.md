@@ -1,5 +1,20 @@
 # OpenVerifiableLLM
 
+Repository history maintenance changed public source and evidence locations.
+See the [current provenance status and pinned inventories](project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md).
+Affected historical verification claims remain suspended until the repaired public
+trust graph verifies. No production-verified Wikipedia model is available yet.
+
+The Wikipedia pipeline is described in the
+[end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md).
+Private operator instructions and working progress records are kept locally.
+The [synthetic pipeline fixture](docs/PIPELINE_FORMAT.md) now exercises raw-data
+reconstruction, safe checkpoints, continuous two-phase replay and export/inference.
+Production training and public trust gates remain pending. The existing
+artifact verifier and sampled replay do not yet satisfy its full reconstruction and
+continuous replay requirements. The goal requires a public trail from source data
+through the published base and conversational models, within a US$100 RunPod cap.
+
 **One-command verification for small open model artifacts.**
 
 OpenVerifiableLLM is an AOSSIE project for making model releases independently

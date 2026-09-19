@@ -1,0 +1,2 @@
+Local integration check initially rejected retained provider float price0.34 in canonical.read_json. Changed only future driver/provider observation fixture to json.loads for raw provider response, preserving the canonical protocol and exact existing validators. No provider call or new attempt was made.
+Second local check correctly rejected stale copied baseline; refreshed the mocked baseline time only. This was fixture setup, not a guard change.

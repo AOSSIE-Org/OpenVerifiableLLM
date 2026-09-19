@@ -1,0 +1,1 @@
+{"bytes_retained":90794575,"completed_wheel_files":31,"installer_executed":false,"partial_files":4,"result":"FAIL_DOWNLOAD_TIMEOUT","retained_directory":".ovllm-cache/public-setup-actual-v1","runtime_exists":false,"scope":"actual local public acquisition failed read timeout after48.687seconds; partials and completed bytes preserved; no CUDA or full-runtime credit"}

@@ -1,0 +1,25 @@
+{
+  "observed_at": "2026-09-18T00:00:43.638Z",
+  "scope": "selected authenticated REST v2 pod observation; no scheduler state proof",
+  "id": "lrsbh9avgltuxm",
+  "status": "RUNNING",
+  "cost": 0.24,
+  "disk": 4,
+  "gpu": {
+    "count": 1,
+    "id": "NVIDIA RTX 2000 Ada Generation",
+    "memory": 31,
+    "vcpuCount": 8
+  },
+  "image": "ubuntu@sha256:496754492fb28b4d3049432f2ca787449331e23fb14f0dd3fffea86bf5a93eb4",
+  "actions": [
+    "stop",
+    "restart",
+    "terminate"
+  ],
+  "cmd": [
+    "/bin/sleep",
+    "infinity"
+  ],
+  "args": "/bin/sleep infinity"
+}

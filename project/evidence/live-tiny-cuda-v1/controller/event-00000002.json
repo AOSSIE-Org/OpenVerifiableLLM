@@ -1,0 +1,1 @@
+{"body":{"action":"CREATION_FENCED","fence_sha256":"22dc0a5886d11e695762ff03c855d2508f583fead346d3d39093860a2b6453cd"},"kind":"decision","observed_epoch":1789727247,"previous":"648b3738c7e9899c616cbfc5546aaf54d2ad7cfad2d204fc1205eccf53676605","schema":"ovl.controller-event.v1","sequence":2}

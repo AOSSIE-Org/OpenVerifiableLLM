@@ -1,0 +1,30 @@
+usage: production_replay.py [-h] --packet PACKET --registration-bundle
+                            REGISTRATION_BUNDLE --production-policy
+                            PRODUCTION_POLICY --source-policy SOURCE_POLICY
+                            --source-checkout SOURCE_CHECKOUT
+                            --chain-directory CHAIN_DIRECTORY
+                            --progress-directory PROGRESS_DIRECTORY
+                            --progress-policies PROGRESS_POLICIES
+                            --wikipedia-stream WIKIPEDIA_STREAM
+                            --conversation-stream CONVERSATION_STREAM --output
+                            OUTPUT
+
+Full sequential numerical replay from regenerated production initialization.
+Every registered update and boundary is recomputed. Prover checkpoints are
+only read for comparison and never restored. This checks numerical trajectory,
+not raw transformation reconstruction, download provenance, or independent
+observation.
+
+options:
+  -h, --help            show this help message and exit
+  --packet PACKET
+  --registration-bundle REGISTRATION_BUNDLE
+  --production-policy PRODUCTION_POLICY
+  --source-policy SOURCE_POLICY
+  --source-checkout SOURCE_CHECKOUT
+  --chain-directory CHAIN_DIRECTORY
+  --progress-directory PROGRESS_DIRECTORY
+  --progress-policies PROGRESS_POLICIES
+  --wikipedia-stream WIKIPEDIA_STREAM
+  --conversation-stream CONVERSATION_STREAM
+  --output OUTPUT
