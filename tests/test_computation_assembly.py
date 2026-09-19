@@ -1,5 +1,6 @@
 """Actual tiny reconstructed data/states; explicitly synthetic provider/audit identities."""
 from copy import deepcopy
+from io import BytesIO
 from pathlib import Path
 import shutil
 import sys
@@ -84,6 +85,13 @@ def configured(inputs,prepared,tmp_path,monkeypatch):
     from ovl_pipeline.canonical import canonical
     public={prefix+'prior.json':canonical(cp),prefix+'replay.json':canonical(published)}
     monkeypatch.setattr(source_commitment,'fetch_metadata',lambda url:public[url])
+    def open_public(request,timeout):
+        # Substitute transport only; retain URL, response, hash and JSON checks.
+        assert timeout==60
+        body=BytesIO(public[request.full_url])
+        body.status=200;body.url=request.full_url;body.headers={}
+        return body
+    monkeypatch.setattr(m,'build_opener',lambda handler:SimpleNamespace(open=open_public))
     args=dict(packet=tmp_path/'packet',bundle=None,production_policy=None,source_policy=None,source_checkout=tmp_path,
         chain=chain,progress=tmp_path/'progress',progress_policies=[],raw=tmp_path/'raw',prepared=full/'reconstructed',
         exports=tmp_path/'export',context=read_json(reports/'context.json'),prior_checkpoint=prior,prior_observation=obs_path,

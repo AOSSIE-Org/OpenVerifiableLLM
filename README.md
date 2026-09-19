@@ -1,5 +1,10 @@
 # OpenVerifiableLLM
 
+Repository history maintenance changed public source and evidence locations.
+See the [current provenance status and pinned inventories](project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md).
+Affected historical verification claims remain suspended until the repaired public
+trust graph verifies. No production-verified Wikipedia model is available yet.
+
 The Wikipedia pipeline is described in the
 [end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md).
 Private operator instructions and working progress records are kept locally.

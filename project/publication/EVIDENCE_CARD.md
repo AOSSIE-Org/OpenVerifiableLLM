@@ -8,6 +8,12 @@ license_link: https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260
 ---
 # OpenVerifiableLLM Wikipedia provenance evidence
 
+**Historical status below is retained as context. Repository maintenance changed
+source and evidence locations; affected public acceptance remains suspended.**
+Use the [current provenance status](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/fix/public-provenance-after-history-maintenance/project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md)
+and its pinned inventories. Earlier signed payloads retain their original bytes;
+new locators do not silently replace their identity or verification requirements.
+
 **Development in progress. No production-trained or end-to-end verified model is
 published here yet.** Synthetic test results do not establish Wikipedia training.
 
