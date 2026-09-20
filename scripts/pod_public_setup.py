@@ -88,6 +88,9 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
         if any(a.is_symlink() for a in [p,*p.parents]):raise ValueError('setup symlink')
     if type(deadline) is not int or not 0<deadline-time.time()<=900:raise ValueError('bounded setup deadline required')
     if runtime.exists() or output.exists():raise ValueError('fresh runtime and evidence required')
+    activity=os.environ.get('OVL_ACTIVITY_FILE')
+    if activity is not None and activity!=str(output/'activity.json'):
+        raise ValueError('selected setup activity path required')
     if any(a==b or a in b.parents or b in a.parents for a,b in ((inputs,runtime),(inputs,output),(runtime,output))):raise ValueError('separate setup roots required')
     value=read(Path(config),expected)
     keys={'schema','offline_config','offline_config_sha256','fetch_script','fetch_script_sha256','setup_script','setup_script_sha256','wheel_plan','wheel_plan_sha256','source_archive','source_archive_sha256','download_seconds'}
@@ -118,10 +121,11 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     with (output/'selected-config.json').open('xb') as f:
         f.write(Path(config).read_bytes());f.flush();os.fsync(f.fileno())
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PYTHONDONTWRITEBYTECODE':'1'}
-    def run(args,limit=None):
+    def run(args,limit=None,report_activity=False):
         left=min(deadline-time.time(),monotonic_end-time.monotonic())
         if left<=0:raise TimeoutError('original setup deadline expired')
-        execute([sys.executable,'-I','-S',*args],env=env,check=True,timeout=min(left,limit) if limit is not None else left)
+        child_env={**env,'OVL_ACTIVITY_FILE':activity} if report_activity and activity is not None else env
+        execute([sys.executable,'-I','-S',*args],env=child_env,check=True,timeout=min(left,limit) if limit is not None else left)
     if bootstrap:
         bootstrap_deadline=min(deadline,int(time.time())+value['bootstrap_seconds'])
         bootstrap_end=time.monotonic()+bootstrap_deadline-time.time()
@@ -139,7 +143,7 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     extract(path(inputs,value['source_archive']),value['source_archive_sha256'],source,offline['source_files'])
     download_deadline=min(deadline,int(time.time())+value['download_seconds'])
     run([str(path(inputs,value['fetch_script'])),'--plan',str(path(inputs,value['wheel_plan'])),'--plan-sha256',value['wheel_plan_sha256'],
-         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)])
+         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)],report_activity=True)
     if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
     downloads=json.loads((output/'downloads.json').read_bytes())
     plan=read(path(inputs,value['wheel_plan']),value['wheel_plan_sha256'])
