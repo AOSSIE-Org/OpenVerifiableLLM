@@ -26,14 +26,18 @@ def validate(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('rental intent differs from selected pin')
     fields(value,'schema watchdog_intent payload quote','rental intent')
-    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4'):raise EvidenceError('unsupported rental controller intent')
+    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5'):raise EvidenceError('unsupported rental controller intent')
     w=value['watchdog_intent'];p=validate_intent(w,digest(w));payload=value['payload']
     names='name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports'
-    explicit_cuda=value['schema'] in ('ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4')
+    explicit_cuda=value['schema'] in ('ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5')
     if explicit_cuda:names+=' allowedCudaVersions'
-    network_minimums=value['schema']=='ovl.rental-controller-intent.v4'
+    network_minimums=value['schema'] in ('ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5')
     if network_minimums:names+=' minDownload minUpload'
+    country_selection=value['schema']=='ovl.rental-controller-intent.v5'
+    if country_selection:names+=' countryCode'
     fields(payload,names,'creation payload')
+    if country_selection and (type(payload['countryCode']) is not str or not re.fullmatch(r'[A-Z]{2}',payload['countryCode'])):
+        raise EvidenceError('explicit two-letter country placement required')
     if network_minimums:
         # Provider placement requests, never measured transport or runtime credit.
         for key in ('minDownload','minUpload'):
@@ -45,10 +49,10 @@ def validate(value,expected):
             or versions!=sorted(set(versions),key=lambda v:int(v.split('.')[1]))):
             raise EvidenceError('explicit unique ordered CUDA13 host versions required')
     if any(payload[k]!=v for k,v in w['payload'].items()):raise EvidenceError('creation differs from watchdog identity/deadline')
-    clouds=('SECURE','COMMUNITY') if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4') else ('SECURE',)
+    clouds=('SECURE','COMMUNITY') if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else ('SECURE',)
     if payload['cloudType'] not in clouds or payload['startSsh'] is not True or payload['startJupyter'] is not False:
         raise EvidenceError('selected cloud and SSH-only rental required')
-    quote_schema='ovl.rental-quote.v2' if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4') else 'ovl.rental-quote.v1'
+    quote_schema='ovl.rental-quote.v2' if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else 'ovl.rental-quote.v1'
     if value['quote'].get('schema')!=quote_schema:raise EvidenceError('quote version differs from rental intent')
     if payload['ports']!='22/tcp':raise EvidenceError('only SSH port may be exposed')
     if payload['dockerArgs']!='':raise EvidenceError('only immutable image entrypoint may start')
@@ -198,7 +202,7 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                         elif obs['observed_epoch']-missing_since>=15:
                             report={'schema':'ovl.rental-controller-result.v1','complete':True,'pod_id':known,'intent_sha256':expected,
                                 'confirmed_absent_epoch':obs['observed_epoch'],'residual_network_volumes':obs['volume_ids'],
-                                'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb']+(['allowedCudaVersions'] if 'allowedCudaVersions' in value['payload'] else [])+(['minDownload','minUpload'] if value['schema']=='ovl.rental-controller-intent.v4' else []),
+                                'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb']+(['allowedCudaVersions'] if 'allowedCudaVersions' in value['payload'] else [])+(['minDownload','minUpload'] if value['schema'] in ('ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else [])+(['countryCode'] if value['schema']=='ovl.rental-controller-intent.v5' else []),
                                 'runtime_identity_admission':'NOT_RUN',
                                 'automatic_provider_termination':'UNVERIFIED','provider_billing_reconciliation':'PENDING','training_admission':'NOT_RUN'}
                             j.append('teardown',report);write_json(directory/'result.json',report);return
