@@ -159,13 +159,13 @@ def test_pax_metadata_archive_is_refused_instead_of_silently_interpreted(tmp_pat
 
 
 def test_measured_download_cap_does_not_extend_original_total_bound(tmp_path):
-    inputs,config,v=fixture(tmp_path);v['download_seconds']=210;write_json(config,v);calls=[]
+    inputs,config,v=fixture(tmp_path);v['download_seconds']=600;write_json(config,v);calls=[]
     def stop(argv,**kwargs):
         calls.append((argv,kwargs));raise RuntimeError('stop before actual network')
     original=int(time.time())+280
     with pytest.raises(RuntimeError):m.setup(config,file_hash(config),inputs,tmp_path/'runtime',tmp_path/'evidence',original,execute=stop)
-    assert len(calls)==1 and int(calls[0][0][-1])<=int(time.time())+210 and calls[0][1]['timeout']<=280
-    other=tmp_path/'other';other.mkdir();i,c,v=fixture(other);v['download_seconds']=211;write_json(c,v)
+    assert len(calls)==1 and int(calls[0][0][-1])<=original and calls[0][1]['timeout']<=280
+    other=tmp_path/'other';other.mkdir();i,c,v=fixture(other);v['download_seconds']=601;write_json(c,v)
     with pytest.raises(ValueError,match='download time bound'):m.setup(c,file_hash(c),i,other/'runtime',other/'evidence',int(time.time())+280,execute=stop)
     assert len(calls)==1
 
@@ -329,3 +329,25 @@ def test_v2_success_receipt_flush_expiry_keeps_pending_only(tmp_path,monkeypatch
     monkeypatch.setattr(m.os,'fsync',slow)
     with pytest.raises(TimeoutError):m.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,380,execute=_v2_stage_double(inputs,output,value,plan,data,calls))
     assert not(output/'setup.json').exists() and (output/'setup.json.pending').exists()
+
+
+@pytest.mark.parametrize('backward_clock',[False,True])
+def test_measured_setup_allocation_retains_original_deadline(tmp_path,monkeypatch,backward_clock):
+    inputs,config,v=fixture(tmp_path);v['download_seconds']=600;write_json(config,v)
+    output=tmp_path/'output';wall=[100];mono=[100];calls=[]
+    monkeypatch.setattr(m.time,'time',lambda:wall[0]);monkeypatch.setattr(m.time,'monotonic',lambda:mono[0])
+    def execute(argv,**kwargs):
+        calls.append((argv,kwargs))
+        if argv[3].endswith('fetch.py'):
+            assert argv[-1]=='700' and kwargs['timeout']==900
+            wall[0]=0 if backward_clock else 375;mono[0]=375
+            f=json.loads((inputs/'plan.json').read_bytes())['files'][0]
+            write_json(output/'downloads.json',{'schema':'ovl.public-wheel-download-result.v1','plan_sha256':v['wheel_plan_sha256'],'files':[{**f,'result':'COMPLETE_HASH_MATCH'}]})
+        else:
+            assert kwargs['timeout']==625
+            mono[0]=1001
+            if not backward_clock:wall[0]=1001
+            (output/'offline').mkdir();write_json(output/'offline/setup.json',{'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':v['offline_config_sha256']})
+    with pytest.raises(TimeoutError,match='original setup deadline'):
+        m.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,1000,execute=execute)
+    assert len(calls)==2 and not(output/'setup.json').exists()
