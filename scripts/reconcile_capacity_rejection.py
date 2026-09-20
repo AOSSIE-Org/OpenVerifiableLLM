@@ -65,9 +65,12 @@ def verify(rental,expected,diagnostic,request,raw,events,observations,heartbeat,
     except Exception:raise EvidenceError('invalid complete creation response') from None
     if (type(value) is not dict or value.get('data')!={'podFindAndDeployOnDemand':None}
         or type(value.get('errors')) is not list or len(value['errors'])!=1
-        or value['errors'][0].get('message')!=MESSAGE):
+        or type(value['errors'][0]) is not dict
+        or value['errors'][0].get('message')!=MESSAGE
+        or type(value['errors'][0].get('extensions')) is not dict
+        or value['errors'][0]['extensions'].get('code')!='SUPPLY_CONSTRAINT'):
         raise EvidenceError('only the exact explicit capacity rejection can reconcile early')
-    identity=principal(value['errors'][0].get('extensions',{}).get('userId'))
+    identity=principal(value['errors'][0]['extensions'].get('userId'))
     if [e['body'] for e in events if e['kind']=='creation-intent']!=[rental]:
         raise EvidenceError('controller journal selects another creation')
     if any(e['kind']=='creation-observed' for e in events):raise EvidenceError('a pod was observed; use normal resource teardown')
