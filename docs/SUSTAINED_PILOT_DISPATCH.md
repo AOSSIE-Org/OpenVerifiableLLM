@@ -31,6 +31,19 @@ identity or complete retention cannot be established, the dispatcher fails close
 and leaves the unchanged controller and external watchdog authoritative. Automatic
 provider termination remains unverified.
 
+Read-only supervision and metadata observations have at most two attempts within
+one fixed 45-second window, capped by the original external deadline. SSH retains
+error diagnostics in a bounded private buffer: quiet mode would suppress the
+information needed to classify a connection refusal. Every diagnostic line must
+match the closed transport allowlist before a nonzero SSH result may retry.
+Received authentication or host-identity denials fail promptly; unknown or mixed
+diagnostics remain fatal, including at timeout. A nonblocking deadline check
+includes already-buffered stderr and an available exit status without extending
+the window. Raw diagnostics never enter public exceptions or retry receipts.
+Diagnostic classification is not proof of its producer or successful execution;
+SSH also carries remote stderr. All selected identity, framing, input and state
+checks still apply. Launches and writes acquire no automatic retry permission.
+
 The CLI takes the same explicit endpoint, key, worker, controller journal and
 health paths as the finite dispatcher, with an `ovl.sustained-pilot-plan.v1` plan:
 

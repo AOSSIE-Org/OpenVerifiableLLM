@@ -86,51 +86,96 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     inputs=Path(inputs).absolute();runtime=Path(runtime).absolute();output=Path(output).absolute()
     for p in (inputs,runtime,output,Path(config).absolute()):
         if any(a.is_symlink() for a in [p,*p.parents]):raise ValueError('setup symlink')
-    if type(deadline) is not int or not 0<deadline-time.time()<=300:raise ValueError('bounded setup deadline required')
+    if type(deadline) is not int or not 0<deadline-time.time()<=900:raise ValueError('bounded setup deadline required')
     if runtime.exists() or output.exists():raise ValueError('fresh runtime and evidence required')
+    activity=os.environ.get('OVL_ACTIVITY_FILE')
+    if activity is not None and activity!=str(output/'activity.json'):
+        raise ValueError('selected setup activity path required')
     if any(a==b or a in b.parents or b in a.parents for a,b in ((inputs,runtime),(inputs,output),(runtime,output))):raise ValueError('separate setup roots required')
     value=read(Path(config),expected)
     keys={'schema','offline_config','offline_config_sha256','fetch_script','fetch_script_sha256','setup_script','setup_script_sha256','wheel_plan','wheel_plan_sha256','source_archive','source_archive_sha256','download_seconds'}
-    if type(value) is not dict or set(value)!=keys or value['schema']!='ovl.public-runtime-setup.v1':raise ValueError('public setup schema')
-    for key in ('offline_config','fetch_script','setup_script','wheel_plan','source_archive'):
+    if type(value) is not dict:raise ValueError('public setup schema')
+    bootstrap=value.get('schema')=='ovl.public-runtime-setup.v2'
+    if bootstrap:keys|={'bootstrap_script','bootstrap_script_sha256','bootstrap_plan','bootstrap_plan_sha256','bootstrap_seconds'}
+    if set(value)!=keys or value['schema'] not in ('ovl.public-runtime-setup.v1','ovl.public-runtime-setup.v2'):raise ValueError('public setup schema')
+    for key in ('offline_config','fetch_script','setup_script','wheel_plan')+ (('bootstrap_script','bootstrap_plan') if bootstrap else ('source_archive',)):
         if sha(path(inputs,value[key]))!=value[key+'_sha256']:raise ValueError('selected setup input differs')
     offline=read(path(inputs,value['offline_config']),value['offline_config_sha256'])
     if type(offline) is not dict or offline.get('schema')!='ovl.offline-runtime-setup.v1':raise ValueError('offline schema')
     source=path(inputs,offline['source_root']);wheels=path(inputs,offline['wheels'])
     if source==wheels or source in wheels.parents or wheels in source.parents or wheels.exists():raise ValueError('fresh distinct source and wheels required')
-    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=210:raise ValueError('download time bound')
+    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=600:raise ValueError('download time bound')
+    if bootstrap:
+        if type(value['bootstrap_seconds']) is not int or not 1<=value['bootstrap_seconds']<=90:raise ValueError('bootstrap time bound')
+        if value['source_archive']!='bootstrap/source.tar.gz' or offline.get('interpreter_archive')!='bootstrap/python.tar.gz':raise ValueError('bootstrap archive paths')
+        plan=read(path(inputs,value['bootstrap_plan']),value['bootstrap_plan_sha256'])
+        if (type(plan) is not dict or plan.get('schema')!='ovl.public-bootstrap.v1'
+            or plan.get('repo')!='AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence'
+            or type(plan.get('files')) is not list or len(plan['files'])!=2):raise ValueError('bootstrap plan parent')
+        for item,name,pin in zip(plan['files'],('python.tar.gz','source.tar.gz'),(offline.get('interpreter_sha256'),value['source_archive_sha256'])):
+            if (type(item) is not dict or item.get('path')!=name or item.get('sha256')!=pin
+                or type(item.get('bytes')) is not int or not 0<item['bytes']<=64*1024**2):raise ValueError('bootstrap file parent')
+        archive_root=path(inputs,'bootstrap')
+        if archive_root.exists() or source==archive_root or source in archive_root.parents or archive_root in source.parents or wheels==archive_root or wheels in archive_root.parents or archive_root in wheels.parents:raise ValueError('fresh separate bootstrap root required')
     output.mkdir(mode=0o700,parents=True)
     with (output/'selected-config.json').open('xb') as f:
         f.write(Path(config).read_bytes());f.flush();os.fsync(f.fileno())
-    extract(path(inputs,value['source_archive']),value['source_archive_sha256'],source,offline['source_files'])
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PYTHONDONTWRITEBYTECODE':'1'}
-    def run(args):
+    def run(args,limit=None,report_activity=False):
         left=min(deadline-time.time(),monotonic_end-time.monotonic())
         if left<=0:raise TimeoutError('original setup deadline expired')
-        execute([sys.executable,'-I','-S',*args],env=env,check=True,timeout=left)
+        child_env={**env,'OVL_ACTIVITY_FILE':activity} if report_activity and activity is not None else env
+        execute([sys.executable,'-I','-S',*args],env=child_env,check=True,timeout=min(left,limit) if limit is not None else left)
+    if bootstrap:
+        bootstrap_deadline=min(deadline,int(time.time())+value['bootstrap_seconds'])
+        bootstrap_end=time.monotonic()+bootstrap_deadline-time.time()
+        run([str(path(inputs,value['bootstrap_script'])),'--plan',str(path(inputs,value['bootstrap_plan'])),'--plan-sha256',value['bootstrap_plan_sha256'],
+             '--output',str(archive_root),'--report',str(output/'bootstrap.json'),'--deadline',str(bootstrap_deadline)],limit=min(bootstrap_deadline-time.time(),bootstrap_end-time.monotonic()))
+        if min(bootstrap_deadline-time.time(),bootstrap_end-time.monotonic())<=0:raise TimeoutError('original bootstrap deadline expired')
+        receipt=read(output/'bootstrap.json',sha(output/'bootstrap.json'))
+        if (receipt.get('schema')!='ovl.public-bootstrap-result.v1' or receipt.get('result')!='PASS'
+            or receipt.get('plan_sha256')!=value['bootstrap_plan_sha256'] or receipt.get('files')!=plan['files']
+            or receipt.get('original_deadline_epoch')!=bootstrap_deadline):raise ValueError('bootstrap receipt differs')
+        for item in plan['files']:
+            artifact=path(archive_root,item['path'])
+            if artifact.stat().st_size!=item['bytes'] or sha(artifact)!=item['sha256']:raise ValueError('bootstrap archive identity differs')
+        if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
+    extract(path(inputs,value['source_archive']),value['source_archive_sha256'],source,offline['source_files'])
     download_deadline=min(deadline,int(time.time())+value['download_seconds'])
+    download_end=time.monotonic()+download_deadline-time.time()
     run([str(path(inputs,value['fetch_script'])),'--plan',str(path(inputs,value['wheel_plan'])),'--plan-sha256',value['wheel_plan_sha256'],
-         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)])
-    run([str(path(inputs,value['setup_script'])),'setup','--config',str(path(inputs,value['offline_config'])),'--config-sha256',value['offline_config_sha256'],
-         '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/'offline')])
-    if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
+         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)],
+        limit=min(download_deadline-time.time(),download_end-time.monotonic()),report_activity=True)
+    if min(download_deadline-time.time(),download_end-time.monotonic())<=0:raise TimeoutError('original download deadline expired')
     downloads=json.loads((output/'downloads.json').read_bytes())
-    installed=json.loads((output/'offline/setup.json').read_bytes())
     plan=read(path(inputs,value['wheel_plan']),value['wheel_plan_sha256'])
     if (not plan.get('files') or downloads.get('schema')!='ovl.public-wheel-download-result.v1' or downloads.get('plan_sha256')!=value['wheel_plan_sha256']
         or type(downloads.get('files')) is not list or len(downloads['files'])!=len(plan['files'])):raise ValueError('download receipt parent differs')
     for expected_file,actual in zip(plan['files'],downloads['files']):
         if any(actual.get(k)!=v for k,v in expected_file.items()) or actual.get('result')!='COMPLETE_HASH_MATCH':raise ValueError('incomplete selected download receipt')
+    run([str(path(inputs,value['setup_script'])),'setup','--config',str(path(inputs,value['offline_config'])),'--config-sha256',value['offline_config_sha256'],
+         '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/'offline')])
+    installed=json.loads((output/'offline/setup.json').read_bytes())
     if (installed.get('schema')!='ovl.offline-runtime-setup-result.v1' or installed.get('result')!='PASS'
         or installed.get('config_sha256')!=value['offline_config_sha256']):raise ValueError('offline audit receipt differs')
     result={'schema':'ovl.public-runtime-setup-result.v1','result':'PASS','config_sha256':expected,
             'downloads_sha256':sha(output/'downloads.json'),'offline_result_sha256':sha(output/'offline/setup.json'),
             'operator_observed_start_epoch':int(started),'operator_observed_finish_epoch':int(time.time()),'original_deadline_epoch':deadline,
             'scope':'selected public downloads and audited offline runtime only; no CUDA/training acceptance'}
-    with (output/'setup.json').open('x') as f:json.dump(result,f,sort_keys=True,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
-    fd=os.open(output,os.O_RDONLY|os.O_DIRECTORY)
-    try:os.fsync(fd)
-    finally:os.close(fd)
+    if bootstrap:result.update(schema='ovl.public-runtime-setup-result.v2',bootstrap_receipt_sha256=sha(output/'bootstrap.json'))
+    def timely():
+        if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
+    timely();pending=output/'setup.json.pending';final=output/'setup.json'
+    with pending.open('x') as f:json.dump(result,f,sort_keys=True,separators=(',',':'));f.write('\n');f.flush();os.fsync(f.fileno())
+    timely();os.link(pending,final)
+    try:
+        fd=os.open(output,os.O_RDONLY|os.O_DIRECTORY)
+        try:os.fsync(fd)
+        finally:os.close(fd)
+        timely()
+    except BaseException:
+        final.unlink();raise  # Complete pending evidence remains; no accepted success.
+    pending.unlink()
     return result
 
 
@@ -141,8 +186,8 @@ def main():
     a=p.parse_args()
     if not(sys.flags.isolated and sys.flags.no_site):p.exit(1,'bootstrap requires -I -S\n')
     # Keep the caller's original outer deadline and additionally bound this
-    # one-shot stage to 300s from entry; this never extends the rental/job bound.
-    setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output,min(a.deadline,int(time.time())+300))
+    # one-shot stage to 900s from entry; this never extends the rental/job bound.
+    setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output,min(a.deadline,int(time.time())+900))
 
 
 if __name__=='__main__':main()

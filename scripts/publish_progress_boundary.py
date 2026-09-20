@@ -39,6 +39,21 @@ def command(args,*,cwd=None,timeout=120):
     return r.stdout.decode().strip()
 
 
+def deadline_command(deadline,*,execute=command):
+    """Clip every command to one original wall/monotonic publication window."""
+    integer(deadline,1,2**53-1,'publication command deadline')
+    expires=time.monotonic()+max(0,deadline-time.time())
+    def bounded(args,**kwargs):
+        remaining=min(deadline-time.time(),expires-time.monotonic())
+        if remaining<=0:raise EvidenceError('original publication command deadline reached')
+        kwargs['timeout']=min(kwargs.get('timeout',120),remaining)
+        result=execute(args,**kwargs)
+        if min(deadline-time.time(),expires-time.monotonic())<=0:
+            raise EvidenceError('command exceeded original publication deadline')
+        return result
+    return bounded
+
+
 def save_once(path,value):
     if path.exists():
         if read_json(path)!=value:raise EvidenceError('preserved publisher intent differs; do not overwrite')
@@ -108,7 +123,7 @@ def request_commit(request,r,directory,*,execute=command):
         changed=execute(['git','diff','--cached','--name-only'],cwd=clone)
         if changed!=name:raise EvidenceError('publisher would commit unrelated changes')
         execute(['git','-c','user.name=Rajat Roy','-c','user.email=135772548+ryoari@users.noreply.github.com',
-                 'commit','-m',f"Commit public progress boundary {len(request['envelopes'])-1}"],cwd=clone)
+                 'commit','-m',f"Commit public progress boundary {len(request['envelopes'])-1}"],cwd=clone,timeout=600)
         revision=execute(['git','rev-parse','HEAD'],cwd=clone)
         save_once(saved,{'revision':revision,'request_sha256':digest(request),'path':name})
     record=read_json(saved);revision=record['revision']
@@ -129,7 +144,7 @@ def request_commit(request,r,directory,*,execute=command):
         execute(['git','merge-base','--is-ancestor',revision,'origin/'+BRANCH],cwd=clone)
     else:
         save_once(push,{'revision':revision,'remote':REMOTE,'ref':REF})
-        execute(['git','push','origin','HEAD:'+REF],cwd=clone)
+        execute(['git','push','origin','HEAD:'+REF],cwd=clone,timeout=600)
     execute(['git','fetch','origin',BRANCH],cwd=clone)
     execute(['git','merge-base','--is-ancestor',revision,'origin/'+BRANCH],cwd=clone)
     save_once(directory/'public-commit.json',{'revision':revision,'url':'https://github.com/'+REPOSITORY+'/commit/'+revision})
@@ -191,6 +206,7 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
             previous_directory,previous_policies,output,deadline):
     integer(deadline,1,2**53-1,'publisher deadline')
     if time.time()>=deadline:raise EvidenceError('publisher deadline expired before publication')
+    bounded_command=deadline_command(deadline)
     fields(config,'schema registration_request registration_anchor','progress dispatcher configuration')
     if config['schema']!='ovl.progress-dispatch.v1':raise EvidenceError('unsupported dispatcher configuration')
     verification=verify_packet(packet,bundle,production_policy,source_policy,source_checkout=source_checkout)
@@ -244,11 +260,11 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     validate_request(request)
     value=statement(r,root,envelopes,archive,previous)
     save_once(output/'expected-statement.json',value)
-    revision=request_commit(request,r,output/'git-request')
+    revision=request_commit(request,r,output/'git-request',execute=bounded_command)
     policy=expected_policy(revision,value);save_once(output/'operator-policy.json',asdict(policy))
     activity('request-public-commit-verified',{'revision':revision,'request_sha256':digest(request)})
     artifact=output/('actions-download-'+uuid.uuid4().hex)
-    actions=actions_artifact(revision,artifact,deadline,progress=activity)
+    actions=actions_artifact(revision,artifact,deadline,execute=bounded_command,progress=activity)
     anchors=output/('checked-prefix-'+uuid.uuid4().hex);anchors.mkdir()
     for i in range(index):copy_anchor(confined(previous_directory,f'progress-{i:05d}'),anchors/f'progress-{i:05d}')
     current=anchors/f'progress-{index:05d}'

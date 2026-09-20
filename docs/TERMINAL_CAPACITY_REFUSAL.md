@@ -1,0 +1,110 @@
+# Recovery from a complete capacity refusal
+
+A fully recorded, authenticated `SUPPLY_CONSTRAINT` refusal may close an unused
+creation attempt before its planned rental deadline. This policy trusts that
+explicit provider response and identified account observations. It is not a
+provider termination guarantee, final invoice settlement, or evidence of training.
+Timeouts, partial responses, mismatched identities and any observed resource
+continue through the existing conservative teardown path.
+
+`scripts/recover_capacity_refusal.py` verifies the existing strict refusal receipt,
+the complete original controller and watchdog journals, and the permanent
+creation fence. Preparation requires two fresh, separated, same-account absence
+reads and the original live watchdog heartbeat. Execute mode stops the original
+controller, acquires the account and controller locks, checks history again,
+stops the watchdog, then holds both journal locks while obtaining two further
+absence reads. No provider mutation is made.
+
+Run this from an isolated source checkout with the established environment.
+Supply the original private attempt directory, its pinned rental digest, a new
+private output directory, and the exact original controller/watchdog unit names:
+
+```sh
+python scripts/recover_capacity_refusal.py \
+  --attempt "$ATTEMPT" --expected-rental "$RENTAL_SHA256" \
+  --output "$RECOVERY" \
+  --controller-unit "$CONTROLLER_UNIT" --watchdog-unit "$WATCHDOG_UNIT" \
+  --expected-controller-unit-sha256 "$CONTROLLER_UNIT_SHA256" \
+  --expected-watchdog-unit-sha256 "$WATCHDOG_UNIT_SHA256"
+```
+
+Without `--execute`, this records preparation only. Existing services, provider
+resources and budget remain unchanged. Output contains private operational
+history; do not publish the output directory or raw response inputs.
+
+For execution, use a separately supervised local systemd oneshot, with the same
+absolute interpreter, script and arguments in both commands:
+
+- `ExecStart`: the command above with `--execute`.
+- `ExecStopPost`: the command above with `--restore-watchdog-unless-closed`.
+- Set `WorkingDirectory` and `PYTHONPATH` to this reviewed source checkout; use
+  `UMask=0077` and a bounded `TimeoutStartSec` sufficient for the absence reads
+  and service transitions. Do not configure automatic creation retries.
+
+Install and verify the supervisor before execution. `ExecStopPost` runs in a
+separate process and restores the original watchdog if recovery was killed or
+failed without a verifiable durable closure. A missing final `closure.json` can
+be reconstructed from the sealed journal and content-addressed snapshot. On a
+host outage, adopt recovery and restore/verify guards before admitting another
+rental. A supervisor cannot protect against a powered-off host.
+
+Reusing a sealed closure also requires the original guards to remain inactive
+and their complete journals to match the sealed snapshot. If a failed write
+restored a guard or history advanced, preserve the old recovery directory and
+perform fresh supervised recovery in a new directory; never reuse stale closure
+as evidence that live guards are stopped.
+
+Local unit contents must match the retained original service files. The original
+unit hashes must be independently pinned in both supervisor commands. Overrides,
+pending daemon reloads, symlinked output ancestry and nonprivate output directories
+are rejected. Recovery and cleanup share an exclusive operation lease; a competing
+cleanup cannot restart services owned by a live recovery. The original
+frozen source, guard journals, deadline and creation fence are never rewritten.
+Retire the original delayed closure timer only after a verified closure, while
+preserving its unit and evidence. Do not alter unrelated services or timers.
+
+## Accounting and the next attempt
+
+A passing closure marks only the unused creation allowance as eligible for
+release. It does not release money itself. Before releasing:
+
+1. Recompute closure from the retained complete private inputs.
+2. Review and publish the technical closure through the existing publication
+   privacy guard; verify its actual public download and trusted destination.
+3. Under the existing ledger's exclusive lock, call `release_budget` with those
+   verified bytes, complete closure inputs, the matching current rental digest
+   and the exact current allowance. Atomically persist both returned objects:
+   the updated budget and release records keyed by rental digest.
+4. Recompute admission using actual spend, all other unsettled reservations,
+   protected export/storage reserve, the $90 guard and $100 total cap.
+
+An identical recorded release is idempotent; a conflicting or partial release
+fails. Never reduce actual spend or another attempt's reservation. The helper
+expects `current_rental_intent_sha256` to come from the pinned active rental
+record, not an untrusted closure. The caller owns durable ledger persistence and
+public-download authentication; passing locally generated bytes is not proof of
+publication.
+
+Every successor uses a new attempt identity and permanent creation fence.
+Recheck qualifying capacity and all unchanged launch requirements. A routine
+capacity refusal warrants bounded backoff and another authorized attempt after
+reconciliation, rather than ending the project after an arbitrary turn count.
+Missing authority, unresolved integrity failures or insufficient budget still
+block the dependent action, while independent authorized work can continue.
+
+## Verification
+
+```sh
+PYTHONPATH=src:scripts:tests python -m pytest -q \
+  tests/test_terminal_capacity_refusal.py \
+  tests/test_reconcile_capacity_rejection.py \
+  tests/test_rental_controller.py tests/test_external_watchdog.py \
+  tests/test_closed_capacity_reservation.py \
+  tests/test_rental_adversarial.py tests/test_supervision.py
+```
+
+Tests cover explicit refusal, early closure, ancestry and identity alteration,
+nonempty or charged accounts, stale and overlapping observations, partial
+responses, competing account ownership, post-stop failure, interrupted closure,
+snapshot alteration, and duplicate accounting release. These are local lifecycle
+checks, not GPU correctness or independent scientific verification.

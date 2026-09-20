@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import threading
 import time
+import uuid
 from urllib.error import HTTPError,URLError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler,ProxyHandler,Request,build_opener
@@ -72,8 +73,37 @@ def fetch(plan,expected,output,report,deadline,*,opener=None,wall=time.time,mono
         if any(p.is_symlink() for p in [path,*path.parents]):raise ValueError('output symlink')
     if report.exists() or output.exists():raise ValueError('preserve prior partial download; fresh output/report required')
     if report==output or output in report.parents:raise ValueError('report must be outside wheel directory')
+    activity=None
+    if 'OVL_ACTIVITY_FILE' in os.environ:
+        activity=report.parent/'activity.json'
+        if os.environ['OVL_ACTIVITY_FILE']!=str(activity) or activity.exists() or activity.is_symlink():
+            raise ValueError('fresh selected runtime transfer activity required')
     output.mkdir(parents=True,exist_ok=False);report.parent.mkdir(parents=True,exist_ok=True)
     end=monotonic()+deadline-wall();started=int(wall());cancelled=threading.Event()
+    activity_lock=threading.Lock();instance=uuid.uuid4().hex
+    highwater={f['path']:0 for f in files};total=sum(f['bytes'] for f in files);last_activity=None
+    def observe(item,count,force=False):
+        nonlocal last_activity
+        if activity is None:return
+        with activity_lock:
+            # Retried bytes do not earn progress twice. All counters are bounded
+            # by the selected inventory and attest liveness, never verification.
+            highwater[item['path']]=max(highwater[item['path']],count)
+            now=monotonic()
+            if not force and last_activity is not None and now-last_activity<10:return
+            value={'schema':'ovl.public-input-transfer.v1','process_instance':instance,'pid':os.getpid(),
+                   'plan_sha256':expected,'total_bytes':total,'received_bytes':sum(highwater.values()),
+                   'scope':'operator-supervision-only-not-input-verification'}
+            pending=activity.with_name('activity.json.pending')
+            left()
+            with pending.open('x') as f:
+                json.dump(value,f,sort_keys=True,separators=(',',':'));f.flush();os.fsync(f.fileno())
+            left()
+            os.replace(pending,activity)
+            fd=os.open(activity.parent,os.O_RDONLY|os.O_DIRECTORY)
+            try:os.fsync(fd)
+            finally:os.close(fd)
+            last_activity=now
     def left():
         if cancelled.is_set():raise RuntimeError('sibling download failed; preserve partials')
         remaining=min(deadline-wall(),end-monotonic())
@@ -108,14 +138,14 @@ def fetch(plan,expected,output,report,deadline,*,opener=None,wall=time.time,mono
                     length=response.headers.get('Content-Length')
                     if length is not None and int(length)!=item['bytes']:raise ValueError('public length differs')
                     while True:
-                        left();data=response.read(min(1024**2,item['bytes']-count+1))
+                        left();data=response.read(min(1024**2,item['bytes']-count+1));left()
                         if not data:break
                         count+=len(data)
                         if count>item['bytes']:raise ValueError('public file too large')
-                        target.write(data);h.update(data)
+                        target.write(data);h.update(data);observe(item,count)
                     target.flush();os.fsync(target.fileno())
                 if count!=item['bytes'] or h.hexdigest()!=item['sha256']:raise ValueError('public wheel bytes differ')
-                left();destination=output/item['path'];os.link(partial,destination);partial.unlink()
+                left();destination=output/item['path'];os.link(partial,destination);partial.unlink();observe(item,count,force=True)
             except Exception as error:
                 if partial.exists():
                     with partial.open('rb') as retained:os.fsync(retained.fileno())

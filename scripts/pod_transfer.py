@@ -28,13 +28,49 @@ class TransientTransportError(EvidenceError):
 def process_failure(code, errors):
     # Diagnostics stay private; only this closed category may be retried by a
     # read-only caller. Authentication/host-key/unknown failures remain fatal.
-    denied = (b'host key', b'host identification', b'permission denied', b'authentication')
-    transient = (b'connection timed out', b'connection reset', b'connection refused',
-                 b'connection closed', b'network is unreachable', b'no route to host')
-    diagnostic = bytes(errors).lower()
-    if code == 255 and not any(s in diagnostic for s in denied) and any(s in diagnostic for s in transient):
+    # Every nonempty line must be a selected transport diagnostic. A transient
+    # substring must never hide another line reporting a key-loading, signing,
+    # authentication, host-identity or unknown failure. Stderr is not attestation
+    # of its producer: this grants only a bounded read retry, never acceptance.
+    patterns = (
+        rb'(?:ssh: connect to host [0-9.]+ port [0-9]+: )?(?:connection timed out|connection refused|network is unreachable|no route to host)',
+        rb'(?:(?:kex|ssh)_exchange_identification: (?:read: )?)?connection (?:reset(?: by peer)?|closed(?: by remote host)?)',
+        rb'connection (?:reset|closed) by [0-9.]+ port [0-9]+',
+        rb'connection to [0-9.]+ closed by remote host\.',
+    )
+    lines = [line.strip().lower() for line in bytes(errors).splitlines() if line.strip()]
+    if code == 255 and lines and all(any(re.fullmatch(p,line) for p in patterns) for line in lines):
         return TransientTransportError('SSH connection failed; diagnostics withheld')
     return EvidenceError('SSH transfer process failed; diagnostics withheld')
+
+
+def fatal_diagnostic(errors):
+    # Act on complete received denial lines without waiting for process exit.
+    # Incomplete chunks remain buffered; neither text nor key paths are exposed.
+    denied=(b'host key',b'host identification',b'permission denied',b'authentication',
+            b'load key ',b'sign_and_send_pubkey:',b'no more authentication methods')
+    return any(any(word in line.lower() for word in denied) for line in bytes(errors).split(b'\n')[:-1])
+
+
+def deadline_failure(process,errors):
+    # A timed-out process may already have reported a strict failure. Do not
+    # erase that evidence merely because it has not exited. Empty stderr gives
+    # no identity/verification credit, but allows the original finite read retry.
+    # One bounded nonblocking drain includes diagnostics already queued at the
+    # observation boundary. No waiting, deadline renewal or acceptance occurs.
+    if not process.stderr.closed:
+        while len(errors)<=65536:
+            try:part=os.read(process.stderr.fileno(),65537-len(errors))
+            except BlockingIOError:break
+            if not part:break
+            errors.extend(part)
+        if len(errors)>65536:return EvidenceError('SSH diagnostics exceeded bound')
+    code=process.poll()
+    if code is not None:
+        if code==0:return EvidenceError('SSH process completed outside transfer deadline; diagnostics withheld')
+        return process_failure(code,errors)
+    if errors:return process_failure(255,errors)
+    return TransientTransportError('transfer deadline reached; rental deadline is unchanged')
 
 # This receives only a fixed root, confined relative path, length/hash and an
 # explicit replacement bit. It drains and verifies the complete input before an
@@ -160,7 +196,10 @@ class Transport:
 
     def command(self,remote_argv):
         validate(self.profile,self.key,self.known)
-        return ['ssh','-F','/dev/null','-T','-q','-i',str(self.key.resolve()),'-p',str(self.profile['port']),
+        # Quiet mode also suppresses the errors used by process_failure. Keep
+        # error diagnostics in the bounded private stderr buffer; never print
+        # them or broaden the closed retry classification.
+        return ['ssh','-F','/dev/null','-T','-o','LogLevel=ERROR','-i',str(self.key.resolve()),'-p',str(self.profile['port']),
             '-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','IdentityAgent=none','-o','ForwardAgent=no',
             '-o','ClearAllForwardings=yes','-o','ControlMaster=no','-o','ControlPath=none',
             '-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+str(self.known.resolve()),
@@ -176,16 +215,17 @@ class Transport:
         end=self.monotonic()+remaining;out_count=in_count=0;errors=bytearray();pending=b'';input_done=source is None
         process=self.popen(self.command(argv),stdin=subprocess.DEVNULL if source is None else subprocess.PIPE,
                            stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,start_new_session=True)
-        selector=selectors.DefaultSelector()
-        for stream,kind in [(process.stdout,'output'),(process.stderr,'error')]:
-            os.set_blocking(stream.fileno(),False);selector.register(stream,selectors.EVENT_READ,kind)
-        if source is not None:
-            os.set_blocking(process.stdin.fileno(),False);selector.register(process.stdin,selectors.EVENT_WRITE,'input')
-        last_observed=self.monotonic();last_counts=(0,0)
+        selector=None
         try:
+            selector=selectors.DefaultSelector()
+            for stream,kind in [(process.stdout,'output'),(process.stderr,'error')]:
+                os.set_blocking(stream.fileno(),False);selector.register(stream,selectors.EVENT_READ,kind)
+            if source is not None:
+                os.set_blocking(process.stdin.fileno(),False);selector.register(process.stdin,selectors.EVENT_WRITE,'input')
+            last_observed=self.monotonic();last_counts=(0,0)
             while selector.get_map():
                 left=min(end-self.monotonic(),deadline-self.wall())
-                if left<=0:raise TransientTransportError('transfer deadline reached; rental deadline is unchanged')
+                if left<=0:raise deadline_failure(process,errors)
                 for key,events in selector.select(min(1,left)):
                     channel=key.fileobj
                     if key.data=='input':
@@ -203,6 +243,7 @@ class Transport:
                         if key.data=='error':
                             errors.extend(data)
                             if len(errors)>65536:raise EvidenceError('SSH diagnostics exceeded bound')
+                            if fatal_diagnostic(errors):raise EvidenceError('SSH authentication or identity failure; diagnostics withheld')
                         else:
                             out_count+=len(data)
                             if out_count>maximum:raise EvidenceError('SSH transfer output exceeded bound')
@@ -211,27 +252,31 @@ class Transport:
                 if progress is not None and counts!=last_counts and now-last_observed>=2:
                     progress({'bytes_sent':in_count,'bytes_received':out_count});last_counts=counts;last_observed=now
             left=min(end-self.monotonic(),deadline-self.wall())
-            if left<=0:raise TransientTransportError('transfer deadline reached before process exit')
+            if left<=0:raise deadline_failure(process,errors)
             try:code=process.wait(timeout=left)
             except subprocess.TimeoutExpired:
-                raise TransientTransportError('transfer deadline reached before process exit') from None
+                raise deadline_failure(process,errors) from None
             if code!=0:raise process_failure(code,errors)
             if not input_done:raise EvidenceError('SSH transfer input incomplete')
             if progress is not None and (in_count,out_count)!=last_counts:progress({'bytes_sent':in_count,'bytes_received':out_count})
             return {'bytes_sent':in_count,'bytes_received':out_count,'process_exit_code':0,'pod_id':self.profile['pod_id'],
                     'endpoint_observation_sha256':self.profile['endpoint_observation_sha256'],'host_key_trust':self.profile['host_key_trust']}
         finally:
-            selector.close()
-            if process.poll() is None:
-                try:os.killpg(process.pid,signal.SIGTERM)
-                except ProcessLookupError:pass
-                try:process.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    try:os.killpg(process.pid,signal.SIGKILL)
-                    except ProcessLookupError:pass
-                    process.wait(timeout=2)
-            for channel in (process.stdin,process.stdout,process.stderr):
-                if channel is not None and not channel.closed:channel.close()
+            try:
+                if selector is not None:selector.close()
+            finally:
+                try:
+                    if process.poll() is None:
+                        try:os.killpg(process.pid,signal.SIGTERM)
+                        except ProcessLookupError:pass
+                        try:process.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            try:os.killpg(process.pid,signal.SIGKILL)
+                            except ProcessLookupError:pass
+                            process.wait(timeout=2)
+                finally:
+                    for channel in (process.stdin,process.stdout,process.stderr):
+                        if channel is not None and not channel.closed:channel.close()
 
     def inspect(self,name,maximum,deadline):
         import io
