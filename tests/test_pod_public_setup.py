@@ -100,7 +100,7 @@ def test_setup_cannot_pass_bad_inputs_or_failed_stages(tmp_path,fault):
     with pytest.raises((ValueError,RuntimeError,FileNotFoundError)):m.setup(config,pin,inputs,runtime,output,deadline,execute=execute)
     assert not(output/'setup.json').exists()
     if fault=='failed-download':assert len(calls)==1
-    elif fault=='missing-result':assert len(calls)==2
+    elif fault=='missing-result':assert len(calls)==1
     else:assert not calls
     if fault=='output-exists':assert (output/'sole').read_bytes()==b'evidence'
 
@@ -168,3 +168,164 @@ def test_measured_download_cap_does_not_extend_original_total_bound(tmp_path):
     other=tmp_path/'other';other.mkdir();i,c,v=fixture(other);v['download_seconds']=211;write_json(c,v)
     with pytest.raises(ValueError,match='download time bound'):m.setup(c,file_hash(c),i,other/'runtime',other/'evidence',int(time.time())+280,execute=stop)
     assert len(calls)==1
+
+
+def bootstrap_fixture(tmp_path):
+    inputs,config,v=fixture(tmp_path)
+    data=(inputs/'source.tar.gz').read_bytes();(inputs/'source.tar.gz').unlink()
+    python=b'synthetic interpreter archive'
+    offline=json.loads((inputs/'offline.json').read_bytes())
+    offline.update(interpreter_archive='bootstrap/python.tar.gz',interpreter_sha256=hashlib.sha256(python).hexdigest())
+    write_json(inputs/'offline.json',offline)
+    v.update(schema='ovl.public-runtime-setup.v2',source_archive='bootstrap/source.tar.gz',offline_config_sha256=file_hash(inputs/'offline.json'),
+             bootstrap_script='bootstrap.py',bootstrap_plan='bootstrap-plan.json',bootstrap_seconds=90)
+    (inputs/'bootstrap.py').write_text('# selected synthetic helper\n')
+    plan={'schema':'ovl.public-bootstrap.v1','repo':'AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence','files':[
+        {'path':n,'repo_path':'public/'+n,'revision':'a'*40,'bytes':len(b),'sha256':hashlib.sha256(b).hexdigest()}
+        for n,b in zip(('python.tar.gz','source.tar.gz'),(python,data))]}
+    write_json(inputs/'bootstrap-plan.json',plan)
+    for k in ('bootstrap_script','bootstrap_plan'):v[k+'_sha256']=file_hash(inputs/v[k])
+    write_json(config,v)
+    return inputs,config,v,plan,(python,data)
+
+
+@pytest.mark.parametrize('fault',[None,'parent','files','receipt-fail','receipt-deadline','bytes','size','missing','plan-parent','helper-pin','late'])
+def test_public_bootstrap_precedes_extraction_and_installer(tmp_path,fault,monkeypatch):
+    inputs,config,v,plan,data=bootstrap_fixture(tmp_path);output=tmp_path/'output';calls=[]
+    wall=[100];mono=[100]
+    monkeypatch.setattr(m.time,'time',lambda:wall[0]);monkeypatch.setattr(m.time,'monotonic',lambda:mono[0])
+    if fault=='plan-parent':
+        plan['files'][0]['sha256']='0'*64;write_json(inputs/'bootstrap-plan.json',plan);v['bootstrap_plan_sha256']=file_hash(inputs/'bootstrap-plan.json');write_json(config,v)
+    elif fault=='helper-pin':(inputs/'bootstrap.py').write_text('changed')
+    def execute(argv,**kwargs):
+        calls.append(argv[3]);assert set(kwargs['env'])=={'PATH','LANG','HOME','PYTHONDONTWRITEBYTECODE'}
+        if argv[3].endswith('bootstrap.py'):
+            assert not(inputs/'source').exists() and not(inputs/'wheels').exists()
+            assert 0<kwargs['timeout']<=90
+            (inputs/'bootstrap').mkdir()
+            for item,b in zip(plan['files'],data):(inputs/'bootstrap'/item['path']).write_bytes(b)
+            receipt={'schema':'ovl.public-bootstrap-result.v1','result':'PASS','plan_sha256':v['bootstrap_plan_sha256'],'files':plan['files'],'original_deadline_epoch':int(argv[-1])}
+            if fault=='parent':receipt['plan_sha256']='0'*64
+            elif fault=='files':receipt['files']=[]
+            elif fault=='receipt-fail':receipt['result']='FAIL'
+            elif fault=='receipt-deadline':receipt['original_deadline_epoch']+=1
+            elif fault=='bytes':(inputs/'bootstrap/python.tar.gz').write_bytes(b'x'*len(data[0]))
+            elif fault=='size':(inputs/'bootstrap/python.tar.gz').write_bytes(data[0]+b'x')
+            elif fault=='late':wall[0]=0;mono[0]=400
+            if fault!='missing':write_json(output/'bootstrap.json',receipt)
+        elif argv[3].endswith('fetch.py'):
+            assert (inputs/'source/src/module.py').exists()
+            write_json(output/'downloads.json',{'schema':'ovl.public-wheel-download-result.v1','plan_sha256':v['wheel_plan_sha256'],'files':[{**json.loads((inputs/'plan.json').read_bytes())['files'][0],'result':'COMPLETE_HASH_MATCH'}]})
+        else:
+            (output/'offline').mkdir();write_json(output/'offline/setup.json',{'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':v['offline_config_sha256']})
+    args=(config,file_hash(config),inputs,tmp_path/'runtime',output,380)
+    if fault:
+        with pytest.raises((ValueError,FileNotFoundError,TimeoutError)):m.setup(*args,execute=execute)
+        assert len(calls)==(0 if fault in ('plan-parent','helper-pin') else 1)
+        assert not(output/'setup.json').exists() and not(inputs/'source').exists()
+    else:
+        r=m.setup(*args,execute=execute)
+        assert len(calls)==3 and r['schema']=='ovl.public-runtime-setup-result.v2'
+        assert r['bootstrap_receipt_sha256']==file_hash(output/'bootstrap.json')
+
+
+def _v2_stage_double(inputs, output, value, plan, data, calls, *,
+                     bad_download=False):
+    def execute(argv, **kwargs):
+        script = Path(argv[3]).name
+        calls.append(script)
+
+        if script == "bootstrap.py":
+            root = inputs / "bootstrap"
+            root.mkdir()
+            for item, payload in zip(plan["files"], data):
+                (root / item["path"]).write_bytes(payload)
+            write_json(output / "bootstrap.json", {
+                "schema": "ovl.public-bootstrap-result.v1",
+                "result": "PASS",
+                "plan_sha256": value["bootstrap_plan_sha256"],
+                "files": plan["files"],
+                "original_deadline_epoch": int(argv[-1]),
+            })
+        elif script == "fetch.py":
+            files = json.loads((inputs / "plan.json").read_bytes())["files"]
+            write_json(output / "downloads.json", {
+                "schema": "ovl.public-wheel-download-result.v1",
+                "plan_sha256": (
+                    "0" * 64 if bad_download
+                    else value["wheel_plan_sha256"]
+                ),
+                "files": [
+                    {**item, "result": "COMPLETE_HASH_MATCH"}
+                    for item in files
+                ],
+            })
+        else:
+            assert script == "setup.py"
+            (output / "offline").mkdir()
+            write_json(output / "offline/setup.json", {
+                "schema": "ovl.offline-runtime-setup-result.v1",
+                "result": "PASS",
+                "config_sha256": value["offline_config_sha256"],
+            })
+    return execute
+
+
+def test_v2_receipt_hashing_cannot_publish_after_deadline(tmp_path, monkeypatch):
+    inputs, config, value, plan, data = bootstrap_fixture(tmp_path)
+    output = tmp_path / "output"
+    calls = []
+    wall, mono = [100], [100]
+    monkeypatch.setattr(m.time, "time", lambda: wall[0])
+    monkeypatch.setattr(m.time, "monotonic", lambda: mono[0])
+
+    original_sha = m.sha
+
+    def slow_receipt_hash(path):
+        result = original_sha(path)
+        if Path(path) == output / "downloads.json":
+            # Expire during work after the existing final deadline check.
+            wall[0], mono[0] = 0, 381
+        return result
+
+    monkeypatch.setattr(m, "sha", slow_receipt_hash)
+    execute = _v2_stage_double(
+        inputs, output, value, plan, data, calls
+    )
+    with pytest.raises(TimeoutError):
+        m.setup(
+            config, file_hash(config), inputs, tmp_path / "runtime",
+            output, 380, execute=execute,
+        )
+    assert not (output / "setup.json").exists()
+
+
+def test_v2_bad_download_receipt_blocks_installer(tmp_path, monkeypatch):
+    inputs, config, value, plan, data = bootstrap_fixture(tmp_path)
+    output = tmp_path / "output"
+    calls = []
+    monkeypatch.setattr(m.time, "time", lambda: 100)
+    monkeypatch.setattr(m.time, "monotonic", lambda: 100)
+    execute = _v2_stage_double(
+        inputs, output, value, plan, data, calls, bad_download=True
+    )
+
+    with pytest.raises(ValueError, match="receipt"):
+        m.setup(
+            config, file_hash(config), inputs, tmp_path / "runtime",
+            output, 380, execute=execute,
+        )
+    assert calls == ["bootstrap.py", "fetch.py"]
+    assert not (output / "setup.json").exists()
+
+
+def test_v2_success_receipt_flush_expiry_keeps_pending_only(tmp_path,monkeypatch):
+    inputs,config,value,plan,data=bootstrap_fixture(tmp_path);output=tmp_path/'output';calls=[];mono=[100]
+    monkeypatch.setattr(m.time,'time',lambda:100);monkeypatch.setattr(m.time,'monotonic',lambda:mono[0])
+    fsync=m.os.fsync
+    def slow(fd):
+        fsync(fd)
+        if (output/'setup.json.pending').exists():mono[0]=381
+    monkeypatch.setattr(m.os,'fsync',slow)
+    with pytest.raises(TimeoutError):m.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,380,execute=_v2_stage_double(inputs,output,value,plan,data,calls))
+    assert not(output/'setup.json').exists() and (output/'setup.json.pending').exists()
