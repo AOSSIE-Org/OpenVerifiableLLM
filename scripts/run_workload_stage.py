@@ -11,7 +11,7 @@ import uuid
 from ovl_pipeline.canonical import EvidenceError,digest,file_hash,read_json,require_digest,verify_inventory,write_json
 from ovl_pipeline.schema import fields,integer
 from pod_observe import observe_many
-from pod_job_client import launch,reconcile_launch,export_tree,job_supervision
+from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,export_tree,job_supervision
 from pod_transfer import relative
 from workload_health import terminal_status
 from pod_observation_retry import read as bounded_read
@@ -98,23 +98,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
     if health.jobs[expected_job]['finished']:raise EvidenceError('finished stage lacks preserved result; do not run again')
     if not(output/'launch/launch-intent.json').exists() and (Path(stop_file).exists() or health.now()>=health.plan['request_checkpoint_epoch']):
         raise EvidenceError('stop requested before launch; no new workload may start')
-    # A retained launch fence permits only read-only adoption. Its observation
-    # and evidence export must remain possible after the compute deadline; no
-    # new workload child is authorized and the external rental deadline never
-    # moves. Bounded observers, exporters and stop/abandon controls still run.
-    if launch_intent.exists():
-        selected={'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':expected_job,
-                  'worker_sha256':expected_worker,'profile_sha256':digest(transport.profile)}
-        if read_json(launch_intent)!=selected:raise EvidenceError('retained launch identity differs')
-        reconcile_launch(transport,selected,output/'launch',min(health.plan['external_terminate_epoch'],int(health.wall())+60))
-    else:
-        launch(transport,job_file,expected_job,worker_file,expected_worker,output/'launch',min(deadline,int(health.wall())+60))
-    iterations=output/'observations';iterations.mkdir(mode=0o700,exist_ok=True)
-    stop_delivered=(output/'stop-delivery.json').exists()
-    while True:
-        health.write(health_file);now=health.now()
-        observation=iterations/uuid.uuid4().hex;observation.mkdir(mode=0o700)
-        def transfer_deadline():return min(health.plan['external_terminate_epoch'],health.now()+30)
+    def deliver_stop(now):
         requested=None
         if Path(stop_file).exists():
             requested=read_json(Path(stop_file))
@@ -123,10 +107,33 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
                 raise EvidenceError('unrelated controller stop request')
         elif now>=health.plan['request_checkpoint_epoch']:
             requested={'schema':'ovl.dispatcher-stop-request.v1','job_sha256':expected_job,'reason':'fixed graceful-stop deadline'}
-        if requested is not None and not stop_delivered:
+        if requested is not None and not(output/'stop-delivery.json').exists():
             marker=output/'request-stop';write_json(marker,requested)
-            receipt=transport.put(job_root+'/request-stop',marker,transfer_deadline())
-            write_json(output/'stop-delivery.json',receipt);stop_delivered=True
+            receipt=transport.put(job_root+'/request-stop',marker,min(health.plan['external_terminate_epoch'],health.now()+30))
+            write_json(output/'stop-delivery.json',receipt)
+
+    # A retained launch fence permits only read-only adoption. Its observation
+    # and evidence export must remain possible after the compute deadline; no
+    # new workload child is authorized and the external rental deadline never
+    # moves. Bounded observers, exporters and stop/abandon controls still run.
+    if launch_intent.exists():
+        selected={'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':expected_job,
+                  'worker_sha256':expected_worker,'profile_sha256':digest(transport.profile)}
+        if read_json(launch_intent)!=selected:raise EvidenceError('retained launch identity differs')
+        deliver_stop(health.now())
+        reconcile_launch(transport,selected,output/'launch',min(health.plan['external_terminate_epoch'],int(health.wall())+LAUNCH_CONTROL_SECONDS))
+    else:
+        def before_start():
+            if Path(stop_file).exists() or health.now()>=min(deadline,health.plan['request_checkpoint_epoch']):
+                raise EvidenceError('stop or expired deadline before launch fence; no new workload may start')
+        launch(transport,job_file,expected_job,worker_file,expected_worker,output/'launch',
+               min(deadline,health.plan['request_checkpoint_epoch'],health.now()+LAUNCH_CONTROL_SECONDS),before_start=before_start)
+    iterations=output/'observations';iterations.mkdir(mode=0o700,exist_ok=True)
+    while True:
+        health.write(health_file);now=health.now()
+        observation=iterations/uuid.uuid4().hex;observation.mkdir(mode=0o700)
+        def transfer_deadline():return min(health.plan['external_terminate_epoch'],health.now()+30)
+        deliver_stop(now)
         supervision=bounded_read('supervision',transport,(expected_job,expected_worker),health,health_file,observation,sleep=sleep)
         write_json(observation/'supervision.json',supervision)
         if supervision['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):

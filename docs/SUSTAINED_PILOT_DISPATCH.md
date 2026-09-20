@@ -57,3 +57,40 @@ an actual tiny CPU record/full replay with explicit process/CUDA substitutes.
 These tests do not establish a sustained CUDA rate, a production forecast or an
 independent third-party verification. Measure remote startup, complete hashing,
 numerical work and complete exports before freezing production budgets.
+
+Launch acknowledgement uses one bounded metadata exchange for the exact intent,
+runner receipt and child receipt, followed by process supervision. Each file keeps
+its own framing, hash, canonical JSON and identity checks. This is not an atomic
+snapshot and grants no numerical verification. The local launch fence still
+forbids sending a second start after an uncertain result.
+
+Future dispatchers select a 120-second transfer deadline for launch/adoption,
+clipped to both the existing job and graceful-stop deadlines for a new launch, or
+the existing external termination deadline for read-only adoption. Local hashing,
+persistence and subprocess cleanup are not a strict whole-operation elapsed-time
+bound. Eligibility is checked again after uploads, immediately before the launch
+fence and again before dispatch. This is not atomic with an external stop writer
+or remote command arrival: the worker's original job deadline and the external
+rental teardown remain authoritative. Pending stops on fenced adoption are sent
+before potentially lengthy receipt reads. Input hashing checks stop/deadline conditions between chunks and before
+workload spawn. The selected job,
+phase and rental deadlines do not move. The cost supervisor's 300-second stall
+limit and strict authentication/identity/integrity failures remain unchanged.
+The allowance accommodates measured multi-exchange startup latency; it does not
+award progress for waiting or authorize mutation retries.
+
+A received start acknowledgement must match the selected job, worker and process
+identity and agree with the retained remote receipt. A missing acknowledgement
+may be reconciled read-only; a retained contradiction fails again on adoption.
+Received raw reply bytes are retained even if the transport subsequently fails;
+nonempty malformed replies remain unresolved. Completion and abandonment signal
+only an identity-bound process group and check for surviving group members before
+writing a terminal receipt. An absent leader without established group ownership remains
+unresolved and requires external teardown. Deliberate process-group escape is
+outside the trusted workload contract.
+
+The bounded read-recovery policy adds no retry to writes. Existing immutable
+input and stop-file delivery can be attempted again on coordinator re-entry after
+a lost acknowledgement: the receiver hashes the complete existing bytes and
+rejects different content rather than overwriting it. This idempotent file-delivery
+behavior does not permit another workload start or provider creation.

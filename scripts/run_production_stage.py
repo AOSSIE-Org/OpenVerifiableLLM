@@ -11,7 +11,7 @@ import uuid
 
 from ovl_pipeline.canonical import EvidenceError,digest,file_hash,read_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
-from pod_job_client import launch,reconcile_launch,save_once,job_supervision
+from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,save_once,job_supervision
 from pod_observation_retry import read as bounded_read
 from production_health import ProductionHealth
 from production_checkpoint_poll import CheckpointRetention
@@ -95,16 +95,8 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
         result=read_json(result_file)
         return complete(Path(result['retention_path']))
     if health.jobs[expected_job]['finished']:raise EvidenceError('finished production job lacks retained stage result')
-    if fence.exists():
-        selected={'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':expected_job,
-                  'worker_sha256':expected_worker,'profile_sha256':digest(control.profile)}
-        if read_json(fence)!=selected:raise EvidenceError('retained production launch selection changed')
-        reconcile_launch(control,selected,output/'launch',min(health.plan['external_terminate_epoch'],health.now()+60))
-    else:launch(control,job_file,expected_job,worker_file,expected_worker,output/'launch',min(job['deadline_epoch'],health.now()+60))
     job_root='jobs/'+expected_job
-    while True:
-        health.write(health_file);now=health.now()
-        if now>=health.plan['external_terminate_epoch']:raise EvidenceError('external production rental deadline reached')
+    def deliver_stop(now):
         requested=None
         if Path(stop_file).exists():
             requested=read_json(Path(stop_file))
@@ -136,6 +128,24 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
             if (publisher is None or now>=stop['hard_stop_epoch']) and not(output/'worker-stop-delivery.json').exists():
                 receipt=control.put(job_root+'/request-stop',marker,min(health.plan['external_terminate_epoch'],now+30))
                 save_once(output/'worker-stop-delivery.json',receipt)
+        return requested
+
+    if fence.exists():
+        selected={'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':expected_job,
+                  'worker_sha256':expected_worker,'profile_sha256':digest(control.profile)}
+        if read_json(fence)!=selected:raise EvidenceError('retained production launch selection changed')
+        deliver_stop(health.now())
+        reconcile_launch(control,selected,output/'launch',min(health.plan['external_terminate_epoch'],health.now()+LAUNCH_CONTROL_SECONDS))
+    else:
+        def before_start():
+            if Path(stop_file).exists() or health.now()>=min(job['deadline_epoch'],health.plan['request_checkpoint_epoch']):
+                raise EvidenceError('stop or expired deadline before production launch fence')
+        launch(control,job_file,expected_job,worker_file,expected_worker,output/'launch',
+               min(job['deadline_epoch'],health.plan['request_checkpoint_epoch'],health.now()+LAUNCH_CONTROL_SECONDS),before_start=before_start)
+    while True:
+        health.write(health_file);now=health.now()
+        if now>=health.plan['external_terminate_epoch']:raise EvidenceError('external production rental deadline reached')
+        requested=deliver_stop(now)
         observation=output/'observations'/uuid.uuid4().hex;observation.mkdir(mode=0o700,parents=True)
         supervision=bounded_read('supervision',control,(expected_job,expected_worker),health,health_file,observation,sleep=sleep)
         write_json(observation/'supervision.json',supervision)
