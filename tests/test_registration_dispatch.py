@@ -102,6 +102,7 @@ def test_uncertain_real_git_push_is_adopted_without_a_second_mutation(tmp_path,m
     git('remote','add','origin',str(remote));git('push','origin',m.BRANCH)
     monkeypatch.setattr(m,'REMOTE',str(remote));monkeypatch.setattr(m,'verify_code',lambda *a:{'explicit-source-double':True});pushes=[]
     def execute(args,**kw):
+        if 'commit' in args or args[:2]==['git','push']:assert kw['timeout']==600
         result=m.command(args,**kw)
         if args[:2]==['git','push']:pushes.append(args);raise EvidenceError('lost successful push response')
         return result
@@ -132,3 +133,27 @@ def test_actions_checks_exact_registration_workflow_and_single_attempt(tmp_path,
         with pytest.raises(EvidenceError):m.actions_artifact('1'*40,tmp_path/'out',deadline,execute=execute)
         assert not(tmp_path/'out').exists()
     else:assert m.actions_artifact('1'*40,tmp_path/'out',deadline,execute=execute)['run_id']==19
+
+
+@pytest.mark.parametrize('elapsed',[300,901])
+def test_registration_slow_commit_obeys_original_dispatch_deadline(tmp_path,monkeypatch,elapsed):
+    packet,r,source,provider,calls=configured(tmp_path,monkeypatch)
+    wall=int(time.time());now=[float(wall),100.];limits=[]
+    monkeypatch.setattr(m.time,'time',lambda:now[0])
+    monkeypatch.setattr(m.time,'monotonic',lambda:now[1])
+    def slow(args,**kw):
+        limits.append(kw['timeout']);now[0]+=elapsed;now[1]+=elapsed;return 'synthetic command result'
+    monkeypatch.setattr(m,'command',slow)
+    original=m.request_commit
+    def request_with_hook(req,reg,out,**kw):
+        kw['execute'](['git','commit'],timeout=600)
+        return original(req,reg,out,**kw)
+    monkeypatch.setattr(m,'request_commit',request_with_hook)
+    out=tmp_path/'publisher'
+    if elapsed>900:
+        with pytest.raises(EvidenceError,match='original publication deadline'):
+            m.publish(packet,digest(r),source,tmp_path,out,wall+900)
+        assert not(out/'verified-registration.json').exists()
+    else:
+        assert m.publish(packet,digest(r),source,tmp_path,out,wall+900)['result']=='PASS'
+    assert limits==[600]

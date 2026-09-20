@@ -102,3 +102,16 @@ fake HF provider, plus explicit publisher/Actions substitutes. A real local Git
 repository tests a successful push with a deliberately lost caller response and
 read-only recovery. These tests do not supply live public signing, CUDA, provider
 or independent-verification acceptance credit.
+
+Git commit and push commands may use up to 600 seconds to complete mandatory
+publication hooks. Other commands retain their 120-second per-command limit.
+Registration and progress publication clip each command to the remaining original
+publication deadline, with a monotonic cap that prevents a backward wall-clock
+adjustment from renewing the command window. A command completing at or after that
+limit is rejected. These are internal command allowances: no privacy hook, public
+download, signature, acknowledgement or original rental deadline is waived. Hook
+failures remain failures, and uncertain writes retain the reconciliation rules
+above. The monotonic cap is per invocation and covers wrapped commands, not all archive
+operations or a persisted elapsed-time clock across recovery. Recovery retains the
+original epoch deadline. The enclosing publication supervisor still owns
+whole-process termination.
