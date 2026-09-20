@@ -86,7 +86,7 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     inputs=Path(inputs).absolute();runtime=Path(runtime).absolute();output=Path(output).absolute()
     for p in (inputs,runtime,output,Path(config).absolute()):
         if any(a.is_symlink() for a in [p,*p.parents]):raise ValueError('setup symlink')
-    if type(deadline) is not int or not 0<deadline-time.time()<=300:raise ValueError('bounded setup deadline required')
+    if type(deadline) is not int or not 0<deadline-time.time()<=900:raise ValueError('bounded setup deadline required')
     if runtime.exists() or output.exists():raise ValueError('fresh runtime and evidence required')
     if any(a==b or a in b.parents or b in a.parents for a,b in ((inputs,runtime),(inputs,output),(runtime,output))):raise ValueError('separate setup roots required')
     value=read(Path(config),expected)
@@ -101,7 +101,7 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     if type(offline) is not dict or offline.get('schema')!='ovl.offline-runtime-setup.v1':raise ValueError('offline schema')
     source=path(inputs,offline['source_root']);wheels=path(inputs,offline['wheels'])
     if source==wheels or source in wheels.parents or wheels in source.parents or wheels.exists():raise ValueError('fresh distinct source and wheels required')
-    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=210:raise ValueError('download time bound')
+    if type(value['download_seconds']) is not int or not 1<=value['download_seconds']<=600:raise ValueError('download time bound')
     if bootstrap:
         if type(value['bootstrap_seconds']) is not int or not 1<=value['bootstrap_seconds']<=90:raise ValueError('bootstrap time bound')
         if value['source_archive']!='bootstrap/source.tar.gz' or offline.get('interpreter_archive')!='bootstrap/python.tar.gz':raise ValueError('bootstrap archive paths')
@@ -180,8 +180,8 @@ def main():
     a=p.parse_args()
     if not(sys.flags.isolated and sys.flags.no_site):p.exit(1,'bootstrap requires -I -S\n')
     # Keep the caller's original outer deadline and additionally bound this
-    # one-shot stage to 300s from entry; this never extends the rental/job bound.
-    setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output,min(a.deadline,int(time.time())+300))
+    # one-shot stage to 900s from entry; this never extends the rental/job bound.
+    setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output,min(a.deadline,int(time.time())+900))
 
 
 if __name__=='__main__':main()
