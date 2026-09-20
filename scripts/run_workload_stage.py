@@ -11,7 +11,7 @@ import uuid
 from ovl_pipeline.canonical import EvidenceError,digest,file_hash,read_json,require_digest,verify_inventory,write_json
 from ovl_pipeline.schema import fields,integer
 from pod_observe import observe_many
-from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,export_tree,job_supervision
+from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,export_tree,job_supervision,save_once,worker_stop_request,stop_delivery,retain_stop_reason
 from pod_transfer import relative
 from workload_health import terminal_status
 from pod_observation_retry import read as bounded_read
@@ -107,10 +107,12 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
                 raise EvidenceError('unrelated controller stop request')
         elif now>=health.plan['request_checkpoint_epoch']:
             requested={'schema':'ovl.dispatcher-stop-request.v1','job_sha256':expected_job,'reason':'fixed graceful-stop deadline'}
-        if requested is not None and not(output/'stop-delivery.json').exists():
-            marker=output/'request-stop';write_json(marker,requested)
-            receipt=transport.put(job_root+'/request-stop',marker,min(health.plan['external_terminate_epoch'],health.now()+30))
-            write_json(output/'stop-delivery.json',receipt)
+        retain_stop_reason(output,requested,expected_job,graceful_reason='fixed graceful-stop deadline')
+        if requested is not None:
+            marker=output/'request-stop';save_once(marker,worker_stop_request(expected_job))
+            stop_delivery(transport,expected_job,job_root+'/request-stop',marker,output/'stop-delivery.json',
+                          min(health.plan['external_terminate_epoch'],health.now()+30))
+
 
     # A retained launch fence permits only read-only adoption. Its observation
     # and evidence export must remain possible after the compute deadline; no
@@ -134,7 +136,8 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         observation=iterations/uuid.uuid4().hex;observation.mkdir(mode=0o700)
         def transfer_deadline():return min(health.plan['external_terminate_epoch'],health.now()+30)
         deliver_stop(now)
-        supervision=bounded_read('supervision',transport,(expected_job,expected_worker),health,health_file,observation,sleep=sleep)
+        supervision=bounded_read('supervision',transport,(expected_job,expected_worker),health,health_file,observation,sleep=sleep,
+                                 private_diagnostics=output/'private-transport-diagnostics')
         write_json(observation/'supervision.json',supervision)
         if supervision['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):
             abandoned=job_supervision(transport,expected_job,expected_worker,transfer_deadline(),abandon=True)
@@ -157,7 +160,8 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         if initial_retention is not None:
             for index,name in enumerate(initial_retention.observation_paths()):
                 selected[name]=observation/f'initial-retention-{index:03d}.json'
-        bundle=bounded_read('metadata',transport,selected,health,health_file,observation,sleep=sleep)
+        bundle=bounded_read('metadata',transport,selected,health,health_file,observation,sleep=sleep,
+                            private_diagnostics=output/'private-transport-diagnostics')
         exit_value=bundle[job_root+'/exit.json'];status=bundle[job_root+'/status.json']
         if exit_value is not None:
             fields(exit_value,'schema job_sha256 state exit_code','workload terminal observation')

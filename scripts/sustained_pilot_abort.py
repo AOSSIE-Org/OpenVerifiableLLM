@@ -7,8 +7,8 @@ partial evidence preserved.
 from pathlib import Path
 import time
 
-from ovl_pipeline.canonical import EvidenceError,read_json,sha256
-from pod_job_client import job_supervision,save_once
+from ovl_pipeline.canonical import EvidenceError,read_json
+from pod_job_client import job_supervision,save_once,worker_stop_request,stop_delivery
 from run_workload_stage import run_stage
 
 
@@ -21,15 +21,18 @@ def stop_and_retain(transport,health,job_file,job_root,worker,worker_root,output
     marker=output/'dispatch-stop.json'
     save_once(marker,{'schema':'ovl.sustained-dispatch-stop.v1','job_sha256':job_root,
                       'reason':'local dispatcher failure; stop and preserve all declared outputs'})
+    worker_marker=output/'worker-stop.json'
+    save_once(worker_marker,worker_stop_request(job_root))
     deadline=lambda:min(health.plan['external_terminate_epoch'],health.now()+30)
     receipt=output/'dispatch-stop-delivery.json'
-    if not receipt.exists():
+    if receipt.exists():
+        stop_delivery(transport,job_root,'jobs/'+job_root+'/request-stop',worker_marker,receipt,deadline())
+    else:
         state=job_supervision(transport,job_root,worker_root,deadline())
         if state['state'] not in ('EXITED','ABANDONED'):
-            existing=transport.read_live('jobs/'+job_root+'/request-stop',65536,deadline())
-            if existing is None:sent=transport.put('jobs/'+job_root+'/request-stop',marker,deadline())
-            else:sent={'schema':'ovl.existing-worker-stop-observation.v1','job_sha256':job_root,'sha256':sha256(existing)}
-            save_once(receipt,sent)
+            # Immutable put accepts exact existing bytes without replacement;
+            # foreign or changed stop content remains a strict failure.
+            stop_delivery(transport,job_root,'jobs/'+job_root+'/request-stop',worker_marker,receipt,deadline())
     # Observe only immutable worker/process supervision while shutting down. A bad
     # activity file cannot trap recovery before the complete terminal export.
     while True:

@@ -94,3 +94,34 @@ input and stop-file delivery can be attempted again on coordinator re-entry afte
 a lost acknowledgement: the receiver hashes the complete existing bytes and
 rejects different content rather than overwriting it. This idempotent file-delivery
 behavior does not permit another workload start or provider creation.
+
+Worker stop requests use one canonical payload bound to the selected job digest.
+Controller and dispatcher causes remain separate local records; they do not
+compete to overwrite the worker's immutable stop file. Exact existing bytes are
+accepted by the original immutable transfer check. Foreign or changed bytes,
+including incompatible older payloads, remain errors. This is a prospective
+protocol change: it does not authorize changing a frozen attempt's source.
+A numerical recording stop remains separate and precedes its hard worker stop.
+A graceful stop followed by the controller's immutable stop retains the original
+numerical marker and first timing intent, records the later cause separately,
+and can only shorten the hard-stop deadline. Saved delivery receipts bind the
+job, complete endpoint profile, destination and exact payload; damaged receipts
+cannot suppress delivery. These operations require the existing single coordinator
+lease. Sequential re-entry is supported; simultaneous marker installation is not.
+The coordinator rechecks time after numerical delivery and clips adoption reads
+to a pending hard stop. Remote arrival is not guaranteed at that scheduling bound;
+the frozen worker deadline and independent rental termination remain authoritative.
+Failure retention also preserves an existing terminal-export deadline.
+
+Failed read observations and enclosing dispatch failures can retain diagnostics under the caller's private
+`private-transport-diagnostics` directory. These files are outside the declared
+remote exports and must never be included in public artifacts. They record the
+operation phase, selected identities, exception locations, bounded stderr and
+received metadata prefixes, and any observed cleanup error. They do not dump
+commands, environments or transfer inputs. Each byte prefix is capped at 64 KiB;
+each record at 256 KiB; each stage directory at 128 records and 32 MiB. Directories
+and files require owner-only permissions. Truncation is explicit. Diagnostics are
+best effort: storage failure preserves the primary exception and changes neither
+retry classification, original deadlines nor verification credit. An unresolved
+transport cleanup failure prevents another read attempt. Missing
+historical diagnostics do not justify an inferred root cause.

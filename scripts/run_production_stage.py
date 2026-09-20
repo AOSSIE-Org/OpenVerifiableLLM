@@ -11,13 +11,45 @@ import uuid
 
 from ovl_pipeline.canonical import EvidenceError,digest,file_hash,read_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
-from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,save_once,job_supervision
+from pod_job_client import LAUNCH_CONTROL_SECONDS,launch,reconcile_launch,save_once,job_supervision,worker_stop_request,stop_delivery
 from pod_observation_retry import read as bounded_read
 from production_health import ProductionHealth
 from production_checkpoint_poll import CheckpointRetention
 from production_boundary_poll import BoundaryPublisher
 from production_retention import retain,verify
 from workload_health import terminal_status
+
+
+def stop_window(output,requested,job,plan,now,export_seconds):
+    """Keep the first stop and accept one later immutable controller cause.
+
+    Callers validate the current controller identity before reaching this helper.
+    A later cause can shorten the hard-stop bound, never renew it. The original
+    numerical stop payload remains unchanged even when a second cause appears.
+    """
+    def hard(request):
+        started=request.get('observed_epoch',plan['request_checkpoint_epoch'])
+        integer(started,plan['input']['now_epoch'],now,'stop request clock')
+        return min(job['deadline_epoch'],started+plan['input']['checkpoint_grace_seconds']
+                   -export_seconds-job['stop_grace_seconds'])
+    path=output/'stop-intent.json'
+    if requested is None:
+        if path.exists():raise EvidenceError('retained production stop disappeared')
+        return None,None
+    if not path.exists():save_once(path,{'request':requested,'hard_stop_epoch':hard(requested)})
+    first=read_json(path);fields(first,'request hard_stop_epoch','production stop intent')
+    if first['hard_stop_epoch']!=hard(first['request']):raise EvidenceError('original hard stop changed')
+    later=output/'controller-stop-intent.json'
+    if first['request']!=requested:
+        graceful={'schema':'ovl.dispatcher-stop-request.v1','job_sha256':digest(job),'reason':'fixed graceful stop'}
+        if first['request']!=graceful or requested.get('schema')!='ovl.rental-stop-request.v1':
+            raise EvidenceError('stop request changed outside graceful-to-controller transition')
+        value={'request':requested,'first_stop_sha256':digest(first),
+               'hard_stop_epoch':min(first['hard_stop_epoch'],hard(requested))}
+        save_once(later,value)
+        return first['request'],value['hard_stop_epoch']
+    if later.exists():raise EvidenceError('retained later controller stop disappeared')
+    return first['request'],first['hard_stop_epoch']
 
 
 def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,output,health_file,
@@ -107,35 +139,29 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
             requested={'schema':'ovl.dispatcher-stop-request.v1','job_sha256':expected_job,'reason':'fixed graceful stop'}
         # Recording gets a numerical checkpoint stop first. The already selected
         # worker deadline remains the hard process bound for both record/replay.
+        first,hard=stop_window(output,requested,job,health.plan,now,export_seconds)
         if requested is not None:
-            stop_intent=output/'stop-intent.json'
-            if not stop_intent.exists():
-                started=requested.get('observed_epoch',health.plan['request_checkpoint_epoch'])
-                integer(started,health.plan['input']['now_epoch'],now,'stop request clock')
-                hard=min(job['deadline_epoch'],started+health.plan['input']['checkpoint_grace_seconds']
-                         -export_seconds-job['stop_grace_seconds'])
-                save_once(stop_intent,{'request':requested,'hard_stop_epoch':hard})
-            stop=read_json(stop_intent)
-            fields(stop,'request hard_stop_epoch','production stop intent')
-            first=stop['request'];started=first.get('observed_epoch',health.plan['request_checkpoint_epoch'])
-            if (first!=requested or stop['hard_stop_epoch']!=min(job['deadline_epoch'],
-                started+health.plan['input']['checkpoint_grace_seconds']-export_seconds-job['stop_grace_seconds'])):
-                raise EvidenceError('stop request or original hard stop changed')
-            marker=output/'request-stop';save_once(marker,requested)
-            if publisher is not None and not(output/'stop-delivery.json').exists():
-                receipt=checkpoint.transport.put('request-stop',marker,min(health.plan['external_terminate_epoch'],now+30))
-                save_once(output/'stop-delivery.json',receipt)
-            if (publisher is None or now>=stop['hard_stop_epoch']) and not(output/'worker-stop-delivery.json').exists():
-                receipt=control.put(job_root+'/request-stop',marker,min(health.plan['external_terminate_epoch'],now+30))
-                save_once(output/'worker-stop-delivery.json',receipt)
+            marker=output/'request-stop';save_once(marker,first)
+            if publisher is not None:
+                stop_delivery(checkpoint.transport,expected_job,'request-stop',marker,output/'stop-delivery.json',
+                              min(health.plan['external_terminate_epoch'],health.now()+30))
+            if publisher is None or health.now()>=hard:
+                worker_marker=output/'worker-stop.json';save_once(worker_marker,worker_stop_request(expected_job))
+                stop_delivery(control,expected_job,job_root+'/request-stop',worker_marker,output/'worker-stop-delivery.json',
+                              min(health.plan['external_terminate_epoch'],health.now()+30))
         return requested
 
     if fence.exists():
         selected={'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':expected_job,
                   'worker_sha256':expected_worker,'profile_sha256':digest(control.profile)}
         if read_json(fence)!=selected:raise EvidenceError('retained production launch selection changed')
+        requested=deliver_stop(health.now())
+        limit=min(health.plan['external_terminate_epoch'],health.now()+LAUNCH_CONTROL_SECONDS)
+        if requested is not None and publisher is not None and not(output/'worker-stop-delivery.json').exists():
+            _,hard=stop_window(output,requested,job,health.plan,health.now(),export_seconds)
+            limit=min(limit,hard)
+        reconcile_launch(control,selected,output/'launch',limit)
         deliver_stop(health.now())
-        reconcile_launch(control,selected,output/'launch',min(health.plan['external_terminate_epoch'],health.now()+LAUNCH_CONTROL_SECONDS))
     else:
         def before_start():
             if Path(stop_file).exists() or health.now()>=min(job['deadline_epoch'],health.plan['request_checkpoint_epoch']):
@@ -147,7 +173,8 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
         if now>=health.plan['external_terminate_epoch']:raise EvidenceError('external production rental deadline reached')
         requested=deliver_stop(now)
         observation=output/'observations'/uuid.uuid4().hex;observation.mkdir(mode=0o700,parents=True)
-        supervision=bounded_read('supervision',control,(expected_job,expected_worker),health,health_file,observation,sleep=sleep)
+        supervision=bounded_read('supervision',control,(expected_job,expected_worker),health,health_file,observation,sleep=sleep,
+                                 private_diagnostics=output/'private-transport-diagnostics')
         write_json(observation/'supervision.json',supervision)
         if supervision['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):
             terminal=job_supervision(control,expected_job,expected_worker,min(health.plan['external_terminate_epoch'],health.now()+30),abandon=True)
@@ -159,7 +186,7 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
         if supervision['state'] in ('CHILD_IDENTITY_UNKNOWN','LAUNCH_NOT_OBSERVED'):
             raise EvidenceError('production process identity unresolved; retain guards and evidence')
         values=bounded_read('metadata',control,{job_root+'/input-progress.json':observation/'input-progress.json'},
-                            health,health_file,observation,sleep=sleep)
+                            health,health_file,observation,sleep=sleep,private_diagnostics=output/'private-transport-diagnostics')
         progress=values[job_root+'/input-progress.json']
         if progress is not None:
             fields(progress,'schema job_sha256 verified_bytes','production input progress')
@@ -171,7 +198,8 @@ def run_stage(control,health,job_file,expected_job,worker_file,expected_worker,o
             health.bytes(digest({'job':expected_job,'operation':'remote-verified-input-prefix'}),
                          {'bytes_sent':0,'bytes_received':progress['verified_bytes']},total=count)
         if activity is not None:
-            values=bounded_read('metadata',activity_transport,{activity_name:observation/'activity.json'},health,health_file,observation,sleep=sleep)
+            values=bounded_read('metadata',activity_transport,{activity_name:observation/'activity.json'},health,health_file,observation,sleep=sleep,
+                                private_diagnostics=output/'private-transport-diagnostics')
             if values[activity_name] is not None:health.activity(expected_job,values[activity_name])
         checkpoint.poll()
         if publisher is not None and requested is None:

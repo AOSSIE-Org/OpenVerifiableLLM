@@ -51,26 +51,33 @@ def observe_many(transport,selection,maximum,deadline):
     for p in destinations:
         if any(a.is_symlink() for a in [p,*p.parents]) or p.exists():raise EvidenceError('fresh confined metadata destination required')
     reply=io.BytesIO()
-    transport.stream(['/usr/bin/python3','-c',REMOTE_OBSERVE,transport.profile['remote_root'],json.dumps(names),str(maximum)],
-                     reply,len(names)*(4*((maximum+2)//3)+512)+len(json.dumps(names).encode()),deadline)
-    values=parse_json(reply.getvalue(),canonical_required=False)
-    if type(values) is not list or len(values)!=len(names):raise EvidenceError('metadata selection count differs')
-    decoded=[]
-    for name,value in zip(names,values):
-        if type(value) is dict and value=={'path':name,'present':False} and value['present'] is False:
-            decoded.append(None);continue
-        fields(value,'path present bytes sha256 data_b64','bundled metadata bytes');require_digest(value['sha256'])
-        integer(value['bytes'],0,maximum,'metadata bytes')
-        if value['path']!=name or value['present'] is not True or type(value['data_b64']) is not str:raise EvidenceError('metadata selection differs')
-        try:data=base64.b64decode(value['data_b64'],validate=True)
-        except Exception:raise EvidenceError('invalid metadata encoding') from None
-        if len(data)!=value['bytes'] or hashlib.sha256(data).hexdigest()!=value['sha256']:raise EvidenceError('metadata framing differs')
-        decoded.append(data)
-    for path,data in zip(destinations,decoded):
-        if data is not None:
-            fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
-            with os.fdopen(fd,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
-            parent=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
-            try:os.fsync(parent)
-            finally:os.close(parent)
-    return {name:None if data is None else read_json(path) for name,path,data in zip(names,destinations,decoded)}
+    try:
+        transport.stream(['/usr/bin/python3','-c',REMOTE_OBSERVE,transport.profile['remote_root'],json.dumps(names),str(maximum)],
+                         reply,len(names)*(4*((maximum+2)//3)+512)+len(json.dumps(names).encode()),deadline)
+        values=parse_json(reply.getvalue(),canonical_required=False)
+        if type(values) is not list or len(values)!=len(names):raise EvidenceError('metadata selection count differs')
+        decoded=[]
+        for name,value in zip(names,values):
+            if type(value) is dict and value=={'path':name,'present':False} and value['present'] is False:
+                decoded.append(None);continue
+            fields(value,'path present bytes sha256 data_b64','bundled metadata bytes');require_digest(value['sha256'])
+            integer(value['bytes'],0,maximum,'metadata bytes')
+            if value['path']!=name or value['present'] is not True or type(value['data_b64']) is not str:raise EvidenceError('metadata selection differs')
+            try:data=base64.b64decode(value['data_b64'],validate=True)
+            except Exception:raise EvidenceError('invalid metadata encoding') from None
+            if len(data)!=value['bytes'] or hashlib.sha256(data).hexdigest()!=value['sha256']:raise EvidenceError('metadata framing differs')
+            decoded.append(data)
+        for path,data in zip(destinations,decoded):
+            if data is not None:
+                fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+                with os.fdopen(fd,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
+                parent=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
+                try:os.fsync(parent)
+                finally:os.close(parent)
+        return {name:None if data is None else read_json(path) for name,path,data in zip(names,destinations,decoded)}
+    except Exception as error:
+        try:
+            from private_transport_diagnostics import bounded_bytes
+            error.metadata_response_diagnostic=bounded_bytes(reply.getvalue())
+        except Exception:pass  # preserve strict original transport/framing failure
+        raise

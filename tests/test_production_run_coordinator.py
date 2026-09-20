@@ -151,7 +151,8 @@ def test_registration_uses_actual_downloads_then_adopts_without_republication(tm
         with pytest.raises(EvidenceError):run.register(*args)
 
 
-def test_abort_retains_actual_terminal_production_bytes_and_partial_states(prepared,tmp_path):
+@pytest.mark.parametrize('existing_export',[False,True])
+def test_abort_retains_actual_terminal_production_bytes_and_partial_states(prepared,tmp_path,existing_export,monkeypatch):
     from test_production_health import bound
     from test_workload_stage import intent
     from ovl_pipeline.supervision import Journal
@@ -166,7 +167,17 @@ def test_abort_retains_actual_terminal_production_bytes_and_partial_states(prepa
         run.health.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':control.profile['pod_id'],'kind':'production-record'})
         run.plan=run.health.plan;run.health_file=tmp_path/'health.json';run.sleep=lambda _:time.sleep(.01)
         run.active_stage=(bindings[root],job,root,stage,tmp_path/'objects')
+        if existing_export:
+            import production_retention
+            original=production_retention.retain;limits=[];start=run.health.now()
+            selection={'job_sha256':root};write_json(stage/'selection.json',selection)
+            write_json(stage/'terminal-export-intent.json',{'schema':'ovl.production-stage-export.v1',
+                'selection_sha256':digest(selection),'terminal':{'synthetic':'selected terminal'},
+                'started_epoch':start,'deadline_epoch':start+60})
+            def observed(*args,**kw):limits.append(args[7]);return original(*args,**kw)
+            monkeypatch.setattr(production_retention,'retain',observed)
         run.abort('InjectedFixtureFailure')
+        if existing_export:assert limits==[start+60]
         assert run.health.complete and read_json(run.health_file)['complete']
         proof=read_json(run.output/'failure/terminal/retention.json')
         receipt=read_json(Path(proof['roots'][1]['receipt_path']))

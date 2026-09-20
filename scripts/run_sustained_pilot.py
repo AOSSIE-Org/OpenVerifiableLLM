@@ -5,6 +5,7 @@ This dispatcher never creates compute, moves rental deadlines, grants production
 admission or converts telemetry into verification. Derivations and launch fences
 are adopted once. Complete output retention precedes every successor stage.
 """
+from private_transport_diagnostics import capture
 from pathlib import Path
 from contextlib import nullcontext
 import time
@@ -436,6 +437,7 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
                                      **({} if type(hook) is not CheckpointRetention else {'terminal_limits':{'maximum_bytes':stage['maximum_export_bytes'],
                                          'maximum_uncached_bytes':hook.selection['maximum_uncached_export_bytes']}}))
                 except Exception as error:
+                    capture(error,stage_output/'private-transport-diagnostics',{'phase':'stage-dispatch','job_sha256':job_root})
                     if not(stage_output/'launch/launch-intent.json').exists():raise
                     failure={'schema':'ovl.sustained-stage-dispatch-failure.v1','job_sha256':job_root,'error_type':type(error).__name__,
                              'scope':'dispatch failed; request owned stage stop and preserve complete terminal outputs'}
