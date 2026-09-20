@@ -92,7 +92,13 @@ def test_deadline_stop_or_storage_bound_ends_owned_process_group(tmp_path,reason
     if reason=='log-bound':code='import os,time\nos.write(1,b"x"*(17*1024*1024))\ntime.sleep(20)\n'
     job,v,root,worker=fixture(tmp_path,code,seconds=2 if reason=='deadline' else 20)
     before=time.monotonic();assert start(job,root,worker).returncode==0
-    if reason=='request-stop':(job/'request-stop').write_text('owned stop request')
+    if reason=='request-stop':
+        # This case tests stopping an existing group. Stop-before-spawn has a
+        # separate strict refusal test and must not race this fixture's setup.
+        end=time.monotonic()+3
+        while not(job/'launch/child.json').exists() and time.monotonic()<end:time.sleep(.01)
+        assert (job/'launch/child.json').exists()
+        (job/'request-stop').write_text('owned stop request')
     status=exited(job);assert status['exit_code']<0 and time.monotonic()-before<6
     expected={'deadline':'job-deadline','request-stop':'operator-stop','log-bound':'storage-bound'}[reason]
     # exit.json is durable before the final mutable status write. CI observed
@@ -205,3 +211,93 @@ def test_readonly_liveness_does_not_swallow_permission_or_malformed_identity(mon
     monkeypatch.setattr(m,'process_identity',lambda *args:{**identity,'start_ticks':2})
     assert m.alive(identity) is False
     with pytest.raises(m.Refusal,match='identity changed'):m.signal_owned(identity,signal.SIGTERM)
+
+
+@pytest.mark.parametrize('trigger',['wall','monotonic','stop','before-spawn'])
+def test_last_input_verification_cannot_authorize_late_or_stopped_spawn(tmp_path,monkeypatch,trigger):
+    job,v,root,worker=fixture(tmp_path,'raise SystemExit(0)\n');launch=job/'launch';launch.mkdir()
+    write_json(launch/'intent.json',{'schema':'ovl.pod-job-launch-intent.v1','job_sha256':root,'worker_sha256':worker})
+    wall=[time.time()];mono=[time.monotonic()];original=m.hash_file;usage=m.shutil.disk_usage;spawns=[]
+    monkeypatch.setattr(m.time,'time',lambda:wall[0]);monkeypatch.setattr(m.time,'monotonic',lambda:mono[0])
+    def hashed(path,**kw):
+        result=original(path,**kw)
+        if str(path)==v['required_files'][-1]['path']:
+            if trigger=='wall':wall[0]=v['deadline_epoch']+1
+            elif trigger=='monotonic':mono[0]+=100
+            elif trigger=='stop':(job/'request-stop').write_text('synthetic stop')
+        return result
+    monkeypatch.setattr(m,'hash_file',hashed)
+    def disk(path):
+        if trigger=='before-spawn':wall[0]=v['deadline_epoch']+1
+        return usage(path)
+    monkeypatch.setattr(m.shutil,'disk_usage',disk)
+    def popen(*args,**kwargs):spawns.append(args);raise AssertionError('forbidden workload spawn')
+    monkeypatch.setattr(m.subprocess,'Popen',popen)
+    with pytest.raises(m.Refusal):m.run(job,root,worker)
+    assert not spawns and not(launch/'child.json').exists() and read_json(job/'exit.json')['exit_code']==125
+
+
+def test_hash_checks_deadline_during_large_input(tmp_path):
+    data=tmp_path/'input';data.write_bytes(b'x'*(3*1024**2));checks=[]
+    def check():
+        checks.append(True)
+        if len(checks)==2:raise m.Refusal('synthetic input deadline')
+    with pytest.raises(m.Refusal,match='input deadline'):m.hash_file(data,check=check)
+    assert len(checks)==2
+
+
+@pytest.mark.parametrize('reap_leader',[False,True])
+def test_abandonment_with_exited_leader_never_acknowledges_live_descendant(tmp_path,reap_leader):
+    job,v,root,worker=fixture(tmp_path,'raise SystemExit(0)\n');launch=job/'launch';launch.mkdir()
+    selected={'schema':'ovl.pod-job-launch-intent.v1','job_sha256':root,'worker_sha256':worker}
+    write_json(launch/'intent.json',selected);write_json(launch/'execution-intent.json',selected)
+    code='import os,time;from pathlib import Path\npid=os.fork()\nif pid==0:\n Path("descendant").write_text(str(os.getpid()));time.sleep(30)\nelse:\n while not Path("release").exists():time.sleep(.01)\n'
+    leader=subprocess.Popen([sys.executable,'-c',code],cwd=tmp_path,start_new_session=True)
+    identity=m.process_identity(leader.pid);descendant=None
+    try:
+        end=time.monotonic()+5
+        while not(tmp_path/'descendant').exists() and time.monotonic()<end:time.sleep(.01)
+        descendant=m.process_identity(int((tmp_path/'descendant').read_text()))
+        write_json(launch/'child.json',{'schema':'ovl.pod-job-child.v1','job_sha256':root,'process':identity})
+        (tmp_path/'release').touch()
+        while not m.exit_ready(leader.pid) and time.monotonic()<end:time.sleep(.01)
+        assert not m.alive(identity) and m.alive(descendant)
+        if reap_leader:
+            leader.wait(timeout=2)
+            with pytest.raises(m.Refusal,match='ownership unresolved'):m.abandon(job,root,worker)
+            assert not(job/'abandoned.json').exists() and m.alive(descendant)
+        else:
+            assert m.abandon(job,root,worker)['state']=='ABANDONED'
+            assert not m.alive(descendant) and not m.group_alive(identity['process_group'])
+    finally:
+        # The test itself owns this Popen group, including the reaped-leader
+        # case. Production must not infer such ownership from absent metadata.
+        try:os.killpg(leader.pid,signal.SIGKILL)
+        except ProcessLookupError:pass
+        leader.wait(timeout=5)
+
+
+@pytest.mark.parametrize('failure_path',[False,True])
+def test_live_group_blocks_exit_receipt_on_normal_and_exception_cleanup(tmp_path,monkeypatch,failure_path):
+    from types import SimpleNamespace
+    job,v,root,worker=fixture(tmp_path,'raise SystemExit(0)\n',seconds=600);launch=job/'launch';launch.mkdir()
+    write_json(launch/'intent.json',{'schema':'ovl.pod-job-launch-intent.v1','job_sha256':root,'worker_sha256':worker})
+    original=m.subprocess.Popen;children=[];ticks=[time.monotonic()];real_time=time.time
+    def popen(*args,**kw):
+        child=original(*args,**kw);children.append(child);return child
+    def clock():ticks[0]+=3;return ticks[0]
+    monkeypatch.setattr(m.subprocess,'Popen',popen)
+    monkeypatch.setattr(m,'time',SimpleNamespace(time=real_time,monotonic=clock,sleep=lambda n:None))
+    monkeypatch.setattr(m,'group_alive',lambda group:True)
+    if failure_path:
+        def fail(pid):raise RuntimeError('synthetic supervision failure')
+        monkeypatch.setattr(m,'exit_ready',fail)
+    try:
+        with pytest.raises((m.Refusal,RuntimeError)):m.run(job,root,worker)
+        assert (job/'failure.json').exists() and not(job/'exit.json').exists()
+        assert not(job/'abandoned.json').exists() and len(children)==1
+    finally:
+        for child in children:
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            child.wait(timeout=5)

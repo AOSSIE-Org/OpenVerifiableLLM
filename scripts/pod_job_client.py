@@ -9,10 +9,15 @@ import io
 import os
 import uuid
 
-from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,parse_json,read_json,require_digest,verify_inventory,write_json
+from ovl_pipeline.canonical import EvidenceError,atomic_write,confined,digest,file_hash,parse_json,read_json,require_digest,verify_inventory,write_json
 from ovl_pipeline.schema import fields,integer
 from pod_transfer import relative
-from pod_checkpoint_handoff import observe
+from pod_observe import observe_many
+
+
+# Prospective control-operation allowance, always clipped by the caller to the
+# existing job/rental deadline. It does not grant progress or permit a new start.
+LAUNCH_CONTROL_SECONDS = 120
 
 
 REMOTE_TREE=r'''
@@ -59,7 +64,7 @@ def save_once(path,value):
     else:write_json(path,value)
 
 
-def launch(transport,job_file,expected_job,worker_file,expected_worker,output,deadline):
+def launch(transport,job_file,expected_job,worker_file,expected_worker,output,deadline,*,before_start=None):
     require_digest(expected_job);require_digest(expected_worker)
     job_file=Path(job_file);worker_file=Path(worker_file);output=Path(output)
     if job_file.is_symlink() or worker_file.is_symlink() or file_hash(job_file)!=expected_job or file_hash(worker_file)!=expected_worker:
@@ -78,33 +83,80 @@ def launch(transport,job_file,expected_job,worker_file,expected_worker,output,de
     remote_job='jobs/'+expected_job;remote_worker='tools/pod-job-worker-'+expected_worker+'.py'
     transport.put(remote_worker,worker_file,deadline)
     transport.put(remote_job+'/job.json',job_file,deadline)
+    if before_start is not None:before_start()
     # No subsequent restart is allowed to repeat start, including a crash before
     # sending it. Transfers of immutable inputs before this fence are harmless.
     save_once(journal,intent)
+    if before_start is not None:before_start()
     reply=io.BytesIO()
-    transport.stream(['/usr/bin/python3',transport.profile['remote_root']+'/'+remote_worker,'start',
-                      transport.profile['remote_root']+'/'+remote_job,expected_job,expected_worker],reply,65536,deadline)
-    response=parse_json(reply.getvalue(),canonical_required=False)
-    save_once(output/'start-response.json',response)
+    outcome={'completed':False}
+    try:
+        transport.stream(['/usr/bin/python3',transport.profile['remote_root']+'/'+remote_worker,'start',
+                          transport.profile['remote_root']+'/'+remote_job,expected_job,expected_worker],reply,65536,deadline)
+        outcome={'completed':True}
+    except BaseException as error:
+        outcome['exception_type']=type(error).__name__
+        raise
+    finally:
+        # Transport may deliver stdout and then fail. Keep received bytes even
+        # then; a later good remote receipt cannot erase a received contradiction.
+        atomic_write(output/'start-response.raw',reply.getvalue())
+        save_once(output/'start-transport.json',outcome)
+    retained_start_response(output,intent)
     return reconcile_launch(transport,intent,output,deadline)
+
+
+def process_receipt(value):
+    fields(value,'pid start_ticks process_group','remote process identity')
+    for name in value:integer(value[name],1,2**53-1,'remote process '+name)
+    if value['pid']!=value['process_group']:raise EvidenceError('remote process is not selected group leader')
+
+
+def launch_receipt(value,intent):
+    fields(value,'schema job_sha256 worker_sha256 runner','remote launch receipt')
+    if value['schema']!='ovl.pod-job-launch.v1' or value['job_sha256']!=intent['job_sha256'] or value['worker_sha256']!=intent['worker_sha256']:
+        raise EvidenceError('remote launch identity differs')
+    process_receipt(value['runner'])
+
+
+def retained_start_response(output,intent):
+    output=Path(output);raw=output/'start-response.raw';parsed=output/'start-response.json'
+    outcome=output/'start-transport.json'
+    if outcome.exists() and read_json(outcome)['completed'] and (not raw.exists() or not raw.stat().st_size):
+        raise EvidenceError('completed launch transport lacks acknowledgement')
+    if raw.exists() and raw.stat().st_size:
+        # Nonempty malformed/partial replies remain unresolved, never silently
+        # discarded as a missing acknowledgement during read-only adoption.
+        if raw.stat().st_size>65536:raise EvidenceError('retained launch acknowledgement exceeds bound')
+        response=parse_json(raw.read_bytes(),canonical_required=False)
+        save_once(parsed,response)
+    if parsed.exists():
+        response=read_json(parsed);launch_receipt(response,intent);return response
+    return None
 
 
 def reconcile_launch(transport,intent,output,deadline):
     if intent['profile_sha256']!=digest(transport.profile):raise EvidenceError('job endpoint identity changed')
+    response=retained_start_response(output,intent)
     observation=Path(output)/('reconcile-'+uuid.uuid4().hex);observation.mkdir(mode=0o700)
     job='jobs/'+intent['job_sha256']
-    selected=observe(transport,job+'/launch/intent.json',observation/'intent.json',65536,deadline,optional=True)
+    # One read-only exchange retains all three individually checked receipts.
+    # Preserve the caller's original deadline and every identity check; batching
+    # is neither an atomic snapshot nor authority to resend a fenced start.
+    names=('intent.json','receipt.json','child.json')
+    bundle=observe_many(transport,{job+'/launch/'+name:observation/name for name in names},65536,deadline)
+    selected=bundle[job+'/launch/intent.json']
     expected={'schema':'ovl.pod-job-launch-intent.v1','job_sha256':intent['job_sha256'],'worker_sha256':intent['worker_sha256']}
     if selected!=expected:raise EvidenceError('uncertain launch is not yet reconcilable; never automatically restart')
-    value=observe(transport,job+'/launch/receipt.json',observation/'receipt.json',65536,deadline,optional=True)
-    child=observe(transport,job+'/launch/child.json',observation/'child.json',65536,deadline,optional=True)
+    value=bundle[job+'/launch/receipt.json']
+    child=bundle[job+'/launch/child.json']
     if value is not None:
-        fields(value,'schema job_sha256 worker_sha256 runner','remote launch receipt')
-        if value['schema']!='ovl.pod-job-launch.v1' or value['job_sha256']!=intent['job_sha256'] or value['worker_sha256']!=intent['worker_sha256']:
-            raise EvidenceError('remote launch identity differs')
+        launch_receipt(value,intent)
+        if response is not None and response!=value:raise EvidenceError('start acknowledgement contradicts retained launch receipt')
     if child is not None:
         fields(child,'schema job_sha256 process','remote child receipt')
         if child['schema']!='ovl.pod-job-child.v1' or child['job_sha256']!=intent['job_sha256']:raise EvidenceError('remote child identity differs')
+        process_receipt(child['process'])
     if value is None and child is None:raise EvidenceError('launch receipt absent; preserve and observe, no new start')
     state=job_supervision(transport,intent['job_sha256'],intent['worker_sha256'],deadline)
     write_json(observation/'supervision.json',state)

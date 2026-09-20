@@ -171,3 +171,59 @@ def test_full_replay_retains_all_outputs_and_stops_worker_without_publication(pr
         assert result['terminal']['exit_code']==0 and h.jobs[root]['finished'] and not h.complete
         assert (replay_out/'worker-stop-delivery.json').exists()
         assert not(tmp_path/'record/remote/request-stop').exists()
+
+
+def test_production_adoption_control_allowance_preserves_original_deadlines(prepared,tmp_path,monkeypatch):
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    now=int(time.time());w=intent();original_job=job.read_bytes();original_plan=digest(w['plan']);seen=[]
+    class Selected(Exception):pass
+    def intercept(*args,**kw):seen.append(args[-1]);raise Selected()
+    monkeypatch.setattr(m,'reconcile_launch',intercept)
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings);h.wall=lambda:now
+        cp,pub=hooks(tmp_path,t,root,r,h)
+        with pytest.raises(Selected):execute(tmp_path,data,h,cp,pub)
+    assert seen==[min(w['plan']['external_terminate_epoch'],now+120)]
+    assert job.read_bytes()==original_job and digest(w['plan'])==original_plan
+
+
+@pytest.mark.parametrize('stop_kind',['controller','graceful'])
+def test_production_stop_during_uploads_prevents_new_start(prepared,tmp_path,stop_kind):
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    # The fixture already retains a completed toy run. Preserve its fence while
+    # exercising only a prospective dispatch, stopped before any start command.
+    (out/'launch').rename(out/'prior-launch');now=int(time.time());clock=[now];uploads=[]
+    original=control.put;original_stream=control.stream;starts=[]
+    def stream(argv,*args,**kw):
+        if 'start' in argv:starts.append(argv);raise AssertionError('late production start')
+        return original_stream(argv,*args,**kw)
+    control.stream=stream
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);h.wall=lambda:clock[0]
+        if stop_kind=='graceful':h.plan['request_checkpoint_epoch']=now+70
+        cp,pub=hooks(tmp_path,t,root,r,h);original_job=job.read_bytes();original_plan=digest(h.plan);progress=h.progress
+        def delayed(name,*args,**kwargs):
+            receipt=original(name,*args,**kwargs);uploads.append((name,args[-1]));clock[0]+=40
+            if len(uploads)==2 and stop_kind=='controller':
+                write_json(tmp_path/'stop.json',{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+                    'pod_id':h.pod,'observed_epoch':clock[0],'reasons':['synthetic stop during upload']})
+            return receipt
+        control.put=delayed
+        with pytest.raises(EvidenceError,match='before production launch fence'):execute(tmp_path,data,h,cp,pub)
+        assert len(uploads)==2 and not starts and not(out/'launch/launch-intent.json').exists()
+        assert {deadline for name,deadline in uploads}=={min(read_json(job)['deadline_epoch'],h.plan['request_checkpoint_epoch'],now+120)}
+        assert job.read_bytes()==original_job and digest(h.plan)==original_plan and h.progress==progress and not h.complete
+
+
+def test_pending_production_stop_precedes_failing_adoption(prepared,tmp_path,monkeypatch):
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+        'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic pending stop']})
+    def blocked(*args):
+        assert (tmp_path/'record/remote/request-stop').read_bytes()==stop.read_bytes()
+        raise EvidenceError('synthetic adoption unavailable')
+    monkeypatch.setattr(m,'reconcile_launch',blocked)
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
+        with pytest.raises(EvidenceError,match='adoption unavailable'):execute(tmp_path,data,h,cp,pub)
+        assert not h.complete and (out/'stop-delivery.json').exists()
