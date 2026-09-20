@@ -182,3 +182,11 @@ def test_published_receipt_directory_flush_expiry_revokes_success(tmp_path,monke
     monkeypatch.setattr(m.os,'fsync',slow)
     with pytest.raises(TimeoutError):m.fetch(p,m.digest(p),tmp_path/'out',tmp_path/'report.json',180,opener=Opener(data),wall=lambda:100,monotonic=lambda:mono[0])
     assert not(tmp_path/'report.json').exists() and (tmp_path/'report.json.pending').exists()
+
+
+def test_current_public_runtime_cdn_and_lookalike_rejection():
+    url='https://us.aws.cdn.hf.co/xet-bridge-us/archive?signature=synthetic'
+    request=m.Redirects().redirect_request(Request('https://huggingface.co/a'),None,302,'',{},url)
+    assert request.full_url==url
+    with pytest.raises(ValueError,match='origin'):
+        m.Redirects().redirect_request(Request('https://huggingface.co/a'),None,302,'',{},url.replace('cdn.hf.co','cdn.hf.co.unselected.invalid'))

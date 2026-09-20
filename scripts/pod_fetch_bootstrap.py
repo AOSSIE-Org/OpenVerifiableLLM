@@ -16,7 +16,8 @@ from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_ope
 
 REPO = 'AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence'
 HOSTS = {'huggingface.co', 'cdn-lfs.huggingface.co', 'cdn-lfs.hf.co',
-         'cdn-lfs-us-1.hf.co', 'cdn-lfs-eu-1.hf.co', 'cas-bridge.xethub.hf.co'}
+         'cdn-lfs-us-1.hf.co', 'cdn-lfs-eu-1.hf.co', 'cas-bridge.xethub.hf.co',
+         'us.aws.cdn.hf.co'}
 NAMES = ['python.tar.gz', 'source.tar.gz']
 
 
