@@ -261,22 +261,40 @@ class Transport:
             if progress is not None and (in_count,out_count)!=last_counts:progress({'bytes_sent':in_count,'bytes_received':out_count})
             return {'bytes_sent':in_count,'bytes_received':out_count,'process_exit_code':0,'pod_id':self.profile['pod_id'],
                     'endpoint_observation_sha256':self.profile['endpoint_observation_sha256'],'host_key_trust':self.profile['host_key_trust']}
-        finally:
+        except Exception as error:
             try:
-                if selector is not None:selector.close()
-            finally:
+                from private_transport_diagnostics import bounded_bytes
+                error.transport_diagnostic={'stderr':bounded_bytes(errors),'process_exit_code':process.poll(),
+                    'bytes_sent':in_count,'bytes_received':out_count,'deadline_epoch':deadline}
+            except Exception:pass  # diagnostics cannot replace the primary error
+            raise
+        finally:
+            import sys
+            primary=sys.exc_info()[1]
+            try:
                 try:
-                    if process.poll() is None:
-                        try:os.killpg(process.pid,signal.SIGTERM)
-                        except ProcessLookupError:pass
-                        try:process.wait(timeout=2)
-                        except subprocess.TimeoutExpired:
-                            try:os.killpg(process.pid,signal.SIGKILL)
-                            except ProcessLookupError:pass
-                            process.wait(timeout=2)
+                    if selector is not None:selector.close()
                 finally:
-                    for channel in (process.stdin,process.stdout,process.stderr):
-                        if channel is not None and not channel.closed:channel.close()
+                    try:
+                        if process.poll() is None:
+                            try:os.killpg(process.pid,signal.SIGTERM)
+                            except ProcessLookupError:pass
+                            try:process.wait(timeout=2)
+                            except subprocess.TimeoutExpired:
+                                try:os.killpg(process.pid,signal.SIGKILL)
+                                except ProcessLookupError:pass
+                                process.wait(timeout=2)
+                    finally:
+                        channel_error=None
+                        for channel in (process.stdin,process.stdout,process.stderr):
+                            try:
+                                if channel is not None and not channel.closed:channel.close()
+                            except Exception as error:
+                                if channel_error is None:channel_error=error
+                        if channel_error is not None:raise channel_error
+            except Exception as cleanup:
+                if primary is None:raise
+                primary.transport_cleanup_diagnostic={'exception_class':type(cleanup).__name__,'message':str(cleanup)[:4096]}
 
     def inspect(self,name,maximum,deadline):
         import io

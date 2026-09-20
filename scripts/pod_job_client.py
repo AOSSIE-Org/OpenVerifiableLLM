@@ -20,6 +20,64 @@ from pod_observe import observe_many
 LAUNCH_CONTROL_SECONDS = 120
 
 
+def worker_stop_request(job):
+    """One immutable signal per selected job; callers retain causes separately.
+
+    Distinct authorized stop causes must not compete to replace remote bytes.
+    This payload neither proves a stopped process nor grants retention credit.
+    """
+    require_digest(job)
+    return {'schema':'ovl.worker-stop-request.v1','job_sha256':job}
+
+
+def stop_delivery(transport,job,name,marker,receipt_path,deadline):
+    """Sequential idempotent stop under the coordinator lease; never a new start."""
+    require_digest(job);relative(name);marker=Path(marker);receipt_path=Path(receipt_path)
+    if name not in ('request-stop','jobs/'+job+'/request-stop'):
+        raise EvidenceError('stop destination differs from selected job')
+    if marker.is_symlink() or not marker.is_file():raise EvidenceError('regular stop marker required')
+    identity={'job_sha256':job,'profile_sha256':digest(transport.profile),'destination':name,
+              'sha256':file_hash(marker),'bytes':marker.stat().st_size}
+    if name!='request-stop' and read_json(marker)!=worker_stop_request(job):
+        raise EvidenceError('worker stop payload differs from selected job')
+    def validate(value):
+        fields(value,'schema identity transfer','retained stop delivery')
+        if value['schema']!='ovl.stop-delivery.v1' or value['identity']!=identity:
+            raise EvidenceError('retained stop delivery identity differs')
+        transfer=value['transfer']
+        fields(transfer,'bytes_sent bytes_received process_exit_code pod_id endpoint_observation_sha256 host_key_trust bytes sha256 scope','stop transfer receipt')
+        for k in ('pod_id','endpoint_observation_sha256','host_key_trust'):
+            if transfer[k]!=transport.profile[k]:raise EvidenceError('stop transfer endpoint differs')
+        for k in ('bytes','sha256'):
+            if transfer[k]!=identity[k]:raise EvidenceError('stop transfer payload differs')
+        if type(transfer['bytes_sent']) is not int or transfer['bytes_sent']!=identity['bytes'] or type(transfer['process_exit_code']) is not int or transfer['process_exit_code']!=0:
+            raise EvidenceError('incomplete stop transfer receipt')
+        integer(transfer['bytes_received'],1,4096,'stop acknowledgement bytes')
+        if type(transfer['scope']) is not str:raise EvidenceError('invalid stop transfer scope')
+        return value
+    if receipt_path.is_symlink():raise EvidenceError('stop receipt symlink')
+    if receipt_path.exists():return validate(read_json(receipt_path))
+    receipt=transport.put(name,marker,deadline)
+    value=validate({'schema':'ovl.stop-delivery.v1','identity':identity,'transfer':receipt})
+    save_once(receipt_path,value);return value
+
+
+def retain_stop_reason(output,requested,job,*,graceful_reason):
+    """Preserve the first cause even if its upload acknowledgement was lost."""
+    path=Path(output)/'stop-reason.json';later=Path(output)/'controller-stop-reason.json'
+    if requested is None:
+        if path.exists():raise EvidenceError('retained stop request disappeared')
+        return
+    if not path.exists():save_once(path,requested)
+    first=read_json(path)
+    if first!=requested:
+        graceful={'schema':'ovl.dispatcher-stop-request.v1','job_sha256':job,'reason':graceful_reason}
+        if first!=graceful or requested.get('schema')!='ovl.rental-stop-request.v1':
+            raise EvidenceError('stop cause changed outside graceful-to-controller transition')
+        save_once(later,{'first_stop_sha256':digest(first),'request':requested})
+    elif later.exists():raise EvidenceError('retained controller stop disappeared')
+
+
 REMOTE_TREE=r'''
 import hashlib,json,os,stat,sys
 from pathlib import Path
@@ -168,21 +226,29 @@ def reconcile_launch(transport,intent,output,deadline):
 
 def job_supervision(transport,job,worker,deadline,*,abandon=False):
     require_digest(job);require_digest(worker);reply=io.BytesIO();base=transport.profile['remote_root']
-    transport.stream(['/usr/bin/python3',base+'/tools/pod-job-worker-'+worker+'.py',
-                      'abandon' if abandon else 'inspect',base+'/jobs/'+job,job,worker],reply,65536,deadline)
-    value=parse_json(reply.getvalue(),canonical_required=False)
-    if abandon:
-        if value.get('schema') not in ('ovl.workload-job-abandonment.v1','ovl.workload-job-exit.v1') or value.get('job_sha256')!=job:
-            raise EvidenceError('wrong abandonment response')
-    else:
-        fields(value,'schema job_sha256 state runner_alive child_alive terminal scope','job supervision response')
-        states=('RUNNING_UNVERIFIED','STARTING_UNVERIFIED','EXITED','ABANDONED','CHILD_IDENTITY_UNKNOWN',
-                'LAUNCH_FENCE_WITHOUT_INTENT','LAUNCH_NOT_OBSERVED','SUPERVISOR_ABSENT')
-        if value['schema']!='ovl.pod-job-supervision.v1' or value['job_sha256']!=job or value['state'] not in states:
-            raise EvidenceError('wrong job supervision identity/state')
-        if type(value['runner_alive']) is not bool or type(value['child_alive']) is not bool:
-            raise EvidenceError('invalid job liveness response')
-    return value
+    try:
+        transport.stream(['/usr/bin/python3',base+'/tools/pod-job-worker-'+worker+'.py',
+                          'abandon' if abandon else 'inspect',base+'/jobs/'+job,job,worker],reply,65536,deadline)
+        value=parse_json(reply.getvalue(),canonical_required=False)
+        if abandon:
+            if value.get('schema') not in ('ovl.workload-job-abandonment.v1','ovl.workload-job-exit.v1') or value.get('job_sha256')!=job:
+                raise EvidenceError('wrong abandonment response')
+        else:
+            fields(value,'schema job_sha256 state runner_alive child_alive terminal scope','job supervision response')
+            states=('RUNNING_UNVERIFIED','STARTING_UNVERIFIED','EXITED','ABANDONED','CHILD_IDENTITY_UNKNOWN',
+                    'LAUNCH_FENCE_WITHOUT_INTENT','LAUNCH_NOT_OBSERVED','SUPERVISOR_ABSENT')
+            if value['schema']!='ovl.pod-job-supervision.v1' or value['job_sha256']!=job or value['state'] not in states:
+                raise EvidenceError('wrong job supervision identity/state')
+            if type(value['runner_alive']) is not bool or type(value['child_alive']) is not bool:
+                raise EvidenceError('invalid job liveness response')
+        return value
+    except Exception as error:
+        try:
+            from private_transport_diagnostics import bounded_bytes
+            error.metadata_response_diagnostic=bounded_bytes(reply.getvalue())
+        except Exception:pass
+        raise
+
 
 
 def tree(transport,name,deadline,*,allow_missing=False,whole_root=False):
