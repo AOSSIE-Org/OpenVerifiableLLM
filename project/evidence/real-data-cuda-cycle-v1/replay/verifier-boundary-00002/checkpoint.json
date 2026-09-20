@@ -1,0 +1,1 @@
+{"files":[{"bytes":78798,"path":"state.json","sha256":"45d6571645c6bb363cfe54389caf0524dea09bca598ec6ed108ff4d42ecccd45"},{"bytes":333059968,"path":"state.safetensors","sha256":"2853117342eeafd300f5cf6dbf3277327f9034086915fb5642cf84f09d2f8022"}],"schema":"ovl.checkpoint.v1","state_root":"45d6571645c6bb363cfe54389caf0524dea09bca598ec6ed108ff4d42ecccd45"}

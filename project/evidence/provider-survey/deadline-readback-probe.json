@@ -1,0 +1,15 @@
+{
+  "scope": "read-only named deadline-field validation probe on empty account",
+  "http_status": 400,
+  "response_sha256": "71b6c3af88b1fb025da16372808683637fb5961b6c3a852f2d3f7eb931bf4ee7",
+  "query": "query OvlReadDeadlineFields { myself { pods { id stopAfter terminateAfter } } }",
+  "error_codes": [
+    "GRAPHQL_VALIDATION_FAILED",
+    "GRAPHQL_VALIDATION_FAILED"
+  ],
+  "expected_validation_messages": [
+    "Cannot query field \"stopAfter\" on type \"Pod\".",
+    "Cannot query field \"terminateAfter\" on type \"Pod\"."
+  ],
+  "mutation": "NOT_RUN"
+}

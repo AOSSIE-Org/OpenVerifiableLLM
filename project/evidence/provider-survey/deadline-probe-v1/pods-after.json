@@ -1,0 +1,9 @@
+{
+  "observed_at": "2026-09-18T00:05:57.582Z",
+  "scope": "authenticated resource inventory",
+  "pagination": {
+    "hasNextPage": false,
+    "nextCursor": null
+  },
+  "pods": []
+}

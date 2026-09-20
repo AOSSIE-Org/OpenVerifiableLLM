@@ -1,0 +1,67 @@
+{
+  "schema": "ovl.development-checks.v1",
+  "parent_revision": "4dc3c624dadac79d29648c585cf2613298144b35",
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "result": "505 passed, 3 existing CUDA-dependent skips",
+  "scope": "complete tiny CPU substituted record/replay/recovery; publisher positives explicitly doubled, fake bundles rejected by actual Sigstore adapter; no live production credit",
+  "sources": [
+    {
+      "path": "src/ovl_pipeline/production_trajectory.py",
+      "sha256": "de94d08b1be64ac101b10c66384a585654dcd799a60d3bf90c41b3b0002b0ea4"
+    },
+    {
+      "path": "src/ovl_pipeline/production_record.py",
+      "sha256": "b7c931a2fdd96a160be7ef4886874bf972047953955064491c0121d2b626f5a7"
+    },
+    {
+      "path": "src/ovl_pipeline/production_replay.py",
+      "sha256": "552f1a261371acec7af0389a958c282edac495beaf52742e4de8b66323c0be9d"
+    },
+    {
+      "path": "src/ovl_pipeline/progress_anchoring.py",
+      "sha256": "9ec5acbfe260b358ebb48130db4a9753523b46216e3a86a9a45c859a58d59e75"
+    },
+    {
+      "path": "src/ovl_pipeline/gpu_pilot.py",
+      "sha256": "6b4f27217f879eee5df1f6a34a8b38f0d3aab0db9e53a5e8c1d5bab597db526e"
+    },
+    {
+      "path": "src/ovl_pipeline/production_parents.py",
+      "sha256": "560d3e4eaae555a93c419eb4d9c118b9e7af089982d93b4f0c311b596c86f479"
+    },
+    {
+      "path": "tests/test_production_record.py",
+      "sha256": "a257b5e2ab99f889cb0d28490e3eb478088843e6b4b8016bcd775390a366cc76"
+    },
+    {
+      "path": "tests/test_production_replay.py",
+      "sha256": "037adfa292b3a4a0d7c2d81a99056a16896d73c1977a591037a36146fa4b30ea"
+    },
+    {
+      "path": "tests/test_progress_anchoring.py",
+      "sha256": "2eaa816183df91093a4c5b66f6c7f99440d00457bfb855e59329cb81b82561ff"
+    },
+    {
+      "path": "tests/test_gpu_pilot.py",
+      "sha256": "851e86d09dbdf75d2b6cbe10b72c79971e17491d619775d5bd716e16f9e046a4"
+    },
+    {
+      "path": "tests/test_production_parents.py",
+      "sha256": "6eaec469d412136b9c6abc17a2426657649a0056fb3d8fdabbddf815c080c2fe"
+    }
+  ],
+  "checks": [
+    "Every actual tiny update/boundary recomputed; prover restore forbidden during full replay",
+    "Internally rehashed and resigned forged checkpoint rejected by continuous replay",
+    "Missing initial/progress public anchor prevents subsequent production updates",
+    "Recording recovery at initial/progress/base/transition/final matches uninterrupted state roots",
+    "Sole partial checkpoint bytes preserved before recomputation",
+    "Pilot replay verifier-checkpoint overhead included and required by forecast parent validation"
+  ],
+  "limitations": [
+    "No actual CUDA production/replay or progress signature",
+    "Progress signing workflow/publication and operational runtime/provider controller integration pending",
+    "Replay always starts fresh; saved verifier states do not authorize prefix skipping",
+    "Native Opus advice deferred by five-hour limit; previous failure closed, no acceptance credit"
+  ]
+}

@@ -1,0 +1,5 @@
+{
+  "error": "Runpod API error (404)",
+  "detail": "{\"detail\":\"pod not found\",\"status\":404,\"title\":\"Not Found\"}\n",
+  "hint": "No such resource on this account: verify the id with the matching list- tool before retrying."
+}

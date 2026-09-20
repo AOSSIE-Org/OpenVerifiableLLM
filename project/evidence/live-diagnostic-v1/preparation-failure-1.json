@@ -1,0 +1,1 @@
+{"observed_epoch": 1789723658, "result": "FAIL_BEFORE_RESOURCE_OR_INTENT_CREATION", "reason": "Price metadata used pretty JSON and canonical-only reader refused. No unit existed; start failed.", "correction": "Read retained documentary price JSON with canonical_required=False; rental intent remains canonical."}

@@ -1,0 +1,28 @@
+{
+  "commands": [
+    "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_production_verify.py tests/test_production_export.py",
+    "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests"
+  ],
+  "created_utc": "2026-09-18T04:57:25.806107+00:00",
+  "files": {
+    "docs/COMPLETE_VERIFIER.md": "608aa5dc4d39c8874fd2fa22f24a07112bd8b77b4656f120ebafbc7e5938c60b",
+    "src/ovl_pipeline/production_export.py": "ca374420f62eba286df749c1a04f0f058450eac07025bbf8e54c7742837d6bcc",
+    "src/ovl_pipeline/production_verify.py": "d2dac643a608bc1dac140e089dd0a6f566d4af2edb26f870220de01c426e6484",
+    "tests/test_production_verify.py": "faa04a0917ba60c02bca9c47aecd0846d2a698127081a45599c0be165be888fe"
+  },
+  "initial_failure": "Test launcher supplied None for required bundle path; fixed fixture to supply its actual dummy bundle. No production evidence from that fixture.",
+  "production_acceptance_credit": false,
+  "remaining": [
+    "actual full-data reconstruction and CUDA replay",
+    "signed final release inventory and clean download verification",
+    "live workload transfer/stop/export/acknowledgement",
+    "container and OS-library evidence"
+  ],
+  "results": {
+    "focused": "24 passed",
+    "integrated": "681 passed,3 existing CUDA skips"
+  },
+  "schema": "ovl.local-implementation-checkpoint.v1",
+  "scope": "real synthetic complete raw reconstruction, CPU numerical replay, exports, full held-out evaluation and repeated greedy inference; explicit publisher/CUDA-launch substitutes",
+  "source_parent": "f00f6006e51499dabcfca74c21e5b754257e1e58"
+}

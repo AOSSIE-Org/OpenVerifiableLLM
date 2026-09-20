@@ -1,0 +1,25 @@
+.....................                                                    [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_production_health.py::test_logs_only_cannot_finish_production_but_all_retained_outputs_can
+PASSED tests/test_production_health.py::test_verified_snapshot_publication_credit_is_finite_and_restart_deduplicated
+PASSED tests/test_production_retention.py::test_terminal_retention_covers_complete_declared_tree_and_partial_states
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[omit-record]
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[swap-root]
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[foreign-profile]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[config-digest]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[source-bytes]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[unlisted-source]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[source-symlink]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[wheel-bytes]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[wheel-symlink]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[duplicate-wheel]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[source-traversal]
+PASSED tests/test_pod_runtime_setup.py::test_unauthorized_bootstrap_inputs_refused_before_import[unchecked-bytecode]
+PASSED tests/test_pod_runtime_setup.py::test_bootstrap_cli_requires_isolated_no_site_parent
+PASSED tests/test_pod_runtime_setup.py::test_runtime_layout_preserves_existing_and_separates_evidence[same]
+PASSED tests/test_pod_runtime_setup.py::test_runtime_layout_preserves_existing_and_separates_evidence[nested]
+PASSED tests/test_pod_runtime_setup.py::test_runtime_layout_preserves_existing_and_separates_evidence[symlink]
+PASSED tests/test_pod_runtime_setup.py::test_runtime_layout_preserves_existing_and_separates_evidence[existing-output]
+PASSED tests/test_pod_runtime_setup.py::test_bootstrap_helper_digest_must_belong_to_its_own_lock_row
+21 passed in 12.68s

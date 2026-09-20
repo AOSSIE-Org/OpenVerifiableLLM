@@ -1,0 +1,42 @@
+{
+  "result": "PASS",
+  "scope": "actual local systemd restart after SIGKILL, durable single intent adopted; no RunPod resource or guard credit",
+  "first": {
+    "pid": 2451404,
+    "synthetic": true
+  },
+  "second": {
+    "original_intent_count": 1,
+    "pid": 2452351,
+    "result": "PASS",
+    "scope": "systemd restart and durable intent adoption only; no provider credit"
+  },
+  "script": "from pathlib import Path\nimport os,time\nfrom ovl_pipeline.supervision import Journal\nfrom ovl_pipeline.canonical import write_json\nroot=Path(__file__).parent\nwith Journal(root/'journal').lease() as j:\n    if not j.events:\n        j.append('creation-intent',{'synthetic':True,'resources_created':False})\n        write_json(root/'ready.json',{'pid':os.getpid(),'synthetic':True})\n        while True:time.sleep(1)\n    assert len(j.events)==1 and j.events[0]['kind']=='creation-intent'\n    j.append('creation-observed',{'adopted_prior_intent':True,'synthetic':True,'resources_created':False})\n    write_json(root/'complete.json',{'result':'PASS','scope':'systemd restart and durable intent adoption only; no provider credit','pid':os.getpid(),'original_intent_count':1})\n",
+  "script_sha256": "f8c0e1fe0bca66ce50c01c4425f31010ebf9487431285a1801ddb23481914f64",
+  "journal": [
+    {
+      "body": {
+        "resources_created": false,
+        "synthetic": true
+      },
+      "kind": "creation-intent",
+      "observed_epoch": 1789688705,
+      "previous": "4afaa9584cdd50c53e39822c7cf24dab5e70fd780bab301207d122839079df3e",
+      "schema": "ovl.controller-event.v1",
+      "sequence": 0
+    },
+    {
+      "body": {
+        "adopted_prior_intent": true,
+        "resources_created": false,
+        "synthetic": true
+      },
+      "kind": "creation-observed",
+      "observed_epoch": 1789688734,
+      "previous": "1f86c6705eb4b63ce3ddb725730bbb5af9ef571e255278909934ef4de1bf394a",
+      "schema": "ovl.controller-event.v1",
+      "sequence": 1
+    }
+  ],
+  "service_closed": true
+}

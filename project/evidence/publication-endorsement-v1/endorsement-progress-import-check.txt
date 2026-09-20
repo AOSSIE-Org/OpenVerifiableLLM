@@ -1,0 +1,12 @@
+usage: progress_commitment.py [-h] [--select] [--verify-output]
+                              [--output OUTPUT]
+
+Append-only public checkpoint endorsement inputs for GitHub Actions. Checks
+publisher/run ancestry and actual downloaded safe checkpoint bytes. This signs
+operator assertions, never claims that CI reproduced numerical training.
+
+options:
+  -h, --help       show this help message and exit
+  --select
+  --verify-output
+  --output OUTPUT

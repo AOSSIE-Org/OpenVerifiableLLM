@@ -1,0 +1,2 @@
+{"boundaries":5,"continuous_replay":"PASS","export_inference":"PASS","independent_third_party":false,"locally_recomputed":true,"performed_by":"project-operator","production_acceptance":"NOT_RUN","profile":"local-synthetic-fixture","public_anchoring":"NOT_RUN","raw_reconstruction":"PASS","result":"PASS","schema":"ovl.fixture-verification.v1","updates":8}
+Audited target exited successfully; launch receipt 0d6419395819f92d59f395760a51728264c478314813e251b43f3f393b03e1f9

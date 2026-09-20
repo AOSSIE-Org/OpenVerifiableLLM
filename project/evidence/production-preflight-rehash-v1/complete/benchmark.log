@@ -1,0 +1,11 @@
+baseline wikipedia-census 291093
+baseline wikipedia-cursors 309738
+baseline conversation-census 145
+baseline conversation-cursors 152
+baseline initialization-input-validation 205961
+revalidated-reuse wikipedia-census 301336
+revalidated-reuse wikipedia-cursors 115145
+revalidated-reuse conversation-census 154
+revalidated-reuse conversation-cursors 57
+revalidated-reuse initialization-input-validation 9817
+COMPLETE

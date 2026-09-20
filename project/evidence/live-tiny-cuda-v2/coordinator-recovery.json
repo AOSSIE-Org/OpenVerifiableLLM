@@ -1,0 +1,1 @@
+{"change":"read-only fenced adoption after compute deadline, before unchanged external deadline","manual_exports_rehashed":true,"no_new_launch":true,"observed_epoch":1789729150,"schema":"ovl.operator-coordinator-recovery.v1","stage_source_sha256":"d8d7d7729212159e1e83f3493900b951a021236b7d7b9c1fb94d35e7cc42d56c","tests":"40 passed in23.72s"}

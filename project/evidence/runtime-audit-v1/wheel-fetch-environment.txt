@@ -1,0 +1,10 @@
+Using CPython 3.12.14 interpreter at: .ovllm-cache/gpu-venv/bin/python
+Creating virtual environment at: .ovllm-cache/wheel-fetch-venv
+Activate with: source .ovllm-cache/wheel-fetch-venv/bin/activate
+Using Python 3.12.14 environment at: .ovllm-cache/wheel-fetch-venv
+Resolved 1 package in 259ms
+Downloading pip (1.7MiB)
+ Downloaded pip
+Prepared 1 package in 890ms
+Installed 1 package in 5ms
+ + pip==25.1.1

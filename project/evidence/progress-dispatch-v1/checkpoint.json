@@ -1,0 +1,25 @@
+{
+  "command": "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests",
+  "created_utc": "2026-09-18T04:32:43.383322+00:00",
+  "files": {
+    "scripts/publish_progress_boundary.py": "68659eda82f9d7d3b78881f95fe9453da8ea97c0258cb56a8118f0308e44b7bf",
+    "src/ovl_pipeline/gpu.py": "3e8b85dcd5dc747852df1a32425bb0902edefb277fc4e2b71da304f58c4e0c8d",
+    "src/ovl_pipeline/production_record.py": "b6ea18f3106b6fc57669687773e327d9937c83aaef071002980c44fb76c1bc68",
+    "src/ovl_pipeline/runtime_activity.py": "f2a5cfe893e4bf55aa4bc80b687b7ff50991b05facbbe9f115deb4bd05496f39",
+    "src/ovl_pipeline/runtime_launch.py": "f73ba0462ac992bc915522c05185bf3117af9c535286b30816327fe3e37aa6ac",
+    "tests/test_progress_dispatch.py": "3f5cde6613c7ef21158e654fbdc040f1117b02ec2e59cee6eb15f6e73f420275",
+    "tests/test_runtime_activity.py": "c573bdb22eea8dafc39338064033bcbea73cfb4c06bea6a8c234dd37c2f4f33a"
+  },
+  "observed_cli_correction": "Installed gh run list does not support attempt JSON field; corrected to fetch run_attempt and exact path/branch/event through gh api. Actual public run35302484126 confirms response fields; no request or signing mutation.",
+  "production_acceptance_credit": false,
+  "remaining": [
+    "live SSH/export/acknowledgement and cost-controller integration",
+    "actual public production endorsements",
+    "real CUDA pilots/replay",
+    "complete release verifier"
+  ],
+  "result": "655 passed,3 existing CUDA skips",
+  "schema": "ovl.local-implementation-checkpoint.v1",
+  "scope": "real tiny CPU safe checkpoints and local Git; explicit HF/Actions/publisher substitutes",
+  "source_parent": "e563977d870714748d59e1c71e6275214da1b588"
+}

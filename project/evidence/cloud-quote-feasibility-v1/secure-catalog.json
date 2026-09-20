@@ -1,0 +1,32 @@
+{
+  "availability": "LOW",
+  "community": true,
+  "cudaVersions": [
+    {
+      "available": true,
+      "version": "13.0"
+    }
+  ],
+  "dataCenters": [
+    {
+      "availability": "LOW",
+      "id": "EUR-IS-1",
+      "name": "EUR-IS-1"
+    }
+  ],
+  "id": "NVIDIA GeForce RTX 5090",
+  "manufacturer": "NVIDIA",
+  "maxCount": {
+    "community": 8,
+    "secure": 8
+  },
+  "memory": 32,
+  "name": "RTX 5090",
+  "pool": "ADA_32_PRO",
+  "price": {
+    "community": 0.69,
+    "secure": 0.99,
+    "serverless": 1.58
+  },
+  "secure": true
+}

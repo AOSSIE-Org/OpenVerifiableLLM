@@ -1,0 +1,48 @@
+{
+  "schema": "ovl.local-publication-service-probe.v1",
+  "result": "PASS",
+  "cases": [
+    {
+      "mode": "timeout",
+      "unit": "ovllm-publication-probe-068bfe01517b4b7194b05bc326aa2ce6.service",
+      "coordinator_exit": 0,
+      "main_pid": 709884,
+      "child_pid": 709885,
+      "all_processes_gone": true,
+      "elapsed_ms": 11669,
+      "scope": "actual own user systemd process lifecycle; publisher/numerics substituted"
+    },
+    {
+      "mode": "failure",
+      "unit": "ovllm-publication-probe-33e0f860fa944b00a2abafe377123ef8.service",
+      "coordinator_exit": 0,
+      "main_pid": 710492,
+      "child_pid": 710493,
+      "all_processes_gone": true,
+      "elapsed_ms": 6407,
+      "scope": "actual own user systemd process lifecycle; publisher/numerics substituted"
+    },
+    {
+      "mode": "success-orphan",
+      "unit": "ovllm-publication-probe-072defd264a047358fcb5801d5d2dcd6.service",
+      "coordinator_exit": 0,
+      "main_pid": 710709,
+      "child_pid": 710710,
+      "all_processes_gone": true,
+      "elapsed_ms": 6163,
+      "scope": "actual own user systemd process lifecycle; publisher/numerics substituted"
+    },
+    {
+      "mode": "success-clean",
+      "unit": "ovllm-publication-probe-642c0d2ca32e472bb17592a61a3cc0d7.service",
+      "coordinator_exit": 0,
+      "main_pid": 711086,
+      "child_pid": 711087,
+      "all_processes_gone": true,
+      "elapsed_ms": 1155,
+      "scope": "actual own user systemd process lifecycle; publisher/numerics substituted"
+    }
+  ],
+  "paid_resources": false,
+  "production_admission": "NOT_RUN"
+}

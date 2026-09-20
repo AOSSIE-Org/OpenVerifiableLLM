@@ -1,0 +1,12 @@
+{
+  "schema": "ovl.provider-skipped-schema-probe.v1",
+  "observed_epoch": 1789688266,
+  "query": "mutation OvlSkippedDeadlineSchemaProbe { podFindAndDeployOnDemand(input: {name: \"ovllm-schema-only-never-execute\", gpuCount: 0, stopAfter: \"2026-09-18T00:00:00Z\", terminateAfter: \"2026-09-18T00:01:00Z\"}) @skip(if: true) { id } }",
+  "http_status": 200,
+  "response_sha256": "947884f103ed676be52706ad94e2a80b7b3bd8c0fe5eb2500ad1c0bd221a9a59",
+  "data": {},
+  "errors": [],
+  "resource_execution": "SKIPPED_BY_LITERAL_DIRECTIVE",
+  "guard_behavior": "NOT_RUN",
+  "execution_admission": "NOT_RUN"
+}

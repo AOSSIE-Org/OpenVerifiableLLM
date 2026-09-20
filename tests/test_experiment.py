@@ -40,6 +40,25 @@ HAS_CUDA = HAS_TORCH and torch.cuda.is_available()
 HAS_2GPU = HAS_CUDA and torch.cuda.device_count() >= 2
 
 
+def setUpModule():
+    # Legacy signing helpers default to repository keys. Tests must never replace
+    # a tracked trust root or create a private key alongside it.
+    from unittest.mock import patch
+    global _key_tmp, _key_patch
+    _key_tmp = tempfile.TemporaryDirectory(prefix="ovllm-test-keys-")
+    root = Path(_key_tmp.name)
+    _key_patch = patch.multiple(signing, KEYS_DIR=root,
+                               PRIVATE_KEY_PATH=root / "test.key",
+                               PUBLIC_KEY_PATH=root / "test.pub")
+    _key_patch.start()
+    signing.generate_keypair()
+
+
+def tearDownModule():
+    _key_patch.stop()
+    _key_tmp.cleanup()
+
+
 # --------------------------------------------------------------------------- #
 # Security: verify the signature BEFORE deserializing (torch-free)
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,26 @@
+[
+  {
+    "url": "https://dumps.wikimedia.org/enwiki/20260901/",
+    "path": "enwiki-20260901-index.html",
+    "sha256": "16839e1045dc257204df75ed74d1d62078bacd60b893b2e0f6e5d49709a5df3c",
+    "bytes": 449753,
+    "operator_observed_utc": "2026-09-17T19:05:37.473842+00:00",
+    "result": "PASS"
+  },
+  {
+    "url": "https://dumps.wikimedia.org/enwiki/20260901/enwiki-20260901-md5sums.txt",
+    "path": "enwiki-20260901-md5sums.txt",
+    "sha256": "8aaf5874376027c2771eb1320e662e0629ccbf4007c6aa09393897faa5e09c4a",
+    "bytes": 226572,
+    "operator_observed_utc": "2026-09-17T19:05:39.084397+00:00",
+    "result": "PASS"
+  },
+  {
+    "url": "https://dumps.wikimedia.org/enwiki/20260901/enwiki-20260901-sha1sums.txt",
+    "path": "enwiki-20260901-sha1sums.txt",
+    "sha256": "46a56e305d97f2a88fd7d974c85482786fa445630ca8fc9f5573736efc6ade00",
+    "bytes": 245684,
+    "operator_observed_utc": "2026-09-17T19:05:40.644233+00:00",
+    "result": "PASS"
+  }
+]

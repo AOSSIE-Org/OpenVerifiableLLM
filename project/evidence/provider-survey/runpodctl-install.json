@@ -1,0 +1,8 @@
+{
+  "release": "v2.14.0",
+  "url": "https://github.com/runpod/runpodctl/releases/download/v2.14.0/runpodctl-linux-amd64",
+  "sha256": "2e0fd370a52a0fc7e43a6434a209348a4f6836fcdf1ad2b093b609e938138be9",
+  "bytes": 14098594,
+  "verification": "GitHub release asset digest equals actual download",
+  "scope": "local CLI installation only; no resource provisioning"
+}

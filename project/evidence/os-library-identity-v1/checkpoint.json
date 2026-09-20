@@ -1,0 +1,14 @@
+{
+  "schema": "ovl.local-implementation-checkpoint.v1",
+  "created_utc": "2026-09-18T05:38:08.482840+00:00",
+  "scope": "actual CPU backing-file hashes plus adversarial fixture mappings; no CUDA/host attestation",
+  "production_acceptance_credit": false,
+  "result": "31 passed",
+  "files": {
+    "src/ovl_pipeline/gpu.py": "31641f7b092db1198c46745e5e686f20abff5c90bc5484550e7c8069c2004108",
+    "tests/test_gpu_kernel.py": "0a8900aefa4f3b77cdd8b8fa8e9f146d19fb3f65060b77390dad94a6cd668f42",
+    "docs/RUNTIME_AUDIT.md": "f58c5158db46ffdfe533adaa7b5f39318bf52047a19169893c407d176abcb00c"
+  },
+  "actual_local_observation_sha256": "b2c3031cd92da834cc25b2dfe96d97828b2d482e6594311e04444cee46c9f612",
+  "missing_or_replaced_library_rejected": true
+}

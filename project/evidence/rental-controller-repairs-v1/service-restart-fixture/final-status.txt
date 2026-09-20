@@ -1,0 +1,4 @@
+ActiveState=inactive
+SubState=dead
+MainPID=0
+ExecMainStatus=0

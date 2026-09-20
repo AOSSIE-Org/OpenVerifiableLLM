@@ -1,0 +1,8 @@
+{
+  "schema": "ovl.advisory-counterexample.v1",
+  "finding": "F5",
+  "source_identity": "scripts/pilot_health.py sha256:d1fa4cd530d8fa7014d0da5a3f9b1b70d2b48300dae372e48a8874558254843a based on bd1f40d6f7c3ab3cc12d9ef5750a93aaa12003f5, listed working changes",
+  "original_live_rejected": "selected validation contract changed",
+  "invalid_events_appended": 1,
+  "original_adoption_rejected": "selected validation contract changed"
+}

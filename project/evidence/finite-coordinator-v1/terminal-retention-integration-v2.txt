@@ -1,0 +1,41 @@
+.....................................                                    [100%]
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED tests/test_production_retention.py::test_terminal_retention_covers_complete_declared_tree_and_partial_states
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[omit-record]
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[swap-root]
+PASSED tests/test_production_retention.py::test_logs_only_or_misbound_retention_refused[foreign-profile]
+PASSED tests/test_pod_versioned_export.py::test_new_snapshots_retain_all_files_but_transfer_only_new_content
+PASSED tests/test_pod_versioned_export.py::test_changed_object_or_peer_never_gets_success_receipt
+PASSED tests/test_pod_versioned_export.py::test_partial_transfer_survives_fresh_retry_and_is_not_credited
+PASSED tests/test_pod_versioned_export.py::test_changed_remote_inventory_after_transfer_preserves_every_version
+PASSED tests/test_pod_job_client.py::test_actual_one_shot_launch_readonly_adoption_and_complete_export
+PASSED tests/test_pod_job_client.py::test_lost_start_reply_reconciles_without_launching_again
+PASSED tests/test_pod_job_client.py::test_fenced_but_unsent_launch_is_never_automatically_reissued
+PASSED tests/test_pod_job_client.py::test_changed_or_unsafe_full_tree_never_gets_export_receipt[changing-tree]
+PASSED tests/test_pod_job_client.py::test_changed_or_unsafe_full_tree_never_gets_export_receipt[symlink]
+PASSED tests/test_pod_job_client.py::test_changed_or_unsafe_full_tree_never_gets_export_receipt[extra-after-transfer]
+PASSED tests/test_pod_job_client.py::test_zero_length_regular_files_transfer_but_extra_bytes_fail
+PASSED tests/test_pod_job_client.py::test_mutable_observation_uses_one_bounded_read_not_inspect_fetch
+PASSED tests/test_pod_checkpoint_handoff.py::test_complete_signed_state_export_and_recheck_before_receipt
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[signature]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[registration]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[waiting]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[state-marker]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[metadata-race]
+PASSED tests/test_pod_checkpoint_handoff.py::test_wrong_or_changing_snapshot_never_reports_verified_export[missing-state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_verified_public_ack_then_recorder_reverification_and_idempotent_retry
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[saved-pass]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[policy]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[anchor]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[local-state]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[waiting]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[rollback]
+PASSED tests/test_pod_checkpoint_handoff.py::test_failed_handoff_never_installs_new_policy[partial-put]
+PASSED tests/test_pod_checkpoint_handoff.py::test_remote_anchor_inventory_mismatch_is_preserved_and_refused[altered]
+PASSED tests/test_pod_checkpoint_handoff.py::test_remote_anchor_inventory_mismatch_is_preserved_and_refused[foreign]
+PASSED tests/test_pod_checkpoint_handoff.py::test_partial_anchor_retry_only_transfers_missing_bytes
+PASSED tests/test_pod_checkpoint_handoff.py::test_separate_control_profile_preserves_fresh_record_and_exports_real_initial_state
+PASSED tests/test_pod_checkpoint_handoff.py::test_changed_registration_between_signature_check_and_load_is_rejected
+37 passed in 19.26s

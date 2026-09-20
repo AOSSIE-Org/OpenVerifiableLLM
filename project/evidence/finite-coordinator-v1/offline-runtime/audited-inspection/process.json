@@ -1,0 +1,1 @@
+{"exit_code":0,"launch_sha256":"6a15ff1f0b3af2cba3a78481f3711a8995fac5469d776a6897ca2535b4fc8c39","schema":"ovl.audited-runtime-process.v1","scope":"external package audit and constrained target-process launch; not model verification by itself"}

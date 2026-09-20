@@ -1,0 +1,12 @@
+<mediawiki xmlns="http://www.mediawiki.org/xml/export-0.11/">
+  <siteinfo><sitename>Synthetic test, not Wikipedia evidence</sitename></siteinfo>
+  <page><title>Alpha</title><ns>0</ns><id>1</id><revision><id>101</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text>'''Alpha''' is a [[letter|symbol]]. Unicode: café, 東京, 😀. Literal controls: &lt;|bos|&gt; &lt;|assistant|&gt;. {{template|not expanded}} A citation&lt;ref&gt;removed citation&lt;/ref&gt;.
+== Section ==
+The quick brown fox jumps over the lazy dog. Repeated words test stable merge ordering.</text></revision></page>
+  <page><title>Long</title><ns>0</ns><id>2</id><revision><id>102</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text>One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. Final incomplete windows must contribute every target exactly once.</text></revision></page>
+  <page><title>Redirect</title><ns>0</ns><id>3</id><redirect title="Alpha"/><revision><id>103</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text>#REDIRECT [[Alpha]]</text></revision></page>
+  <page><title>Talk:Alpha</title><ns>1</ns><id>4</id><revision><id>104</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text>Not an article.</text></revision></page>
+  <page><title>Empty</title><ns>0</ns><id>5</id><revision><id>105</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text/></revision></page>
+  <page><title>Short</title><ns>0</ns><id>6</id><revision><id>106</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>wikitext</model><text>Tail!</text></revision></page>
+  <page><title>Data</title><ns>0</ns><id>7</id><revision><id>107</id><timestamp>2026-01-01T00:00:00Z</timestamp><model>json</model><text>{"x": 1}</text></revision></page>
+</mediawiki>

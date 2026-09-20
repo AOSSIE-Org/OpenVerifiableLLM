@@ -1,0 +1,69 @@
+{
+  "schema": "ovl.provider-endpoint-observation.v1",
+  "scope": "selected noncredential provider fields; bootstrap observation not device attestation",
+  "provider": {
+    "id": "5c4zcuwdyyk1y0",
+    "name": "ovllm-diagnostic-361dbd374e334bf99f1d8c8776584331",
+    "status": "RUNNING",
+    "createdAt": "2026-09-18T09:27:57.33Z",
+    "startedAt": "2026-09-18T09:27:57.325Z",
+    "cloud": "SECURE",
+    "cost": 0.74,
+    "cudaVersion": "12.8",
+    "dataCenterId": null,
+    "disk": 40,
+    "gpu": {
+      "count": 1,
+      "id": "NVIDIA GeForce RTX 4090",
+      "memory": 31,
+      "vcpuCount": 12
+    },
+    "image": "runpod/pytorch@sha256:4d1721e62b56d345c83b4fd6090664be6daf9312caab5b2e76f23d8231941851",
+    "ports": [
+      "22/tcp"
+    ],
+    "runtime": {
+      "cpu": {
+        "util": 0
+      },
+      "gpus": [
+        {
+          "memoryUtil": 0,
+          "util": 0
+        }
+      ],
+      "memory": {
+        "util": 0
+      },
+      "ports": [
+        {
+          "ip": "100.65.29.218",
+          "private": 19123,
+          "public": 60441,
+          "type": "http"
+        },
+        {
+          "ip": "47.47.180.77",
+          "private": 22,
+          "public": 18473,
+          "type": "tcp"
+        }
+      ],
+      "uptime": 9
+    },
+    "ssh": {
+      "direct": {
+        "command": "ssh root@47.47.180.77 -p 18473",
+        "host": "47.47.180.77",
+        "port": 18473,
+        "username": "root"
+      },
+      "proxy": {
+        "command": "ssh 5c4zcuwdyyk1y0-64411dda@ssh.runpod.io",
+        "host": "ssh.runpod.io",
+        "port": 22,
+        "username": "5c4zcuwdyyk1y0-64411dda"
+      }
+    }
+  }
+}

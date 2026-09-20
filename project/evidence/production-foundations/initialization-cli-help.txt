@@ -1,0 +1,13 @@
+usage: initialization.py [-h] {record,verify} ...
+
+Record and freshly regenerate a safe GPU initial state before registration.
+Warmup uses discarded weights. Verification compares a newly generated
+complete state; it never loads the recorded tensors into the model. This is
+operator initialization evidence, not production training or independent
+verification.
+
+positional arguments:
+  {record,verify}
+
+options:
+  -h, --help       show this help message and exit

@@ -1,0 +1,23 @@
+{
+  "repo_id": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+  "repo_type": "dataset",
+  "revision": "7671cb17459b504c89feb7a3629b4e0a634bedcd",
+  "commit_url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/commit/7671cb17459b504c89feb7a3629b4e0a634bedcd",
+  "prefix": "development/p0-14b44f5",
+  "source_commit": "14b44f5ddd5dc68ccfe1540f2f2e2cefd3b83292",
+  "pipeline_code_root": "fdafbb9c505fcab88848aedf7eba12d6b35b2f3d8c7ba0b42ba5e0443bac62ea",
+  "trust_policy_sha256": "8d2f777addde5ce321f29acf18385c3354f75bff3f4dd421d6b36de3972ee096",
+  "release_sha256": "57ef406c11fc1bb92eb27cb8dac7596839e79db71cb8530c87b4702dea2e238d",
+  "scope": "synthetic development evidence only; all production G01\u2013G10 pending",
+  "operator_observed_utc": "2026-09-17T18:02:26.177387+00:00",
+  "transport": "anonymous Hugging Face snapshot download, pinned commit, fresh output directory, force_download=True",
+  "downloaded_directory": ".ovllm-cache/p0-public-download/development/p0-14b44f5",
+  "files": 51,
+  "bytes": 923737,
+  "download_wall_seconds": 13.58,
+  "download_result": "PASS",
+  "replay_result": "PASS",
+  "replay_report": "project/evidence/local-p0/public-download-replay.json",
+  "replay_report_sha256": "cda442512ec007e54e1d4b6e67fc064346fabf08d518350d79e1c1c504cc9f0f",
+  "production_acceptance": "NOT_RUN"
+}

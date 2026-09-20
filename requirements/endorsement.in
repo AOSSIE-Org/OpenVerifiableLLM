@@ -1,0 +1,5 @@
+# Additional safe-state/run-signature dependencies for production/progress Actions.
+# Install together with the unchanged, frozen preparation.lock.
+--index-url https://pypi.org/simple
+PyNaCl==1.6.2
+safetensors==0.8.0

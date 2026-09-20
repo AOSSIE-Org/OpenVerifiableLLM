@@ -1,0 +1,47 @@
+{
+  "checks": {
+    "actual_audited_startup": "PASS",
+    "actual_tiny_fixture_and_separate_fresh_verification": "PASS",
+    "archive_sha256": "5acfa3e9ba26b51ae161c83aff278da915b590d22373a424b2ba55b8afe91fcc",
+    "github_asset_digest_and_public_checksum_entry": "PASS",
+    "integrated_tests": "674 passed,3 existing CUDA skips",
+    "non_bytecode_regular_bytes_checked": 97998485,
+    "non_bytecode_regular_files_checked": 3482,
+    "payload_manifest_sha256": "3ad954a34d592a14ebde776ee52f0ee4b763753f8437737d69e814e1cf38dae9",
+    "public_asset_bytes": 34143739
+  },
+  "commands": [
+    "uv --no-config --offline python list 3.12.14 --only-downloads --show-urls --output-format json",
+    "python -m ovl_pipeline.python_origin extract --archive ARCHIVE --sha256 5acfa3e9ba26b51ae161c83aff278da915b590d22373a424b2ba55b8afe91fcc --root FRESH_ROOT --evidence FRESH_EVIDENCE",
+    "uv --no-config pip sync --python .ovllm-cache/public-python-gpu-venv/bin/python --require-hashes --offline --find-links .ovllm-cache/gpu-locked-wheels-v1 requirements/gpu.lock",
+    "audited launches: exact module and argv recorded in each launch.json",
+    "TOKENIZERS_PARALLELISM=false PYTHONPATH=src .venv/bin/python -m pytest -q -rs tests"
+  ],
+  "created_utc": "2026-09-18T04:46:48.464355+00:00",
+  "decisions": [
+    "Unmodified public interpreter used in separate GPU candidate environment. Existing uv-managed preparation runtime preserved.",
+    "Generated PEP3147 cache files are excluded only under constrained fresh-bytecode startup; source/binaries/symlinks fully checked.",
+    "Public binary identity is not reproduction of upstream CPython build."
+  ],
+  "failures_preserved": [
+    "Initial archive decoder required explicit directory members; public install-only archive omits them. Corrected by deriving confined implicit parents; malicious parent collisions remain rejected. No extraction occurred before that failure.",
+    "First uv pip sync command incorrectly used -r; corrected positional lockfile invocation passed offline."
+  ],
+  "production_acceptance_credit": false,
+  "remaining": [
+    "container and OS numerical-library provenance",
+    "actual CUDA compatibility/pilots",
+    "live workload export/stop acknowledgement",
+    "complete release verification"
+  ],
+  "schema": "ovl.local-runtime-origin-checkpoint.v1",
+  "source_files": {
+    "src/ovl_pipeline/gpu.py": "1a38d5db2f38598280e8febfbc53d61f273128b136b8169d49f18e9cdb8df1d7",
+    "src/ovl_pipeline/python_origin.py": "e1a45f387a439bb382aa209474e1b383249db5d238509e66b023c297f1007361",
+    "src/ovl_pipeline/runtime_launch.py": "9d54158b6d3170ac819342e9e1b39eefe2edff1bf06a3383b5dd0d630f6546cc",
+    "tests/test_gpu_kernel.py": "cba802756e3461fa0398e3770e18e13a42b0affa7bdc497393441f7fd2f23231",
+    "tests/test_python_origin.py": "ecdcffd6a78c060b2a8148162b54d2429de4675452190508fa616c2ac6f4003d",
+    "tests/test_runtime_launch.py": "f7a08aed090a236ad2d815504c99286e7b8de20246d3274e17b788a3caf3bbe4"
+  },
+  "source_parent": "e529c65326d664b525f1dd45548d4c9b570ee079"
+}

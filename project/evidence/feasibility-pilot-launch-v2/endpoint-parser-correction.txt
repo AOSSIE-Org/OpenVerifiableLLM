@@ -1,0 +1,1 @@
+First workload preparation attempt rejected provider decimal cost0.74 through canonical.read_json before SSH/profile/plan/unit creation. Preserve original driver. New provider_json driver changes only raw endpoint parsing to json.loads; all endpoint-ID, input, source, plan and runtime validators unchanged. No provisioning retry or deadline change.

@@ -1,0 +1,15 @@
+[
+  {
+    "requested_url": "https://dumps.wikimedia.org/enwiki/20260901/dumpstatus.json",
+    "error": "HTTPError: HTTP Error 403: Forbidden"
+  },
+  {
+    "file": "oasst-api.json",
+    "requested_url": "https://huggingface.co/api/datasets/OpenAssistant/oasst1",
+    "final_url": "https://huggingface.co/api/datasets/OpenAssistant/oasst1",
+    "http_status": 200,
+    "bytes": 3900,
+    "sha256": "6cecaccdbb293d27b996aec573c202171ad2359dd643c99a28a27446d4197a31",
+    "operator_observed_utc": "2026-09-17T17:28:00.691937+00:00"
+  }
+]
