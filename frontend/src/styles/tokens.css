@@ -1,0 +1,20 @@
+:root {
+  --bg: #f6f4ee;
+  --bg-2: #fffdf8;
+  --ink: #141c18;
+  --mute: #5a645e;
+  --line: #ddd6c8;
+  --gold: #e0b422;
+  --green: #1f7a3a;
+  --pass: #1f7a3a;
+  --fail: #b42318;
+  --hold: #9a6b12;
+  --link: #1c5f8a;
+  --tape: #c2410c;
+  --nav: #121814;
+  --nav-ink: #f6f4ee;
+  --serif: 'Source Serif 4', Georgia, serif;
+  --sans: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --mono: 'Source Code Pro', ui-monospace, monospace;
+  --wide: 72rem;
+}
