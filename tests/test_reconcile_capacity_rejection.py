@@ -9,7 +9,7 @@ from ovl_pipeline.canonical import EvidenceError,digest
 
 def fixture():
     r=intent();w=r['watchdog_intent'];start=w['plan']['input']['now_epoch'];now=w['creation_latest_epoch']+240
-    raw=json.dumps({'data':{'podFindAndDeployOnDemand':None},'errors':[{'message':m.MESSAGE,'extensions':{'userId':'explicit-fake-account'}}]}).encode()
+    raw=json.dumps({'data':{'podFindAndDeployOnDemand':None},'errors':[{'message':m.MESSAGE,'extensions':{'code':'SUPPLY_CONSTRAINT','userId':'explicit-fake-account'}}]}).encode()
     request={'operation':'create','variables_sha256':digest({'input':r['payload']}),'observed_epoch':start}
     failure={'error_type':'ProviderFailure','category':'invalid-response-Refused','http_status':None,'transient':False}
     d={'schema':'ovl.provider-creation-response-diagnostic.v1','variables_sha256':request['variables_sha256'],'http_status':200,'same_endpoint':True,'content_encoding':'identity','request_result':'RAISED','retained_read_complete':True,'failure':failure,'retained_bytes':len(raw),'observed_read_bytes':len(raw),'retained_bytes_sha256':hashlib.sha256(raw).hexdigest(),'shape':shape(raw),'observed_epoch':start+1}
@@ -25,6 +25,32 @@ def test_exact_rejection_does_not_release_funds_or_watchdog_or_reissue_authority
     assert result['billing']=='NOT_SETTLED_NO_CEILING_RELEASE'
     assert result['original_watchdog']=='MUST_REMAIN_ARMED_UNCHANGED'
     assert result['original_external_deadline_epoch']==args[0]['watchdog_intent']['plan']['external_terminate_epoch']
+
+
+@pytest.mark.parametrize('code',[None,'UNAUTHENTICATED','FORBIDDEN','INTERNAL_SERVER_ERROR',
+                               'BAD_USER_INPUT','UNKNOWN',False,[],{}])
+def test_matching_message_cannot_override_missing_or_contradictory_error_code(code):
+    args=fixture();value=json.loads(args[4]);ext=value['errors'][0]['extensions']
+    if code is None:ext.pop('code')
+    else:ext['code']=code
+    args[4]=json.dumps(value).encode()
+    args[2].update(retained_bytes=len(args[4]),observed_read_bytes=len(args[4]),
+                   retained_bytes_sha256=hashlib.sha256(args[4]).hexdigest(),shape=shape(args[4]))
+    with pytest.raises(EvidenceError,match='exact explicit capacity rejection'):m.verify(*args)
+
+
+@pytest.mark.parametrize('damage',['null-error','list-error','null-extensions','list-extensions','null-code'])
+def test_malformed_error_identity_fails_closed(damage):
+    args=fixture();value=json.loads(args[4])
+    if damage=='null-error':value['errors'][0]=None
+    elif damage=='list-error':value['errors'][0]=[]
+    elif damage=='null-extensions':value['errors'][0]['extensions']=None
+    elif damage=='list-extensions':value['errors'][0]['extensions']=[]
+    else:value['errors'][0]['extensions']['code']=None
+    args[4]=json.dumps(value).encode()
+    args[2].update(retained_bytes=len(args[4]),observed_read_bytes=len(args[4]),
+                   retained_bytes_sha256=hashlib.sha256(args[4]).hexdigest(),shape=shape(args[4]))
+    with pytest.raises(EvidenceError,match='exact explicit capacity rejection'):m.verify(*args)
 
 
 @pytest.mark.parametrize('damage',['timeout','partial','bytes','request','returned-id','different-error','extra-error','nonfinite','wrong-account','pods','volumes','autopay','rate','too-early','stale','unseparated','clock','old-pod','duplicate-fence','wrong-journal','dead-watchdog','changed-deadline','watchdog-pod'])
