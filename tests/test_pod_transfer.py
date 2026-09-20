@@ -92,6 +92,47 @@ def test_bounded_failure_closes_owned_process_and_does_not_renew_deadline(tmp_pa
     assert time.monotonic()-before<4 and all(p.poll() is not None for p in processes)
 
 
+@pytest.mark.parametrize('phase',['create','register','close'])
+def test_selector_setup_failure_reaps_owned_child(tmp_path,monkeypatch,phase):
+    t,remote,calls,processes=setup(tmp_path,fault='hang');closed=[]
+    class BrokenSelector:
+        def register(self,*args):raise OSError('synthetic registration failure')
+        def close(self):
+            closed.append(True)
+            if phase=='close':raise OSError('synthetic selector close failure')
+    def create():
+        if phase=='create':raise OSError('synthetic selector construction failure')
+        return BrokenSelector()
+    monkeypatch.setattr(m.selectors,'DefaultSelector',create)
+    with pytest.raises(OSError,match='synthetic'):
+        t.stream(['/bin/cat','--','ignored'],io.BytesIO(),10,int(time.time())+30)
+    assert len(processes)==1 and processes[0].poll() is not None
+    assert processes[0].stdout.closed and processes[0].stderr.closed
+    assert closed==([] if phase=='create' else [True])
+
+
+@pytest.mark.parametrize('diagnostic,code',[(b'Permission denied\n',255),(b'unknown failure\n',255),(b'',1),(b'',255),(b'Connection reset by peer\n',1)])
+def test_expiry_drains_waiting_diagnostics_and_checks_available_exit(tmp_path,monkeypatch,diagnostic,code):
+    t,remote,calls,processes=setup(tmp_path);clock=[1000];original=m.selectors.DefaultSelector
+    def child(command,**kw):
+        p=subprocess.Popen([sys.executable,'-c','import os,sys;os.write(2,sys.argv[1].encode());sys.exit(int(sys.argv[2]))',diagnostic.decode(),str(code)],**kw)
+        processes.append(p);return p
+    class EdgeSelector:
+        def __init__(self):self.inner=original()
+        def register(self,*a):return self.inner.register(*a)
+        def get_map(self):return self.inner.get_map()
+        def select(self,*a):
+            # Child has finished and stderr is queued, but the caller has not
+            # consumed readiness events before its next deadline observation.
+            processes[0].wait(timeout=3);clock[0]=1004;return []
+        def close(self):self.inner.close()
+    t.popen=child;t.wall=lambda:clock[0];t.monotonic=lambda:clock[0]
+    monkeypatch.setattr(m.selectors,'DefaultSelector',EdgeSelector)
+    with pytest.raises(EvidenceError) as error:t.stream(['/bin/true'],io.BytesIO(),65536,1003)
+    assert not isinstance(error.value,m.TransientTransportError)
+    assert all(p.poll() is not None and p.stdout.closed and p.stderr.closed for p in processes)
+
+
 @pytest.mark.parametrize('path',['../seed.key','/root/key','a/../../key','-o ProxyCommand=bad','a;command','a//b','a/./b'])
 def test_remote_path_cannot_escape_or_become_a_shell_option(tmp_path,path):
     t,remote,calls,processes=setup(tmp_path);source=tmp_path/'source';source.write_bytes(b'x')
