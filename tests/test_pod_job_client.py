@@ -114,3 +114,154 @@ def test_mutable_observation_uses_one_bounded_read_not_inspect_fetch(tmp_path,mo
     with pytest.raises(EvidenceError):t.read_live('status.json',2,deadline)
     (remote/'link.json').symlink_to(remote/'status.json')
     with pytest.raises(EvidenceError):t.read_live('link.json',4096,deadline)
+
+
+@pytest.mark.parametrize('batched',[False,True])
+def test_launch_reconciliation_roundtrips_fit_same_deadline(tmp_path,monkeypatch,batched):
+    """Actual worker/receipt checks with explicit nine-second transport latency.
+
+    The previous three-read topology exceeds60seconds; batching finishes in45.
+    This is a deterministic deadline regression, not a network throughput claim.
+    """
+    from pod_checkpoint_handoff import observe
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path)
+    original=t.stream;offset=[0];base=int(time.time());deadlines=[]
+    wall=t.wall;monotonic=t.monotonic
+    t.wall=lambda:wall()+offset[0];t.monotonic=lambda:monotonic()+offset[0]
+    def delayed(argv,destination,maximum,deadline,**kwargs):
+        deadlines.append(deadline);offset[0]+=9
+        return original(argv,destination,maximum,deadline,**kwargs)
+    t.stream=delayed
+    if not batched:
+        def separate(transport,selection,maximum,deadline):
+            return {name:observe(transport,name,path,maximum,deadline,optional=True) for name,path in selection.items()}
+        monkeypatch.setattr(m,'observe_many',separate)
+    out=tmp_path/'launch';deadline=base+60
+    if batched:
+        result=m.launch(t,job,root,source,worker_root,out,deadline)
+        assert result['reissued_start'] is False and len(deadlines)==5 and offset[0]==45
+    else:
+        with pytest.raises(EvidenceError,match='deadline'):
+            m.launch(t,job,root,source,worker_root,out,deadline)
+        assert len(deadlines)==7 and offset[0]==63
+        assert not list(out.glob('reconcile-*/adoption.json'))
+    assert set(deadlines)=={deadline}
+    assert exited(remote/'jobs'/root)['exit_code']==0
+    assert len([c for c in calls if ' start ' in c[-1]])==1
+
+
+@pytest.mark.parametrize('damage',['intent-job','intent-worker','receipt-job','receipt-worker','child-job','missing-intent','missing-receipts'])
+def test_batched_launch_receipts_reject_identity_damage_before_supervision(tmp_path,damage):
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);out=tmp_path/'launch';deadline=int(time.time())+30
+    m.launch(t,job,root,source,worker_root,out,deadline);assert exited(remote/'jobs'/root)['exit_code']==0
+    intent=read_json(out/'launch-intent.json');records=remote/'jobs'/root/'launch'
+    if damage=='missing-intent':(records/'intent.json').unlink()
+    elif damage=='missing-receipts':
+        (records/'receipt.json').unlink();(records/'child.json').unlink()
+    else:
+        name,field=damage.split('-');path=records/(name+'.json');value=read_json(path)
+        value['job_sha256' if field=='job' else 'worker_sha256']='0'*64;write_json(path,value)
+    before=len(calls)
+    with pytest.raises(EvidenceError):m.reconcile_launch(t,intent,out,deadline)
+    assert len(calls)-before==1
+    assert not any(' start ' in c[-1] or ' inspect ' in c[-1] for c in calls[before:])
+
+
+@pytest.mark.parametrize('damage',['job','worker','runner','shape'])
+def test_contradictory_start_reply_is_retained_and_never_overridden_by_good_remote_receipts(tmp_path,damage):
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);original=t.stream
+    def corrupt(argv,destination,*args,**kwargs):
+        value=original(argv,destination,*args,**kwargs)
+        if 'start' in argv:
+            response=m.parse_json(destination.getvalue(),canonical_required=False)
+            if damage in ('job','worker'):response[damage+'_sha256']='0'*64
+            elif damage=='runner':response['runner']['start_ticks']+=1
+            else:response['runner']['pid']=True
+            destination.seek(0);destination.truncate();destination.write(worker.encoded(response))
+        return value
+    t.stream=corrupt;out=tmp_path/'launch';deadline=int(time.time())+30
+    with pytest.raises(EvidenceError):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert exited(remote/'jobs'/root)['exit_code']==0
+    retained=(out/'start-response.json').read_bytes();before=len(calls)
+    with pytest.raises(EvidenceError):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert (out/'start-response.json').read_bytes()==retained
+    assert not any(' start ' in c[-1] for c in calls[before:])
+    assert not list(out.glob('reconcile-*/adoption.json'))
+
+
+def test_uncertain_immutable_stop_delivery_preserves_existing_bytes_and_rejects_change(tmp_path):
+    from pod_transfer import TransientTransportError
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);marker=tmp_path/'stop';marker.write_bytes(b'synthetic stop\n')
+    original=t.stream;lost=[False];deadline=int(time.time())+30
+    def lose_ack(*args,**kwargs):
+        result=original(*args,**kwargs)
+        if not lost[0]:lost[0]=True;raise TransientTransportError('synthetic lost stop acknowledgement')
+        return result
+    t.stream=lose_ack
+    with pytest.raises(TransientTransportError):t.put('jobs/'+root+'/request-stop',marker,deadline)
+    target=remote/'jobs'/root/'request-stop';before=target.stat()
+    t.put('jobs/'+root+'/request-stop',marker,deadline)
+    after=target.stat();assert (before.st_ino,before.st_mtime_ns)==(after.st_ino,after.st_mtime_ns)
+    assert target.read_bytes()==marker.read_bytes()
+    marker.write_bytes(b'changed stop\n')
+    with pytest.raises(EvidenceError):t.put('jobs/'+root+'/request-stop',marker,deadline)
+    assert target.read_bytes()==b'synthetic stop\n' and not any(' start ' in c[-1] for c in calls)
+
+
+def test_stop_arriving_during_fence_persistence_prevents_start_and_preserves_fence(tmp_path,monkeypatch):
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);stopped=[False];original=m.save_once;out=tmp_path/'launch'
+    def save(path,value):
+        original(path,value)
+        if path==out/'launch-intent.json':stopped[0]=True
+    monkeypatch.setattr(m,'save_once',save)
+    def eligible():
+        if stopped[0]:raise EvidenceError('synthetic stop during persistence')
+    with pytest.raises(EvidenceError,match='stop during persistence'):
+        m.launch(t,job,root,source,worker_root,out,int(time.time())+30,before_start=eligible)
+    assert (out/'launch-intent.json').exists() and not any(' start ' in c[-1] for c in calls)
+    with pytest.raises(EvidenceError,match='never automatically restart'):
+        m.launch(t,job,root,source,worker_root,out,int(time.time())+30,before_start=eligible)
+    assert not any(' start ' in c[-1] for c in calls)
+
+
+@pytest.mark.parametrize('damage',['wrong-job','malformed'])
+def test_received_bad_reply_survives_subsequent_transport_failure(tmp_path,damage):
+    from pod_transfer import TransientTransportError
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);original=t.stream;received=[]
+    def lost(argv,destination,*args,**kwargs):
+        value=original(argv,destination,*args,**kwargs)
+        if 'start' in argv:
+            if damage=='wrong-job':
+                response=m.parse_json(destination.getvalue(),canonical_required=False);response['job_sha256']='0'*64
+                raw=worker.encoded(response)
+            else:raw=b'{malformed received acknowledgement'
+            destination.seek(0);destination.truncate();destination.write(raw);received.append(raw)
+            raise TransientTransportError('synthetic failure after received stdout')
+        return value
+    t.stream=lost;out=tmp_path/'launch';deadline=int(time.time())+30
+    with pytest.raises(TransientTransportError):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert exited(remote/'jobs'/root)['exit_code']==0
+    assert (out/'start-response.raw').read_bytes()==received[0] and not read_json(out/'start-transport.json')['completed']
+    before=len(calls)
+    with pytest.raises(EvidenceError):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert len(calls)==before and not list(out.glob('reconcile-*/adoption.json'))
+
+
+@pytest.mark.parametrize('failed_transport',[False,True])
+def test_empty_reply_distinguishes_uncertain_transport_from_completed_invalid_ack(tmp_path,failed_transport):
+    from pod_transfer import TransientTransportError
+    t,remote,calls,job,root,source,worker_root=fixture(tmp_path);original=t.stream
+    def empty(argv,destination,*args,**kwargs):
+        result=original(argv,destination,*args,**kwargs)
+        if 'start' in argv:
+            destination.seek(0);destination.truncate()
+            if failed_transport:raise TransientTransportError('synthetic absent acknowledgement')
+        return result
+    t.stream=empty;out=tmp_path/'launch';deadline=int(time.time())+30
+    with pytest.raises(EvidenceError):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert exited(remote/'jobs'/root)['exit_code']==0
+    before=len(calls)
+    if failed_transport:assert m.launch(t,job,root,source,worker_root,out,deadline)['reissued_start'] is False
+    else:
+        with pytest.raises(EvidenceError,match='lacks acknowledgement'):m.launch(t,job,root,source,worker_root,out,deadline)
+    assert not any(' start ' in c[-1] for c in calls[before:])

@@ -194,3 +194,65 @@ def test_two_incomplete_export_attempts_are_not_deleted_or_retried_forever(tmp_p
         with pytest.raises(EvidenceError,match='retries exhausted'):m.run_stage(*args)
         for name in ('export-000','export-000-attempt-001'):assert (tmp_path/'stage'/name/'retained.partial').read_bytes()==b'preserved'
         assert not h.complete
+
+
+@pytest.mark.parametrize('remaining',[30,200])
+@pytest.mark.parametrize('adopting',[False,True])
+def test_launch_control_allowance_never_changes_job_or_rental_deadline(tmp_path,monkeypatch,remaining,adopting):
+    t,remote,calls,job,root,source,worker_root=staged(tmp_path);w=intent();now=int(time.time())
+    value=read_json(job);value['deadline_epoch']=now+remaining;write_json(job,value);root=digest(value)
+    out=tmp_path/'stage'
+    if adopting:
+        (out/'launch').mkdir(parents=True)
+        write_json(out/'launch/launch-intent.json',{'schema':'ovl.offpod-job-launch-intent.v1','job_sha256':root,'worker_sha256':worker_root,'profile_sha256':digest(t.profile)})
+    original_job=job.read_bytes();original_plan=digest(w['plan']);seen=[]
+    class Selected(Exception):pass
+    def intercept(*args,**kw):seen.append(args[-1]);raise Selected()
+    monkeypatch.setattr(m,'reconcile_launch' if adopting else 'launch',intercept)
+    with Journal(tmp_path/'journal').lease() as j:
+        h=Health(j,w,t.profile['pod_id']);h.wall=lambda:now
+        with pytest.raises(Selected):m.run_stage(t,h,job,root,source,worker_root,out,tmp_path/'health.json',tmp_path/'stop.json','d'*64)
+        assert seen==[min(w['plan']['external_terminate_epoch'] if adopting else value['deadline_epoch'],now+120)]
+    assert job.read_bytes()==original_job and digest(w['plan'])==original_plan and not calls
+
+
+@pytest.mark.parametrize('stop_kind',['controller','graceful','job'])
+def test_stop_during_uploads_forbids_unfenced_start(tmp_path,stop_kind):
+    t,remote,calls,job,root,source,worker_root=staged(tmp_path);w=intent();base=int(time.time());clock=[base]
+    value=read_json(job);value['deadline_epoch']=base+(70 if stop_kind=='job' else 300)
+    write_json(job,value);root=digest(value);stop=tmp_path/'stop.json';original=t.put;uploads=[]
+    with Journal(tmp_path/'journal').lease() as j:
+        h=Health(j,w,t.profile['pod_id']);h.wall=lambda:clock[0]
+        if stop_kind=='graceful':h.plan['request_checkpoint_epoch']=base+70
+        original_plan=digest(h.plan);original_job=job.read_bytes();progress=h.progress
+        def delayed(name,*args,**kwargs):
+            result=original(name,*args,**kwargs);uploads.append(name);clock[0]+=40
+            if len(uploads)==2 and stop_kind=='controller':
+                write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+                    'pod_id':h.pod,'observed_epoch':clock[0],'reasons':['synthetic stop during upload']})
+            return result
+        t.put=delayed
+        with pytest.raises(EvidenceError,match='before launch fence'):
+            m.run_stage(t,h,job,root,source,worker_root,tmp_path/'stage',tmp_path/'health.json',stop,'d'*64)
+        assert len(uploads)==2 and not(tmp_path/'stage/launch/launch-intent.json').exists()
+        assert h.progress==progress and not h.complete
+        assert job.read_bytes()==original_job and digest(h.plan)==original_plan
+    assert not any(' start ' in c[-1] for c in calls)
+
+
+def test_pending_stop_is_delivered_before_failing_readonly_adoption(tmp_path,monkeypatch):
+    from test_pod_job_worker import exited
+    t,remote,calls,job,root,source,worker_root=staged(tmp_path);out=tmp_path/'stage'
+    m.launch(t,job,root,source,worker_root,out/'launch',int(time.time())+30)
+    assert exited(remote/'jobs'/root)['exit_code']==0
+    stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+        'pod_id':t.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic pending stop']})
+    def blocked(*args):
+        assert (remote/'jobs'/root/'request-stop').read_bytes()==stop.read_bytes()
+        raise EvidenceError('synthetic adoption read unavailable')
+    monkeypatch.setattr(m,'reconcile_launch',blocked)
+    with Journal(tmp_path/'journal').lease() as j:
+        h=Health(j,intent(),t.profile['pod_id']);before=len(calls)
+        with pytest.raises(EvidenceError,match='adoption read unavailable'):
+            m.run_stage(t,h,job,root,source,worker_root,out,tmp_path/'health.json',stop,'d'*64)
+        assert not h.complete and not any(' start ' in c[-1] for c in calls[before:])

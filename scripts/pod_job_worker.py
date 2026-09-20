@@ -31,10 +31,13 @@ ENVIRONMENT={'PATH','HOME','LANG','LC_ALL','PYTHONPATH','TOKENIZERS_PARALLELISM'
 
 
 def encoded(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()
-def hash_file(path):
+def hash_file(path,*,check=None):
     h=hashlib.sha256()
     with open(path,'rb') as f:
-        for chunk in iter(lambda:f.read(1024*1024),b''):h.update(chunk)
+        for chunk in iter(lambda:f.read(1024*1024),b''):
+            if check is not None:check()
+            h.update(chunk)
+    if check is not None:check()
     return h.hexdigest()
 
 
@@ -127,7 +130,7 @@ def process_identity(pid):
 
 def signal_owned(identity,sig):
     try:current=process_identity(identity['pid'])
-    except FileNotFoundError:return False
+    except (FileNotFoundError,ProcessLookupError):return False
     if current!=identity or current['process_group']!=current['pid']:raise Refusal('process identity changed; refusing signal')
     try:os.killpg(current['pid'],sig)
     except ProcessLookupError:return False
@@ -151,6 +154,26 @@ def alive(identity):
     # then returns ESRCH rather than ENOENT. Both observations mean absent;
     # permission, malformed metadata and signaling identity failures stay strict.
     except (FileNotFoundError,ProcessLookupError):return False
+
+
+def group_alive(group):
+    # Read-only check after an identity-checked group signal. A missing leader
+    # alone is not evidence that its descendants have stopped. This does not
+    # contain a hostile workload that deliberately escapes its selected group.
+    for path in Path('/proc').iterdir():
+        if not path.name.isdecimal():continue
+        try:text=(path/'stat').read_text()
+        except (FileNotFoundError,ProcessLookupError):continue
+        tail=text[text.rfind(')')+2:].split()
+        if int(tail[2])==group and tail[0] not in ('Z','X'):return True
+    return False
+
+
+def stop_group(identity):
+    if not signal_owned(identity,signal.SIGKILL):raise Refusal('orphan group ownership unresolved; external teardown required')
+    deadline=time.monotonic()+5
+    while group_alive(identity['process_group']) and time.monotonic()<deadline:time.sleep(.05)
+    if group_alive(identity['process_group']):raise Refusal('recorded process group still alive; no terminal acknowledgement')
 
 
 def metadata(directory,name,expected):
@@ -202,11 +225,10 @@ def abandon(directory,expected,worker_sha256):
         child=metadata(directory,'launch/child.json',expected)
         if child is None and (launch/'execution-intent.json').exists():raise Refusal('spawn identity unknown; external teardown required')
         identity=child['process'] if child else None
-        if identity is not None and alive(identity):
-            signal_owned(identity,signal.SIGKILL)
-            deadline=time.monotonic()+5
-            while alive(identity) and time.monotonic()<deadline:time.sleep(.05)
-            if alive(identity):raise Refusal('recorded child still alive; no terminal acknowledgement')
+        if identity is not None:
+            # A zombie still binds the group to the recorded identity. An
+            # absent/reused leader cannot authorize signaling a guessed group.
+            stop_group(identity)
         value={'schema':'ovl.workload-job-abandonment.v1','job_sha256':expected,'state':'ABANDONED',
                'observed_child':identity,'exit_code':'UNAVAILABLE',
                'scope':'supervisor absent; recorded child stopped or absent; no successful computation claim'}
@@ -243,17 +265,21 @@ def run(directory,expected,worker_sha256):
         save(launch/'execution-intent.json',expected_intent,exclusive=True)
         owns_execution=True
         started=time.monotonic();remaining=max(0,v['deadline_epoch']-time.time());deadline=started+remaining
+        def eligible():
+            if time.time()>=v['deadline_epoch'] or time.monotonic()>=deadline:raise Refusal('deadline during input verification or before spawn')
+            if (directory/'request-stop').exists():raise Refusal('stop before workload spawn')
         checked_bytes=0
         for f in v['required_files']:
-            if time.time()>=v['deadline_epoch'] or time.monotonic()>=deadline:raise Refusal('deadline during input verification')
+            eligible()
             p=regular(f['path'])
-            if p.stat().st_size!=f['bytes'] or hash_file(p)!=f['sha256']:raise Refusal('required input differs')
+            if p.stat().st_size!=f['bytes'] or hash_file(p,check=eligible)!=f['sha256']:raise Refusal('required input differs')
             checked_bytes+=f['bytes']
             save(directory/'input-progress.json',{'schema':'ovl.job-input-progress.v1','job_sha256':expected,'verified_bytes':checked_bytes})
         if shutil.disk_usage(directory).free<v['minimum_free_bytes']:raise Refusal('insufficient free space')
         # Environment is explicitly selected; no HF/RunPod/signing credentials,
         # agent sockets, loader overrides or inherited Python hooks enter the job.
         with (directory/'stdout.log').open('xb') as stdout,(directory/'stderr.log').open('xb') as stderr:
+            eligible()
             child=subprocess.Popen(v['argv'],cwd=v['cwd'],env=v['environment'],stdin=subprocess.DEVNULL,
                                    stdout=stdout,stderr=stderr,start_new_session=True,close_fds=True)
             identity=process_identity(child.pid)
@@ -276,7 +302,7 @@ def run(directory,expected,worker_sha256):
             # Even a normally exiting leader must not leave background group
             # members writing into an allegedly final export. The selected
             # trusted workload must not deliberately escape into another session.
-            signal_owned(identity,signal.SIGKILL)
+            stop_group(identity)
             code=child.wait(timeout=2)
         status={'schema':'ovl.workload-job-exit.v1','job_sha256':expected,'state':'EXITED','exit_code':code}
         save(directory/'exit.json',status,exclusive=True)
@@ -284,13 +310,14 @@ def run(directory,expected,worker_sha256):
                                      'process':identity,'stop_reason':reason})
         return status
     except BaseException as error:
+        cleaned=child is None
         if child is not None and identity is not None:
-            try:signal_owned(identity,signal.SIGKILL);child.wait(timeout=2)
+            try:stop_group(identity);child.wait(timeout=2);cleaned=True
             except Exception:pass
         if owns_execution:
             save(directory/'failure.json',{'schema':'ovl.pod-job-failure.v1','job_sha256':expected,'exception_type':type(error).__name__,
                                           'retry':'FORBIDDEN; inspect retained launch/child state and export before provider teardown'},exclusive=True)
-            if child is None or child.poll() is not None:
+            if cleaned and (child is None or child.poll() is not None):
                 save(directory/'exit.json',{'schema':'ovl.workload-job-exit.v1','job_sha256':expected,'state':'EXITED',
                                             'exit_code':125 if child is None else child.returncode},exclusive=True)
         raise
