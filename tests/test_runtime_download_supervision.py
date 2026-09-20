@@ -12,7 +12,7 @@ from test_external_watchdog import intent,NOW
 from test_workload_health import Clock,JOB,SELECTION
 from test_pod_fetch_runtime import setup,Response
 from test_pod_public_setup import fixture
-from ovl_pipeline.canonical import digest,file_hash,write_json
+from ovl_pipeline.canonical import EvidenceError,digest,file_hash,write_json
 from ovl_pipeline.supervision import Journal,rental_plan,observe
 
 
@@ -138,3 +138,59 @@ def test_setup_rejects_unselected_activity_before_child_execution(tmp_path,monke
     with pytest.raises(ValueError,match='activity path'):
         setupper.setup(config,file_hash(config),inputs,tmp_path/'runtime',tmp_path/'output',
                        int(setupper.time.time())+900,execute=execute)
+
+
+@pytest.mark.parametrize('delay',['read','activity-fsync'])
+def test_download_deadline_crossing_never_publishes_late_progress(tmp_path,monkeypatch,delay):
+    data=b'x'*(2*1024**2);plan,item,client=setup(tmp_path,data)
+    report=tmp_path/'evidence/downloads.json';activity=report.parent/'activity.json'
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(activity));clock=[100]
+    if delay=='read':
+        class Late(Response):
+            def read(self,n):clock[0]=701;return super().read(n)
+        client.open=lambda request,timeout:Late(data,request.full_url)
+    else:
+        original=fetcher.os.fsync
+        def fsync(fd):
+            original(fd)
+            if activity.with_name('activity.json.pending').exists():clock[0]=701
+        monkeypatch.setattr(fetcher.os,'fsync',fsync)
+    with pytest.raises(TimeoutError):
+        fetcher.fetch(plan,file_hash(plan),tmp_path/'wheels',report,700,opener=client,
+                      wall=lambda:clock[0],monotonic=lambda:clock[0])
+    assert not activity.exists() and not report.exists() and not (tmp_path/'wheels'/item['path']).exists()
+
+
+def test_activity_does_not_turn_changed_content_into_verified_download(tmp_path,monkeypatch):
+    data=b'x'*(2*1024**2);plan,item,client=setup(tmp_path,data)
+    client.data=b'y'*len(data);report=tmp_path/'evidence/downloads.json'
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(report.parent/'activity.json'))
+    with pytest.raises(ValueError,match='wheel bytes differ'):
+        fetcher.fetch(plan,file_hash(plan),tmp_path/'wheels',report,int(fetcher.time.time())+60,opener=client)
+    assert (report.parent/'activity.json').exists()
+    assert not report.exists() and not (tmp_path/'wheels'/item['path']).exists()
+
+
+@pytest.mark.parametrize('field',['plan_sha256','total_bytes'])
+def test_first_activity_must_match_selected_download_binding(tmp_path,field):
+    from test_sustained_health import health,transfer
+    c=Clock()
+    with Journal(tmp_path/'journal').lease() as journal:
+        h=health(journal,c);h.start_job({**SELECTION,'kind':'setup'});value=transfer(1024**2)
+        value[field]='d'*64 if field=='plan_sha256' else value[field]+1
+        before=len(journal.events)
+        with pytest.raises(EvidenceError):h.activity(JOB,value)
+        assert len(journal.events)==before and h.progress==NOW and not h.download_processes
+
+
+@pytest.mark.parametrize('backward',[False,True])
+def test_parent_rejects_late_download_child_before_installer(tmp_path,monkeypatch,backward):
+    inputs,config,value=fixture(tmp_path);value['download_seconds']=600;write_json(config,value)
+    wall=[100];mono=[100];calls=[];output=tmp_path/'output'
+    monkeypatch.setattr(setupper.time,'time',lambda:wall[0]);monkeypatch.setattr(setupper.time,'monotonic',lambda:mono[0])
+    def execute(argv,**kwargs):
+        calls.append(argv);assert argv[3].endswith('fetch.py') and kwargs['timeout']==600
+        wall[0]=0 if backward else 701;mono[0]=701
+    with pytest.raises(TimeoutError,match='download deadline'):
+        setupper.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,1000,execute=execute)
+    assert len(calls)==1 and not (output/'setup.json').exists()

@@ -95,8 +95,10 @@ def fetch(plan,expected,output,report,deadline,*,opener=None,wall=time.time,mono
                    'plan_sha256':expected,'total_bytes':total,'received_bytes':sum(highwater.values()),
                    'scope':'operator-supervision-only-not-input-verification'}
             pending=activity.with_name('activity.json.pending')
+            left()
             with pending.open('x') as f:
                 json.dump(value,f,sort_keys=True,separators=(',',':'));f.flush();os.fsync(f.fileno())
+            left()
             os.replace(pending,activity)
             fd=os.open(activity.parent,os.O_RDONLY|os.O_DIRECTORY)
             try:os.fsync(fd)
@@ -136,7 +138,7 @@ def fetch(plan,expected,output,report,deadline,*,opener=None,wall=time.time,mono
                     length=response.headers.get('Content-Length')
                     if length is not None and int(length)!=item['bytes']:raise ValueError('public length differs')
                     while True:
-                        left();data=response.read(min(1024**2,item['bytes']-count+1))
+                        left();data=response.read(min(1024**2,item['bytes']-count+1));left()
                         if not data:break
                         count+=len(data)
                         if count>item['bytes']:raise ValueError('public file too large')

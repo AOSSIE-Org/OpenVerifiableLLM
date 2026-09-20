@@ -142,9 +142,11 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
         if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
     extract(path(inputs,value['source_archive']),value['source_archive_sha256'],source,offline['source_files'])
     download_deadline=min(deadline,int(time.time())+value['download_seconds'])
+    download_end=time.monotonic()+download_deadline-time.time()
     run([str(path(inputs,value['fetch_script'])),'--plan',str(path(inputs,value['wheel_plan'])),'--plan-sha256',value['wheel_plan_sha256'],
-         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)],report_activity=True)
-    if min(deadline-time.time(),monotonic_end-time.monotonic())<=0:raise TimeoutError('original setup deadline expired')
+         '--output',str(wheels),'--report',str(output/'downloads.json'),'--deadline',str(download_deadline)],
+        limit=min(download_deadline-time.time(),download_end-time.monotonic()),report_activity=True)
+    if min(download_deadline-time.time(),download_end-time.monotonic())<=0:raise TimeoutError('original download deadline expired')
     downloads=json.loads((output/'downloads.json').read_bytes())
     plan=read(path(inputs,value['wheel_plan']),value['wheel_plan_sha256'])
     if (not plan.get('files') or downloads.get('schema')!='ovl.public-wheel-download-result.v1' or downloads.get('plan_sha256')!=value['wheel_plan_sha256']
