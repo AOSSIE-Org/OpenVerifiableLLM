@@ -135,7 +135,7 @@ def test_backward_wall_clock_cannot_extend_setup_budget(tmp_path,monkeypatch):
     monkeypatch.setattr(m.time,'time',lambda:wall[0]);monkeypatch.setattr(m.time,'monotonic',lambda:mono[0])
     def execute(*args,**kwargs):calls.append(kwargs['timeout']);wall[0]=0;mono[0]=400
     with pytest.raises(TimeoutError):m.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,380,execute=execute)
-    assert calls==[280] and not(output/'setup.json').exists()
+    assert calls==[120] and not(output/'setup.json').exists()
 
 
 def test_actual_job_supervisor_reaps_grandchild_after_subprocess_timeout(tmp_path):
@@ -339,7 +339,7 @@ def test_measured_setup_allocation_retains_original_deadline(tmp_path,monkeypatc
     def execute(argv,**kwargs):
         calls.append((argv,kwargs))
         if argv[3].endswith('fetch.py'):
-            assert argv[-1]=='700' and kwargs['timeout']==900
+            assert argv[-1]=='700' and kwargs['timeout']==600
             wall[0]=0 if backward_clock else 375;mono[0]=375
             f=json.loads((inputs/'plan.json').read_bytes())['files'][0]
             write_json(output/'downloads.json',{'schema':'ovl.public-wheel-download-result.v1','plan_sha256':v['wheel_plan_sha256'],'files':[{**f,'result':'COMPLETE_HASH_MATCH'}]})
