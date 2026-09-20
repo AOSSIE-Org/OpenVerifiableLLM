@@ -21,7 +21,7 @@ from ovl_pipeline.production_commitment import validate_request,verify_code
 from ovl_pipeline.production_identity import PRODUCTION_WORKFLOW,ProductionPublisherPolicy
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.source_commitment import REF
-from publish_progress_boundary import command,save_once,published
+from publish_progress_boundary import command,deadline_command,save_once,published
 from publish_evidence_archive import REPO
 
 BRANCH=REF.removeprefix('refs/heads/')
@@ -61,7 +61,7 @@ def request_commit(request,r,directory,*,execute=command):
         changed=execute(['git','diff','--cached','--name-only'],cwd=clone)
         if changed!=name:raise EvidenceError('publisher would commit unrelated changes')
         execute(['git','-c','user.name=Rajat Roy','-c','user.email=135772548+ryoari@users.noreply.github.com',
-                 'commit','-m','Commit public production registration'],cwd=clone)
+                 'commit','-m','Commit public production registration'],cwd=clone,timeout=600)
         revision=execute(['git','rev-parse','HEAD'],cwd=clone)
         save_once(saved,{'revision':revision,'request_sha256':digest(request),'path':name})
     record=read_json(saved);revision=record['revision']
@@ -82,7 +82,7 @@ def request_commit(request,r,directory,*,execute=command):
         execute(['git','merge-base','--is-ancestor',revision,'origin/'+BRANCH],cwd=clone)
     else:
         save_once(push,{'revision':revision,'remote':REMOTE,'ref':REF})
-        execute(['git','push','origin','HEAD:'+REF],cwd=clone)
+        execute(['git','push','origin','HEAD:'+REF],cwd=clone,timeout=600)
     execute(['git','fetch','origin',BRANCH],cwd=clone)
     execute(['git','merge-base','--is-ancestor',revision,'origin/'+BRANCH],cwd=clone)
     save_once(directory/'public-commit.json',{'revision':revision,'url':'https://github.com/'+REPOSITORY+'/commit/'+revision})
@@ -156,11 +156,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
         'packet_inventory':inventory(packet,sorted(PACKET_FILES)),'source_policy':asdict(source_policy),
         'source_checkout':str(source_checkout.resolve()),'deadline_epoch':deadline}
     save_once(output/'selection.json',identity)
-    def bounded_command(args,**kwargs):
-        remaining=deadline-time.time()
-        if remaining<=0:raise EvidenceError('original registration publication deadline reached')
-        kwargs['timeout']=min(kwargs.get('timeout',120),remaining)
-        return command(args,**kwargs)
+    bounded_command=deadline_command(deadline,execute=command)
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':REPO,'kind':'registration-packet',
         'prefix':'production-registration/'+expected_registration,'subject_sha256':expected_registration,
         'files':identity['packet_inventory']}

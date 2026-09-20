@@ -42,7 +42,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
     monkeypatch.setattr(m.transport,'download',lambda *a:download(*a,api=provider,fetch_file=provider.fetch))
     monkeypatch.setattr(m.transport,'reconcile',lambda *a:reconcile(*a,api=provider))
     committed={}
-    def request(value,registration,directory):
+    def request(value,registration,directory,**kwargs):
         if damage=='failed-push':raise EvidenceError('push failure')
         n=len(value['envelopes']);revision=str(n)*40
         if n in committed:assert committed[n]==digest(value)
@@ -170,6 +170,7 @@ def test_uncertain_real_git_push_reconciles_without_second_push(tmp_path,monkeyp
     monkeypatch.setattr(m,'REMOTE',str(remote));monkeypatch.setattr(m,'verify_code',lambda *a:{'explicit-source-test-double':True})
     pushes=[]
     def execute(args,**kwargs):
+        if 'commit' in args or args[:2]==['git','push']:assert kwargs['timeout']==600
         result=m.command(args,**kwargs)
         if args[:2]==['git','push']:
             pushes.append(args);raise EvidenceError('client lost successful push response')
@@ -203,3 +204,26 @@ def test_anchor_copy_rejects_symlink_before_read(tmp_path):
     (source/'statement.json').symlink_to(tmp_path/'private');write_json(source/'statement.sigstore.json',{})
     with pytest.raises(EvidenceError):m.copy_anchor(source,tmp_path/'out')
     assert not(tmp_path/'out').exists()
+
+
+@pytest.mark.parametrize('elapsed',[300,601])
+def test_progress_slow_commit_obeys_original_dispatch_deadline(prepared,tmp_path,monkeypatch,elapsed):
+    run,_,_=setup(prepared,tmp_path,monkeypatch)
+    now=[time.time(),100.];limits=[]
+    monkeypatch.setattr(m.time,'time',lambda:now[0])
+    monkeypatch.setattr(m.time,'monotonic',lambda:now[1])
+    def slow(args,**kw):
+        limits.append(kw['timeout']);now[0]+=elapsed;now[1]+=elapsed;return 'synthetic command result'
+    factory=m.deadline_command
+    monkeypatch.setattr(m,'deadline_command',lambda deadline:factory(deadline,execute=slow))
+    original=m.request_commit
+    def request_with_hook(value,registration,directory,**kw):
+        kw['execute'](['git','commit'],timeout=600)
+        return original(value,registration,directory,**kw)
+    monkeypatch.setattr(m,'request_commit',request_with_hook)
+    if elapsed>600:
+        with pytest.raises(EvidenceError,match='original publication deadline'):run(0)
+        assert not list((tmp_path/'publication').glob('**/ack.json'))
+    else:
+        assert run(0)['schema']=='ovl.verified-public-progress-ack.v1'
+    assert len(limits)==1 and 599<limits[0]<=600
