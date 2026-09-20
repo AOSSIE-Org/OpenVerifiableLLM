@@ -50,7 +50,7 @@ def test_real_controller_stop_request_is_delivered_and_all_partial_outputs_prese
     value['required_files'][-1].update(bytes=script.stat().st_size,sha256=file_hash(script));write_json(job,value);root=digest(value)
     stop=tmp_path/'stop.json'
     def request_stop(n):
-        write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,'pod_id':t.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['test-controller-stop']})
+        if not stop.exists():write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,'pod_id':t.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['test-controller-stop']})
         time.sleep(.05)
     with Journal(tmp_path/'journal').lease() as j:
         h=Health(j,intent(),t.profile['pod_id'])
@@ -248,7 +248,8 @@ def test_pending_stop_is_delivered_before_failing_readonly_adoption(tmp_path,mon
     stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
         'pod_id':t.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic pending stop']})
     def blocked(*args):
-        assert (remote/'jobs'/root/'request-stop').read_bytes()==stop.read_bytes()
+        assert read_json(remote/'jobs'/root/'request-stop')==m.worker_stop_request(root)
+        assert (out/'stop-reason.json').read_bytes()==stop.read_bytes()
         raise EvidenceError('synthetic adoption read unavailable')
     monkeypatch.setattr(m,'reconcile_launch',blocked)
     with Journal(tmp_path/'journal').lease() as j:

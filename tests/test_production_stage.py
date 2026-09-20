@@ -227,3 +227,48 @@ def test_pending_production_stop_precedes_failing_adoption(prepared,tmp_path,mon
         h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
         with pytest.raises(EvidenceError,match='adoption unavailable'):execute(tmp_path,data,h,cp,pub)
         assert not h.complete and (out/'stop-delivery.json').exists()
+
+
+def test_missing_early_controller_stop_cannot_resume_publication(prepared,tmp_path,monkeypatch):
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+        'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic early stop']})
+    original=m.reconcile_launch
+    def remove(*args):
+        result=original(*args);stop.unlink();return result
+    monkeypatch.setattr(m,'reconcile_launch',remove)
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
+        pub.poll=lambda:pytest.fail('publication resumed after missing stop')
+        with pytest.raises(EvidenceError,match='disappeared'):execute(tmp_path,data,h,cp,pub)
+        assert not h.complete and not(out/'stage-result.json').exists()
+
+
+@pytest.mark.parametrize('crossing',['numerical-delivery','adoption'])
+def test_stop_clock_rechecked_after_blocking_control_operation(prepared,tmp_path,monkeypatch,crossing):
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    now=int(time.time());clock=[now];hard=read_json(job)['deadline_epoch'];events=[]
+    write_json(tmp_path/'stop.json',{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
+        'pod_id':control.profile['pod_id'],'observed_epoch':now,'reasons':['synthetic clock crossing']})
+    original_put=t.put
+    def put(*args,**kw):
+        result=original_put(*args,**kw);events.append('numerical')
+        if crossing=='numerical-delivery':clock[0]=hard
+        return result
+    t.put=put
+    def adopt(*args):
+        events.append('adoption')
+        if crossing=='adoption':
+            assert args[-1]<=hard;clock[0]=hard
+        else:assert (tmp_path/'control/remote/jobs'/root/'request-stop').exists()
+    monkeypatch.setattr(m,'reconcile_launch',adopt)
+    def inspect(*args,**kw):
+        assert (tmp_path/'control/remote/jobs'/root/'request-stop').exists()
+        raise EvidenceError('synthetic inspected stop ordering')
+    monkeypatch.setattr(m,'bounded_read',inspect)
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);h.wall=lambda:clock[0]
+        cp,pub=hooks(tmp_path,t,root,r,h)
+        with pytest.raises(EvidenceError,match='inspected stop ordering'):execute(tmp_path,data,h,cp,pub)
+        assert events==['numerical','adoption']
+        assert read_json(out/'stop-intent.json')['hard_stop_epoch']==hard

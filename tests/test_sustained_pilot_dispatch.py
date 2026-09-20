@@ -134,6 +134,9 @@ def test_bad_activity_stops_owned_process_retains_failure_and_never_relaunches(t
     result=run()
     assert result['outcome']=='DISPATCH_FAILED_AFTER_RETENTION' and result['unstarted_stages']==['second']
     assert result['failure']['error_type']=='EvidenceError' and result['stages'][0]['exit']['exit_code']<0
+    diagnostics=list((tmp_path/'sustained/stages/first/private-transport-diagnostics').glob('*.json'))
+    assert len(diagnostics)==1 and read_json(diagnostics[0])['context']['phase']=='stage-dispatch'
+    assert all('private-transport-diagnostics' not in item['path'] for export in read_json(tmp_path/'sustained/stages/first/stage-result.json')['exports'] for item in export['files'])
     assert (tmp_path/'sustained/stages/first/export-001/files/activity.json').read_bytes()==b'{"bad":true}'
     assert read_json(tmp_path/'health.json')['complete'] is True
     before=len(calls);assert run()==result and len(calls)==before

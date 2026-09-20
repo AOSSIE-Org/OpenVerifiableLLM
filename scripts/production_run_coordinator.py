@@ -6,6 +6,7 @@ completion closes paid work after retention, not scientific/release acceptance.
 """
 from dataclasses import asdict
 from decimal import Decimal
+from private_transport_diagnostics import capture
 from pathlib import Path
 from contextlib import ExitStack
 import time
@@ -17,7 +18,7 @@ from ovl_pipeline.production_anchoring import packet_objects,verify_packet
 from ovl_pipeline.production_parents import validate_parents
 from ovl_pipeline.production_replay import authenticate
 from ovl_pipeline.state import read_state,unpack
-from pod_job_client import save_once
+from pod_job_client import save_once,worker_stop_request,stop_delivery
 from run_rental_controller import validate as validate_rental,watchdog_heartbeat
 from run_workload_coordinator import controller_observation
 from production_run_health import ProductionRunHealth
@@ -105,11 +106,17 @@ class Run:
             self.stack.close();raise
 
     def __exit__(self,kind,value,tb):
+        if value is not None:capture(value,self.output/'private-transport-diagnostics',{'phase':'run-dispatch'})
         try:
             if kind is not None and not self.health.complete:
-                self.abort(kind.__name__)
+                try:self.abort(kind.__name__)
+                except Exception as secondary:
+                    capture(secondary,self.output/'private-transport-diagnostics',{'phase':'failure-retention'})
         finally:
-            self.stack.__exit__(kind,value,tb)
+            try:self.stack.__exit__(kind,value,tb)
+            except Exception as secondary:
+                if value is None:raise
+                capture(secondary,self.output/'private-transport-diagnostics',{'phase':'run-cleanup'})
         return False
 
     def guards(self,*,starting=True):
@@ -376,18 +383,25 @@ class Run:
                         self.plan['external_terminate_epoch'],now+self.plan['input']['checkpoint_grace_seconds'])})
                 fixed=read_json(window)
                 if fixed['job_sha256']!=job:raise EvidenceError('failure recovery changed active job')
-                limit=fixed['deadline_epoch'];marker=failure/'request-stop'
+                limit=fixed['deadline_epoch']
+                original=stage/'terminal-export-intent.json'
+                if original.exists():
+                    export=read_json(original);selection=read_json(stage/'selection.json')
+                    fields(export,'schema selection_sha256 terminal started_epoch deadline_epoch','original terminal export')
+                    if (export['schema']!='ovl.production-stage-export.v1' or export['selection_sha256']!=digest(selection)
+                        or export['deadline_epoch']!=min(self.plan['external_terminate_epoch'],export['started_epoch']+self.selection['timing']['export_seconds'])):
+                        raise EvidenceError('original terminal export selection changed')
+                    limit=min(limit,export['deadline_epoch'])
+                marker=failure/'request-stop'
                 save_once(marker,{'schema':'ovl.production-dispatch-stop.v1','job_sha256':job,'reason':'dispatcher failure; preserve all outputs'})
+                worker_marker=failure/'worker-stop.json';save_once(worker_marker,worker_stop_request(job))
                 name='jobs/'+job+'/request-stop'
-                if not(failure/'stop-delivery.json').exists():
-                    existing=self.control.read_live(name,65536,min(limit,self.health.now()+30))
-                    if existing is None:
-                        receipt=self.control.put(name,marker,min(limit,self.health.now()+30));save_once(failure/'stop-delivery.json',receipt)
+                stop_delivery(self.control,job,name,worker_marker,failure/'stop-delivery.json',min(limit,self.health.now()+30))
                 while True:
                     self.health.write(self.health_file)
-                    if self.health.now()>=limit-self.selection['timing']['export_seconds']:raise EvidenceError('original failure shutdown window exhausted')
                     observed=job_supervision(self.control,job,self.selection['worker_sha256'],min(limit,self.health.now()+30))
                     if observed['state']=='ABANDONED' or observed['state']=='EXITED' and not observed['runner_alive'] and not observed['child_alive']:break
+                    if self.health.now()>=limit-self.selection['timing']['export_seconds']:raise EvidenceError('original failure shutdown window exhausted')
                     if observed['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):
                         job_supervision(self.control,job,self.selection['worker_sha256'],min(limit,self.health.now()+30),abandon=True)
                     elif observed['state'] in ('CHILD_IDENTITY_UNKNOWN','LAUNCH_NOT_OBSERVED'):

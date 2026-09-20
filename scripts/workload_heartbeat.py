@@ -35,7 +35,11 @@ class Heartbeat:
         return self
 
     def __exit__(self,kind,value,traceback):
-        self.stop.set();self.thread.join(timeout=self.interval+5)
-        if self.thread.is_alive():raise EvidenceError('workload heartbeat did not close')
-        if kind is None:self.check()
+        try:
+            self.stop.set();self.thread.join(timeout=self.interval+5)
+            if self.thread.is_alive():raise EvidenceError('workload heartbeat did not close')
+            if kind is None:self.check()
+        except Exception as secondary:
+            if value is None:raise
+            value.heartbeat_cleanup_diagnostic={'exception_class':type(secondary).__name__}
         return False
