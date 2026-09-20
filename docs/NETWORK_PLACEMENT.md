@@ -21,3 +21,13 @@ REST v2 has a separate schema; this change does not add fields to REST requests.
 Run `python -m pytest -q tests/test_rental_network_placement.py` for synthetic
 request/restart/termination checks and adversarial pin, identity and value checks.
 These tests create no paid resources and confer no training verification credit.
+
+Version 5 adds a required `countryCode` containing exactly two uppercase ASCII
+letters. It passes that pinned selector unchanged to the same GraphQL creation
+operation. This is a provider placement request, not verified physical location,
+host identity, CUDA health or numerical performance. Version 5 retains all version
+4 network, cloud, quote, watchdog and cost checks. Earlier versions reject country
+selection. A country change requires a new intent; running intents are immutable.
+
+Run `python -m pytest -q tests/test_rental_country_placement.py` for country request
+propagation, one-shot recovery and strict malformed/changed-identity checks.
