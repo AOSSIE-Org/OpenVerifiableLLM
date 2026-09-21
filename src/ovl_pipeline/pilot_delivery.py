@@ -15,7 +15,7 @@ def policy(value):
     if (value['schema']!='ovl.pilot-delivery-policy.v1' or value['mode'] not in ('record','replay')
         or value['phase'] not in ('wikipedia','conversation')):raise EvidenceError('invalid pilot delivery policy')
     require_digest(value['session']);integer(value['deadline_epoch'],1,2**53-1,'pilot deadline')
-    integer(value['copy_timeout_seconds'],30,420,'checkpoint copy timeout')
+    integer(value['copy_timeout_seconds'],30,660,'checkpoint copy timeout')
     integer(value['maximum_checkpoint_bytes'],1,2**40,'checkpoint byte bound')
     return value
 
