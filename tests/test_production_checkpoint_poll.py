@@ -82,9 +82,16 @@ def test_actual_fresh_cpu_replay_outputs_are_retained_under_selected_record(prep
     from test_production_replay import setup
     control,t,job,old,worker,_,bindings=bound(prepared,tmp_path)
     numerical=tmp_path/'fresh-replay';numerical.mkdir()
-    r,envelopes,_,_,run=setup(prepared,numerical,monkeypatch)
+    r,envelopes,_,prover,run=setup(prepared,numerical,monkeypatch)
+    # Seed from the actual record, never from verifier output. Production
+    # completely retains this tree before starting the separate replay process.
+    from pod_versioned_export import export
+    shutil.copytree(prover,tmp_path/'record/remote/complete-record')
+    export(t,'complete-record',tmp_path/'objects',tmp_path/'record-cache',int(time.time())+60)
     output=numerical/'verifier';report=run(output);assert report['result']=='PASS'
     shutil.copytree(output,tmp_path/'record/remote',dirs_exist_ok=True)
+    def no_payload_transfer(*args,**kwargs):raise AssertionError('fresh replay must reuse retained record bytes')
+    t.get=no_payload_transfer
     value=read_json(job);value['kind']='full-replay';write_json(job,value);root=digest(value);bindings={root:bindings[old]}
     with Journal(tmp_path/'health').lease() as journal:
         h=ProductionHealth(journal,intent(),control.profile['pod_id'],r,bindings)

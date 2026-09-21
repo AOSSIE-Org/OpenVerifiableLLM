@@ -37,6 +37,7 @@ def configured(tmp_path,monkeypatch):
                'profile_sha256':digest(control.profile),'worker_sha256':file_hash(Path('scripts/pod_job_worker.py')),
                'phases':{'qualification':digest(plan),'initialization':digest(initial)},
                'timing':{'registration_seconds':120,'record_seconds':16000,'replay_seconds':16000,'export_seconds':60,
+                         'record_fixed_seconds':300,'replay_fixed_seconds':300,
                          'checkpoint_policy':{},'publication_policy':{'boundary_seconds':1}}}
     def run():return Run(selection,digest(selection),rental,control,Path('scripts/pod_job_worker.py'),controller,
                          watchdog,tmp_path/'coordinator',tmp_path/'health.json',{}, {},sleep=lambda _:time.sleep(.01))
@@ -189,6 +190,7 @@ def test_forecast_cannot_omit_cost_or_complete_phase_windows(tmp_path,monkeypatc
     factory,plan,*_=configured(tmp_path,monkeypatch)
     packet,r,policy,provider,p=registration_fixture(tmp_path,monkeypatch)
     with factory() as run:
+        run.qualified={k:p[k] for k in ('pilot_records','pilot_replays')}
         if damage=='rate':r['forecast_input']['hourly_usd']='0.01'
         elif damage=='prior-exposure':r['forecast_input']['committed_future_usd']='0'
         elif damage=='numerical-time':run.selection['timing']['replay_seconds']=1

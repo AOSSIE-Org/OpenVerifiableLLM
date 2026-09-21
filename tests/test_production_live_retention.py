@@ -101,8 +101,8 @@ def test_replay_metadata_mutations_fail_before_any_transfer(damage):
     with pytest.raises(EvidenceError):m.replay_selection(r,root,envelopes,session,progress)
 
 
-@pytest.mark.parametrize('mode',['record','replay'])
-def test_actual_recovery_retains_complete_state_without_completion_credit(prepared,tmp_path,mode):
+@pytest.mark.parametrize('mode',['record','replay','replay-missing','replay-corrupt','replay-race'])
+def test_actual_recovery_retains_complete_state_without_completion_credit(prepared,tmp_path,mode,monkeypatch):
     from ovl_pipeline import training
     from ovl_pipeline.data import batches
     from ovl_pipeline.state import save_state
@@ -116,10 +116,24 @@ def test_actual_recovery_retains_complete_state_without_completion_credit(prepar
     recoveries={'registration_sha256':digest(r),'checkpoints':[{'path':'recovery-000000001','control':c,
         'checkpoint':cp,'last_primary_boundary_sha256':digest(chain_value['boundaries'][0]['body'])}]}
     selection=m.record_recovery_selection(r,digest(r),chain_value,recoveries)
-    if mode=='replay':
+    if mode!='record':
         # Retention transport check only: a CPU-generated state stands in for a
         # verifier-owned recovery. Separate selector tests check replay ancestry.
         import shutil
+        if mode!='replay-missing':
+            m.export(transport,selection['path'],tmp_path/'objects',tmp_path/'record-snapshot',int(time.time())+60)
+        if mode=='replay-corrupt':
+            obj=tmp_path/'objects/objects'/cp['files'][0]['sha256'];obj.chmod(0o600);obj.write_bytes(b'corrupt retained state')
+        if mode=='replay-race':
+            import pod_versioned_export as versioned
+            original=versioned.retained_object;removed=[]
+            def disappear_after_check(path,item):
+                original(path,item)
+                if not removed:
+                    Path(path).unlink();removed.append(item['sha256'])
+            monkeypatch.setattr(versioned,'retained_object',disappear_after_check)
+        def no_payload_transfer(*args,**kwargs):raise AssertionError('replay must reuse verified state bytes')
+        transport.get=no_payload_transfer
         shutil.copytree(remote/selection['path'],remote/'verifier-recovery-000000001')
         selection={**selection,'kind':'replay-recovery','path':'verifier-recovery-000000001',
                    'control':{k:c[k] for k in ('phase','phase_step','global_step')}}
@@ -129,6 +143,16 @@ def test_actual_recovery_retains_complete_state_without_completion_credit(prepar
         h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings)
         h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':job_root,'pod_id':h.pod,
                      'kind':'production-record' if mode=='record' else 'full-replay'})
+        if mode in ('replay-missing','replay-corrupt','replay-race'):
+            before=h.exported
+            with pytest.raises(EvidenceError,match='uncached export bound|retained export object differs|retained export object disappeared'):
+                m.retain(transport,selection,digest(selection),job_root,h,tmp_path/'health.json',tmp_path/'objects',
+                         tmp_path/'retained-recovery',int(time.time())+60,1024**2)
+            assert h.exported==before and not(tmp_path/'retained-recovery/retention.json').exists()
+            if mode=='replay-race':
+                assert len(removed)==1
+                assert any(p.is_file() for p in (tmp_path/'record-snapshot/files').rglob('*'))
+            return
         result=m.retain(transport,selection,digest(selection),job_root,h,tmp_path/'health.json',tmp_path/'objects',
                         tmp_path/'retained-recovery',int(time.time())+60,1024**2)
         assert result['result']=='PASS' and result['public_anchor']=='NOT_RUN' and not h.complete

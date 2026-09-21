@@ -41,12 +41,14 @@ def parents():
             boundaries.append(b);previous=digest(b)
         record={'schema':'ovl.gpu-pilot-record.v1','scope':'development-gpu-pilot-only','settings':settings,'updates':100,
             'boundaries':boundaries,'measured_full_batch_updates':100,'measured_ms':600000,'eligible_duration_for_forecast':True,
-            'timed_checkpoints':10,'warmup_excluded':True,'overhead_included':True,'measured_targets':4800}
+            'timed_checkpoints':10,'warmup_excluded':True,'overhead_included':True,'measured_targets':4800,
+            'setup_including_warmup_ms':100000}
         replay={'schema':'ovl.gpu-pilot-replay.v1','scope':'fresh-initialization-continuous-pilot-replay','result':'PASS',
             'verifier_checkpoint_overhead_included':True,'verifier_checkpoints_saved':len(boundaries),
             'resume_from':None,'initial_state_regenerated':True,'record_sha256':digest(record),'environment':env,
             'updates_recomputed':100,'compared':[{'index':b['index'],'state_root':b['checkpoint']['state_root']} for b in boundaries],
-            'measured_ms':610000,'eligible_for_forecast_comparison':True,'measured_targets':4800,'measured_full_batch_updates':100,'timed_checkpoints':10}
+            'measured_ms':610000,'eligible_for_forecast_comparison':True,'measured_targets':4800,'measured_full_batch_updates':100,'timed_checkpoints':10,
+            'setup_including_warmup_ms':100000}
         records[phase]=record;replays[phase]=replay
         r['pilots'][phase]={'record_sha256':digest(record),'replay_sha256':digest(replay)}
         r['forecast_input']['phases'][phase].update(schedule_sha256=digest(census),stream_sha256=digest(streams[phase]),measurement_sha256=digest(record),replay_sha256=digest(replay))

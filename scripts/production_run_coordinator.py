@@ -73,13 +73,15 @@ class Run:
         if optimized:
             from pilot_optimization import policy
             policy(selection['optimization_policy'])
-        fields(selection['timing'],'registration_seconds record_seconds replay_seconds export_seconds checkpoint_policy publication_policy','enclosing fixed phase budgets')
+        fields(selection['timing'],'registration_seconds record_seconds replay_seconds record_fixed_seconds replay_fixed_seconds export_seconds checkpoint_policy publication_policy','enclosing fixed phase budgets')
         for name in ('registration_seconds','export_seconds'):integer(selection['timing'][name],1,1500,name)
-        for name in ('record_seconds','replay_seconds'):integer(selection['timing'][name],1,7*86400,name)
+        for name in ('record_seconds','replay_seconds','record_fixed_seconds','replay_fixed_seconds'):
+            integer(selection['timing'][name],1,7*86400,name)
         self.selection=selection;self.root=expected;self.rental=rental;self.control=control;self.worker=worker
         self.controller=controller;self.watchdog_file=watchdog_file;self.output=output;self.health_file=health_file
         self.bindings=bindings;self.downloads=downloads;self.sleep=sleep;self.stack=ExitStack()
         self.qualified=self.initial=None;self.baseline=self.candidate=None;self.authenticated=None;self.stage_results={};self.phase_jobs={}
+        self.record_files=None
         self.active_stage=None
         self.store=Path(selection['object_store'])
         if not self.store.is_absolute() or self.store.is_symlink():raise EvidenceError('explicit regular absolute content store required')
@@ -199,12 +201,29 @@ class Run:
         incurred=Decimal(elapsed)*Decimal(inp['hourly_upper_usd'])/3600
         if Decimal(selected['spent_usd'])+Decimal(selected['committed_future_usd'])<prior+incurred:
             raise EvidenceError('registration omits prior reservations or elapsed rental exposure')
-        # Full forecast uses the slower measured record/replay rate for BOTH
-        # directions. Registration always starts both phases at zero coverage.
-        numerical=(sum(v['remaining_ms_with_margin'] for v in projection['phases'].values())+1999)//2000
+        # Keep the monetary forecast's slower rate for BOTH directions. Phase
+        # deadlines instead use their own authenticated complete pilot timing,
+        # including checkpoint save/delivery/comparison, with the same 25% margin.
+        # Every production update is charged at a full-batch rate, even tails;
+        # registration requires zero completed coverage and checks checkpoint density.
+        from ovl_pipeline.budget import ceil_div
+        numerical={}
+        for direction,field in [('record','measured_ms'),('replay','replay_measured_ms')]:
+            numerical[direction]=sum(ceil_div(ceil_div(p['updates']*p[field],p['measured_full_batch_updates'])*5,4000)
+                                     for p in selected['phases'].values())
+            if self.qualified is None:raise EvidenceError('complete qualified setup measurements required')
+            reports=self.qualified['pilot_records' if direction=='record' else 'pilot_replays']
+            setup=[]
+            for phase in selected['phases']:
+                measured=reports[phase].get('setup_including_warmup_ms')
+                integer(measured,1,2**53-1,'complete pilot setup measurement')
+                setup.append(ceil_div(measured*5,4000))
+            fixed=timing[direction+'_fixed_seconds']
+            if fixed<sum(setup):raise EvidenceError('fixed phase reserve omits measured setup with margin')
+            numerical[direction]+=fixed
         from ovl_pipeline.production_chain import schedule
         publication=len(schedule(r))*timing['publication_policy']['boundary_seconds']
-        if timing['record_seconds']<numerical+publication or timing['replay_seconds']<numerical:
+        if timing['record_seconds']<numerical['record']+publication or timing['replay_seconds']<numerical['replay']:
             raise EvidenceError('phase budgets omit full measured numerical work or public boundary waits')
         return projection
 
@@ -304,6 +323,13 @@ class Run:
         envelopes=None
         if kind=='full-replay':
             if 'production-record' not in self.stage_results:raise EvidenceError('complete retained record required before replay')
+            if self.record_files is None:raise EvidenceError('complete record object inventory required before replay')
+            from pod_versioned_export import retained_object
+            # This same store is pinned for both jobs. Require all retained
+            # record bytes, including recovery states, before starting replay.
+            # Live replay retention separately forbids a cold transfer fallback.
+            for item in self.record_files:
+                retained_object(self.store/'objects'/item['sha256'],item)
             if any(v is None for v in (chain,progress_directory,progress_policies)):raise EvidenceError('complete recorded public parents required')
             authenticated,envelopes,_=authenticate(a['packet'],a['bundle'],a['production_policy'],a['source_policy'],a['source_checkout'],
                                                    chain,progress_directory,progress_policies)
@@ -339,7 +365,9 @@ class Run:
         save_once(output/'checked-numerical-result.json',numerical_result)
         if kind=='full-replay':
             job_check.complete_replay(r,result,self.control,transports,job_file,expected,self.selection['worker_sha256'],numerical.profile['remote_root'],chain,envelopes,numerical_result)
-        else:self.record_publisher=publisher
+        else:
+            self.record_publisher=publisher
+            self.record_files=numerical_result['files']
         self.stage_results[kind]=result
         if self.active_stage is not None and self.active_stage[2]==expected:self.active_stage=None
         return result

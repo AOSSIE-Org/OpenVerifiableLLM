@@ -140,6 +140,7 @@ def retain(transport,selection,expected_selection,job,health,health_file,store,o
     else:schema.control(selection['control'])
     contract=health.contract(job)
     wanted='production-record' if selection['kind'].startswith('record-') else 'full-replay'
+    reused_only=wanted=='full-replay'
     if (contract['kind']!=wanted or contract['registration_sha256']!=selection['registration_sha256']
         or not any(x['root']==transport.profile['remote_root'] and x['profile_sha256']==digest(transport.profile)
                    for x in contract['outputs'])):
@@ -162,11 +163,16 @@ def retain(transport,selection,expected_selection,job,health,health_file,store,o
     else:
         def progress(operation,counts,total):
             health.bytes(operation,counts,total=total);health.write(health_file)
-        receipt=export(transport,selection['path'],store,target,deadline,progress=progress,expected_files=files)
-    if (receipt['schema']!='ovl.offpod-versioned-tree-export.v1' or receipt['result']!='PASS'
+        bounds={'maximum_bytes':maximum_bytes,'maximum_uncached_bytes':0} if reused_only else {}
+        receipt=export(transport,selection['path'],store,target,deadline,progress=progress,expected_files=files,**bounds)
+    expected_schema='ovl.offpod-versioned-tree-export.v2' if reused_only else 'ovl.offpod-versioned-tree-export.v1'
+    if (receipt['schema']!=expected_schema or receipt['result']!='PASS'
         or receipt['pod_id']!=health.pod or receipt['profile_sha256']!=digest(transport.profile)
         or receipt['root']!=selection['path'] or receipt['files']!=files or receipt['numerical_verification']!='NOT_RUN'):
         raise EvidenceError('retained live checkpoint receipt differs')
+    if reused_only and (receipt.get('bounds')!={'maximum_bytes':maximum_bytes,'maximum_uncached_bytes':0,'selected_missing_bytes':0}
+                        or receipt['transfers'] or receipt['reused_paths']!=[f['path'] for f in files]):
+        raise EvidenceError('replay checkpoint did not reuse all verified record objects')
     directory=Path(receipt['files_directory'])
     if (directory.absolute()!=(target/'files').absolute()
         or any(p.is_symlink() for p in [directory,*directory.absolute().parents])):
