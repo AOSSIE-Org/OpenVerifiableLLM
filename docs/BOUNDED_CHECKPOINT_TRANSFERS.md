@@ -1,6 +1,8 @@
 # Bounded immutable checkpoint transfers
 
-Large selected files are read in ordered ranges of at most 16 MiB. Each connection
+Selected files larger than 16 MiB are read in ordered ranges of at most 64 MiB.
+The small-read threshold remains 16 MiB, so medium-sized files retain ranged
+recovery and the payload-inactivity check. Each connection
 has a 90-second payload-inactivity ceiling, with at most two failed-range retries for the complete
 file. Every connection remains inside the original absolute and monotonic transfer
 deadline. These are transport recovery limits, not extensions to checkpoint,
@@ -69,6 +71,13 @@ overhead and can perform worse with slow connection startup. A connection taking
 policy. Reconnection cannot cure globally insufficient bandwidth. Local synthetic
 tests cover these unfavorable cases as well as recovery from a connection-lifetime
 stall. They do not establish performance improvement on a GPU provider.
+
+The prospective 64 MiB policy reduces connection count for large checkpoints but
+increases buffering and the bytes repeated or preserved after a failed range.
+It retains the same file-wide retry count and original deadlines. A same-endpoint
+comparison with complete payload verification and subsequent mandatory sustained
+record/replay qualification must establish a useful total-cost improvement before
+this candidate is selected for production. Source tests supply no throughput credit.
 
 Verification checks the original deadline before granting retention or export
 health. Blocking filesystem operations cannot provide a hard real-time guarantee;
