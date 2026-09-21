@@ -8,6 +8,7 @@ progress; process liveness and remote clocks cannot. Private keys are local only
 from pathlib import Path,PurePosixPath
 import hashlib
 import ipaddress
+import math
 import os
 import re
 import selectors
@@ -27,6 +28,10 @@ class TransientTransportError(EvidenceError):
 
 class RangeRecoveryExhausted(EvidenceError):
     """The finite range retry budget cannot be reset by snapshot re-entry."""
+
+
+class SmallReadRecoveryExhausted(EvidenceError):
+    """A zero-payload read exhausted its allowance; snapshot re-entry is fatal."""
 
 
 def retryable_transport(error):
@@ -239,7 +244,7 @@ class Transport:
             '-o','ServerAliveInterval=10','-o','ServerAliveCountMax=2','root@'+self.profile['host'],
             'exec '+shlex.join(remote_argv)]
 
-    def stream(self,argv,destination,maximum,deadline,*,source=None,source_bytes=None,progress=None,payload_idle_seconds=None):
+    def stream(self,argv,destination,maximum,deadline,*,source=None,source_bytes=None,progress=None,payload_idle_seconds=None,monotonic_deadline=None):
         integer(maximum,0,2**40,'transfer output bound');integer(deadline,1,2**53-1,'transfer deadline')
         if payload_idle_seconds is not None:
             integer(payload_idle_seconds,1,3600,'payload inactivity allowance')
@@ -247,7 +252,13 @@ class Transport:
         if source is not None:integer(source_bytes,0,2**40,'transfer input bound')
         remaining=deadline-self.wall()
         if remaining<=0:raise EvidenceError('transfer deadline expired')
-        end=self.monotonic()+remaining;out_count=in_count=0;errors=bytearray();pending=b'';input_done=source is None
+        end=self.monotonic()+remaining
+        if monotonic_deadline is not None:
+            if type(monotonic_deadline) not in (int,float) or not math.isfinite(monotonic_deadline):
+                raise EvidenceError('finite original monotonic deadline required')
+            end=min(end,monotonic_deadline)
+            if self.monotonic()>=end:raise EvidenceError('original monotonic transfer deadline expired')
+        out_count=in_count=0;errors=bytearray();pending=b'';input_done=source is None
         last_payload=self.monotonic()
         process=self.popen(self.command(argv),stdin=subprocess.DEVNULL if source is None else subprocess.PIPE,
                            stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,start_new_session=True)
@@ -407,7 +418,7 @@ class Transport:
             if expected['bytes']>RANGE_BYTES:
                 result=self._get_ranges(name,f,partial,expected,deadline,end,progress,check_selection)
             else:
-                result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],f,expected['bytes'],deadline,progress=progress)
+                result=self._get_small(name,f,partial,expected,deadline,end,progress,check_selection)
             f.flush();os.fsync(f.fileno())
         check_selection()
         if result['bytes_received']!=expected['bytes'] or file_hash(partial)!=expected['sha256']:
@@ -420,6 +431,41 @@ class Transport:
         finally:os.close(dfd)
         if self.wall()>=deadline or self.monotonic()>=end:raise EvidenceError('download installation exceeded original deadline')
         return {**result,'sha256':expected['sha256'],'bytes':expected['bytes'],'scope':'actual selected bytes transferred; no training verification'}
+
+    def _get_small(self,name,destination,partial,expected,deadline,end,progress,check_selection):
+        # Retrying only a positively classified zero-byte read cannot discard a
+        # selected immutable prefix. Writes, unknown errors and partial reads
+        # still fail immediately. The caller's original deadlines are binding.
+        failures=[]
+        while True:
+            check_selection()
+            left=min(deadline-self.wall(),end-self.monotonic())
+            if left<=0:raise EvidenceError('small read exhausted original transfer deadline')
+            attempt_deadline=min(deadline,int(self.wall()+left))
+            if attempt_deadline<=self.wall():raise EvidenceError('insufficient time for another bounded read')
+            try:
+                result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],destination,expected['bytes'],attempt_deadline,progress=progress,monotonic_deadline=end)
+            except Exception as error:
+                if not (retryable_transport(error) and error.transfer_counts=={'bytes_sent':0,'bytes_received':0}
+                        and destination.tell()==0 and os.fstat(destination.fileno()).st_size==0
+                        and not getattr(error,'transfer_overflow',b'')):
+                    raise
+                check_selection()
+                failures.append({'attempt':len(failures),'deadline_epoch':attempt_deadline,
+                    'error_type':type(error).__name__,'bytes_received':0,'bytes_sent':0})
+                saved=partial.with_name(partial.name+'.read-attempts')
+                saved.mkdir(mode=0o700,exist_ok=True)
+                write_json(saved/f'failure-{len(failures):03d}.json',{**failures[-1],
+                    'transport_diagnostic':getattr(error,'transport_diagnostic',None)})
+                if len(failures)>2:
+                    raise SmallReadRecoveryExhausted('immutable small read retry budget exhausted; preserve attempts') from error
+                delay=2**len(failures)
+                if min(deadline-self.wall(),end-self.monotonic())<=delay:
+                    raise SmallReadRecoveryExhausted('original deadline cannot fit remaining read recovery; preserve attempts') from error
+                time.sleep(delay)
+                continue
+            return {**result,'zero_payload_read_failures':failures,
+                    'small_read_policy':{'maximum_retries':2,'original_deadline_epoch':deadline}}
 
     def _get_ranges(self,name,destination,partial,expected,deadline,end,progress,check_selection):
         """Retry only failed read-only ranges, never a start/write or old partial.
@@ -445,7 +491,7 @@ class Transport:
             def report(counts):
                 if progress is not None:progress({'bytes_sent':0,'bytes_received':offset+counts['bytes_received']})
             try:
-                last=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'range',str(offset),str(length)],data,length,attempt_deadline,progress=report,payload_idle_seconds=RANGE_SECONDS)
+                last=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'range',str(offset),str(length)],data,length,attempt_deadline,progress=report,payload_idle_seconds=RANGE_SECONDS,monotonic_deadline=end)
                 completed=True
                 check_selection()
                 if last['bytes_received']!=length or len(data.getbuffer())!=length:
