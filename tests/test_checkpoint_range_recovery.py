@@ -1,6 +1,7 @@
 """Exact immutable range transfers and bounded synthetic transport failures."""
 import io
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -30,6 +31,55 @@ def test_real_ranges_reassemble_and_hash_complete_large_file(tmp_path):
     assert max(x['bytes_received'] for x in events)==len(data)
     assert all(x['bytes_sent']==0 for x in events)
     assert not list(tmp_path.glob('download.partial.ranges/*.partial'))
+
+
+@pytest.mark.parametrize('size,ranged', [(16*1024**2,False),(16*1024**2+1,True),(64*1024**2,True)])
+def test_larger_range_keeps_original_small_read_threshold(tmp_path,size,ranged):
+    transport,remote,calls,processes=setup(tmp_path)
+    expected=selected(remote,b'x'*size)
+    result=transport.get('state',tmp_path/'download',expected,int(time.time())+30)
+    argv=shlex.split(calls[0][-1])
+    assert len(calls)==1 and all(p.returncode==0 for p in processes)
+    assert ('range' in argv)==ranged
+    assert ('range_policy' in result)==ranged
+    assert result['sha256']==file_hash(tmp_path/'download')==expected['sha256']
+    if ranged:
+        assert result['range_policy']['bytes']==64*1024**2
+        assert result['range_policy']['payload_idle_seconds']==90
+        assert result['range_policy']['maximum_retries']==2
+
+
+def test_medium_file_partial_payload_still_has_range_recovery(tmp_path):
+    transport,remote,calls,processes=setup(tmp_path)
+    data=b'correct immutable fixture bytes\0'*(1024**2)
+    assert 16*1024**2<len(data)<64*1024**2
+    expected=selected(remote,data);original=transport.stream;attempts=[]
+    def fail_once(argv,destination,maximum,deadline,**kwargs):
+        attempts.append((argv,deadline,kwargs.get('payload_idle_seconds')))
+        if len(attempts)==1:
+            destination.write(data[:1024**2])
+            error=m.TransientTransportError('synthetic connection reset')
+            error.transfer_counts={'bytes_sent':0,'bytes_received':1024**2}
+            raise error
+        return original(argv,destination,maximum,deadline,**kwargs)
+    transport.stream=fail_once;deadline=int(time.time())+30
+    result=transport.get('state',tmp_path/'download',expected,deadline)
+    assert len(attempts)==2 and all(x[0][-3]=='range' and x[1]<=deadline and x[2]==90 for x in attempts)
+    assert result['transferred_payload_bytes']==len(data)+1024**2
+    assert result['bytes_received']==len(data)
+    assert (tmp_path/'download.partial.ranges/attempt-00000.partial').read_bytes()==data[:1024**2]
+    assert (tmp_path/'download').read_bytes()==data and all(p.returncode==0 for p in processes)
+
+
+def test_remote_range_cap_remains_closed_at_64_mib(tmp_path):
+    transport,remote,calls,processes=setup(tmp_path);size=64*1024**2+1
+    with (remote/'state').open('wb') as f:f.truncate(size)
+    destination=io.BytesIO()
+    with pytest.raises(EvidenceError,match='process failed'):
+        transport.stream(['/usr/bin/python3','-c',m.REMOTE_GET,transport.profile['remote_root'],
+                          'state',str(size),'range','0',str(size)],destination,size,int(time.time())+30)
+    assert len(calls)==1 and destination.getvalue()==b''
+    assert all(p.poll() is not None for p in processes)
 
 
 def virtual_transport(tmp_path,monkeypatch,*,failure=None):
