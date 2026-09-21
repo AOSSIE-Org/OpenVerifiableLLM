@@ -123,7 +123,8 @@ def run(spec,expected):
             or selected['initialization_sha256']!=digest(initial)):
             raise EvidenceError('original registration parents changed')
         template=spec['registration_template'][variant] if optimized else spec['registration_template']
-        r,basis=registration(read_json(Path(template)),q,initial,owner.rental,selected['selected_epoch'])
+        r,basis=registration(read_json(Path(template)),q,initial,owner.rental,selected['selected_epoch'],
+                             construction_seconds=spec['selection']['timing']['registration_seconds'])
         save_once(output/'forecast-basis.json',basis)
         a=owner.register(r,read_json(Path(spec['source_statement'])),Path(spec['source_bundle']),
              PublisherPolicy(**read_json(Path(spec['source_policy']))),read_json(Path(spec['preparation'])),Path(spec['source_checkout']))
