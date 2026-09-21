@@ -8,7 +8,7 @@ from ovl_pipeline.canonical import EvidenceError,canonical,digest,read_json,sha2
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.state import read_state,unpack
 from pod_job_client import save_once
-from pod_versioned_export import export
+from pod_versioned_export import checkpoint_export as export,require_retryable_checkpoint
 from run_workload_stage import remote_name
 
 
@@ -121,7 +121,8 @@ class CheckpointRetention:
     def _ack(self,dest,request):
         with self.profiler.measure('safe_state_verification_and_health') if self.profiler else nullcontext():
             retained,directory,files=self._check_retained(dest,request)
-            self.health.exported_files(self.job,directory,files);self.health.write(self.health_file)
+            if self.health.now()>=request['copy_deadline_epoch']:raise EvidenceError('checkpoint verification exceeded original deadline')
+            self.health.exported_files(self.job,directory,files,deadline=request['copy_deadline_epoch']);self.health.write(self.health_file)
         ack=pilot_delivery.acknowledgement(request,digest(retained))
         save_once(dest/'ack.json',ack)
         if self.health.now()>=request['copy_deadline_epoch']:raise EvidenceError('checkpoint acknowledgement deadline expired')
@@ -154,7 +155,9 @@ class CheckpointRetention:
         if self.profiler:self.profiler.phase='controller-observed-attempt'
         if not (dest/'retained.json').exists():
             snapshot=dest/'snapshot-000'
-            if snapshot.exists() and not(snapshot/'export.json').exists():snapshot=dest/'snapshot-001'
+            if snapshot.exists() and not(snapshot/'export.json').exists():
+                require_retryable_checkpoint(self.transport,self.root+'/'+request['path'],snapshot,deadline,self._files(request))
+                snapshot=dest/'snapshot-001'
             if snapshot.exists():
                 if not(snapshot/'export.json').exists():raise EvidenceError('checkpoint transfer retries exhausted')
                 receipt=read_json(snapshot/'export.json')

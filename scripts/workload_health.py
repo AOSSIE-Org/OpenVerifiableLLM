@@ -189,7 +189,7 @@ class Health:
         self.event('pilot-phases',{'job_sha256':job,'observation':observation},progress=True)
         return True
 
-    def exported_files(self,job,directory,expected):
+    def exported_files(self,job,directory,expected,*,deadline=None):
         """Verify actual complete selected file bytes, not a report's PASS field.
 
         The caller selects the inventory from its bounded export protocol. Its
@@ -211,6 +211,9 @@ class Health:
         if path.exists():
             if read_json(path)!=manifest:raise EvidenceError('retained export manifest changed')
         else:write_json(path,manifest)
+        if deadline is not None:
+            integer(deadline,1,self.plan['external_terminate_epoch'],'export acceptance deadline')
+            if self.now()>=deadline:raise EvidenceError('export verification exceeded original deadline')
         self.event('export',{'job_sha256':job,'export_sha256':identity,'files_sha256':digest(expected),
                             'manifest_sha256':digest(manifest),
                             'directory':str(directory.resolve()),'scope':'complete selected bytes rehashed off pod; no training verification'},export=True,progress=True)

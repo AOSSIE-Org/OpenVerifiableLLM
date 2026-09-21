@@ -38,21 +38,22 @@ def test_actual_primary_snapshot_adopts_bytes_and_cannot_complete_job(prepared,t
 
 
 def test_interrupted_copy_preserved_with_one_retry_and_original_deadline(prepared,tmp_path,monkeypatch):
+    from pod_transfer import TransientTransportError
     control,transport,job,root,worker,r,bindings=bound(prepared,tmp_path)
     selection=m.record_selection(r,digest(r),read_json(tmp_path/'record/remote/chain.json'))
-    deadline=int(time.time())+60;out=tmp_path/'retry-snapshot';original=m.export;attempts=[]
-    def interrupted(*a,**kw):
-        attempts.append(Path(a[3]));Path(a[3]).mkdir();(Path(a[3])/'partial').write_bytes(b'preserve these bytes')
-        raise EvidenceError('explicit transfer interruption')
+    deadline=int(time.time())+60;out=tmp_path/'retry-snapshot';original=transport.get;attempts=[]
+    def interrupted(name,destination,*a,**kw):
+        attempts.append(Path(destination));Path(destination).with_name(Path(destination).name+'.partial').write_bytes(b'')
+        error=TransientTransportError('explicit transfer interruption');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
     with Journal(tmp_path/'retry-health').lease() as j:
         h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings)
         h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':h.pod,'kind':'production-record'})
         args=[transport,selection,digest(selection),root,h,tmp_path/'health.json',tmp_path/'objects',out,deadline,1024**2]
-        before=h.exported;monkeypatch.setattr(m,'export',interrupted)
+        before=h.exported;monkeypatch.setattr(transport,'get',interrupted)
         with pytest.raises(EvidenceError,match='interruption'):m.retain(*args)
         assert h.exported==before and not(out/'retention.json').exists()
-        monkeypatch.setattr(m,'export',original);result=m.retain(*args)
-        assert (out/'snapshot-000/partial').read_bytes()==b'preserve these bytes'
+        monkeypatch.setattr(transport,'get',original);result=m.retain(*args)
+        assert attempts[0].with_name(attempts[0].name+'.partial').read_bytes()==b''
         assert 'snapshot-001' in result['receipt_path'] and len(attempts)==1
         args[-2]=deadline+1
         with pytest.raises(EvidenceError):m.retain(*args)
@@ -71,6 +72,51 @@ def replay_fixture():
         {'index':i,'boundary_sha256':digest(e),'state_root':e['body']['checkpoint']['state_root'],
          'control':e['body']['control'],'verifier_checkpoint':e['body']['checkpoint'],'result':'PASS'} for i,e in enumerate(envelopes[:2])]}
     return r,root,envelopes,session,progress
+
+
+@pytest.mark.parametrize('failure',['fatal','missing','changed-binding'])
+def test_failed_live_snapshot_requires_exact_transient_classification_before_retry(prepared,tmp_path,monkeypatch,failure):
+    from pod_transfer import TransientTransportError
+    control,transport,job,root,worker,r,bindings=bound(prepared,tmp_path)
+    selection=m.record_selection(r,digest(r),read_json(tmp_path/'record/remote/chain.json'))
+    out=tmp_path/'strict-snapshot';deadline=int(time.time())+60;original=transport.get
+    def broken(*args,**kwargs):
+        if failure=='fatal':raise EvidenceError('synthetic identity failure')
+        error=TransientTransportError('synthetic connection reset');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
+    with Journal(tmp_path/'strict-health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings)
+        h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':h.pod,'kind':'production-record'})
+        args=(transport,selection,digest(selection),root,h,tmp_path/'health.json',tmp_path/'objects',out,deadline,1024**2)
+        monkeypatch.setattr(transport,'get',broken)
+        with pytest.raises(EvidenceError):m.retain(*args)
+        path=out/'snapshot-000/failure.json'
+        if failure=='missing':path.unlink()
+        elif failure=='changed-binding':
+            value=read_json(path);value['binding_sha256']='f'*64;write_json(path,value)
+        monkeypatch.setattr(transport,'get',original)
+        before=h.exported
+        with pytest.raises(EvidenceError,match='classification|fatal'):m.retain(*args)
+        assert h.exported==before and not(out/'snapshot-001').exists() and not(out/'retention.json').exists()
+
+
+@pytest.mark.parametrize('phase',['safe-state','health-inventory'])
+def test_verification_finishing_late_cannot_publish_retention_or_health(prepared,tmp_path,monkeypatch,phase):
+    import workload_health
+    control,t,job,root,worker,r,bindings=bound(prepared,tmp_path)
+    selection=m.record_selection(r,digest(r),read_json(tmp_path/'record/remote/chain.json'));deadline=int(time.time())+60
+    with Journal(tmp_path/'late-health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings)
+        h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':h.pod,'kind':'production-record'})
+        clock=[h.now()];h.now=lambda:clock[0]
+        module,name=(m,'read_state') if phase=='safe-state' else (workload_health,'verify_inventory')
+        original=getattr(module,name)
+        def delayed(*args,**kwargs):
+            value=original(*args,**kwargs);clock[0]=deadline+1;return value
+        monkeypatch.setattr(module,name,delayed)
+        out=tmp_path/'late-retained';before=h.exported
+        with pytest.raises(EvidenceError,match='deadline'):
+            m.retain(t,selection,digest(selection),root,h,tmp_path/'health.json',tmp_path/'objects',out,deadline,1024**2)
+        assert h.exported==before and not(out/'retention.json').exists()
 
 
 def test_replay_selection_is_bound_to_complete_registered_record_and_prefix():

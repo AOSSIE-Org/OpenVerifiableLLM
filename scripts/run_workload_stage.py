@@ -188,11 +188,15 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         health.write(health_file);sleep(5)
     exports=[];logical_bytes=0;uncached_bytes=0
     for index,name in enumerate(roots):
+        from pod_versioned_export import classified_export,require_retryable_checkpoint
+        bounds={} if terminal_limits is None else {'maximum_bytes':terminal_limits['maximum_bytes']-logical_bytes,
+                    'maximum_uncached_bytes':terminal_limits['maximum_uncached_bytes']-uncached_bytes}
         destination=output/f'export-{index:03d}'
         # One fresh retry after a preserved incomplete transfer. A malformed
         # completed receipt is never replaced, and a second failure is terminal
         # for automatic retries. All incomplete directories remain untouched.
         if destination.exists() and not (destination/'export.json').exists():
+            require_retryable_checkpoint(transport,name,destination,health.plan['external_terminate_epoch'],None,**bounds)
             preserved=destination;destination=output/f'export-{index:03d}-attempt-001'
             if destination.exists() and not (destination/'export.json').exists():
                 raise EvidenceError('bounded export retries exhausted; preserve both attempts')
@@ -208,12 +212,11 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         else:
             def progress(operation,counts,total):health.bytes(operation,counts,total=total);health.write(health_file)
             if initial_retention is None:
-                receipt=export_tree(transport,name,destination,health.plan['external_terminate_epoch'],progress=progress)
+                receipt=classified_export(transport,name,destination,health.plan['external_terminate_epoch'],None,
+                    lambda:export_tree(transport,name,destination,health.plan['external_terminate_epoch'],progress=progress))
             else:
-                from pod_versioned_export import export
-                bounds={} if terminal_limits is None else {'maximum_bytes':terminal_limits['maximum_bytes']-logical_bytes,
-                    'maximum_uncached_bytes':terminal_limits['maximum_uncached_bytes']-uncached_bytes}
-                receipt=export(transport,name,initial_retention.store,destination,health.plan['external_terminate_epoch'],progress=progress,**bounds)
+                from pod_versioned_export import checkpoint_export
+                receipt=checkpoint_export(transport,name,initial_retention.store,destination,health.plan['external_terminate_epoch'],progress=progress,expected_files=None,**bounds)
         if terminal_limits is not None:
             if receipt['schema']!='ovl.offpod-versioned-tree-export.v2':raise EvidenceError('bounded export receipt required')
             bound=receipt['bounds'];fields(bound,'maximum_bytes maximum_uncached_bytes selected_missing_bytes','retained export bounds')
@@ -222,7 +225,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
             integer(bound['selected_missing_bytes'],0,bound['maximum_uncached_bytes'],'retained uncached bytes')
             logical_bytes+=sum(f['bytes'] for f in receipt['files']);uncached_bytes+=bound['selected_missing_bytes']
             if logical_bytes>terminal_limits['maximum_bytes']:raise EvidenceError('retained logical terminal bound exceeded')
-        health.exported_files(expected_job,destination/'files',receipt['files'])
+        health.exported_files(expected_job,destination/'files',receipt['files'],deadline=health.plan['external_terminate_epoch'])
         exports.append({'remote_root':name,'directory':str((destination/'files').resolve()),'files':receipt['files']})
         health.write(health_file)
     selected=next(e for e in exports if e['remote_root']==job_root)
