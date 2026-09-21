@@ -5,9 +5,10 @@ verified content object. Reusing bytes saves transfer/storage, never inventory,
 hash or state checks. A peer tree remains a peer observation, not attestation.
 """
 import os
+import time
 from pathlib import Path
 import uuid
-from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,inventory,verify_inventory,write_json
+from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,inventory,read_json,verify_inventory,write_json
 from pod_job_client import tree
 
 
@@ -23,7 +24,56 @@ def retained_object(path,item):
         raise EvidenceError('retained export object differs; preserve and refuse')
 
 
+def attempt_binding(transport,name,deadline,expected_files,maximum_bytes=None,maximum_uncached_bytes=None):
+    return digest({'profile_sha256':digest(transport.profile),'root':name,'deadline_epoch':deadline,
+        'expected_files':expected_files,'maximum_bytes':maximum_bytes,'maximum_uncached_bytes':maximum_uncached_bytes})
+
+
+def checkpoint_export(transport,name,store,output,deadline,*,expected_files,progress=None,maximum_bytes=None,maximum_uncached_bytes=None):
+    """Persist the strict failure category before a checkpoint may be retried."""
+    return classified_export(transport,name,output,deadline,expected_files,
+        lambda:export(transport,name,store,output,deadline,progress=progress,expected_files=expected_files,
+                      maximum_bytes=maximum_bytes,maximum_uncached_bytes=maximum_uncached_bytes),
+        maximum_bytes,maximum_uncached_bytes)
+
+
+def classified_export(transport,name,output,deadline,expected_files,call,maximum_bytes=None,maximum_uncached_bytes=None):
+    from pod_transfer import retryable_transport
+    binding=attempt_binding(transport,name,deadline,expected_files,maximum_bytes,maximum_uncached_bytes)
+    try:
+        return call()
+    except Exception as error:
+        path=Path(output)
+        if path.is_dir() and not path.is_symlink() and not(path/'export.json').exists():
+            from pod_job_client import save_once
+            # A new snapshot can retry only a positively classified failure
+            # before payload arrived. It cannot forget conflicting partials or
+            # reset a range retry budget; in-operation ranges handle prefixes.
+            retryable=(retryable_transport(error) and error.transfer_counts['bytes_received']==0
+                and getattr(error,'immutable_download_bytes',0)==0)
+            save_once(path/'failure.json',{'schema':'ovl.checkpoint-export-failure.v1','binding_sha256':binding,
+                'error_type':type(error).__name__,'retryable':retryable})
+        raise
+
+
+def require_retryable_checkpoint(transport,name,output,deadline,expected_files,maximum_bytes=None,maximum_uncached_bytes=None):
+    from ovl_pipeline.schema import fields
+    path=Path(output)/'failure.json'
+    if path.is_symlink() or not path.is_file():raise EvidenceError('checkpoint interruption has no verified transient failure classification')
+    value=read_json(path)
+    fields(value,'schema binding_sha256 error_type retryable','checkpoint export failure')
+    if value!={'schema':'ovl.checkpoint-export-failure.v1',
+        'binding_sha256':attempt_binding(transport,name,deadline,expected_files,maximum_bytes,maximum_uncached_bytes),
+        'error_type':'TransientTransportError','retryable':True}:
+        raise EvidenceError('checkpoint failure is fatal or belongs to a different selection')
+
+
 def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None,maximum_bytes=None,maximum_uncached_bytes=None):
+    wall=getattr(transport,'wall',time.time);monotonic=getattr(transport,'monotonic',time.monotonic)
+    end=monotonic()+max(0,deadline-wall())
+    def check_deadline():
+        if wall()>=deadline or monotonic()>=end:raise EvidenceError('snapshot verification exceeded original deadline')
+    check_deadline()
     store=regular_directory(store);output=regular_directory(output,fresh=True)
     if store==output or store in output.parents or output in store.parents:raise EvidenceError('object store and snapshots must be separate')
     files=tree(transport,name,deadline,whole_root=whole_root);write_json(output/'inventory.json',files)
@@ -87,4 +137,7 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
     if maximum_bytes is not None:
         receipt.update(schema='ovl.offpod-versioned-tree-export.v2',bounds={'maximum_bytes':maximum_bytes,
             'maximum_uncached_bytes':maximum_uncached_bytes,'selected_missing_bytes':missing_bytes})
-    write_json(output/'export.json',receipt);return receipt
+    check_deadline()
+    write_json(output/'export.json',receipt)
+    check_deadline()
+    return receipt

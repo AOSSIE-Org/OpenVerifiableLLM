@@ -12,7 +12,7 @@ from ovl_pipeline.canonical import EvidenceError,canonical,digest,read_json,requ
 from ovl_pipeline.production_chain import checkpoint_manifest,verify_chain,schedule
 from ovl_pipeline.state import read_state,unpack
 from pod_job_client import save_once
-from pod_versioned_export import export,regular_directory
+from pod_versioned_export import export,checkpoint_export,regular_directory,require_retryable_checkpoint
 
 
 def record_selection(registration,root,chain):
@@ -156,15 +156,17 @@ def retain(transport,selection,expected_selection,job,health,health_file,store,o
     # Two bounded transfer attempts, preserving every failed copy and the same
     # original deadline. No retry if a completed receipt is malformed.
     target=output/'snapshot-000'
-    if target.exists() and not(target/'export.json').exists():target=output/'snapshot-001'
+    bounds={'maximum_bytes':maximum_bytes,'maximum_uncached_bytes':0} if reused_only else {}
+    if target.exists() and not(target/'export.json').exists():
+        require_retryable_checkpoint(transport,selection['path'],target,deadline,files,**bounds)
+        target=output/'snapshot-001'
     if target.exists():
         if not(target/'export.json').exists():raise EvidenceError('live checkpoint transfer attempts exhausted')
         receipt=read_json(target/'export.json')
     else:
         def progress(operation,counts,total):
             health.bytes(operation,counts,total=total);health.write(health_file)
-        bounds={'maximum_bytes':maximum_bytes,'maximum_uncached_bytes':0} if reused_only else {}
-        receipt=export(transport,selection['path'],store,target,deadline,progress=progress,expected_files=files,**bounds)
+        receipt=checkpoint_export(transport,selection['path'],store,target,deadline,progress=progress,expected_files=files,**bounds)
     expected_schema='ovl.offpod-versioned-tree-export.v2' if reused_only else 'ovl.offpod-versioned-tree-export.v1'
     if (receipt['schema']!=expected_schema or receipt['result']!='PASS'
         or receipt['pod_id']!=health.pod or receipt['profile_sha256']!=digest(transport.profile)
@@ -186,10 +188,12 @@ def retain(transport,selection,expected_selection,job,health,health_file,store,o
             or not 0<control['cursor']<health.registration['coverage'][control['phase']]['targets']):
             raise EvidenceError('retained verifier recovery control differs')
     elif control!=selection['control']:raise EvidenceError('retained live control differs')
+    if health.now()>=deadline:raise EvidenceError('live checkpoint verification exceeded original deadline')
     result={'schema':'ovl.live-checkpoint-retention.v1','result':'PASS','selection_sha256':expected_selection,
             'receipt_sha256':digest(receipt),'receipt_path':str((target/'export.json').resolve()),
             'scope':'complete selected safe checkpoint copied and checked off pod; final whole-output retention still required',
             'numerical_replay':'NOT_RUN','public_anchor':'NOT_RUN','workload_complete':False}
+    health.exported_files(job,directory,files,deadline=deadline);health.write(health_file)
+    if health.now()>=deadline:raise EvidenceError('live checkpoint retention exceeded original deadline')
     save_once(output/'retention.json',result)
-    health.exported_files(job,directory,files);health.write(health_file)
     return result

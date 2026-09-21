@@ -17,12 +17,24 @@ import stat
 import subprocess
 import time
 
-from ovl_pipeline.canonical import EvidenceError,confined,file_hash,parse_json,require_digest,write_json
+from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,parse_json,require_digest,write_json
 from ovl_pipeline.schema import fields,integer
 
 
 class TransientTransportError(EvidenceError):
     """Failed transport only; no identity, framing or content verification credit."""
+
+
+class RangeRecoveryExhausted(EvidenceError):
+    """The finite range retry budget cannot be reset by snapshot re-entry."""
+
+
+def retryable_transport(error):
+    """A cleanup failure or missing actual counters cannot authorize a retry."""
+    counts=getattr(error,'transfer_counts',None)
+    return (type(error) is TransientTransportError and not hasattr(error,'transport_cleanup_diagnostic')
+        and type(counts) is dict and set(counts)=={'bytes_sent','bytes_received'}
+        and all(type(v) is int and 0<=v<=2**40 for v in counts.values()))
 
 
 def process_failure(code, errors):
@@ -124,8 +136,13 @@ finally:
 REMOTE_GET=r'''
 import base64,hashlib,json,os,stat,sys
 from pathlib import Path
-root,name,size,action=sys.argv[1:];size=int(size)
-if action not in ('get','describe','observe'):raise ValueError('action')
+root,name,size,action,*extra=sys.argv[1:];size=int(size)
+if action not in ('get','describe','observe','range'):raise ValueError('action')
+if action=='range':
+ if len(extra)!=2:raise ValueError('range arguments')
+ offset,length=map(int,extra)
+ if not 0<=offset<size or not 0<length<=16*1024**2 or offset+length>size:raise ValueError('range bounds')
+elif extra:raise ValueError('unexpected arguments')
 if not root.startswith('/') or '..' in Path(root).parts or str(Path(root))!=root or any(x in ('','.','..') for x in name.split('/')):raise ValueError('path')
 path=Path(root)/name;current=Path('/')
 for part in path.parts[1:]:
@@ -136,7 +153,16 @@ if action in ('describe','observe') and not path.exists():
 fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
 with os.fdopen(fd,'rb') as f:
  info=os.fstat(f.fileno())
- if not stat.S_ISREG(info.st_mode) or not 0<=info.st_size<=size or action=='get' and info.st_size!=size:raise ValueError('file length/type')
+ if not stat.S_ISREG(info.st_mode) or not 0<=info.st_size<=size or action in ('get','range') and info.st_size!=size:raise ValueError('file length/type')
+ if action=='range':
+  f.seek(offset);count=0
+  while count<length:
+   data=f.read(min(1024*1024,length-count))
+   if not data:raise ValueError('short range')
+   count+=len(data);sys.stdout.buffer.write(data)
+  after=os.fstat(f.fileno())
+  if (after.st_size,after.st_mtime_ns,after.st_ctime_ns)!=(info.st_size,info.st_mtime_ns,info.st_ctime_ns):raise ValueError('file changed')
+  sys.stdout.buffer.flush();raise SystemExit(0)
  count=0;h=hashlib.sha256();observed=bytearray()
  while True:
   data=f.read(min(1024*1024,size-count+1))
@@ -151,6 +177,12 @@ with os.fdopen(fd,'rb') as f:
  if action=='observe':print(json.dumps({'path':name,'present':True,'bytes':count,'sha256':h.hexdigest(),'data_b64':base64.b64encode(observed).decode()},sort_keys=True,separators=(',',':')))
  sys.stdout.buffer.flush()
 '''
+
+# Large immutable downloads rotate bounded read-only connections. These are
+# operational limits, not new copy/phase/rental deadlines or trust evidence.
+RANGE_BYTES=16*1024**2
+RANGE_SECONDS=90
+RANGE_RETRIES=2
 
 
 def private_file(path,*,maximum=None):
@@ -246,7 +278,10 @@ class Transport:
                             if fatal_diagnostic(errors):raise EvidenceError('SSH authentication or identity failure; diagnostics withheld')
                         else:
                             out_count+=len(data)
-                            if out_count>maximum:raise EvidenceError('SSH transfer output exceeded bound')
+                            if out_count>maximum:
+                                error=EvidenceError('SSH transfer output exceeded bound')
+                                error.transfer_overflow=data
+                                raise error
                             destination.write(data)
                 now=self.monotonic();counts=(in_count,out_count)
                 if progress is not None and counts!=last_counts and now-last_observed>=2:
@@ -262,6 +297,7 @@ class Transport:
             return {'bytes_sent':in_count,'bytes_received':out_count,'process_exit_code':0,'pod_id':self.profile['pod_id'],
                     'endpoint_observation_sha256':self.profile['endpoint_observation_sha256'],'host_key_trust':self.profile['host_key_trust']}
         except Exception as error:
+            error.transfer_counts={'bytes_sent':in_count,'bytes_received':out_count}
             try:
                 from private_transport_diagnostics import bounded_bytes
                 error.transport_diagnostic={'stderr':bounded_bytes(errors),'process_exit_code':process.poll(),
@@ -329,25 +365,109 @@ class Transport:
         return data
 
     def get(self,name,destination,expected,deadline,*,progress=None):
+        try:return self._get(name,destination,expected,deadline,progress=progress)
+        except Exception as error:
+            partial=Path(destination).with_name(Path(destination).name+'.partial')
+            # A fresh snapshot must not discard an observed immutable prefix.
+            # Range retries compare prefixes within the same owned operation.
+            error.immutable_download_bytes=partial.stat().st_size if partial.is_file() and not partial.is_symlink() else None
+            raise
+
+    def _get(self,name,destination,expected,deadline,*,progress=None):
         relative(name);fields(expected,'path bytes sha256','expected transfer');require_digest(expected['sha256'])
         integer(expected['bytes'],0,2**40,'expected transfer size')
+        integer(deadline,1,2**53-1,'transfer deadline')
+        end=self.monotonic()+max(0,deadline-self.wall())
         if expected['path']!=name:raise EvidenceError('transfer path differs from selected inventory')
+        validate(self.profile,self.key,self.known)
+        profile_root=digest(self.profile);selected=dict(expected)
+        selected_key=self.key.resolve();selected_known=self.known.resolve();key_root=file_hash(self.key)
+        def check_selection():
+            if (digest(self.profile)!=profile_root or expected!=selected
+                or self.key.resolve()!=selected_key or self.known.resolve()!=selected_known
+                or file_hash(self.key)!=key_root):raise EvidenceError('immutable download selection changed')
+            validate(self.profile,self.key,self.known)
         destination=Path(destination)
         if destination.exists() or destination.is_symlink():raise EvidenceError('download requires fresh destination')
         partial=destination.with_name(destination.name+'.partial')
         try:fd=os.open(partial,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
         except FileExistsError:raise EvidenceError('preserved partial from a prior attempt; select a fresh destination') from None
         with os.fdopen(fd,'wb') as f:
-            result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],f,expected['bytes'],deadline,progress=progress)
+            if expected['bytes']>RANGE_BYTES:
+                result=self._get_ranges(name,f,partial,expected,deadline,end,progress,check_selection)
+            else:
+                result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],f,expected['bytes'],deadline,progress=progress)
             f.flush();os.fsync(f.fileno())
+        check_selection()
         if result['bytes_received']!=expected['bytes'] or file_hash(partial)!=expected['sha256']:
             raise EvidenceError('downloaded SSH bytes differ; partial preserved')
+        if self.wall()>=deadline or self.monotonic()>=end:raise EvidenceError('download verification exceeded original deadline')
         # An exclusive link avoids replacing a competing caller's destination.
         os.link(partial,destination);partial.unlink()
         dfd=os.open(destination.parent,os.O_RDONLY|os.O_DIRECTORY)
         try:os.fsync(dfd)
         finally:os.close(dfd)
+        if self.wall()>=deadline or self.monotonic()>=end:raise EvidenceError('download installation exceeded original deadline')
         return {**result,'sha256':expected['sha256'],'bytes':expected['bytes'],'scope':'actual selected bytes transferred; no training verification'}
+
+    def _get_ranges(self,name,destination,partial,expected,deadline,end,progress,check_selection):
+        """Retry only failed read-only ranges, never a start/write or old partial.
+
+        Successful ranges are buffered within16MiB then appended once. A failed
+        range's bytes and receipt remain private beside the preserved aggregate
+        partial. Only final complete size/hash verification can install a file.
+        Progress uses logical high-water bytes, so retransmissions earn no extra
+        health credit; actual payload bytes remain separately accounted in receipts.
+        """
+        import io
+        offset=payload=failures=0;attempts=[];last=None;observed_prefix=b''
+        directory=partial.with_name(partial.name+'.ranges')
+        directory.mkdir(mode=0o700)
+        while offset<expected['bytes']:
+            check_selection()
+            left=min(deadline-self.wall(),end-self.monotonic())
+            if left<=0:raise EvidenceError('range recovery exhausted original transfer deadline')
+            length=min(RANGE_BYTES,expected['bytes']-offset)
+            attempt_deadline=min(deadline,int(self.wall()+min(RANGE_SECONDS,left)))
+            if attempt_deadline<=self.wall():raise EvidenceError('insufficient time for another bounded range')
+            data=io.BytesIO();index=len(attempts);completed=False
+            def report(counts):
+                if progress is not None:progress({'bytes_sent':0,'bytes_received':offset+counts['bytes_received']})
+            try:
+                last=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'range',str(offset),str(length)],data,length,attempt_deadline,progress=report)
+                completed=True
+                check_selection()
+                if last['bytes_received']!=length or len(data.getbuffer())!=length:
+                    raise EvidenceError('downloaded SSH range length differs')
+                if data.getvalue()[:len(observed_prefix)]!=observed_prefix:
+                    raise EvidenceError('immutable range returned conflicting bytes')
+            except Exception as error:
+                saved_bytes=data.getvalue()+getattr(error,'transfer_overflow',b'')
+                counts=getattr(error,'transfer_counts',None)
+                if counts is None and completed:counts={k:last[k] for k in ('bytes_sent','bytes_received')}
+                received=counts['bytes_received'] if type(counts) is dict and type(counts.get('bytes_received')) is int else None
+                if received is not None:payload+=received
+                saved=directory/f'attempt-{index:05d}.partial'
+                with saved.open('xb') as f:f.write(saved_bytes);f.flush();os.fsync(f.fileno())
+                saved.chmod(0o600)
+                receipt={'offset':offset,'bytes_requested':length,'bytes_received':received,'saved_bytes':len(saved_bytes),'deadline_epoch':attempt_deadline,'result':'FAILED','error_type':type(error).__name__,'partial_sha256':file_hash(saved)}
+                write_json(directory/f'attempt-{index:05d}.json',receipt);attempts.append(receipt)
+                overlap=min(len(observed_prefix),len(saved_bytes))
+                if observed_prefix[:overlap]!=saved_bytes[:overlap]:
+                    raise EvidenceError('immutable range returned conflicting bytes') from error
+                if not retryable_transport(error):raise
+                if received!=len(saved_bytes):raise EvidenceError('incomplete range payload accounting') from error
+                if len(saved_bytes)>len(observed_prefix):observed_prefix=saved_bytes
+                failures+=1
+                if failures>RANGE_RETRIES:raise RangeRecoveryExhausted('immutable range retry budget exhausted; preserve attempts') from error
+                if min(deadline-self.wall(),end-self.monotonic())<=0:raise
+                continue
+            payload+=length;destination.write(data.getbuffer());destination.flush()
+            receipt={'offset':offset,'bytes_requested':length,'bytes_received':length,'deadline_epoch':attempt_deadline,'result':'TRANSFERRED_NOT_YET_WHOLE_FILE_VERIFIED'}
+            write_json(directory/f'attempt-{index:05d}.json',receipt);attempts.append(receipt)
+            offset+=length;observed_prefix=b''
+        return {**last,'bytes_received':offset,'transferred_payload_bytes':payload,'range_attempts':attempts,
+                'range_policy':{'bytes':RANGE_BYTES,'seconds':RANGE_SECONDS,'maximum_retries':RANGE_RETRIES,'original_deadline_epoch':deadline}}
 
     def put(self,name,source,deadline,*,replace=False,progress=None):
         import io

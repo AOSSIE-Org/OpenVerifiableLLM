@@ -78,3 +78,16 @@ def test_terminal_bounds_rehash_reused_bytes_and_count_actual_uncached_payload(t
     result=m.export(t,'record',tmp_path/'store',tmp_path/'final',int(time.time())+30,maximum_bytes=15,maximum_uncached_bytes=3)
     assert result['bounds']['selected_missing_bytes']==3 and result['reused_paths']==['state']
     assert len(result['files'])==2 and len(result['transfers'])==1
+
+
+def test_final_local_inventory_crossing_deadline_cannot_publish_success(tmp_path,monkeypatch):
+    t,remote,calls,_=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'actual state')
+    now=[time.time()];deadline=int(now[0])+30;t.wall=lambda:now[0]
+    original=m.inventory
+    def late(*args,**kwargs):
+        result=original(*args,**kwargs);now[0]=deadline+1;return result
+    monkeypatch.setattr(m,'inventory',late)
+    with pytest.raises(EvidenceError,match='verification exceeded original deadline'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'final',deadline)
+    assert not(tmp_path/'final/export.json').exists()
+    assert (tmp_path/'final/files/state').read_bytes()==b'actual state'
