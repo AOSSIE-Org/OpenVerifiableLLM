@@ -20,6 +20,8 @@ except ImportError:
 from publish import build_model_card, prepare_publish_dir, publish_huggingface, sign_model_dir  # noqa: E402
 from ovllm import main as ovllm_main  # noqa: E402
 from verifier import (  # noqa: E402
+    EXPECTED_IDENTITY_PREFIX,
+    EXPECTED_IDENTITY_PROVIDER,
     FAIL,
     PASS,
     SKIP,
@@ -100,7 +102,12 @@ class VerifierTests(unittest.TestCase):
                 mock_run.return_value.returncode = 0
                 mock_run.return_value.stdout = "ok"
                 mock_run.return_value.stderr = ""
-                result = check_sigstore_bundle(model_dir, manifest)
+                result = check_sigstore_bundle(
+                    model_dir,
+                    manifest,
+                    expected_identity="person@example.com",
+                    expected_identity_provider="https://accounts.example.com",
+                )
 
             self.assertEqual(result.status, PASS)
             command = mock_run.call_args.args[0]
@@ -130,6 +137,87 @@ class VerifierTests(unittest.TestCase):
                 with patch.dict("os.environ", {"OVLLM_ALLOW_LOCAL_SIGNING": "true"}):
                     code = sign_model_dir(str(model_dir), dry_run=False)
                     self.assertEqual(code, 0)
+
+
+class SigstoreIdentityTests(unittest.TestCase):
+    """The manifest ships inside the artifact, so it must not be able to name
+    its own signer. These cases need a directory and a manifest, not weights."""
+
+    WORKFLOW_IDENTITY = EXPECTED_IDENTITY_PREFIX + "heads/main"
+
+    def _signed_dir(self, tmp, identity, provider=EXPECTED_IDENTITY_PROVIDER):
+        (Path(tmp) / "model.sig").write_bytes(b"bundle")
+        return Path(tmp), {
+            "signature": "model.sig",
+            "sigstore_identity": identity,
+            "sigstore_identity_provider": provider,
+        }
+
+    def _check(self, model_dir, manifest, **kwargs):
+        with patch("verifier.importlib.util.find_spec", return_value=object()):
+            with patch("verifier.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "ok"
+                mock_run.return_value.stderr = ""
+                return check_sigstore_bundle(model_dir, manifest, **kwargs), mock_run
+
+    def test_workflow_identity_is_verified_against_the_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, mock_run = self._check(*self._signed_dir(tmp, self.WORKFLOW_IDENTITY))
+
+            self.assertEqual(result.status, PASS)
+            command = mock_run.call_args.args[0]
+            self.assertIn(self.WORKFLOW_IDENTITY, command)
+            self.assertIn(EXPECTED_IDENTITY_PROVIDER, command)
+
+    def test_self_named_signer_is_red_and_never_reaches_model_signing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            result, mock_run = self._check(*self._signed_dir(tmp, "attacker@example.com"))
+
+            self.assertEqual(result.status, FAIL)
+            self.assertEqual(result.actual, "attacker@example.com")
+            mock_run.assert_not_called()
+
+    def test_self_named_signer_stays_red_under_allow_unsigned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._signed_dir(tmp, "attacker@example.com")
+            result, _ = self._check(*args, allow_unsigned=True)
+
+            self.assertEqual(result.status, FAIL)
+
+    def test_workflow_of_another_repository_is_red(self):
+        forged = (
+            "https://github.com/evil-org/OpenVerifiableLLM"
+            "/.github/workflows/publish-verified-model.yml@refs/heads/main"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            result, _ = self._check(*self._signed_dir(tmp, forged))
+
+            self.assertEqual(result.status, FAIL)
+
+    def test_untrusted_identity_provider_is_red(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._signed_dir(
+                tmp, self.WORKFLOW_IDENTITY, provider="https://accounts.google.com"
+            )
+            result, _ = self._check(*args)
+
+            self.assertEqual(result.status, FAIL)
+            self.assertEqual(result.expected, EXPECTED_IDENTITY_PROVIDER)
+
+    def test_explicit_identity_overrides_the_repository_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self._signed_dir(tmp, "release@fork.example")
+            result, _ = self._check(*args, expected_identity="release@fork.example")
+
+            self.assertEqual(result.status, PASS)
+
+    def test_allow_unsigned_still_skips_a_missing_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(check_sigstore_bundle(Path(tmp), {}).status, FAIL)
+            self.assertEqual(
+                check_sigstore_bundle(Path(tmp), {}, allow_unsigned=True).status, SKIP
+            )
 
 
 class CliErrorHandlingTests(unittest.TestCase):
