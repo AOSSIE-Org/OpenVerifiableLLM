@@ -126,3 +126,53 @@ def test_actual_failed_child_is_reaped_before_retry(tmp_path,monkeypatch):
     t.get('metadata',tmp_path/'download',{'path':'metadata','bytes':3,'sha256':sha256(b'abc')},int(time.time())+30)
     assert len(attempts)==2 and all(p.poll() is not None for p in attempts)
     assert (tmp_path/'download').read_bytes()==b'abc'
+
+
+def test_insufficient_backoff_cannot_reset_allowance_through_snapshot(tmp_path,monkeypatch):
+    from pod_versioned_export import classified_export,require_retryable_checkpoint
+    t,remote,expected,clock,sleeps=fixture(tmp_path,monkeypatch);calls=[];out=tmp_path/'export';out.mkdir()
+    def stream(*a,**kw):
+        calls.append(True);clock[0]=1090 if len(calls)==1 else 1097;raise transient()
+    t.stream=stream
+    with pytest.raises(EvidenceError):
+        classified_export(t,'root',out,1100,None,lambda:t.get(expected['path'],tmp_path/'download',expected,1100))
+    assert len(calls)==2 and sleeps==[2]
+    with pytest.raises(EvidenceError,match='fatal'):require_retryable_checkpoint(t,'root',out,1100,None)
+
+
+@pytest.mark.parametrize('ranged',[False,True])
+def test_rollback_at_stream_entry_keeps_original_monotonic_ceiling(tmp_path,monkeypatch,ranged):
+    from test_payload_inactivity import scheduled
+    t,clock,processes=scheduled(tmp_path,monkeypatch,lambda argv:([],False))
+    if ranged:monkeypatch.setattr(m,'RANGE_BYTES',16)
+    original=t.stream
+    def rollback(*a,**kw):
+        t.wall=lambda:clock[0]-100
+        return original(*a,**kw)
+    t.stream=rollback
+    with pytest.raises(EvidenceError):
+        t.get('state',tmp_path/'download',{'path':'state','bytes':32,'sha256':sha256(b'x'*32)},1050)
+    assert clock[0]<=1050
+    assert all(p.returncode is not None for p in processes) and not(tmp_path/'download').exists()
+
+
+def test_recovered_diagnostics_stay_private_and_not_in_success_receipt(tmp_path,monkeypatch):
+    t,remote,expected,clock,sleeps=fixture(tmp_path,monkeypatch);calls=[]
+    def stream(argv,dest,*a,**kw):
+        calls.append(True)
+        if len(calls)<=2:
+            e=transient();e.transport_diagnostic={'synthetic_attempt':len(calls)};raise e
+        dest.write(b'abc');return {'bytes_sent':0,'bytes_received':3}
+    t.stream=stream;result=t.get(expected['path'],tmp_path/'download',expected,1100)
+    saved=[json.loads(p.read_text()) for p in sorted(tmp_path.glob('download.partial.read-attempts/*.json'))]
+    assert [v['transport_diagnostic'] for v in saved]==[{'synthetic_attempt':1},{'synthetic_attempt':2}]
+    assert 'synthetic_attempt' not in json.dumps(result)
+
+
+@pytest.mark.parametrize('deadline',[True,float('inf'),float('nan'),1000.0])
+def test_invalid_or_expired_monotonic_ceiling_starts_no_child(tmp_path,monkeypatch,deadline):
+    import io
+    from test_payload_inactivity import scheduled
+    t,clock,processes=scheduled(tmp_path,monkeypatch,lambda argv:([],False))
+    with pytest.raises(EvidenceError):t.stream(['/bin/cat','fixture'],io.BytesIO(),1,1100,monotonic_deadline=deadline)
+    assert processes==[]

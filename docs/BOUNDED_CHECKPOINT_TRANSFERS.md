@@ -23,8 +23,11 @@ Small immutable reads may retry twice after positively classified transient
 failures only when both transport counters and the actual retained file show zero
 payload. Backoffs of two and four seconds remain inside the original wall and
 monotonic deadlines. Each retry rechecks the same peer, authentication files and
-selected path, size and hash. Failed-attempt receipts are retained privately.
-Partial payload, failed cleanup or exhaustion cannot reset this allowance through
+selected path, size and hash. Failed-attempt receipts and bounded diagnostics are
+retained privately; success receipts exclude those diagnostics. Small and ranged
+reads pass the original monotonic ceiling directly into each connection, so a
+wall-clock rollback at stream entry cannot reconstruct a longer allowance.
+Partial payload, failed cleanup, insufficient backoff time or exhaustion cannot reset this allowance through
 a fresh snapshot. A successful retry still requires the complete size/hash check;
 it supplies no numerical verification credit.
 
