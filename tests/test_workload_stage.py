@@ -165,11 +165,12 @@ def test_health_recorded_but_unfenced_expired_stage_records_precise_refusal(tmp_
 
 
 def test_partial_export_is_retained_and_one_fresh_retry_can_complete(tmp_path,monkeypatch):
+    from pod_transfer import TransientTransportError
     t,remote,calls,job,root,source,worker_root=staged(tmp_path);original=m.export_tree;failed=[]
     def fail_once(transport,name,output,*a,**k):
         if not failed:
-            output.mkdir();(output/'retained.partial').write_bytes(b'actual selected prefix');failed.append(True)
-            raise EvidenceError('injected interrupted export')
+            output.mkdir();(output/'retained.partial').write_bytes(b'');failed.append(True)
+            error=TransientTransportError('injected interrupted export');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
         return original(transport,name,output,*a,**k)
     monkeypatch.setattr(m,'export_tree',fail_once)
     with Journal(tmp_path/'journal').lease() as j:
@@ -177,23 +178,50 @@ def test_partial_export_is_retained_and_one_fresh_retry_can_complete(tmp_path,mo
         with pytest.raises(EvidenceError,match='interrupted export'):m.run_stage(*args,sleep=lambda _:time.sleep(.05))
         result=m.run_stage(*args)
         assert result['exit']['exit_code']==0
-        assert (tmp_path/'stage/export-000/retained.partial').read_bytes()==b'actual selected prefix'
+        assert (tmp_path/'stage/export-000/retained.partial').read_bytes()==b''
         assert 'export-000-attempt-001' in result['exports'][0]['directory']
         assert len([c for c in calls if ' start ' in c[-1]])==1
 
 
 def test_two_incomplete_export_attempts_are_not_deleted_or_retried_forever(tmp_path,monkeypatch):
+    from pod_transfer import TransientTransportError
     t,remote,calls,job,root,source,worker_root=staged(tmp_path)
     def fail(transport,name,output,*a,**k):
-        output.mkdir();(output/'retained.partial').write_bytes(b'preserved');raise EvidenceError('interrupted export')
+        output.mkdir();(output/'retained.partial').write_bytes(b'')
+        error=TransientTransportError('interrupted export');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
     monkeypatch.setattr(m,'export_tree',fail)
     with Journal(tmp_path/'journal').lease() as j:
         h=Health(j,intent(),t.profile['pod_id']);args=(t,h,job,root,source,worker_root,tmp_path/'stage',tmp_path/'health.json',tmp_path/'stop.json','d'*64)
         for _ in range(2):
             with pytest.raises(EvidenceError,match='interrupted export'):m.run_stage(*args,sleep=lambda _:time.sleep(.05))
         with pytest.raises(EvidenceError,match='retries exhausted'):m.run_stage(*args)
-        for name in ('export-000','export-000-attempt-001'):assert (tmp_path/'stage'/name/'retained.partial').read_bytes()==b'preserved'
+        for name in ('export-000','export-000-attempt-001'):assert (tmp_path/'stage'/name/'retained.partial').read_bytes()==b''
         assert not h.complete
+
+
+@pytest.mark.parametrize('kind',['fatal','missing','partial','cleanup','range-exhausted','changed-binding'])
+def test_terminal_restart_never_reclassifies_unsafe_export_failure(tmp_path,monkeypatch,kind):
+    from pod_transfer import TransientTransportError,RangeRecoveryExhausted
+    t,remote,calls,job,root,source,worker_root=staged(tmp_path);original=m.export_tree;failed=[]
+    def fail(transport,name,output,*args,**kwargs):
+        failed.append(True);output.mkdir();(output/'retained.partial').write_bytes(b'x' if kind=='partial' else b'')
+        error=RangeRecoveryExhausted('synthetic exhausted ranges') if kind=='range-exhausted' else EvidenceError('synthetic fatal export') if kind=='fatal' else TransientTransportError('synthetic connection failure')
+        error.transfer_counts={'bytes_sent':0,'bytes_received':1 if kind=='partial' else 0}
+        if kind=='cleanup':error.transport_cleanup_diagnostic={'exception_class':'PermissionError'}
+        raise error
+    monkeypatch.setattr(m,'export_tree',fail)
+    with Journal(tmp_path/'strict-journal').lease() as j:
+        h=Health(j,intent(),t.profile['pod_id']);args=(t,h,job,root,source,worker_root,tmp_path/'stage',tmp_path/'health.json',tmp_path/'stop.json','d'*64)
+        with pytest.raises(EvidenceError):m.run_stage(*args,sleep=lambda _:time.sleep(.05))
+        path=tmp_path/'stage/export-000/failure.json'
+        if kind=='missing':path.unlink()
+        elif kind=='changed-binding':
+            value=read_json(path);value['binding_sha256']='f'*64;write_json(path,value)
+        monkeypatch.setattr(m,'export_tree',original)
+        with pytest.raises(EvidenceError,match='classification|fatal'):m.run_stage(*args)
+        assert len(failed)==1 and not(tmp_path/'stage/export-000-attempt-001').exists()
+        assert not(tmp_path/'stage/stage-result.json').exists()
+        assert len([c for c in calls if ' start ' in c[-1]])==1
 
 
 @pytest.mark.parametrize('remaining',[30,200])

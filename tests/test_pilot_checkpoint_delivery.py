@@ -127,9 +127,11 @@ def test_changed_requests_or_bad_bytes_never_acknowledged(tmp_path,damage):
 
 
 def test_interrupted_transfer_retains_bytes_and_cannot_renew_deadline(tmp_path):
+    from pod_transfer import TransientTransportError
     t,remote,calls,_=setup(tmp_path);s=selected(t);job=job_for(t,s);q=request_for(remote,s,job);get=t.get
     def broken(name,dest,*a,**k):
-        dest.with_name(dest.name+'.partial').write_bytes(b'partial evidence');raise EvidenceError('interrupted')
+        dest.with_name(dest.name+'.partial').write_bytes(b'')
+        error=TransientTransportError('interrupted');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
     with Journal(tmp_path/'journal').lease() as journal:
         h=Health(journal,intent(),t.profile['pod_id']);hook=hook_for(t,h,job,s,tmp_path);t.get=broken
         with pytest.raises(EvidenceError,match='interrupted'):hook.observe({hook.marker:q})
@@ -152,6 +154,25 @@ def test_lost_ack_response_is_adopted_without_recopy_or_second_export_credit(tmp
         assert len(h.exports)==1 and (remote/'record/delivery/ack-00000.json').exists()
         t.put=put;hook=hook_for(t,h,job,s,tmp_path);before=len(calls);age=h.exported
         assert not hook.observe({hook.marker:q}) and len(calls)==before+1 and h.exported==age
+
+
+@pytest.mark.parametrize('failure',['authentication','identity','integrity','unknown','range-exhausted','missing-classification'])
+def test_restart_cannot_reclassify_a_fatal_or_unknown_checkpoint_failure(tmp_path,failure):
+    from pod_transfer import RangeRecoveryExhausted
+    t,remote,calls,_=setup(tmp_path);s=selected(t);job=job_for(t,s);q=request_for(remote,s,job);original=t.get
+    def broken(name,dest,*a,**k):
+        dest.with_name(dest.name+'.partial').write_bytes(b'private synthetic failure evidence')
+        if failure=='range-exhausted':raise RangeRecoveryExhausted('range retries exhausted')
+        raise EvidenceError(failure)
+    with Journal(tmp_path/'journal').lease() as journal:
+        h=Health(journal,intent(),t.profile['pod_id']);hook=hook_for(t,h,job,s,tmp_path);t.get=broken
+        with pytest.raises(EvidenceError):hook.observe({hook.marker:q})
+        if failure=='missing-classification':(tmp_path/'retention/checkpoint-00000/snapshot-000/failure.json').unlink()
+        t.get=original;hook=hook_for(t,h,job,s,tmp_path);before=len(calls)
+        with pytest.raises(EvidenceError,match='classification|fatal'):hook.observe({hook.marker:q})
+        assert len(calls)==before and not h.exports
+        assert not(tmp_path/'retention/checkpoint-00000/snapshot-001').exists()
+        assert not(remote/'record/delivery/ack-00000.json').exists()
 
 
 @pytest.mark.parametrize('damage',['session','request_sha256','index','state_root','scope'])
