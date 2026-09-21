@@ -199,7 +199,11 @@ def retained_stage(stage,output,profile):
     selected=read_json(output/'derived'/stage['name']/'selection.json')
     job=read_json(output/'derived'/stage['name']/'job.json');root=selected['job_sha256']
     if digest(job)!=root:raise EvidenceError('retained stage descriptor changed')
-    result=saved_result(output/'stages'/stage['name']/'stage-result.json',root)
+    stage_output=output/'stages'/stage['name']
+    if (stage_output/'failure-retention-eligibility.json').exists():
+        from failed_stage_retention import retained
+        result=retained(stage_output,root,profile)
+    else:result=saved_result(stage_output/'stage-result.json',root)
     expected=['jobs/'+root,*[remote_name(SimpleNamespace(profile=profile),p) for p in job['export_roots']]]
     if [e['remote_root'] for e in result['exports']]!=expected:
         raise EvidenceError('retained output roots differ from selected complete stage outputs')
@@ -218,6 +222,8 @@ def retained_stage(stage,output,profile):
 def parent_for(stage,stages,output,transport):
     if stage['parent_stage'] is None:return None
     parent_stage=next(s for s,_ in stages if s['name']==stage['parent_stage'])
+    if (output/'stages'/parent_stage['name']/'dispatch-failure.json').exists():
+        raise EvidenceError('failed dispatcher parent cannot launch a successor')
     previous=retained_stage(parent_stage,output,transport.profile)
     if previous['exit']['state']!='EXITED' or previous['exit']['exit_code']!=0:raise EvidenceError('unsuccessful parent cannot launch replay')
     remote=remote_name(transport,stage['parent_record_root'])
@@ -442,10 +448,14 @@ def run(plan,expected,rental,controller_directory,watchdog_file,transport,inputs
                     failure={'schema':'ovl.sustained-stage-dispatch-failure.v1','job_sha256':job_root,'error_type':type(error).__name__,
                              'scope':'dispatch failed; request owned stage stop and preserve complete terminal outputs'}
                     save_once(failure_path,failure)
+                    from failed_stage_retention import classify
+                    classify(error,failure,transport,stage_output,health.now())
             if failure is not None:
                 from sustained_pilot_abort import stop_and_retain
                 result=stop_and_retain(transport,health,path,job_root,worker,plan['worker_sha256'],stage_output,health_file,stop,
                                       plan['rental_intent_sha256'],sleep=sleep,initial_retention=hook,
+                                      failure_limits={'maximum_bytes':stage['maximum_export_bytes'],'export_seconds':stage['export_reserve_seconds'],
+                                          'maximum_uncached_bytes':hook.selection['maximum_uncached_export_bytes'] if type(hook) is CheckpointRetention else stage['maximum_export_bytes']},
                                       **({} if type(hook) is not CheckpointRetention else {'terminal_limits':{'maximum_bytes':stage['maximum_export_bytes'],
                                           'maximum_uncached_bytes':hook.selection['maximum_uncached_export_bytes']}}))
             checked=retained_stage(stage,output,transport.profile)

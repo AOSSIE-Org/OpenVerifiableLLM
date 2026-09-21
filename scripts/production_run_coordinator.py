@@ -130,6 +130,9 @@ class Run:
     def phase(self,name,plan,expected,inputs,output):
         if name not in self.selection['phases'] or self.selection['phases'][name]!=expected:
             raise EvidenceError('phase differs from original run selection')
+        save_once(self.output/'development-recovery'/f'{name}.json',{
+            'schema':'ovl.development-recovery-selection.v1','run_selection_sha256':self.root,
+            'name':name,'plan':plan,'plan_sha256':expected,'inputs':str(Path(inputs).resolve()),'output':str(Path(output).resolve())})
         initialization=name.startswith('initialization')
         if plan['schema']!=('ovl.initialization-cycle-plan.v2' if initialization else 'ovl.sustained-pilot-plan.v2'):
             raise EvidenceError('phase cannot close the enclosing rental')
@@ -394,6 +397,49 @@ class Run:
             terminal=body['detail']['exit'];job=body['detail']['job_sha256']
             save_once(final/job/('exit.json' if terminal['state']=='EXITED' else 'abandoned.json'),terminal)
 
+    def retain_failed_development(self):
+        """Adopt only a previously fenced failure backup, never rerun a phase."""
+        active=[job for job,item in self.health.jobs.items() if not item['finished']
+                and item['selection']['kind'] not in ('production-record','full-replay')]
+        if not active:return
+        if len(active)!=1:raise EvidenceError('multiple unfinished development jobs')
+        job_root=active[0];matches=[]
+        for name,expected in self.selection['phases'].items():
+            path=self.output/'development-recovery'/f'{name}.json'
+            if not path.exists():continue
+            value=read_json(path)
+            fields(value,'schema run_selection_sha256 name plan plan_sha256 inputs output','development recovery selection')
+            if (value['schema']!='ovl.development-recovery-selection.v1' or value['run_selection_sha256']!=self.root
+                or value['name']!=name or value['plan_sha256']!=expected or digest(value['plan'])!=expected):
+                raise EvidenceError('development recovery selection changed')
+            output=Path(value['output'])
+            if not(output/'selected-plan.json').exists():continue
+            selected=read_json(output/'selected-plan.json')
+            if {**selected,'prior_jobs':[] }!=value['plan']:raise EvidenceError('resolved development plan changed')
+            _,_,stages=development.validate(selected,digest(selected),self.rental,self.control,Path(value['inputs']),self.worker)
+            for stage,_ in stages:
+                derived=output/'derived'/stage['name']
+                if not(derived/'job.json').exists() or digest(read_json(derived/'job.json'))!=job_root:continue
+                stage_output=output/'stages'/stage['name']
+                if not(stage_output/'failure-retention-eligibility.json').exists():continue
+                matches.append((stage,derived/'job.json',stage_output,output))
+        if not matches:return  # No new eligibility or normal-phase re-entry.
+        if len(matches)!=1:raise EvidenceError('ambiguous failed development retention')
+        stage,job_file,stage_output,phase_output=matches[0];job=read_json(job_file)
+        from pilot_retention import InitialRetention
+        from pilot_checkpoint_retention import CheckpointRetention as PilotCheckpoints
+        from sustained_pilot_abort import stop_and_retain
+        policy=stage['retention']
+        if policy is None:raise EvidenceError('failed development retention lacks selected object store')
+        kind=PilotCheckpoints if policy['schema']=='ovl.pilot-checkpoint-retention.v1' else InitialRetention
+        hook=kind(self.control,self.health,job,job_root,policy,phase_output/'initial-retention'/stage['name'],
+                  self.health_file,phase_output/'objects')
+        bounds={'maximum_bytes':stage['maximum_export_bytes'],'export_seconds':stage['export_reserve_seconds'],
+                'maximum_uncached_bytes':policy['maximum_uncached_export_bytes'] if kind is PilotCheckpoints else stage['maximum_export_bytes']}
+        stop_and_retain(self.control,self.health,job_file,job_root,self.worker,self.selection['worker_sha256'],
+            stage_output,self.health_file,self.controller/'stop-request.json',self.selection['rental_intent_sha256'],
+            sleep=self.sleep,initial_retention=hook,failure_limits=bounds)
+
     def abort(self,error_class):
         """Bounded stop and full retention; never a replacement launch."""
         from pod_job_client import job_supervision
@@ -401,6 +447,7 @@ class Run:
         failure=self.output/'failure';failure.mkdir(exist_ok=True)
         save_once(failure/'reason.json',{'schema':'ovl.production-run-failure.v1','run_selection_sha256':self.root,
                   'exception_class':error_class,'scope':'stop and preserve; no production acceptance'})
+        self.retain_failed_development()
         if self.active_stage is not None:
             binding,job_file,job,stage,store=self.active_stage
             if (stage/'launch/launch-intent.json').exists() and not self.health.jobs.get(job,{}).get('finished',False):
