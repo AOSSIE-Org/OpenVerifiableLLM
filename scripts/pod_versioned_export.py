@@ -56,6 +56,8 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
         obj=confined(objects,item['sha256'])
         if obj.exists():retained_object(obj,item);reused.append(item['path'])
         else:
+            if maximum_uncached_bytes==0 or item['sha256'] not in selected_hashes:
+                raise EvidenceError('retained export object disappeared; refuse before transfer')
             if bulk_files is not None:
                 staged=confined(bulk_files,item['path'])
             else:

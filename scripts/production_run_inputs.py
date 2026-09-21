@@ -15,14 +15,21 @@ from sustained_pilot_selection import DEADLINE
 def dollars(value):return format(value.quantize(Decimal('.000001'),rounding=ROUND_CEILING),'f')
 
 
-def registration(template,qualified,initial,rental,now):
+def registration(template,qualified,initial,rental,now,*,construction_seconds=0):
     r=deepcopy(template);plan=rental['watchdog_intent']['plan'];inp=plan['input']
     if not inp['now_epoch']<=now<plan['request_checkpoint_epoch']:raise EvidenceError('registration outside original rental work window')
     r['runtime']['compatible_environment_sha256']=qualified['compatible_environment_sha256']
     r['initialization']={'state_sha256':initial['record']['checkpoint']['state_root'],
                         'regeneration_report_sha256':digest(initial['verification']),
                         'warmup_updates':initial['record']['warmup_updates']}
+    from ovl_pipeline.schema import integer
+    integer(construction_seconds,0,1500,'frozen registration construction exposure')
+    if now+construction_seconds>=plan['request_checkpoint_epoch']:
+        raise EvidenceError('registration construction exceeds original work window')
     rate=Decimal(inp['hourly_upper_usd']);elapsed=Decimal(now-inp['now_epoch'])*rate/3600
+    # Move a bounded prospective construction allowance from fixed remainder
+    # into committed exposure. Total lifetime reservation does not increase.
+    committed_elapsed=elapsed+Decimal(construction_seconds)*rate/3600
     r['pilots']={};phases={}
     for phase,census in r['coverage'].items():
         recorded=qualified['pilot_records'][phase];replayed=qualified['pilot_replays'][phase]
@@ -40,12 +47,12 @@ def registration(template,qualified,initial,rental,now):
           'production_checkpoint_every':r['recovery_every'],
           'production_checkpoints':checkpoint_count(census['updates'],r['recipe']['boundary_every'],r['recovery_every'])}
     base={'schema':'ovl.cost-forecast-input.v3','spent_usd':inp['spent_usd'],
-          'committed_future_usd':dollars(Decimal(inp['outstanding_usd'])+Decimal(inp['reserved_remaining_usd'])+elapsed),
+          'committed_future_usd':dollars(Decimal(inp['outstanding_usd'])+Decimal(inp['reserved_remaining_usd'])+committed_elapsed),
           'hourly_usd':inp['hourly_upper_usd'],'fixed_remaining_usd':'0','phases':phases}
     numerical=forecast(base)
     total_ms=sum(p['remaining_ms_with_margin'] for p in numerical['phases'].values())
     numerical_cost=Decimal(total_ms)*rate/3600000
-    remaining=Decimal(plan['maximum_charge_micro_usd'])/10**6-elapsed
+    remaining=Decimal(plan['maximum_charge_micro_usd'])/10**6-committed_elapsed
     if numerical_cost>remaining:raise EvidenceError('complete training and replay exceed remaining original rental allowance')
     # Reserve the entire original lifetime remainder, including unused work time,
     # setup, publications, export, termination grace and billing slack. This is a
@@ -56,6 +63,7 @@ def registration(template,qualified,initial,rental,now):
     return r,{'schema':'ovl.registration-forecast-envelope.v1','forecast':projected,
               'original_maximum_rental_micro_usd':plan['maximum_charge_micro_usd'],
               'elapsed_upper_usd':dollars(elapsed),'remaining_lifetime_upper_usd':dollars(remaining),
+              'construction_exposure_seconds':construction_seconds,'elapsed_and_construction_upper_usd':dollars(committed_elapsed),
               'scope':'measured pilot rates with required margins, bounded by original whole-rental ceiling; fixed costs not claimed measured'}
 
 
