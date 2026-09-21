@@ -33,6 +33,34 @@ def test_registration_freezes_actual_measurements_with_original_whole_rental_cei
     assert 'not claimed measured' in basis['scope']
 
 
+def test_construction_exposure_is_reallocated_inside_original_ceiling_and_expires():
+    from production_run_coordinator import Run
+    from types import SimpleNamespace
+    r,p,rental,q,initial=fixture();plan=rental['watchdog_intent']['plan'];now=plan['input']['now_epoch']+100
+    plain,old_basis=m.registration(r,q,initial,rental,now)
+    actual,basis=m.registration(r,q,initial,rental,now,construction_seconds=120)
+    assert validate_parents(actual,**p)['result']=='PASS'
+    assert abs(basis['forecast']['projected_total_micro_usd']-old_basis['forecast']['projected_total_micro_usd'])<=3
+    assert Decimal(actual['forecast_input']['fixed_remaining_usd'])<Decimal(plain['forecast_input']['fixed_remaining_usd'])
+    owner=Run.__new__(Run);owner.plan=plan;owner.qualified=q
+    owner.selection={'timing':{'record_seconds':16000,'replay_seconds':16000,
+                              'record_fixed_seconds':300,'replay_fixed_seconds':300,
+                              'publication_policy':{'boundary_seconds':1}}}
+    owner.health=SimpleNamespace(now=lambda:now+1)
+    with pytest.raises(EvidenceError,match='elapsed rental exposure'):owner.forecast_window(plain)
+    assert owner.forecast_window(actual)['result']=='FITS_OPERATING_LIMIT'
+    owner.health.now=lambda:now+121
+    with pytest.raises(EvidenceError,match='elapsed rental exposure'):owner.forecast_window(actual)
+    assert rental['watchdog_intent']['plan']==plan
+
+
+@pytest.mark.parametrize('seconds', [-1, True, 1501, 1.5])
+def test_construction_exposure_is_finite_and_typed(seconds):
+    r,_,rental,q,initial=fixture()
+    with pytest.raises(EvidenceError):
+        m.registration(r,q,initial,rental,rental['watchdog_intent']['plan']['input']['now_epoch'],construction_seconds=seconds)
+
+
 @pytest.mark.parametrize('damage',['expired','wrong-recipe','wrong-code','insufficient-remainder'])
 def test_registration_cannot_relabel_another_configuration_or_exceed_original_allowance(damage):
     r,p,rental,q,initial=fixture();plan=rental['watchdog_intent']['plan'];now=plan['input']['now_epoch']+100
