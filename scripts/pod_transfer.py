@@ -146,7 +146,7 @@ if action not in ('get','describe','observe','range'):raise ValueError('action')
 if action=='range':
  if len(extra)!=2:raise ValueError('range arguments')
  offset,length=map(int,extra)
- if not 0<=offset<size or not 0<length<=16*1024**2 or offset+length>size:raise ValueError('range bounds')
+ if not 0<=offset<size or not 0<length<=64*1024**2 or offset+length>size:raise ValueError('range bounds')
 elif extra:raise ValueError('unexpected arguments')
 if not root.startswith('/') or '..' in Path(root).parts or str(Path(root))!=root or any(x in ('','.','..') for x in name.split('/')):raise ValueError('path')
 path=Path(root)/name;current=Path('/')
@@ -185,7 +185,8 @@ with os.fdopen(fd,'rb') as f:
 
 # Large immutable downloads rotate bounded read-only connections. These are
 # operational limits, not new copy/phase/rental deadlines or trust evidence.
-RANGE_BYTES=16*1024**2
+RANGE_BYTES=64*1024**2
+SMALL_READ_BYTES=16*1024**2
 RANGE_SECONDS=90
 RANGE_RETRIES=2
 
@@ -415,7 +416,7 @@ class Transport:
         try:fd=os.open(partial,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
         except FileExistsError:raise EvidenceError('preserved partial from a prior attempt; select a fresh destination') from None
         with os.fdopen(fd,'wb') as f:
-            if expected['bytes']>RANGE_BYTES:
+            if expected['bytes']>min(SMALL_READ_BYTES,RANGE_BYTES):
                 result=self._get_ranges(name,f,partial,expected,deadline,end,progress,check_selection)
             else:
                 result=self._get_small(name,f,partial,expected,deadline,end,progress,check_selection)
@@ -470,7 +471,7 @@ class Transport:
     def _get_ranges(self,name,destination,partial,expected,deadline,end,progress,check_selection):
         """Retry only failed read-only ranges, never a start/write or old partial.
 
-        Successful ranges are buffered within16MiB then appended once. A failed
+        Successful ranges are buffered within64MiB then appended once. A failed
         range's bytes and receipt remain private beside the preserved aggregate
         partial. Only final complete size/hash verification can install a file.
         Progress uses logical high-water bytes, so retransmissions earn no extra
