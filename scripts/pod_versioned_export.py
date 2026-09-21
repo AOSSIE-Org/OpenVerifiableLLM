@@ -68,7 +68,11 @@ def require_retryable_checkpoint(transport,name,output,deadline,expected_files,m
         raise EvidenceError('checkpoint failure is fatal or belongs to a different selection')
 
 
-def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None,maximum_bytes=None,maximum_uncached_bytes=None):
+def download_operation(profile,item):
+    return digest({'profile_sha256':digest(profile),'immutable_remote_file':item})
+
+
+def export(transport,name,store,output,deadline,*,progress=None,whole_root=False,expected_files=None,maximum_bytes=None,maximum_uncached_bytes=None,allow_bulk=True):
     wall=getattr(transport,'wall',time.time);monotonic=getattr(transport,'monotonic',time.monotonic)
     end=monotonic()+max(0,deadline-wall())
     def check_deadline():
@@ -86,6 +90,14 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
         integer(maximum_uncached_bytes,0,2**40,'remaining uncached export bytes')
         if sum(f['bytes'] for f in files)>maximum_bytes:raise EvidenceError('logical export bound exceeded before transfer')
     prefix='' if whole_root else name+'/'
+    # Retain the selected inventory even when installation of a completed
+    # small file or bulk export is interrupted. A backup cannot forget a
+    # previously selected metadata hash merely because no partial remains.
+    from pod_job_client import save_once
+    selection={'schema':'ovl.preserved-tree-selection.v1','profile_sha256':digest(transport.profile),
+               'files':[{**item,'path':prefix+item['path']} for item in files]}
+    selections=regular_directory(store/'selections')
+    save_once(selections/(digest(selection)+'.json'),selection)
     target=regular_directory(output/'files');objects=regular_directory(store/'objects');incoming=regular_directory(store/'incoming')
     transfers=[];reused=[];missing=[];selected_hashes=set()
     for item in files:
@@ -97,7 +109,7 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
     if maximum_uncached_bytes is not None and missing_bytes>maximum_uncached_bytes:
         raise EvidenceError("uncached export bound exceeded before transfer")
     bulk_files=None
-    if len(missing)>=16:
+    if allow_bulk and len(missing)>=16:
         from pod_bulk_export import receive
         attempt=incoming/uuid.uuid4().hex
         bulk=receive(transport,name,missing,attempt,deadline,progress=progress,whole_root=whole_root)
@@ -112,8 +124,14 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
                 staged=confined(bulk_files,item['path'])
             else:
                 attempt=regular_directory(incoming/uuid.uuid4().hex,fresh=True);staged=attempt/'verified'
+                # Bind preserved partials before receiving any immutable bytes.
+                # Failed-stage retention may compare them, never silently reset
+                # the original qualification export or its retry allowance.
+                write_json(attempt/'download-selection.json',{'schema':'ovl.preserved-download-selection.v1',
+                    'profile_sha256':digest(transport.profile),'expected':{**item,'path':prefix+item['path']},
+                    'deadline_epoch':deadline})
                 transfer=transport.get(prefix+item['path'],staged,{**item,'path':prefix+item['path']},deadline,
-                    progress=None if progress is None else lambda counts,item=item:progress(digest({'profile':digest(transport.profile),'tree':name,'file':item}),counts,item['bytes']))
+                    progress=None if progress is None else lambda counts,item=item:progress(download_operation(transport.profile,{**item,'path':prefix+item['path']}),counts,item['bytes']))
                 transfers.append(transfer)
             retained_object(staged,item);staged.chmod(0o400)
             try:os.link(staged,obj,follow_symlinks=False)

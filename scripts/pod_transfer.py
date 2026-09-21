@@ -239,12 +239,16 @@ class Transport:
             '-o','ServerAliveInterval=10','-o','ServerAliveCountMax=2','root@'+self.profile['host'],
             'exec '+shlex.join(remote_argv)]
 
-    def stream(self,argv,destination,maximum,deadline,*,source=None,source_bytes=None,progress=None):
+    def stream(self,argv,destination,maximum,deadline,*,source=None,source_bytes=None,progress=None,payload_idle_seconds=None):
         integer(maximum,0,2**40,'transfer output bound');integer(deadline,1,2**53-1,'transfer deadline')
+        if payload_idle_seconds is not None:
+            integer(payload_idle_seconds,1,3600,'payload inactivity allowance')
+            if source is not None:raise EvidenceError('payload inactivity applies only to read-only transfers')
         if source is not None:integer(source_bytes,0,2**40,'transfer input bound')
         remaining=deadline-self.wall()
         if remaining<=0:raise EvidenceError('transfer deadline expired')
         end=self.monotonic()+remaining;out_count=in_count=0;errors=bytearray();pending=b'';input_done=source is None
+        last_payload=self.monotonic()
         process=self.popen(self.command(argv),stdin=subprocess.DEVNULL if source is None else subprocess.PIPE,
                            stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,start_new_session=True)
         selector=None
@@ -257,6 +261,7 @@ class Transport:
             last_observed=self.monotonic();last_counts=(0,0)
             while selector.get_map():
                 left=min(end-self.monotonic(),deadline-self.wall())
+                if payload_idle_seconds is not None:left=min(left,last_payload+payload_idle_seconds-self.monotonic())
                 if left<=0:raise deadline_failure(process,errors)
                 for key,events in selector.select(min(1,left)):
                     channel=key.fileobj
@@ -282,11 +287,16 @@ class Transport:
                                 error=EvidenceError('SSH transfer output exceeded bound')
                                 error.transfer_overflow=data
                                 raise error
+                            # Only actual bounded payload renews this local idle
+                            # allowance. The parent deadline never moves; stderr,
+                            # callbacks and duplicate health credit cannot renew it.
+                            last_payload=self.monotonic()
                             destination.write(data)
                 now=self.monotonic();counts=(in_count,out_count)
                 if progress is not None and counts!=last_counts and now-last_observed>=2:
                     progress({'bytes_sent':in_count,'bytes_received':out_count});last_counts=counts;last_observed=now
             left=min(end-self.monotonic(),deadline-self.wall())
+            if payload_idle_seconds is not None:left=min(left,last_payload+payload_idle_seconds-self.monotonic())
             if left<=0:raise deadline_failure(process,errors)
             try:code=process.wait(timeout=left)
             except subprocess.TimeoutExpired:
@@ -294,6 +304,7 @@ class Transport:
             if code!=0:raise process_failure(code,errors)
             if not input_done:raise EvidenceError('SSH transfer input incomplete')
             if progress is not None and (in_count,out_count)!=last_counts:progress({'bytes_sent':in_count,'bytes_received':out_count})
+            if min(end-self.monotonic(),deadline-self.wall())<=0:raise deadline_failure(process,errors)
             return {'bytes_sent':in_count,'bytes_received':out_count,'process_exit_code':0,'pod_id':self.profile['pod_id'],
                     'endpoint_observation_sha256':self.profile['endpoint_observation_sha256'],'host_key_trust':self.profile['host_key_trust']}
         except Exception as error:
@@ -428,13 +439,13 @@ class Transport:
             left=min(deadline-self.wall(),end-self.monotonic())
             if left<=0:raise EvidenceError('range recovery exhausted original transfer deadline')
             length=min(RANGE_BYTES,expected['bytes']-offset)
-            attempt_deadline=min(deadline,int(self.wall()+min(RANGE_SECONDS,left)))
+            attempt_deadline=min(deadline,int(self.wall()+left))
             if attempt_deadline<=self.wall():raise EvidenceError('insufficient time for another bounded range')
             data=io.BytesIO();index=len(attempts);completed=False
             def report(counts):
                 if progress is not None:progress({'bytes_sent':0,'bytes_received':offset+counts['bytes_received']})
             try:
-                last=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'range',str(offset),str(length)],data,length,attempt_deadline,progress=report)
+                last=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'range',str(offset),str(length)],data,length,attempt_deadline,progress=report,payload_idle_seconds=RANGE_SECONDS)
                 completed=True
                 check_selection()
                 if last['bytes_received']!=length or len(data.getbuffer())!=length:
@@ -467,7 +478,7 @@ class Transport:
             write_json(directory/f'attempt-{index:05d}.json',receipt);attempts.append(receipt)
             offset+=length;observed_prefix=b''
         return {**last,'bytes_received':offset,'transferred_payload_bytes':payload,'range_attempts':attempts,
-                'range_policy':{'bytes':RANGE_BYTES,'seconds':RANGE_SECONDS,'maximum_retries':RANGE_RETRIES,'original_deadline_epoch':deadline}}
+                'range_policy':{'bytes':RANGE_BYTES,'payload_idle_seconds':RANGE_SECONDS,'maximum_retries':RANGE_RETRIES,'original_deadline_epoch':deadline}}
 
     def put(self,name,source,deadline,*,replace=False,progress=None):
         import io
