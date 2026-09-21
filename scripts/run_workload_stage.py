@@ -37,6 +37,13 @@ def saved_result(path,job):
     return value
 
 
+def retain_terminal(output,job,value):
+    """The first valid terminal observation remains binding across shutdown."""
+    terminal_status(value,job)
+    save_once(Path(output)/'terminal-observation.json',value)
+    return value
+
+
 def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker,output,health_file,
               stop_file,rental_intent_sha256,*,sleep=time.sleep,initial_retention=None,terminal_limits=None):
     """Resume by pinned identity, export all selected roots, retain exact failures.
@@ -69,6 +76,8 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
     now=health.now();deadline=job['deadline_epoch']
     integer(deadline,health.plan['input']['now_epoch']+1,health.plan['provider_terminate_epoch'],'stage deadline')
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=True)
+    if (output/'failure-retention-eligibility.json').exists():
+        raise EvidenceError('failed stage is fenced for retention only; no normal re-entry')
     stage_file=output/'stage-result.json'
     launch_intent=output/'launch/launch-intent.json'
     if not stage_file.exists() and not launch_intent.exists():
@@ -142,12 +151,12 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
         if supervision['state'] in ('SUPERVISOR_ABSENT','LAUNCH_FENCE_WITHOUT_INTENT'):
             abandoned=job_supervision(transport,expected_job,expected_worker,transfer_deadline(),abandon=True)
             write_json(observation/'abandonment-response.json',abandoned)
-            terminal_status(abandoned,expected_job)
+            retain_terminal(output,expected_job,abandoned)
             exit_value=abandoned;break
         if supervision['state']=='ABANDONED':
-            exit_value=supervision['terminal'];terminal_status(exit_value,expected_job);break
+            exit_value=supervision['terminal'];retain_terminal(output,expected_job,exit_value);break
         if supervision['state']=='EXITED':
-            exit_value=supervision['terminal'];terminal_status(exit_value,expected_job)
+            exit_value=supervision['terminal'];retain_terminal(output,expected_job,exit_value)
             if supervision['child_alive']:raise EvidenceError('terminal record contradicts live workload child')
             # exit.json is durable before the final mutable status write. Wait
             # for the runner to leave, then export even if that write was lost.
@@ -168,6 +177,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
             integer(exit_value['exit_code'],-255,255,'workload exit code')
             if exit_value['schema']!='ovl.workload-job-exit.v1' or exit_value['job_sha256']!=expected_job or exit_value['state']!='EXITED':
                 raise EvidenceError('foreign or malformed workload exit')
+            retain_terminal(output,expected_job,exit_value)
             failure=bundle[job_root+'/failure.json']
             if status is not None and type(status) is not dict:raise EvidenceError('invalid workload status object')
             if (status is not None and status.get('job_sha256')==expected_job and status.get('state')=='EXITED') or failure is not None:

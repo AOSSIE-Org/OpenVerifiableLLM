@@ -102,9 +102,11 @@ def test_range_policy_limitations_do_not_grant_success(tmp_path,monkeypatch,faul
     def modeled(argv,dest,maximum,deadline,**kwargs):
         ranged=argv[-3]=='range';offset=int(argv[-2]) if ranged else 0
         required=95+maximum/64 if fault=='slow-start' else maximum*20
-        available=deadline-clock[0];attempts.append((ranged,deadline))
+        # This model produces no payload until completion, so inactivity can
+        # expire first. Productive streaming is tested through actual stream().
+        available=min(deadline-clock[0],kwargs.get('payload_idle_seconds',deadline-clock[0]));attempts.append((ranged,deadline))
         if required>available:
-            clock[0]=deadline
+            clock[0]+=available
             error=m.TransientTransportError('synthetic policy model timeout')
             error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
         clock[0]+=required;dest.write(data[offset:offset+maximum])
