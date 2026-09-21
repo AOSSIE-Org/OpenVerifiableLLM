@@ -19,6 +19,15 @@ failed attempts must agree. Failed bytes and receipts remain unverified private
 evidence; only complete length and SHA-256 verification can install a download.
 Uploads and workload starts are not retried by this mechanism.
 
+Small immutable reads may retry twice after positively classified transient
+failures only when both transport counters and the actual retained file show zero
+payload. Backoffs of two and four seconds remain inside the original wall and
+monotonic deadlines. Each retry rechecks the same peer, authentication files and
+selected path, size and hash. Failed-attempt receipts are retained privately.
+Partial payload, failed cleanup or exhaustion cannot reset this allowance through
+a fresh snapshot. A successful retry still requires the complete size/hash check;
+it supplies no numerical verification credit.
+
 Progress reports logical file offsets to the durable health journal. Repeated
 prefixes cannot earn additional progress after a retry or controller restart.
 Attempt receipts separately count received application payload, including repeated

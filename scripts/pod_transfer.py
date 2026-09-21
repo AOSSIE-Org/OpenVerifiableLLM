@@ -29,6 +29,10 @@ class RangeRecoveryExhausted(EvidenceError):
     """The finite range retry budget cannot be reset by snapshot re-entry."""
 
 
+class SmallReadRecoveryExhausted(EvidenceError):
+    """A zero-payload read exhausted its allowance; snapshot re-entry is fatal."""
+
+
 def retryable_transport(error):
     """A cleanup failure or missing actual counters cannot authorize a retry."""
     counts=getattr(error,'transfer_counts',None)
@@ -407,7 +411,7 @@ class Transport:
             if expected['bytes']>RANGE_BYTES:
                 result=self._get_ranges(name,f,partial,expected,deadline,end,progress,check_selection)
             else:
-                result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],f,expected['bytes'],deadline,progress=progress)
+                result=self._get_small(name,f,partial,expected,deadline,end,progress,check_selection)
             f.flush();os.fsync(f.fileno())
         check_selection()
         if result['bytes_received']!=expected['bytes'] or file_hash(partial)!=expected['sha256']:
@@ -420,6 +424,39 @@ class Transport:
         finally:os.close(dfd)
         if self.wall()>=deadline or self.monotonic()>=end:raise EvidenceError('download installation exceeded original deadline')
         return {**result,'sha256':expected['sha256'],'bytes':expected['bytes'],'scope':'actual selected bytes transferred; no training verification'}
+
+    def _get_small(self,name,destination,partial,expected,deadline,end,progress,check_selection):
+        # Retrying only a positively classified zero-byte read cannot discard a
+        # selected immutable prefix. Writes, unknown errors and partial reads
+        # still fail immediately. The caller's original deadlines are binding.
+        failures=[]
+        while True:
+            check_selection()
+            left=min(deadline-self.wall(),end-self.monotonic())
+            if left<=0:raise EvidenceError('small read exhausted original transfer deadline')
+            attempt_deadline=min(deadline,int(self.wall()+left))
+            if attempt_deadline<=self.wall():raise EvidenceError('insufficient time for another bounded read')
+            try:
+                result=self.stream(['/usr/bin/python3','-c',REMOTE_GET,self.profile['remote_root'],name,str(expected['bytes']),'get'],destination,expected['bytes'],attempt_deadline,progress=progress)
+            except Exception as error:
+                if not (retryable_transport(error) and error.transfer_counts=={'bytes_sent':0,'bytes_received':0}
+                        and destination.tell()==0 and os.fstat(destination.fileno()).st_size==0
+                        and not getattr(error,'transfer_overflow',b'')):
+                    raise
+                check_selection()
+                failures.append({'attempt':len(failures),'deadline_epoch':attempt_deadline,
+                    'error_type':type(error).__name__,'bytes_received':0,'bytes_sent':0})
+                saved=partial.with_name(partial.name+'.read-attempts')
+                saved.mkdir(mode=0o700,exist_ok=True)
+                write_json(saved/f'failure-{len(failures):03d}.json',failures[-1])
+                if len(failures)>2:
+                    raise SmallReadRecoveryExhausted('immutable small read retry budget exhausted; preserve attempts') from error
+                delay=2**len(failures)
+                if min(deadline-self.wall(),end-self.monotonic())<=delay:raise
+                time.sleep(delay)
+                continue
+            return {**result,'zero_payload_read_failures':failures,
+                    'small_read_policy':{'maximum_retries':2,'original_deadline_epoch':deadline}}
 
     def _get_ranges(self,name,destination,partial,expected,deadline,end,progress,check_selection):
         """Retry only failed read-only ranges, never a start/write or old partial.
