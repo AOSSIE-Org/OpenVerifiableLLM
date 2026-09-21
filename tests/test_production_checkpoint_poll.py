@@ -59,21 +59,22 @@ def test_invalid_observation_or_recovery_never_renews_export(prepared,tmp_path,d
 
 
 def test_observed_copy_failure_has_one_preserved_retry_and_never_new_deadline(prepared,tmp_path,monkeypatch):
+    from pod_transfer import TransientTransportError
     control,t,job,root,worker,r,bindings=bound(prepared,tmp_path)
     with Journal(tmp_path/'health').lease() as journal:
         h=ProductionHealth(journal,intent(),control.profile['pod_id'],r,bindings)
         h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':h.pod,'kind':'production-record'})
         hook=m.CheckpointRetention(r,root,h,tmp_path/'health.json',t,tmp_path/'objects',tmp_path/'poll',policy())
-        original=live.export
-        def fail(*args,**kw):
-            out=Path(args[3]);out.mkdir();(out/'partial').write_bytes(b'preserved')
-            raise EvidenceError('explicit copy interruption')
-        monkeypatch.setattr(live,'export',fail)
+        original=t.get;partials=[]
+        def fail(name,destination,*args,**kw):
+            partial=destination.with_name(destination.name+'.partial');partial.write_bytes(b'');partials.append(partial)
+            error=TransientTransportError('explicit copy interruption');error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
+        monkeypatch.setattr(t,'get',fail)
         with pytest.raises(EvidenceError):hook.poll()
         selected=next((tmp_path/'poll/checkpoints').iterdir());old=read_json(selected/'copy-intent.json')
-        monkeypatch.setattr(live,'export',original);a=hook.poll()
+        monkeypatch.setattr(t,'get',original);a=hook.poll()
         assert read_json(selected/'copy-intent.json')==old
-        assert (selected/'retained/snapshot-000/partial').read_bytes()==b'preserved'
+        assert len(partials)==1 and partials[0].read_bytes()==b''
         assert 'snapshot-001' in a['retention']['receipt_path']
 
 
