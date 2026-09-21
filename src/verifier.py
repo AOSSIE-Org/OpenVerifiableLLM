@@ -223,14 +223,15 @@ def check_sigstore_bundle(
     # Resolve symlinks for the specific signature file path
     signature_path = signature_path.resolve()
 
+    # A bundle that is present but carries no usable signer metadata is red:
+    # --allow-unsigned covers an artifact that was never signed, nothing more.
     identity = manifest.get("sigstore_identity")
     provider = manifest.get("sigstore_identity_provider")
-    if not identity or not provider:
-        status = SKIP if allow_unsigned else FAIL
+    if not all(isinstance(field, str) and field for field in (identity, provider)):
         return CheckResult(
             "sigstore_bundle",
-            status,
-            "signature present, but manifest lacks sigstore_identity/provider",
+            FAIL,
+            "signature present, but manifest lacks a usable sigstore_identity/provider",
         )
 
     # A signature from the wrong signer is red even under --allow-unsigned,

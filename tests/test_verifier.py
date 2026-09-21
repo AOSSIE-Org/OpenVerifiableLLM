@@ -212,6 +212,24 @@ class SigstoreIdentityTests(unittest.TestCase):
 
             self.assertEqual(result.status, PASS)
 
+    def test_bundle_without_signer_metadata_is_red_even_when_unsigned_is_allowed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "model.sig").write_bytes(b"bundle")
+            manifest = {"signature": "model.sig"}
+
+            result = check_sigstore_bundle(Path(tmp), manifest, allow_unsigned=True)
+
+            self.assertEqual(result.status, FAIL)
+
+    def test_malformed_signer_identity_is_red_rather_than_raising(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, manifest = self._signed_dir(tmp, self.WORKFLOW_IDENTITY)
+            manifest["sigstore_identity"] = 12345
+
+            result = check_sigstore_bundle(Path(tmp), manifest)
+
+            self.assertEqual(result.status, FAIL)
+
     def test_allow_unsigned_still_skips_a_missing_bundle(self):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(check_sigstore_bundle(Path(tmp), {}).status, FAIL)
