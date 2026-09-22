@@ -54,6 +54,7 @@ def process_failure(code, errors):
         rb'(?:(?:kex|ssh)_exchange_identification: (?:read: )?)?connection (?:reset(?: by peer)?|closed(?: by remote host)?)',
         rb'connection (?:reset|closed) by [0-9.]+ port [0-9]+',
         rb'connection to [0-9.]+ closed by remote host\.',
+        rb'timeout, server [0-9.]+ not responding\.',
     )
     lines = [line.strip().lower() for line in bytes(errors).splitlines() if line.strip()]
     if code == 255 and lines and all(any(re.fullmatch(p,line) for p in patterns) for line in lines):
@@ -86,7 +87,10 @@ def deadline_failure(process,errors):
     if code is not None:
         if code==0:return EvidenceError('SSH process completed outside transfer deadline; diagnostics withheld')
         return process_failure(code,errors)
-    if errors:return process_failure(255,errors)
+    if errors:
+        if not errors.endswith(b'\n'):
+            return EvidenceError('incomplete SSH diagnostic at deadline; diagnostics withheld')
+        return process_failure(255,errors)
     return TransientTransportError('transfer deadline reached; rental deadline is unchanged')
 
 # This receives only a fixed root, confined relative path, length/hash and an
@@ -234,10 +238,10 @@ class Transport:
 
     def command(self,remote_argv):
         validate(self.profile,self.key,self.known)
-        # Quiet mode also suppresses the errors used by process_failure. Keep
-        # error diagnostics in the bounded private stderr buffer; never print
+        # OpenSSH logs server-alive expiry at INFO, so ERROR hides the reason
+        # for exit255. Keep diagnostics in the bounded private buffer; never print
         # them or broaden the closed retry classification.
-        return ['ssh','-F','/dev/null','-T','-o','LogLevel=ERROR','-i',str(self.key.resolve()),'-p',str(self.profile['port']),
+        return ['ssh','-F','/dev/null','-T','-o','LogLevel=INFO','-i',str(self.key.resolve()),'-p',str(self.profile['port']),
             '-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','IdentityAgent=none','-o','ForwardAgent=no',
             '-o','ClearAllForwardings=yes','-o','ControlMaster=no','-o','ControlPath=none',
             '-o','StrictHostKeyChecking=yes','-o','UserKnownHostsFile='+str(self.known.resolve()),
@@ -288,7 +292,10 @@ class Transport:
                     else:
                         try:data=os.read(channel.fileno(),1024*1024)
                         except BlockingIOError:continue
-                        if not data:selector.unregister(channel);channel.close();continue
+                        if not data:
+                            if key.data=='error' and fatal_diagnostic(errors+b'\n'):
+                                raise EvidenceError('SSH authentication or identity failure; diagnostics withheld')
+                            selector.unregister(channel);channel.close();continue
                         if key.data=='error':
                             errors.extend(data)
                             if len(errors)>65536:raise EvidenceError('SSH diagnostics exceeded bound')
