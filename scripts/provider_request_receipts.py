@@ -143,9 +143,13 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('intent','journal','watchdog-heartbeat','workload-health','private-responses','diagnostics'):
         p.add_argument('--'+name,type=Path,required=True)
-    p.add_argument('--intent-sha256',required=True);a=p.parse_args()
+    p.add_argument('--intent-sha256',required=True)
+    p.add_argument('--local-storage-budget',type=Path);p.add_argument('--local-storage-budget-sha256');a=p.parse_args()
+    from local_storage import Budget
+    if (a.local_storage_budget is None)!=(a.local_storage_budget_sha256 is None):p.error('both local storage arguments required')
+    budget=None if a.local_storage_budget is None else Budget(a.local_storage_budget,a.local_storage_budget_sha256)
     recorder=Recorder(a.private_responses,a.diagnostics)
-    run_guarded(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health,provider_request=recorder)
+    run_guarded(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health,provider_request=recorder,storage_budget=budget)
 
 
 if __name__=='__main__':main()
