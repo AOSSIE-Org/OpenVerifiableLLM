@@ -28,7 +28,7 @@ this helper freezes only declared substitutions and complete parent required fil
     if parent_kind not in parent_schemas:raise EvidenceError('unsupported selected development parent kind')
     fields(stage,'name template_sha256 work_seconds export_reserve_seconds parent_record_root','sustained stage selection')
     if digest(template)!=stage['template_sha256']:raise EvidenceError('selected sustained template differs')
-    maximum_work=2100 if parent_kind=='pilot' and template.get('kind')=='pilot' else 1500
+    maximum_work=2700 if parent_kind=='pilot' and template.get('kind')=='pilot' else 1500
     integer(stage['work_seconds'],1,maximum_work,'sustained stage work bound')
     integer(stage['export_reserve_seconds'],60,1800,'sustained final export reserve')
     if template.get('deadline_epoch')!=DEADLINE:raise EvidenceError('template must request one original selected deadline')

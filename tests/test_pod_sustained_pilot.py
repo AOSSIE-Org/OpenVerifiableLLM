@@ -25,17 +25,22 @@ def audited(config,expected,inputs,runtime,output,module,arguments):
 ''')
     config=tmp_path/'config.json';config.write_text('{}')
     inputs=tmp_path/'inputs';inputs.mkdir();runtime=tmp_path/'runtime';runtime.mkdir();control=tmp_path/'control'
-    sha=hashlib.sha256(helper.read_bytes()).hexdigest();deadline=int(time.time())+30
+    sha=hashlib.sha256(helper.read_bytes()).hexdigest();selected_now=int(time.time());deadline=selected_now+30
     if change=='helper':sha='f'*64
     elif change=='deadline':deadline=int(time.time())-1
-    elif change=='measured-window':deadline=int(time.time())+2100
-    elif change=='excess-window':deadline=int(time.time())+2102
+    elif change=='measured-window':deadline=selected_now+2700
+    elif change=='excess-window':deadline=selected_now+2701
     elif change=='existing':control.mkdir()
     args=['record','--seconds','600','--output',str(tmp_path/'numerical')]
     if change=='action':args[0]='setup'
     cmd=[sys.executable,'-I','-S',str(SCRIPT),'--setup-script',str(helper),'--setup-sha256',sha,
          '--config',str(config),'--config-sha256',hashlib.sha256(config.read_bytes()).hexdigest(),'--inputs',str(inputs),
          '--runtime',str(runtime),'--control',str(control),'--deadline',str(deadline),'--',*args]
+    if change in ('measured-window','excess-window'):
+        # Freeze only this isolated test's wall clock so process scheduling cannot
+        # move an exact boundary into the allowed window before validation.
+        wrapper='import runpy,sys,time;time.time=lambda:'+str(selected_now)+';sys.argv=sys.argv[1:];runpy.run_path(sys.argv[0],run_name="__main__")'
+        cmd=[sys.executable,'-I','-S','-c',wrapper,*cmd[3:]]
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','OVL_ACTIVITY_FILE':str(control/'activity.json')}
     if change=='activity':env['OVL_ACTIVITY_FILE']=str(tmp_path/'foreign/activity.json')
     result=subprocess.run(cmd,env=env,capture_output=True,text=True,timeout=20)

@@ -33,6 +33,8 @@ def run_delivery(tmp_path, allowance, job_deadline, elapsed, *, corrupt=False):
 @pytest.mark.parametrize('allowance,elapsed,passes', [
     (420, 530, False), (660, 530, True), (660, 659, True),
     (660, 660, False), (420, 420, False),
+    (660, 850, False), (1200, 850, True), (1200, 1199, True),
+    (1200, 1200, False),
 ])
 def test_measured_slow_copy_requires_prospective_allowance(tmp_path, allowance, elapsed, passes):
     sender, output, checkpoint, control = run_delivery(tmp_path, allowance, 2000, elapsed)
@@ -50,7 +52,7 @@ def test_measured_slow_copy_requires_prospective_allowance(tmp_path, allowance, 
 
 
 def test_larger_allowance_cannot_outlive_original_job(tmp_path):
-    sender, output, checkpoint, control = run_delivery(tmp_path, 660, 500, 400)
+    sender, output, checkpoint, control = run_delivery(tmp_path, 1200, 500, 400)
     with pytest.raises(EvidenceError, match='deadline expired'):
         sender.checkpoint('boundary-00000', checkpoint, control)
     assert read_json(output / 'delivery/request.json')['copy_deadline_epoch'] == 500
@@ -58,13 +60,13 @@ def test_larger_allowance_cannot_outlive_original_job(tmp_path):
 
 
 def test_longer_window_still_rejects_wrong_state_ack(tmp_path):
-    sender, _, checkpoint, control = run_delivery(tmp_path, 660, 2000, 530, corrupt=True)
+    sender, _, checkpoint, control = run_delivery(tmp_path, 1200, 2000, 850, corrupt=True)
     with pytest.raises(EvidenceError, match='acknowledgement'):
         sender.checkpoint('boundary-00000', checkpoint, control)
     assert sender.index == 0
 
 
-@pytest.mark.parametrize('allowance', [29, 661, 900, True, '660', 660.0])
+@pytest.mark.parametrize('allowance', [29, 1201, 1800, True, '1200', 1200.0])
 def test_copy_allowance_remains_bounded_and_integral(tmp_path, allowance):
     with pytest.raises(EvidenceError):
         run_delivery(tmp_path, allowance, 2000, 530)
