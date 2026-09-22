@@ -199,20 +199,27 @@ def test_worker_times_out_without_renewing_request(tmp_path):
     assert read_json(out/'delivery/request.json')['copy_deadline_epoch']==130 and sender.index==0
 
 
-def test_detached_stage_waits_for_checked_ack_and_bounded_terminal_export(tmp_path):
+@pytest.mark.parametrize('work_seconds',[240,2700])
+def test_detached_stage_waits_for_checked_ack_and_bounded_terminal_export(tmp_path,work_seconds):
     from test_workload_stage import staged
     from ovl_pipeline.canonical import file_hash
     import run_workload_stage as stages
     t,remote,calls,job_file,_,worker,worker_root=staged(tmp_path)
     s=selected(t);job=read_json(job_file);flags=job_for(t,s)
+    flags['deadline_epoch']=int(time.time())+work_seconds
+    flags['argv'][flags['argv'].index('--delivery-deadline')+1]=str(flags['deadline_epoch'])
     job.update(deadline_epoch=flags['deadline_epoch'],export_roots=flags['export_roots'])
     script=Path(job['argv'][1]);job['argv']+=flags['argv'][1:]
     q=request_for(remote,s,job)
     delivery=remote/'record/delivery';delivery.mkdir();write_json(delivery/'request.json',q)
     script.write_text('from pathlib import Path\nimport time\np=Path('+repr(str(delivery/'ack-00000.json'))+')\nwhile not p.exists():time.sleep(.01)\nprint("acknowledged checkpoint; complete terminal log",flush=True)\n')
     job['required_files'][-1].update(bytes=script.stat().st_size,sha256=file_hash(script));write_json(job_file,job)
+    from datetime import datetime,timezone
+    from ovl_pipeline.supervision import rental_plan
+    w=intent();w['plan']=rental_plan({**w['plan']['input'],'maximum_seconds':7200})
+    w['payload']['terminateAfter']=datetime.fromtimestamp(w['plan']['provider_terminate_epoch'],timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
     with Journal(tmp_path/'journal').lease() as journal:
-        h=Health(journal,intent(),t.profile['pod_id']);hook=hook_for(t,h,job,s,tmp_path)
+        h=Health(journal,w,t.profile['pod_id']);hook=hook_for(t,h,job,s,tmp_path)
         kwargs={'sleep':lambda _:time.sleep(.02),'initial_retention':hook,
                 'terminal_limits':{'maximum_bytes':20*1024**2,'maximum_uncached_bytes':1024**2}}
         result=stages.run_stage(t,h,job_file,digest(job),worker,worker_root,tmp_path/'stage',tmp_path/'health.json',tmp_path/'stop','d'*64,**kwargs)
@@ -226,7 +233,7 @@ def test_detached_stage_waits_for_checked_ack_and_bounded_terminal_export(tmp_pa
         assert len(calls)==before
 
 
-@pytest.mark.parametrize('damage',[None,'command','binding','copy-reserve','uncached-bound','phase-duration'])
+@pytest.mark.parametrize('damage',[None,'long-valid','command','binding','copy-reserve','uncached-bound','phase-duration'])
 def test_delivery_plan_admission_preserves_timing_and_parent_requirements(tmp_path,damage):
     from test_sustained_pilot_dispatch import fixture
     from sustained_pilot_selection import DEADLINE
@@ -242,10 +249,17 @@ def test_delivery_plan_admission_preserves_timing_and_parent_requirements(tmp_pa
     elif damage=='binding':stage['parent_binding']={**s['binding'],'recipe_sha256':'d'*64}
     elif damage=='copy-reserve':s['copy_timeout_seconds']=30;job['argv'][job['argv'].index('--delivery-timeout')+1]='30'
     elif damage=='uncached-bound':s['maximum_uncached_export_bytes']=stage['maximum_export_bytes']+1
-    elif damage=='phase-duration':stage['work_seconds']=2101
+    elif damage in ('long-valid','phase-duration'):
+        from datetime import datetime,timezone
+        from ovl_pipeline.supervision import rental_plan
+        w=rental['watchdog_intent'];w['plan']=rental_plan({**w['plan']['input'],'maximum_seconds':7200})
+        stamp=datetime.fromtimestamp(w['plan']['provider_terminate_epoch'],timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        w['payload']['terminateAfter']=rental['payload']['terminateAfter']=stamp
+        plan['rental_intent_sha256']=digest(rental)
+        stage['work_seconds']=2700 if damage=='long-valid' else 2701
     write_json(path,job);stage['template_sha256']=digest(job)
     worker=Path(__file__).parents[1]/'scripts/pod_job_worker.py'
-    if damage is None:assert runner.validate(plan,digest(plan),rental,t,tmp_path,worker)[2][0][0]==stage
+    if damage in (None,'long-valid'):assert runner.validate(plan,digest(plan),rental,t,tmp_path,worker)[2][0][0]==stage
     else:
         with pytest.raises(EvidenceError):runner.validate(plan,digest(plan),rental,t,tmp_path,worker)
     assert not calls

@@ -28,8 +28,8 @@ def audited(config,expected,inputs,runtime,output,module,arguments):
     sha=hashlib.sha256(helper.read_bytes()).hexdigest();deadline=int(time.time())+30
     if change=='helper':sha='f'*64
     elif change=='deadline':deadline=int(time.time())-1
-    elif change=='measured-window':deadline=int(time.time())+2100
-    elif change=='excess-window':deadline=int(time.time())+2102
+    elif change=='measured-window':deadline=int(time.time())+2700
+    elif change=='excess-window':deadline=int(time.time())+2702
     elif change=='existing':control.mkdir()
     args=['record','--seconds','600','--output',str(tmp_path/'numerical')]
     if change=='action':args[0]='setup'
