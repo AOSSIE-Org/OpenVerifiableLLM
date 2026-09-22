@@ -13,7 +13,7 @@ reconstruction, safe checkpoints, continuous two-phase replay and export/inferen
 Production training and public trust gates remain pending. The existing
 artifact verifier and sampled replay do not yet satisfy its full reconstruction and
 continuous replay requirements. The goal requires a public trail from source data
-through the published base and conversational models, within a US$100 RunPod cap.
+through the published base and conversational models, within a US$130 RunPod cap.
 
 **One-command verification for small open model artifacts.**
 

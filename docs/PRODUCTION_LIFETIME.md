@@ -78,7 +78,9 @@ candidate is kept only if measured record-plus-replay rates, complete corpus
 counts and setup times clear all pinned minimum percentage, absolute saving and
 qualification-payback thresholds. Estimates have no runtime/price margins;
 production admission separately retains the slower-rate forecast, mandatory 25%
-runtime margin, full rental envelope, $90 stop and $10 reserve. Both decisions
+runtime margin, full rental envelope, $120 stop and $10 reserve within the $130
+aggregate cap. These limits apply to new selections from this source revision;
+historical runs retain their original pinned policy and issued deadlines. Both decisions
 are immutable and adopted on restart. Tests and operator timings cannot confer
 independent verification or authorize a production update.
 

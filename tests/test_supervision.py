@@ -33,11 +33,11 @@ def test_absolute_deadline_charges_setup_billing_slack_and_reserves():
     assert p["request_checkpoint_epoch"] == 1800003000
     assert p["billing_ceiling_epoch"] == 1800003900
     assert p["execution_admission"] == "NOT_RUN" and p["provider_guard"] == "NOT_RUN"
-    v = plan_input();v.update(spent_usd="29", maximum_seconds=100000)
+    v = plan_input();v.update(spent_usd="59", maximum_seconds=100000)
     p = rental_plan(v)
     assert p["maximum_charge_micro_usd"] == 1_000_000
     assert p["provider_terminate_epoch"] == 1800002700
-    v["spent_usd"] = "29.999"
+    v["spent_usd"] = "59.999"
     with pytest.raises(EvidenceError, match="remaining funds"):rental_plan(v)
 
 
@@ -60,7 +60,7 @@ def test_continue_is_policy_only_and_unrelated_pods_are_not_targeted():
     ({"last_checkpoint_epoch": 1799998000}, "missing-recent-durable-checkpoint"),
     ({"hourly_usd": "1.200001"}, "quote-upper-bound-exceeded"),
     ({"reserved_remaining_usd": "59.99"}, "reservation-regressed"),
-    ({"actual_project_spend_usd": "30"}, "operating-budget-guard"),
+    ({"actual_project_spend_usd": "60"}, "operating-budget-guard"),
     ({"account_balance_usd": "70"}, "account-balance-insufficient-for-reserved-work"),
     ({"now_epoch": 1800003000}, "checkpoint-deadline"),
 ])
@@ -176,7 +176,7 @@ def test_revised_guard_charges_grace_separately_from_billing_slack():
     assert p['maximum_charge_micro_usd']==1_340_000
     assert p['automatic_provider_termination']=='UNVERIFIED'
     assert p['external_watchdog']=='NOT_RUN'
-    tight={**revised_plan_input(),'spent_usd':'29','maximum_seconds':100000}
+    tight={**revised_plan_input(),'spent_usd':'59','maximum_seconds':100000}
     bounded=rental_plan(tight)
     assert bounded['provider_terminate_epoch']==1800002580  # 120s earlier than v1
     assert bounded['maximum_charge_micro_usd']==1_000_000
@@ -210,3 +210,14 @@ def test_revised_external_deadline_terminates_even_with_stale_observation():
     assert r['action']=='TERMINATE' and 'external-termination-deadline' in r['reasons']
     assert r['automatic_provider_termination']=='UNVERIFIED'
     assert r['provider_mutation']=='NOT_RUN'
+
+
+@pytest.mark.parametrize('spent,action',[('59.659999','CONTINUE'),('59.66','CHECKPOINT_AND_STOP'),('59.660001','CHECKPOINT_AND_STOP')])
+def test_operating_stop_includes_shutdown_grace_slack_and_prior_reserves(spent,action):
+    p=rental_plan(revised_plan_input());v=revised_observation(p)
+    # 600s shutdown +120s external grace +300s billing slack at1.2/h =0.34USD.
+    v['actual_project_spend_usd']=spent
+    result=observe(p,v)
+    assert result['action']==action
+    assert ('operating-budget-guard' in result['reasons'])==(action!='CONTINUE')
+    assert p['protected_reserve_micro_usd']==10_000_000

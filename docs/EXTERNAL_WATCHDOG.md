@@ -3,8 +3,9 @@
 The revised operating policy requests `terminateAfter`, maintains
 an external watchdog and explicitly terminate a still-running pod at deadline +
 120 seconds; verify absence and reconcile actual charges including grace.
-Automatic provider termination remains **UNVERIFIED**. The existing $100 aggregate
-cap, $90 operating threshold, $10 protected reserve and one-GPU limit remain.
+Automatic provider termination remains **UNVERIFIED**. New selections use a $130
+aggregate cap, $120 operating threshold, $10 protected reserve and one-GPU limit.
+Historical selections retain their original pinned source and deadlines.
 Operator authorization records are private; public reports describe the technical
 policy and observed behavior without publishing personal conversations.
 
