@@ -35,6 +35,6 @@ def test_wrong_parents_cannot_create_a_registration_packet(tmp_path,damage):
     elif damage=='initial-state':initial['verification']['initial_state_sha256']='0'*64
     elif damage=='incomplete-replay':q['pilot_replays']['conversation']['updates_recomputed']-=1
     elif damage=='source-bundle':write_json(bundle,{'other':'bundle'})
-    else:r['forecast_input']['spent_usd']='100'
+    else:r['forecast_input']['spent_usd']='130'
     with pytest.raises(EvidenceError):m.packet(r,p['source'],bundle,p['source_policy'],p['prepared'],q,initial,tmp_path/'packet')
     assert not(tmp_path/'packet').exists()

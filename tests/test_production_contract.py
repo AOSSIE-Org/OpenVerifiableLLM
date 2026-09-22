@@ -49,7 +49,7 @@ def test_production_contract_rejects_omitted_or_inconsistent_work(change):
     elif change=='missing-phase':del v['coverage']['conversation']
     elif change=='tag-image':v['runtime']['container_image']='runpod/pytorch:latest'
     elif change=='already-trained':f['training_completed']=1
-    elif change=='budget':v['forecast_input']['spent_usd']='89'
+    elif change=='budget':v['forecast_input']['spent_usd']='119'
     elif change=='unknown':v['allow_unverified']=True
     else:v['verifier_policy']['replay']='sampled'
     with pytest.raises(EvidenceError):validate(v)

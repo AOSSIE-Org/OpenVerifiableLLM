@@ -22,6 +22,8 @@ def test_full_replay_and_margin_are_charged():
     assert r["projected_total_micro_usd"] == 21_000_000
     assert r["result"] == "FITS_OPERATING_LIMIT"
     assert r["protected_reserve_micro_usd"] == 10_000_000
+    assert r["cap_micro_usd"] == 130_000_000
+    assert r["operating_limit_micro_usd"] == 120_000_000
     assert r["provider_guard"] == "NOT_RUN"
     e = example();e["phases"]["wikipedia"]["training_completed"] = 1_000_000
     assert forecast(e)["remaining_compute_micro_usd"] == 750_000
@@ -30,12 +32,12 @@ def test_full_replay_and_margin_are_charged():
 
 
 def test_stop_at_operating_limit_preserves_export_funds():
-    e = example();e["spent_usd"] = "79"
-    assert forecast(e)["projected_total_micro_usd"] == 90_000_000
+    e = example();e["spent_usd"] = "109"
+    assert forecast(e)["projected_total_micro_usd"] == 120_000_000
     assert forecast(e)["result"] == "FITS_OPERATING_LIMIT"
-    e["spent_usd"] = "79.000001"
+    e["spent_usd"] = "109.000001"
     assert forecast(e)["result"] == "STOP"
-    e["spent_usd"] = "100"
+    e["spent_usd"] = "130"
     assert forecast(e)["maximum_affordable_compute_ms"] == 0
 
 
@@ -79,6 +81,16 @@ def test_slower_complete_replay_prices_both_paths():
     e=representative_example()
     for p in e["phases"].values():p["replay_measured_ms"]=300000
     assert forecast(e)["remaining_compute_micro_usd"]==10_000_000
+
+
+def test_representative_forecast_counts_prior_liabilities_at_new_limit():
+    e=representative_example();e['spent_usd']='90'
+    assert forecast(e)['projected_total_micro_usd']==120_000_000
+    assert forecast(e)['result']=='FITS_OPERATING_LIMIT'
+    e['committed_future_usd']='5.000001'
+    assert forecast(e)['result']=='STOP'
+    e['operating_limit_micro_usd']=130_000_000
+    with pytest.raises(EvidenceError):forecast(e)
 
 
 @pytest.mark.parametrize("changes",[

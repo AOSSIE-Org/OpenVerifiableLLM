@@ -10,8 +10,10 @@ import re
 from .canonical import EvidenceError, digest, require_digest
 from .schema import fields, integer
 
-CAP = 100_000_000
-OPERATING_LIMIT = 90_000_000
+# Prospective deployment policy, pinned by this source revision. Historical
+# plans and reports retain their original source and must not be rewritten.
+CAP = 130_000_000
+OPERATING_LIMIT = 120_000_000
 MIN_PILOT_MS = 600_000
 
 

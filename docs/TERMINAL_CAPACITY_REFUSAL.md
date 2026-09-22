@@ -76,7 +76,7 @@ release. It does not release money itself. Before releasing:
    and the exact current allowance. Atomically persist both returned objects:
    the updated budget and release records keyed by rental digest.
 4. Recompute admission using actual spend, all other unsettled reservations,
-   protected export/storage reserve, the $90 guard and $100 total cap.
+   protected export/storage reserve, the $120 guard and $130 total cap.
 
 An identical recorded release is idempotent; a conflicting or partial release
 fails. Never reduce actual spend or another attempt's reservation. The helper
