@@ -91,3 +91,44 @@ def test_final_local_inventory_crossing_deadline_cannot_publish_success(tmp_path
         m.export(t,'record',tmp_path/'store',tmp_path/'final',deadline)
     assert not(tmp_path/'final/export.json').exists()
     assert (tmp_path/'final/files/state').read_bytes()==b'actual state'
+
+
+def test_large_uncached_tree_uses_single_copy_transfer_with_full_inventory(tmp_path,monkeypatch):
+    t,remote,calls,_=setup(tmp_path);data=remote/'record';data.mkdir()
+    for i in range(48):(data/f'state-{i:02d}').write_bytes(bytes([i])*100)
+    # Scale only the transfer threshold; real files, hashes, hardlinks and both
+    # inventories are exercised rather than synthesizing a successful receipt.
+    monkeypatch.setattr(m,'MAXIMUM_BULK_BYTES',1000)
+    import pod_bulk_export
+    def forbidden(*a,**k):raise AssertionError('large snapshot must not create a full duplicate stream')
+    monkeypatch.setattr(pod_bulk_export,'receive',forbidden)
+    free=[8*1024**3+4800];checks=[]
+    def capacity(path,needed):
+        checks.append(needed)
+        if free[0]<8*1024**3+needed:raise EvidenceError('synthetic capacity exhausted')
+    monkeypatch.setattr(m,'require_space',capacity)
+    original=t.get
+    def received(*a,**k):
+        value=original(*a,**k);free[0]-=100;return value
+    t.get=received
+    result=m.export(t,'record',tmp_path/'store',tmp_path/'export',int(time.time())+30,
+                    maximum_bytes=4800,maximum_uncached_bytes=4800)
+    assert result['result']=='PASS' and len(result['files'])==48 and len(result['transfers'])==48
+    assert result['bounds']['selected_missing_bytes']==4800 and max(checks)==4800 and min(checks)<=100
+    assert not list((tmp_path/'store').rglob('stream.partial'))
+
+
+def test_individual_export_low_space_preserves_partial_and_rejects_receipt(tmp_path,monkeypatch):
+    t,remote,calls,_=setup(tmp_path);data=remote/'record';data.mkdir();(data/'state').write_bytes(b'0123456789')
+    from types import SimpleNamespace
+    import local_storage
+    free=[8*1024**3+10]
+    monkeypatch.setattr(local_storage.shutil,'disk_usage',lambda _:SimpleNamespace(free=free[0]))
+    def interrupted(name,destination,item,deadline,**kw):
+        destination.with_suffix('.partial').write_bytes(b'01234');free[0]=8*1024**3
+        kw['progress']({'bytes_received':5,'bytes_sent':0})
+        raise AssertionError('low-space callback must refuse')
+    t.get=interrupted
+    with pytest.raises(EvidenceError,match='headroom'):
+        m.export(t,'record',tmp_path/'store',tmp_path/'export',int(time.time())+30)
+    assert list((tmp_path/'store').rglob('*.partial')) and not(tmp_path/'export/export.json').exists()

@@ -10,6 +10,11 @@ from pathlib import Path
 import uuid
 from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,inventory,read_json,verify_inventory,write_json
 from pod_job_client import tree
+from local_storage import require_space
+
+# Larger stable trees use immutable per-file transfer, avoiding a second full
+# tensor-store-sized stream. This never narrows the selected inventory.
+MAXIMUM_BULK_BYTES = 10 * 1024**3
 
 
 def regular_directory(path,*,fresh=False):
@@ -108,8 +113,10 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
     missing_bytes=sum(f["bytes"] for f in missing)
     if maximum_uncached_bytes is not None and missing_bytes>maximum_uncached_bytes:
         raise EvidenceError("uncached export bound exceeded before transfer")
+    selected_missing_bytes=missing_bytes
     bulk_files=None
-    if allow_bulk and len(missing)>=16:
+    require_space(incoming,missing_bytes)
+    if allow_bulk and len(missing)>=16 and missing_bytes<=MAXIMUM_BULK_BYTES:
         from pod_bulk_export import receive
         attempt=incoming/uuid.uuid4().hex
         bulk=receive(transport,name,missing,attempt,deadline,progress=progress,whole_root=whole_root)
@@ -130,8 +137,13 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
                 write_json(attempt/'download-selection.json',{'schema':'ovl.preserved-download-selection.v1',
                     'profile_sha256':digest(transport.profile),'expected':{**item,'path':prefix+item['path']},
                     'deadline_epoch':deadline})
+                require_space(incoming,missing_bytes)
+                def file_progress(counts):
+                    require_space(incoming,max(0,missing_bytes-counts['bytes_received']))
+                    if progress is not None:
+                        progress(download_operation(transport.profile,{**item,'path':prefix+item['path']}),counts,item['bytes'])
                 transfer=transport.get(prefix+item['path'],staged,{**item,'path':prefix+item['path']},deadline,
-                    progress=None if progress is None else lambda counts,item=item:progress(download_operation(transport.profile,{**item,'path':prefix+item['path']}),counts,item['bytes']))
+                    progress=file_progress)
                 transfers.append(transfer)
             retained_object(staged,item);staged.chmod(0o400)
             try:os.link(staged,obj,follow_symlinks=False)
@@ -139,6 +151,7 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
             fd=os.open(objects,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
             try:os.fsync(fd)
             finally:os.close(fd)
+            missing_bytes-=item['bytes']
             # Keep both names; no unlink of partial or sole evidence is needed.
         destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
         os.link(obj,destination,follow_symlinks=False)
@@ -154,7 +167,7 @@ def export(transport,name,store,output,deadline,*,progress=None,whole_root=False
              'independent_physical_copies':False,'numerical_verification':'NOT_RUN'}
     if maximum_bytes is not None:
         receipt.update(schema='ovl.offpod-versioned-tree-export.v2',bounds={'maximum_bytes':maximum_bytes,
-            'maximum_uncached_bytes':maximum_uncached_bytes,'selected_missing_bytes':missing_bytes})
+            'maximum_uncached_bytes':maximum_uncached_bytes,'selected_missing_bytes':selected_missing_bytes})
     check_deadline()
     write_json(output/'export.json',receipt)
     check_deadline()

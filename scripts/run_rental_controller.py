@@ -81,6 +81,23 @@ def dollars(value,*,balance=False):
     return format(value.quantize(Decimal('0.000001'),rounding=ROUND_FLOOR if balance else ROUND_CEILING),'f')
 
 
+def restore_storage_stop(directory,events,expected,known):
+    """Recover a journaled local stop without renewing its original timestamp."""
+    stops=[e['body'] for e in events if e['kind']=='decision'
+           and e['body'].get('action')=='CHECKPOINT_AND_STOP'
+           and e['body'].get('reasons')==['local-storage-headroom']]
+    if not stops:return
+    if len(stops)!=1 or known is None or stops[0].get('pod_id')!=known:
+        raise EvidenceError('local storage stop identity differs')
+    epoch=stops[0]['observed_epoch'];integer(epoch,1,2**53-1,'original storage stop epoch')
+    desired={'schema':'ovl.rental-stop-request.v1','intent_sha256':expected,'pod_id':known,
+             'observed_epoch':epoch,'reasons':['local-storage-headroom']}
+    path=directory/'stop-request.json'
+    if path.exists():
+        if read_json(path)!=desired:raise EvidenceError('original storage stop request differs')
+    else:write_json(path,desired)
+
+
 def normalized(w,obs,pod,h,health,now):
     """Conservative unsettled exposure, retaining all prior-work reservations.
 
@@ -117,12 +134,30 @@ def normalized(w,obs,pod,h,health,now):
 
 
 def run(directory,value,expected,heartbeat,health_path,*,get_account=account,provider_request=request,
-        wall=time.time,monotonic=time.monotonic,sleep=time.sleep,boot=boot_clock,fence_root=None):
+        wall=time.time,monotonic=time.monotonic,sleep=time.sleep,boot=boot_clock,fence_root=None,storage_budget=None):
     w,p=validate(value,expected)
     with account_lease(fence_root) as fences,Journal(directory).lease() as j:
         intents=[e['body'] for e in j.events if e['kind']=='creation-intent']
         if intents and intents!=[value]:raise EvidenceError('controller journal intent mismatch')
         if any(e['kind']=='teardown' and e['body'].get('complete') is True for e in j.events):return
+        storage_selection={'schema':'ovl.rental-local-storage-selection.v1','intent_sha256':expected,
+                           'budget_sha256':None if storage_budget is None else digest(storage_budget.value)}
+        storage_file=directory/'local-storage-selection.json'
+        bindings=[e['body']['selection'] for e in j.events if e['kind']=='decision'
+                  and e['body'].get('action')=='LOCAL_STORAGE_SELECTION']
+        if bindings and bindings!=[storage_selection]:
+            raise EvidenceError('original rental storage selection differs')
+        if not bindings and not intents:
+            j.append('decision',{'action':'LOCAL_STORAGE_SELECTION','selection':storage_selection})
+            bindings=[storage_selection]
+        if bindings and not storage_file.exists():write_json(storage_file,storage_selection)
+        if storage_file.exists():
+            if read_json(storage_file)!=storage_selection:raise EvidenceError('original rental storage selection differs')
+        elif intents and storage_budget is not None:
+            raise EvidenceError('existing rental cannot acquire an unbound storage policy')
+        elif not intents:write_json(storage_file,storage_selection)
+        if storage_budget is not None:
+            storage_budget.covers(directory);storage_budget.covers(health_path)
         knowns={e['body']['id'] for e in j.events if e['kind']=='creation-observed'}
         if len(knowns)>1:raise EvidenceError('ambiguous recorded identity')
         known=next(iter(knowns),None)
@@ -156,6 +191,7 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             # Creation is authorized only within the short fixed window, with a
             # fresh empty account read and separately armed watchdog. Write once
             # before sending; a crash after this event can NEVER reissue creation.
+            if storage_budget is not None:storage_budget.admit()
             now=int(wall());watchdog_heartbeat(heartbeat,w,now)
             obs=get_account()
             if (obs['pods'] or obs['volume_ids'] or obs['autopay'] or Decimal(obs['account_hourly_usd'])!=0
@@ -183,11 +219,29 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if (fences/(value['payload']['name']+'.json')).exists():fence(fences,value,j)
             lifetime=Lifetime(j,p,wall=wall,clock=boot,initialize=False)
         mono_deadline=monotonic()+lifetime.remaining()
+        restore_storage_stop(directory,j.events,expected,known)
         while True:
             now=int(wall())
-            if terminating or lifetime.remaining()<=0 or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
+            storage=None if storage_budget is None else storage_budget.observation()
+            # A local low-space observation must not wait for provider recovery.
+            # This uses the original stop protocol and original grace interval;
+            # no health/deadline refresh, deletion or new rental is authorized.
+            if storage is not None and storage['shutdown_needed'] and known is not None and stopping is None and not terminating:
+                stopping=now
+                j.append('decision',{'action':'CHECKPOINT_AND_STOP','reasons':['local-storage-headroom'],'observed_epoch':now,'pod_id':known,'storage':storage})
+                restore_storage_stop(directory,j.events,expected,known)
+            if storage is not None:
+                try:write_json(directory/'local-storage-observation.json',{**storage,'observed_epoch':now})
+                except OSError:
+                    # This optional latest observation must not prevent delivery
+                    # of a durable stop. Required cost/identity journaling below
+                    # still fails closed if the filesystem cannot preserve it.
+                    log('failure',{'stage':'local-storage-telemetry','action':'preserve-original-stop-and-guards'})
+            stop_limit=None if stopping is None else min(stopping+p['input']['checkpoint_grace_seconds'],p['provider_terminate_epoch'])
+            if (stop_limit is not None and now>=stop_limit) or terminating or lifetime.remaining()<=0 or now>=p['external_terminate_epoch'] or monotonic()>=mono_deadline or now<p['input']['now_epoch']-5:
                 terminate('deadline-or-prior-abort-or-clock-rollback')
             left=min(lifetime.remaining(),p['external_terminate_epoch']-wall(),mono_deadline-monotonic())
+            if stop_limit is not None:left=min(left,stop_limit-wall())
             if known is not None and not terminating and 0<left<=21:sleep(min(5,left));continue
             stage='account'
             try:
@@ -268,7 +322,11 @@ def run_guarded(directory,value,expected,heartbeat,health_path,*,provider_reques
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     for name in ('intent','journal','watchdog-heartbeat','workload-health'):p.add_argument('--'+name,required=True,type=Path)
-    p.add_argument('--intent-sha256',required=True);a=p.parse_args()
-    run_guarded(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health)
+    p.add_argument('--intent-sha256',required=True)
+    p.add_argument('--local-storage-budget',type=Path);p.add_argument('--local-storage-budget-sha256');a=p.parse_args()
+    from local_storage import Budget
+    if (a.local_storage_budget is None)!=(a.local_storage_budget_sha256 is None):p.error('both local storage arguments required')
+    budget=None if a.local_storage_budget is None else Budget(a.local_storage_budget,a.local_storage_budget_sha256)
+    run_guarded(a.journal,read_json(a.intent),a.intent_sha256,a.watchdog_heartbeat,a.workload_health,storage_budget=budget)
 
 if __name__=='__main__':main()

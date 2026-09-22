@@ -13,6 +13,7 @@ from pathlib import Path
 from ovl_pipeline.canonical import EvidenceError,canonical,confined,digest,require_digest,verify_inventory,write_json
 from ovl_pipeline.schema import fields,integer
 from pod_transfer import relative
+from local_storage import require_space
 
 REMOTE_BULK=r'''
 import hashlib,json,os,stat,sys
@@ -70,17 +71,22 @@ def receive(transport,name,files,output,deadline,*,progress=None,whole_root=Fals
     output=Path(output).absolute()
     if any(p.is_symlink() for p in [output,*output.parents]):raise EvidenceError('bulk output symlink')
     output.mkdir(mode=0o700,parents=True,exist_ok=False)
-    space=shutil.disk_usage(output)
-    if space.free-2*total<(space.total+4)//5:raise EvidenceError('bulk export needs duplicate stream space and twenty percent headroom')
+    require_space(output,2*total)
     target=output/'files';target.mkdir(mode=0o700);partial=output/'stream.partial'
     operation=digest({'profile':digest(transport.profile),'tree':name,'files':files})
+    def checked_progress(counts):
+        # Preserve room to split the entire retained stream, including after
+        # unrelated filesystem use. This does not authorize a transfer retry.
+        require_space(output,2*total-counts['bytes_received'])
+        if progress is not None:progress(operation,counts,total)
     with partial.open('xb') as raw:
         receipt=transport.stream(['/usr/bin/python3','-c',REMOTE_BULK,transport.profile['remote_root'],name,'root' if whole_root else 'subtree'],
             raw,total,deadline,source=io.BytesIO(body),source_bytes=len(body),
-            progress=None if progress is None else lambda counts:progress(operation,counts,total))
+            progress=checked_progress)
         raw.flush();os.fsync(raw.fileno())
     if receipt['bytes_received']!=total:raise EvidenceError('incomplete bulk stream; preserve partial')
     check_deadline()
+    require_space(output,total)
     with partial.open('rb') as raw:
         for item in files:
             check_deadline()
@@ -89,6 +95,7 @@ def receive(transport,name,files,output,deadline,*,progress=None,whole_root=Fals
             with dest.open('xb') as f:
                 while remaining:
                     check_deadline()
+                    require_space(output,min(1024**2,remaining))
                     block=raw.read(min(1024**2,remaining))
                     if not block:raise EvidenceError('truncated selected bulk file')
                     remaining-=len(block);h.update(block);f.write(block)
