@@ -20,7 +20,7 @@ def run(setup_script,setup_sha256,config,config_sha256,inputs,runtime,control,de
     if any(p.is_symlink() for path in paths for p in [path,*path.parents]):raise ValueError('pilot bootstrap symlink')
     setup_script,config,inputs,runtime,control=paths
     if len(set(paths))!=len(paths):raise ValueError('distinct pilot bootstrap paths required')
-    if type(deadline) is not int or not 0<deadline-time.time()<=2100:raise ValueError('original bounded worker deadline required')
+    if type(deadline) is not int or not 0<deadline-time.time()<=2700:raise ValueError('original bounded worker deadline required')
     if control.exists():raise ValueError('fresh activity/audit control output required')
     if os.environ.get('OVL_ACTIVITY_FILE')!=str(control/'activity.json'):
         raise ValueError('explicit selected numerical activity path required')

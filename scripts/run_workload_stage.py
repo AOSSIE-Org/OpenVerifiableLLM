@@ -81,7 +81,7 @@ def run_stage(transport,health,job_file,expected_job,worker_file,expected_worker
     stage_file=output/'stage-result.json'
     launch_intent=output/'launch/launch-intent.json'
     if not stage_file.exists() and not launch_intent.exists():
-        maximum_work=2100 if initial_retention is not None else 1500
+        maximum_work=2700 if initial_retention is not None else 1500
         if now>=health.plan['request_checkpoint_epoch'] or not 0<deadline-now<=maximum_work:
             marker=output/'unlaunched-stage.json'
             if not marker.exists():write_json(marker,{'schema':'ovl.unlaunched-stage-refusal.v1','job_sha256':expected_job,

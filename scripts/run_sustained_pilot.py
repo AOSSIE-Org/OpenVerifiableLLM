@@ -73,7 +73,7 @@ def validate(plan,expected,rental,transport,inputs,worker):
         fields(s,'name template_path template_sha256 work_seconds export_reserve_seconds maximum_export_bytes parent_stage parent_record_root parent_binding validation_binding download_binding retention','sustained stage')
         relative(s['name']);relative(s['template_path']);require_digest(s['template_sha256'])
         if '/' in s['name'] or s['name'] in prior:raise EvidenceError('unique flat stage names required')
-        integer(s['work_seconds'],1,1500 if initialization else 2100,'stage work seconds');integer(s['export_reserve_seconds'],60,1800,'stage export reserve')
+        integer(s['work_seconds'],1,1500 if initialization else 2700,'stage work seconds');integer(s['export_reserve_seconds'],60,1800,'stage export reserve')
         integer(s['maximum_export_bytes'],1,2**40,'complete stage export bound')
         size=s['maximum_export_bytes'];uncached=size
         if s['retention'] is not None and s['retention'].get('schema')=='ovl.pilot-checkpoint-retention.v1':
