@@ -72,7 +72,7 @@ public downloads. The assembler does not automatically consume a relocation resu
 or waive its original exact-parent, complete-reconstruction and full-replay checks.
 
 The forecast calculator in `ovl_pipeline.budget` uses exact monetary units, reserves
-$10 beyond the $90 operating limit, requires at least ten-minute measurements, and
+$10 beyond the $120 operating limit, requires at least ten-minute measurements, and
 charges for both complete phases and full replay with a 25% runtime margin. It is
 arithmetic only; provider deadlines, actual billing reconciliation, verified pilot
 reports and complete target counts are additional required gates before rental.

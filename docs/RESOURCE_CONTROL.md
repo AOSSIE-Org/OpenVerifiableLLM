@@ -46,7 +46,7 @@ epoch and bounded runtime/checkpoint/billing margins. All monetary values are
 nonnegative decimal USD strings converted to integer microdollars.
 
 The lifetime starts before provisioning, so setup is charged. Available funds are
-the smaller of the rental allowance and the $90 operating budget after prior
+the smaller of the rental allowance and the $120 operating budget after prior
 spend, commitments and reservations. The plan rounds affordable time down, charges
 billing slack and starts checkpointing before the provider termination deadline.
 The final $10 stays protected. If even the checkpoint/billing margins do not fit,

@@ -138,5 +138,5 @@ increasing required updates by 16x. Historical v1/v2 arithmetic remains readable
 must not admit production. No arithmetic version authenticates its input evidence or
 implements a live provider guard. The production controller must bind the actual
 complete census, compatible kernel and real pilot record/replay, reconcile spend,
-reserve setup/reconstruction/export/storage costs, and enforce the $90 operating
+reserve setup/reconstruction/export/storage costs, and enforce the $120 operating
 limit with $10 protected reserve.

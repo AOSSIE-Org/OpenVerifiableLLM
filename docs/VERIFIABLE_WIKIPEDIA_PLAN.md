@@ -15,7 +15,7 @@ Project destinations and operating constraints:
 
 - Source and small evidence: `https://github.com/AOSSIE-Org/OpenVerifiableLLM`.
 - Models, data and large evidence: new repositories under `https://huggingface.co/AOSSIE`.
-- One GPU at a time. US$100 maximum aggregate RunPod spend, including failed attempts,
+- One GPU at a time. US$130 maximum aggregate RunPod spend, including failed attempts,
   preparation, storage, full reconstruction/replay and export.
 - Aim for 24 hours, but continue beyond 24 hours until fully verified if the measured
   remaining work fits the budget.
@@ -495,7 +495,7 @@ all primary boundary states, full replay report, code/environment materials and 
 weights. GitHub Actions artifacts with limited retention are not the sole public
 archive. Document a target of at least 90 days of verification-input availability and
 long-term retention of final models/manifests, subject to confirmed host policy.
-The $100 budget does not purchase an indefinite RunPod archive.
+The $130 budget does not purchase an indefinite RunPod archive.
 
 Release the canonical FP32 parameter artifact initially if that is the verified state.
 A BF16 export or quantized model is a separately hashed derived artifact with its own
@@ -659,7 +659,7 @@ remaining steps, and paid elapsed time. Avoid double-counting checkpoint overhea
 excluding it entirely. Record forecasts and later compare them to actuals. The
 external 185k-token/s comparison is context, not our throughput measurement.
 
-Before production, projected total must fit below the $90 operating threshold with
+Before production, projected total must fit below the $120 operating threshold with
 room for the reserved final $10. Stop new compute at the earlier safe threshold if
 remaining mandatory verification no longer fits. The revised guard policy is:
 set `terminateAfter`, maintain a persistent external watchdog, and explicitly
@@ -724,5 +724,5 @@ are separate results; neither substitutes for the other.
 Completion requires every G01–G10 condition in the goal to be satisfied with actual
 locators and digests, no required `NOT_RUN` checks, downloadable public evidence,
 published verified artifacts, real cost/runtime figures and confirmed compute teardown.
-If the project cannot complete within $100, the correct deliverable is a truthful
+If the project cannot complete within $130, the correct deliverable is a truthful
 partial status and preserved evidence, not a weakened definition of verification.
