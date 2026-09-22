@@ -47,7 +47,8 @@ class RentalFake(Fake):
     def provider(self,operation,variables=None):
         if operation!='create':return super().request(operation,variables)
         self.calls.append((operation,variables,self.now));self.writes+=1
-        event=read_json(self.directory/'event-00000000.json');assert event['body']==self.value and event['kind']=='creation-intent'
+        intents=[e['body'] for e in Journal(self.directory)._read() if e['kind']=='creation-intent']
+        assert intents==[self.value] # Intent and optional storage binding precede paid creation.
         assert variables=={'input':self.value['payload']}
         if self.before_create:self.before_create()
         self.alive=True
