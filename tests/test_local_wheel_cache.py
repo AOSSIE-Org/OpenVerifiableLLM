@@ -61,6 +61,7 @@ def test_setup_and_audited_launch_select_the_same_local_cache(tmp_path,monkeypat
         m.setup(tmp_path/'config','0'*64,tmp_path/'inputs',runtime,tmp_path/'setup-evidence')
     with pytest.raises(ValueError,match='selection capture'):
         m.audited(tmp_path/'config','0'*64,tmp_path/'inputs',runtime,tmp_path/'audit-evidence','module',[])
+    assert isinstance(seen[0].pop('progress'),m.SetupProgress)
     assert seen==[{'wheel_cache':runtime/'wheels','populate_cache':True},{'wheel_cache':runtime/'wheels'}]
 
 
@@ -148,8 +149,37 @@ def test_setup_installer_and_inspection_receive_cached_archives(tmp_path,monkeyp
         return {'synthetic':True}
     def inspect(lock,selected_wheels,*args,**kwargs):
         assert selected_wheels==runtime/'wheels';assert wheel_manifest(lock,selected_wheels)==wheel_manifest(lock,wheels)
+        for phase in ('launch-interpreter','launch-wheels','launch-installed'):kwargs['progress'](phase)
         calls.append('inspection');return {'synthetic':True}
     monkeypatch.setattr(origin,'extract',extract);monkeypatch.setattr(audit,'verify_installed',installed);monkeypatch.setattr(launcher,'launch',inspect)
     monkeypatch.setattr(sys,'path',list(sys.path));monkeypatch.setattr(sys,'dont_write_bytecode',sys.dont_write_bytecode)
     result=m.setup(config,file_hash(config),root,runtime,output,execute=execute)
     assert result['result']=='PASS' and calls==['install','installed-audit','inspection']
+
+
+def test_setup_copy_progress_reports_completed_io_and_preserves_partial_on_error(tmp_path,monkeypatch):
+    source=tmp_path/'source';source.mkdir();(source/'synthetic.whl').write_bytes(b'x'*(3*1024**2))
+    output=tmp_path/'evidence';output.mkdir();monkeypatch.setenv('OVL_ACTIVITY_FILE',str(output/'activity.json'))
+    clock=[0];report=m.SetupProgress(clock=lambda:clock[0]);report('source');seen=[]
+    from ovl_pipeline.canonical import read_json
+    def progress(**kw):
+        clock[0]+=40;report(**kw);seen.append(read_json(output/'activity.json'))
+        if len(seen)==2:raise OSError('synthetic interrupted storage read path')
+    with pytest.raises(OSError,match='interrupted'):m.cache_wheels(source,tmp_path/'cache',progress=progress)
+    assert [v['copied_bytes'] for v in seen]==[1024**2,2*1024**2]
+    assert all(v['completed']==['source'] for v in seen)
+    assert (tmp_path/'cache/synthetic.whl').stat().st_size==2*1024**2
+    assert (source/'synthetic.whl').stat().st_size==3*1024**2
+    with pytest.raises(ValueError,match='fresh'):m.cache_wheels(source,tmp_path/'cache')
+    assert not(output/'setup.json').exists()
+
+
+def test_setup_telemetry_write_failure_and_symlink_are_not_suppressed(tmp_path,monkeypatch):
+    output=tmp_path/'evidence';output.mkdir();target=output/'activity.json'
+    monkeypatch.setenv('OVL_ACTIVITY_FILE',str(target));target.symlink_to(tmp_path/'outside')
+    with pytest.raises(ValueError,match='activity path'):m.SetupProgress()('source')
+    target.unlink()
+    def fail(fd):raise OSError('synthetic fsync failure')
+    monkeypatch.setattr(m.os,'fsync',fail)
+    with pytest.raises(OSError,match='fsync'):m.SetupProgress()('source')
+    assert not target.exists() and not list(output.glob('.setup-activity-*'))

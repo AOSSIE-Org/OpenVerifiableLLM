@@ -60,7 +60,8 @@ def test_gpu_launch_admission_rejects_unconstrained_process(monkeypatch):
     with pytest.raises(EvidenceError,match='external audited launcher'):runtime_launch.current_launch()
 
 
-def test_real_bootstrap_ignores_hostile_source_bytecode_and_site_hooks(tmp_path):
+@pytest.mark.parametrize('no_writes',[False,True])
+def test_real_bootstrap_ignores_hostile_source_bytecode_and_site_hooks(tmp_path,no_writes):
     src=tmp_path/'src';site=tmp_path/'site';cache=tmp_path/'cache'
     for p in (src,site,cache):p.mkdir()
     probe=src/'probe.py';probe.write_text('print("EVIL!")\n');py_compile.compile(str(probe),doraise=True)
@@ -73,9 +74,10 @@ def test_real_bootstrap_ignores_hostile_source_bytecode_and_site_hooks(tmp_path)
     record=tmp_path/'launch.json';write_json(record,{'schema':'ovl.audited-runtime-launch.v1','source':str(src),'site':str(site),
         'pycache_prefix':str(cache),'module':'probe','arguments':[]})
     bootstrap=Path(runtime_launch.__file__).with_name('runtime_bootstrap.py')
-    good=subprocess.run([sys.executable,'-s','-S','-P','-X','pycache_prefix='+str(cache),str(bootstrap),
+    good=subprocess.run([sys.executable,*(['-B'] if no_writes else []),'-s','-S','-P','-X','pycache_prefix='+str(cache),str(bootstrap),
         '--source',str(src),'--site',str(site),'--launch-record',str(record),'--module','probe','--'],env=env,capture_output=True,text=True,check=True)
     assert good.stdout.strip()=='CLEAN' and not sentinel.exists()
+    if no_writes:assert not list(cache.rglob('*'))
 
 
 def test_bootstrap_rejects_launch_record_argument_substitution(tmp_path):
@@ -109,3 +111,25 @@ def test_gpu_refuses_wheel_only_audit_before_any_cuda_initialization(monkeypatch
     monkeypatch.setattr(gpu.torch.cuda,'init',lambda:pytest.fail('origin gate must precede CUDA'))
     with pytest.raises(EvidenceError,match='public interpreter payloads'):
         gpu.configure({'schema':'ovl.gpu-kernel.v1','precision':'fp32'})
+
+
+def test_local_fresh_cache_no_bytecode_growth_and_all_audits_retained(tmp_path):
+    args=setup(tmp_path);cache_root=tmp_path/'local-cache';paths=[]
+    def execute(command,env,check):
+        assert '-B' in command
+        record=read_json(Path(env['HOME'])/'launch.json');cache=Path(record['pycache_prefix'])
+        assert cache.parent==cache_root and cache.is_dir() and not list(cache.iterdir())
+        paths.append(cache)
+        assert read_json(Path(env['HOME'])/'installed-audit.json')['result']=='PASS'
+        return SimpleNamespace(returncode=0)
+    runtime_launch.launch(*args,'ovl_pipeline',[],execute=execute,bytecode_root=cache_root)
+    other=(*args[:-1],tmp_path/'second-launch')
+    runtime_launch.launch(*other,'ovl_pipeline',[],execute=execute,bytecode_root=cache_root)
+    assert paths[0]!=paths[1]
+    assert not (args[-1]/'pycache').exists()
+
+
+def test_bytecode_root_symlink_refused_before_target(tmp_path):
+    args=setup(tmp_path);root=tmp_path/'bad-cache';root.symlink_to(tmp_path,target_is_directory=True)
+    with pytest.raises(EvidenceError,match='bytecode root symlink'):
+        runtime_launch.launch(*args,'ovl_pipeline',[],bytecode_root=root,execute=lambda *a,**k:pytest.fail('must not execute'))

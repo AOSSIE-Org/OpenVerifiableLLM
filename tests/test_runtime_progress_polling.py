@@ -21,8 +21,8 @@ from ovl_pipeline.canonical import EvidenceError,digest,file_hash,read_json,writ
 from ovl_pipeline.supervision import Journal,rental_plan,observe
 
 
-@pytest.mark.parametrize('connected',[False,True])
-def test_descriptor_polling_exports_and_controller_stall_decision(tmp_path,monkeypatch,connected):
+@pytest.mark.parametrize('connected,slow_offline,report_offline',[(False,False,False),(True,False,True),(False,True,False),(True,True,True),(True,True,False)])
+def test_descriptor_polling_exports_and_controller_stall_decision(tmp_path,monkeypatch,connected,slow_offline,report_offline):
     transport,remote,calls,job_file,_,worker,worker_hash=transport_fixture(tmp_path)
     inputs,config,cfg=setup_fixture(remote);output=remote/'setup-evidence'
     data=b'x'*(8*1024**2);wheel={'path':'synthetic-1-py3-none-any.whl','bytes':len(data),
@@ -61,15 +61,46 @@ def test_descriptor_polling_exports_and_controller_stall_decision(tmp_path,monke
             ready.set();grant.get(timeout=15);return super().read(n)
     class Client:
         def open(self,request,timeout):return GatedResponse(data,request.full_url)
-    def execute(argv,**kwargs):
+    def execute_child(argv,**kwargs):
         if argv[3].endswith('fetch.py'):
             assert ('OVL_ACTIVITY_FILE' in kwargs['env'])==connected
             fetcher.fetch(inputs/'plan.json',cfg['wheel_plan_sha256'],inputs/'wheels',output/'downloads.json',
                 origin+600,opener=Client(),wall=lambda:clock[0],monotonic=lambda:clock[0]-origin)
         else:
-            assert 'OVL_ACTIVITY_FILE' not in kwargs['env'];phase[0]='offline';ready.set();grant.get(timeout=15)
+            assert ('OVL_ACTIVITY_FILE' in kwargs['env'])==(connected and report_offline);phase[0]='offline'
+            if slow_offline:
+                import pod_runtime_setup as offline
+                report=offline.SetupProgress(clock=lambda:clock[0])
+                report('source')
+                fdopen=offline.os.fdopen
+                class SlowFile:
+                    def __init__(self,f):self.f=f
+                    def __enter__(self):return self
+                    def __exit__(self,*args):return self.f.__exit__(*args)
+                    def fileno(self):return self.f.fileno()
+                    def read(self,n):
+                        ready.set();grant.get(timeout=15);return self.f.read(n)
+                def selected_fdopen(fd,*args,**kw):
+                    f=fdopen(fd,*args,**kw)
+                    # Only read-mode archive streams are slowed, never telemetry writes.
+                    return SlowFile(f) if args==('rb',) else f
+                with monkeypatch.context() as patch:
+                    patch.setattr(offline.os,'fdopen',selected_fdopen)
+                    offline.cache_wheels(inputs/'wheels',remote/'local-wheel-cache',progress=report)
+                report('selection')
+            else:
+                ready.set();grant.get(timeout=15)
             (output/'offline').mkdir();write_json(output/'offline/setup.json',{
                 'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':cfg['offline_config_sha256']})
+    def execute(argv,**kwargs):
+        # Honor the sanitized child environment even though execution is doubled.
+        # The silent case deliberately reproduces the old missing-forwarding path.
+        env=dict(kwargs['env'])
+        if not argv[3].endswith('fetch.py') and not report_offline:env.pop('OVL_ACTIVITY_FILE',None)
+        with monkeypatch.context() as child:
+            if 'OVL_ACTIVITY_FILE' in env:child.setenv('OVL_ACTIVITY_FILE',env['OVL_ACTIVITY_FILE'])
+            else:child.delenv('OVL_ACTIVITY_FILE',raising=False)
+            return execute_child(argv,**{**kwargs,'env':env})
     def work():
         try:
             selected=read_json(job_file);assert digest(selected)==root
@@ -116,7 +147,7 @@ def test_descriptor_polling_exports_and_controller_stall_decision(tmp_path,monke
             if clock[0]-origin>=200 and not restarted:
                 before=h.progress;adopted=health();assert adopted.progress==before
                 h.__dict__.update(adopted.__dict__);restarted.append(True)
-            clock[0]+=115 if phase[0]=='offline' else 50;grant.put(True)
+            clock[0]+=(45 if slow_offline else 115) if phase[0]=='offline' else 50;grant.put(True)
             assert ready.wait(15),'producer did not complete its granted phase'
         original_export=stage.export_tree
         def export(*args,**kwargs):
@@ -131,10 +162,10 @@ def test_descriptor_polling_exports_and_controller_stall_decision(tmp_path,monke
             for _ in range(12):grant.put(True)
             thread.join(20)
         assert not thread.is_alive() and not errors and result['exit']['exit_code']==0
-        assert clock[0]-origin==565 and restarted and len(export_calls)==2
+        assert clock[0]-origin==(855 if slow_offline else 565) and restarted and len(export_calls)==2
         assert h.jobs[root]['finished'] and not h.complete
         assert read_json(Path(result['exports'][1]['directory'])/'offline/setup.json')['result']=='PASS'
-        if connected:
+        if connected and (not slow_offline or report_offline):
             assert all(d['action']=='CONTINUE' for d in decisions) and not stop.exists()
             assert h.download_processes[root]['pid']!=999
         else:assert any('stalled-or-future-progress' in d['reasons'] for d in decisions)

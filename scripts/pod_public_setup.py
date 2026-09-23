@@ -154,7 +154,7 @@ def setup(config,expected,inputs,runtime,output,deadline,*,execute=subprocess.ru
     for expected_file,actual in zip(plan['files'],downloads['files']):
         if any(actual.get(k)!=v for k,v in expected_file.items()) or actual.get('result')!='COMPLETE_HASH_MATCH':raise ValueError('incomplete selected download receipt')
     run([str(path(inputs,value['setup_script'])),'setup','--config',str(path(inputs,value['offline_config'])),'--config-sha256',value['offline_config_sha256'],
-         '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/'offline')])
+         '--inputs',str(inputs),'--runtime',str(runtime),'--output',str(output/'offline')],report_activity=True)
     installed=json.loads((output/'offline/setup.json').read_bytes())
     if (installed.get('schema')!='ovl.offline-runtime-setup-result.v1' or installed.get('result')!='PASS'
         or installed.get('config_sha256')!=value['offline_config_sha256']):raise ValueError('offline audit receipt differs')

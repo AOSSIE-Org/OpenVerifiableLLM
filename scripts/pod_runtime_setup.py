@@ -15,6 +15,50 @@ import re
 import stat
 import subprocess
 import sys
+import time
+import uuid
+
+
+SETUP_PHASES=('source','selection','interpreter','installation','installed',
+              'launch-interpreter','launch-wheels','launch-installed','inspection')
+
+
+class SetupProgress:
+    """Completed work only; no timer thread, checkpoint or verification credit."""
+    def __init__(self,*,clock=time.monotonic):
+        self.clock=clock;self.last=None;self.started=clock();self.completed=[];self.copied=0
+        self.instance=uuid.uuid4().hex
+
+    def __call__(self,phase=None,*,copied_bytes=None):
+        if phase is not None:
+            if phase!=SETUP_PHASES[len(self.completed)]:raise ValueError('setup phase order')
+            self.completed.append(phase)
+            print('setup completed '+phase+' elapsed_seconds='+str(round(self.clock()-self.started,3)),flush=True)
+        if copied_bytes is not None:
+            if type(copied_bytes) is not int or not self.copied<=copied_bytes<=4*1024**3:
+                raise ValueError('setup copy counter')
+            self.copied=copied_bytes
+        selected=os.environ.get('OVL_ACTIVITY_FILE')
+        if not selected:return
+        now=self.clock()
+        if phase is None and self.last is not None and 0<=now-self.last<30:return
+        path=Path(selected)
+        if not path.is_absolute() or path.name!='activity.json' or not path.parent.is_dir() or any(p.is_symlink() for p in [path,*path.parents]):
+            raise ValueError('selected setup activity path required')
+        value={'schema':'ovl.runtime-setup-activity.v1','process_instance':self.instance,'pid':os.getpid(),
+               'completed':list(self.completed),'copied_bytes':self.copied,
+               'scope':'operator-supervision-only-not-input-verification'}
+        pending=path.with_name('.setup-activity-'+uuid.uuid4().hex)
+        try:
+            with pending.open('x') as f:
+                json.dump(value,f,sort_keys=True,separators=(',',':'));f.flush();os.fsync(f.fileno())
+            os.replace(pending,path)
+            fd=os.open(path.parent,os.O_RDONLY|os.O_DIRECTORY)
+            try:os.fsync(fd)
+            finally:os.close(fd)
+        finally:
+            if pending.exists():pending.unlink()
+        self.last=now
 
 
 def sha(path):
@@ -33,7 +77,7 @@ def confined(root,name):
     return p
 
 
-def cache_wheels(source,cache):
+def cache_wheels(source,cache,*,progress=None):
     """Copy bounded regular archives once; all complete wheel audits still run."""
     source=Path(source);cache=Path(cache)
     if any(p.is_symlink() for p in [cache,*cache.parents]):raise ValueError('wheel cache symlink')
@@ -46,7 +90,7 @@ def cache_wheels(source,cache):
         if p.is_symlink() or not p.is_file() or p.suffix!='.whl':raise ValueError('regular wheel archives required')
         snapshots[p.name]=identity(p.stat());total+=snapshots[p.name][2]
     if total>4*1024**3:raise ValueError('wheel cache byte bound')
-    cache.mkdir(mode=0o700)
+    cache.mkdir(mode=0o700);copied=0
     for p in files:
         # Never follow a replaced input symlink or accept a growing archive.
         with os.fdopen(os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK),'rb') as src:
@@ -59,7 +103,8 @@ def cache_wheels(source,cache):
                     if not data:break
                     count+=len(data)
                     if count>before.st_size:raise ValueError('wheel changed during cache copy')
-                    dst.write(data)
+                    dst.write(data);copied+=len(data)
+                    if progress is not None:progress(copied_bytes=copied)
                 dst.flush();os.fsync(dst.fileno())
             after=os.fstat(src.fileno())
             if count!=before.st_size or identity(before)!=identity(after) or identity(p.lstat())!=identity(before):
@@ -69,7 +114,7 @@ def cache_wheels(source,cache):
     # complete manifest from these copied bytes against the original lock.
 
 
-def selected(config_file,expected,inputs,*,wheel_cache=None,populate_cache=False):
+def selected(config_file,expected,inputs,*,wheel_cache=None,populate_cache=False,progress=None):
     inputs=Path(inputs).absolute();config_file=Path(config_file)
     if not re.fullmatch('[0-9a-f]{64}',expected) or config_file.is_symlink() or sha(config_file)!=expected:
         raise ValueError('setup configuration differs from operator selection')
@@ -95,12 +140,13 @@ def selected(config_file,expected,inputs,*,wheel_cache=None,populate_cache=False
             raise ValueError('bytecode in selected source')
         if path.is_file():actual.append(path.relative_to(source).as_posix())
     if names!=sorted(set(names)) or sorted(actual)!=names:raise ValueError('source inventory is not complete')
+    if progress is not None:progress('source')
     wheels=confined(inputs,value['wheels']);imports=value['bootstrap_wheels']
     if type(imports) is not list or len(imports)!=2:raise ValueError('explicit bootstrap wheel pair required')
     if wheel_cache is not None:
         wheel_cache=Path(wheel_cache)
         if any(p.is_symlink() for p in [wheel_cache,*wheel_cache.parents]):raise ValueError('wheel cache symlink')
-        if populate_cache:cache_wheels(wheels,wheel_cache)
+        if populate_cache:cache_wheels(wheels,wheel_cache,progress=progress)
         if not wheel_cache.is_dir():raise ValueError('missing selected wheel cache')
         wheels=wheel_cache
     packages=[];paths=[]
@@ -134,6 +180,7 @@ def selected(config_file,expected,inputs,*,wheel_cache=None,populate_cache=False
     manifest=wheel_manifest(lock,wheels)
     archive=confined(inputs,value['interpreter_archive'])
     if sha(archive)!=value['interpreter_sha256']:raise ValueError('public interpreter archive differs')
+    if progress is not None:progress('selection')
     return value,source,wheels,lock,manifest,archive
 
 
@@ -149,9 +196,9 @@ def layout(runtime,output):
 def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     runtime,output=layout(runtime,output)
     if runtime.exists():raise ValueError('runtime setup requires a fresh tree; preserve partial attempts')
-    runtime.mkdir(mode=0o700,parents=True)
+    runtime.mkdir(mode=0o700,parents=True);progress=SetupProgress()
     value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs,
-                                                    wheel_cache=runtime/'wheels',populate_cache=True)
+                                                    wheel_cache=runtime/'wheels',populate_cache=True,progress=progress)
     from ovl_pipeline.canonical import digest,write_json
     from ovl_pipeline.python_origin import extract
     from ovl_pipeline.runtime_audit import verify_installed
@@ -160,6 +207,7 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     write_json(output/'selected-config.json',value);write_json(output/'wheel-payloads.json',manifest)
     python_root=runtime/'public-python';payloads,checked=extract(archive,value['interpreter_sha256'],python_root)
     write_json(output/'python-payloads.json',payloads);write_json(output/'python-audit.json',checked)
+    progress('interpreter')
     python=python_root/'python/bin/python3.12';venv=runtime/'venv'
     temporary=runtime/'temporary-install';temporary.mkdir(mode=0o700)
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PIP_CONFIG_FILE':'/dev/null',
@@ -171,10 +219,12 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     install.write_text(''.join(str(p.resolve())+' --hash=sha256:'+sha(p)+'\n' for p in sorted(wheels.glob('*.whl'))))
     execute([str(python),'-I','-m','pip','--python',str(venv/'bin/python'),'install','--no-index','--no-deps','--no-compile',
              '--require-hashes','-r',str(install)],env=env,check=True)
+    progress('installation')
     installed=verify_installed(manifest,{'site':venv/'lib/python3.12/site-packages','prefix':venv,'scripts':venv/'bin','headers':venv/'include/python3.12'})
-    write_json(output/'installed-audit.json',installed)
+    write_json(output/'installed-audit.json',installed);progress('installed')
     inspected=launch(lock,wheels,venv,source/'src',output/'audited-inspection','ovl_pipeline.runtime_launch',['--inspect-current'],
-                     interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=python_root)
+                     interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=python_root,progress=progress,bytecode_root=runtime/'bytecode')
+    progress('inspection')
     result={'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':expected,
             'bootstrap_executable_sha256':sha(Path('/proc/self/exe')),'wheel_manifest_sha256':digest(manifest),
             'python_manifest_sha256':digest(payloads),'installed_audit_sha256':digest(installed),'inspection':inspected,
@@ -188,7 +238,7 @@ def audited(config_file,expected,inputs,runtime,output,module,arguments):
     value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs,wheel_cache=runtime/'wheels')
     from ovl_pipeline.runtime_launch import launch
     return launch(lock,wheels,runtime/'venv',source/'src',output,module,arguments,
-                  interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=runtime/'public-python')
+                  interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=runtime/'public-python',bytecode_root=runtime/'bytecode')
 
 
 def main():
