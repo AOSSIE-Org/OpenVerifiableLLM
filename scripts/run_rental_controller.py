@@ -57,8 +57,8 @@ def validate(value,expected):
     if payload['cloudType'] not in clouds or payload['startSsh'] is not True or payload['startJupyter'] is not False:
         raise EvidenceError('selected cloud and SSH-only rental required')
     quote_schema='ovl.rental-quote.v2' if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else 'ovl.rental-quote.v1'
-    if retained:quote_schema='ovl.rental-quote.v3'
-    if value['quote'].get('schema')!=quote_schema:raise EvidenceError('quote version differs from rental intent')
+    quote_schemas=('ovl.rental-quote.v3','ovl.rental-quote.v4') if retained else (quote_schema,)
+    if value['quote'].get('schema') not in quote_schemas:raise EvidenceError('quote version differs from rental intent')
     if payload['ports']!='22/tcp':raise EvidenceError('only SSH port may be exposed')
     if payload['dockerArgs']!='':raise EvidenceError('only immutable image entrypoint may start')
     if type(payload['gpuTypeId']) is not str or not re.fullmatch(r'[A-Za-z0-9 ._-]{1,96}',payload['gpuTypeId']):raise EvidenceError('invalid selected GPU')
