@@ -123,23 +123,29 @@ def test_snapshot_retry_preserves_partial_and_original_deadline(prepared,tmp_pat
     hook,remote,out,h,starts,_=fixture(prepared,tmp_path,monkeypatch)
     original=m.snapshot;limits=[]
     def failed(*a,**kw):
-        limits.append(a[4]);Path(a[3]).mkdir();(Path(a[3])/'partial').write_bytes(b'preserved')
-        raise EvidenceError('explicit interrupted snapshot')
+        from pod_transfer import TransientTransportError
+        limits.append(a[4]);Path(a[3]).mkdir();(Path(a[3])/'failure-note').write_bytes(b'preserved diagnostic')
+        error=TransientTransportError('explicit interrupted snapshot')
+        error.transfer_counts={'bytes_sent':0,'bytes_received':0};error.immutable_download_bytes=0
+        raise error
     monkeypatch.setattr(m,'snapshot',failed)
     with pytest.raises(EvidenceError,match='interrupted'):hook().poll()
     old=read_json(out/'boundaries/boundary-00000/intent.json')
     def retried(*a,**kw):limits.append(a[4]);return original(*a,**kw)
     monkeypatch.setattr(m,'snapshot',retried)
     assert hook().poll()['index']==0 and len(starts)==1 and limits[0]==limits[1]
-    assert (out/'boundaries/boundary-00000/snapshot/partial').read_bytes()==b'preserved'
+    assert (out/'boundaries/boundary-00000/snapshot/failure-note').read_bytes()==b'preserved diagnostic'
     assert read_json(out/'boundaries/boundary-00000/intent.json')==old
 
 
 def test_two_partial_snapshots_do_not_get_a_third_copy_attempt(prepared,tmp_path,monkeypatch):
     hook,remote,out,h,starts,_=fixture(prepared,tmp_path,monkeypatch);calls=[]
     def failed(*a,**kw):
-        calls.append(a[4]);Path(a[3]).mkdir();(Path(a[3])/'partial').write_bytes(b'preserved')
-        raise EvidenceError('explicit interrupted snapshot')
+        from pod_transfer import TransientTransportError
+        calls.append(a[4]);Path(a[3]).mkdir();(Path(a[3])/'failure-note').write_bytes(b'preserved diagnostic')
+        error=TransientTransportError('explicit interrupted snapshot')
+        error.transfer_counts={'bytes_sent':0,'bytes_received':0};error.immutable_download_bytes=0
+        raise error
     monkeypatch.setattr(m,'snapshot',failed)
     for _ in range(3):
         with pytest.raises(EvidenceError):hook().poll()

@@ -60,7 +60,7 @@ def save_once(path,value):
     else:write_json(path,value)
 
 
-def published(plan,staging,output):
+def published(plan,staging,output,*,deadline=None):
     """Preserve uncertain writes and adopt only a fully downloaded fixed revision."""
     plan_path=output/'plan.json';output.mkdir(exist_ok=True);save_once(plan_path,plan)
     upload=output/'publication'
@@ -71,7 +71,7 @@ def published(plan,staging,output):
             raise EvidenceError('saved archive selection differs from publication plan')
     else:
         if (upload/'upload.json').exists():receipt=read_json(upload/'upload.json')
-        else:receipt=transport.reconcile(plan_path,upload) if upload.exists() else transport.upload(plan_path,staging,upload)
+        else:receipt=transport.reconcile(plan_path,upload) if upload.exists() else transport.upload(plan_path,staging,upload,deadline=deadline)
         archive={'repo':plan['repo'],'revision':receipt['revision'],'prefix':plan['prefix'],'inventory':plan['files']}
         save_once(pin,archive)
     fresh=output/('download-'+uuid.uuid4().hex)
@@ -251,7 +251,7 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     cpplan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'checkpoint',
             'prefix':f'production-checkpoints/{root}/{body["checkpoint_path"]}',
             'subject_sha256':digest(body['checkpoint']),'files':inventory(checkpoint,['checkpoint.json','state.json','state.safetensors'])}
-    archive,downloaded,cpdownload=published(cpplan,checkpoint,output/'checkpoint')
+    archive,downloaded,cpdownload=published(cpplan,checkpoint,output/'checkpoint',deadline=deadline)
     md,ts=read_state(downloaded,body['checkpoint'])
     if unpack(md['tree'],ts)['control']!=body['control']:raise EvidenceError('downloaded checkpoint control differs')
     activity('checkpoint-public-download-verified',{'archive':archive,'checkpoint':body['checkpoint']})
@@ -275,7 +275,7 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'progress-anchor',
           'prefix':f'production-progress/{root}/progress-{index:05d}','subject_sha256':digest(value),
           'files':inventory(current,['statement.json','statement.sigstore.json'])}
-    public,downloaded,anchor_download=published(plan,current,output/'anchor')
+    public,downloaded,anchor_download=published(plan,current,output/'anchor',deadline=deadline)
     # Verify the actual public bytes, not merely the temporary Actions artifact.
     public_prefix=output/('public-prefix-'+uuid.uuid4().hex);public_prefix.mkdir()
     for i in range(index):copy_anchor(confined(previous_directory,f'progress-{i:05d}'),public_prefix/f'progress-{i:05d}')
