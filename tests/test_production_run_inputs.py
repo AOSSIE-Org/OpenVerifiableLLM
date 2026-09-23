@@ -31,6 +31,7 @@ def public_parents(p):
 def test_registration_freezes_actual_measurements_with_original_whole_rental_ceiling():
     r,p,rental,q,initial=fixture();now=rental['watchdog_intent']['plan']['input']['now_epoch']+100
     actual,basis=m.registration(r,q,initial,rental,now)
+    assert actual['forecast_input']['schema']=='ovl.cost-forecast-input.v4'
     assert validate_parents(actual,**public_parents(p))['result']=='PASS'
     assert actual['pilots']['wikipedia']['record_sha256']==digest(q['pilot_records']['wikipedia'])
     inp=rental['watchdog_intent']['plan']['input']
@@ -93,3 +94,35 @@ def test_production_template_binds_public_parents_and_separates_private_key(tmp_
     remote=base+('-production-record' if kind=='production-record' else '-production-replay')
     assert production_run_job.command(job,r,packet,bundle,policy,source,SimpleNamespace(profile={'remote_root':remote}),kind)['--output']==remote
     assert not any('seed.key' in f['path'] for f in job['required_files'])
+
+
+def test_generated_record_and_replay_consume_the_actual_delivered_anchor_tree(prepared,tmp_path,monkeypatch):
+    from test_production_boundary_poll import fixture as published
+    from ovl_pipeline.production_record import await_anchor
+    from ovl_pipeline.progress_anchoring import ProgressPublisherPolicy,verify_prefix
+    from ovl_pipeline.production_anchoring import object_at
+    import time
+    hook,remote,out,health,starts,provider=published(prepared,tmp_path,monkeypatch)
+    publisher=hook();assert publisher.poll()['index']==0
+    a={k:Path(v) for k,v in publisher.arguments.items()};r=object_at(a['packet'],'registration.json')
+    config=tmp_path/'runtime-config.json';write_json(config,{'synthetic':True})
+    def selected(kind):
+        job=m.production_job(kind,{'remote_root':'/selected'},config,[],a['packet'],a['registration-bundle'],
+            a['production-policy'],a['source-policy'],record_files=[] if kind=='full-replay' else None)
+        args=job['argv'][job['argv'].index('--')+1:];return dict(zip(args[::2],args[1::2]))
+    record=selected('production-record');replay=selected('full-replay')
+    anchor=remote/Path(record['--anchor-directory']).relative_to(record['--output'])
+    policies=remote/Path(record['--progress-policies']).relative_to(record['--output'])
+    replay_anchor=remote/Path(replay['--progress-directory']).relative_to(replay['--chain-directory'])
+    assert replay_anchor==anchor
+    envs=read_json(remote/'chain.json')['boundaries']
+    assert await_anchor(r,digest(r),envs,anchor,policies,int(time.time())+30)['result']=='PASS'
+    assert verify_prefix(r,digest(r),envs,replay_anchor,[ProgressPublisherPolicy(**p) for p in read_json(policies)],complete=False)['result']=='PASS'
+    # Counterfactual: the old generated directory never sees the delivered files.
+    now=[1]
+    def advance(seconds):now[0]+=seconds
+    with pytest.raises(EvidenceError,match='deadline reached'):
+        await_anchor(r,digest(r),envs,remote/'public-anchors',policies,2,wall=lambda:now[0],sleep=advance)
+
+
+from test_pipeline import prepared

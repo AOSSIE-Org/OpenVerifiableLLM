@@ -239,3 +239,46 @@ def test_cold_registration_adoption_keeps_projected_bytes_deadline_and_writes(tm
         assert resumed.register(*args)==first and provider.commits==2
         assert read_json(resumed.output/'registration-deadline.json')==original
         assert {n:(resumed.output/'packet'/n).read_bytes() for n in PACKET_FILES}==files
+
+
+@pytest.mark.parametrize('kind',['production-record','full-replay'])
+def test_complete_local_validation_reserve_is_required_at_exact_job_admission_boundary(tmp_path,monkeypatch,kind):
+    factory,plan,_,selection,*_=configured(tmp_path,monkeypatch)
+    selection['timing']['post_export_seconds']=1000
+    template={**read_json(tmp_path/plan['stages'][0]['template_path']),'kind':kind,'deadline_epoch':DEADLINE}
+    with factory() as run:
+        run.authenticated={'explicit-test-admission-double':True};run.health.registration_root='a'*64
+        monkeypatch.setattr(run,'guards',lambda:None)  # Test remaining-time arithmetic, no provider claim.
+        t=run.selection['timing'];needed=t['replay_seconds']+t['export_seconds']+1000
+        if kind=='production-record':needed+=t['record_seconds']+t['export_seconds']+1000
+        now=[run.plan['request_checkpoint_epoch']-needed];run.health.now=lambda:now[0]
+        file,_=run.select_job(template,tmp_path/'fits');original=read_json(file)
+        now[0]+=1
+        with pytest.raises(EvidenceError,match='complete record and full replay'):
+            run.select_job(template,tmp_path/'late')
+        assert not(tmp_path/'late/job.json').exists()
+        assert run.select_job(template,tmp_path/'fits')[0]==file and read_json(file)==original
+
+
+@pytest.mark.parametrize('value',[-1,True,1501,1.5])
+def test_post_export_reserve_cannot_be_negative_unbounded_or_untyped(tmp_path,monkeypatch,value):
+    factory,_,_,selection,*_=configured(tmp_path,monkeypatch)
+    selection['timing']['post_export_seconds']=value
+    with pytest.raises(EvidenceError,match='unsupported canonical value: float' if isinstance(value,float) else 'post-export'):factory()
+
+
+def test_registration_cannot_publish_if_post_export_validation_would_overrun(tmp_path,monkeypatch):
+    factory,_,_,selection,*_=configured(tmp_path,monkeypatch)
+    selection['timing']['post_export_seconds']=1000
+    packet,r,policy,provider,p=registration_fixture(tmp_path,monkeypatch)
+    # Include the late synthetic rental exposure before testing remaining time.
+    r['forecast_input']['committed_future_usd']='70'
+    with factory() as run:
+        run.qualified={k:p[k] for k in ('pilot_records','pilot_replays')}
+        run.initial={'record':p['initial_record'],'verification':p['initial_verification']}
+        monkeypatch.setattr(run,'guards',lambda:None)
+        t=run.selection['timing'];old=t['registration_seconds']+t['record_seconds']+t['replay_seconds']+2*t['export_seconds']
+        run.health.now=lambda:run.plan['request_checkpoint_epoch']-old
+        with pytest.raises(EvidenceError,match='whole remaining production/replay'):
+            run.register(r,p['source'],packet/'source-statement.sigstore.json',policy,p['prepared'],tmp_path)
+    assert provider.commits==0

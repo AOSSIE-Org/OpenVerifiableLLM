@@ -20,7 +20,7 @@ import persistent_publication as publisher
 
 
 class BoundaryPublisher:
-    def __init__(self,registration,job,health,health_file,transport,output,arguments,policy):
+    def __init__(self,registration,job,health,health_file,transport,output,arguments,policy,*,retained_store=None):
         fields(policy,'schema boundary_seconds snapshot_seconds delivery_seconds python','production publication policy')
         if policy['schema']!='ovl.production-boundary-publication-policy.v1':
             raise EvidenceError('unsupported production publication policy')
@@ -32,6 +32,10 @@ class BoundaryPublisher:
         self.registration=registration;self.root=digest(registration);self.job=job
         self.health=health;self.health_file=health_file;self.transport=transport
         self.output=regular_directory(output);self.arguments=dict(arguments);self.policy=dict(policy)
+        self.retained_store=None if retained_store is None else Path(retained_store)
+        if self.retained_store is not None and (not self.retained_store.is_absolute()
+                or any(p.is_symlink() for p in [self.retained_store,*self.retained_store.parents])):
+            raise EvidenceError('explicit regular retained publication store required')
         contract=health.contract(job)
         if (contract['kind']!='production-record' or contract['registration_sha256']!=self.root
             or not any(x['root']==transport.profile['remote_root'] and x['profile_sha256']==digest(transport.profile)
@@ -40,6 +44,7 @@ class BoundaryPublisher:
         self.identity={'schema':'ovl.production-boundary-publisher.v1','job_sha256':job,
             'registration_sha256':self.root,'profile_sha256':digest(transport.profile),
             'arguments':arguments,'policy':policy}
+        if self.retained_store is not None:self.identity['retained_store']=str(self.retained_store)
         save_once(self.output/'selection.json',self.identity)
 
     def previous(self,index,envelopes):
@@ -59,7 +64,7 @@ class BoundaryPublisher:
         if index:verify_prefix(self.registration,self.root,envelopes[:index],anchors,policies,complete=False)
         return anchors,policies
 
-    def poll(self):
+    def poll(self,*,retained_selection=None):
         self.health.active(self.job)
         if read_json(self.output/'selection.json')!=self.identity:
             raise EvidenceError('publisher selection changed')
@@ -81,6 +86,19 @@ class BoundaryPublisher:
             if waiting['index']==old['index'] and waiting!=old:
                 raise EvidenceError('waiting boundary changed at the same index')
             waiting=old
+        if self.retained_store is not None and not pending:
+            # A primary can appear between live-retention and publication polls.
+            # Defer until that exact primary was retained; absence is not cache
+            # corruption and must not trigger a second transfer or paid abort.
+            if retained_selection is None:return {'result':'AWAITING_RETENTION','index':waiting['index']}
+            if retained_selection.get('registration_sha256')!=self.root:
+                raise EvidenceError('retained publication selection belongs to another registration')
+            if (retained_selection.get('kind')!='record-primary'
+                or retained_selection.get('parent_sha256')!=waiting['boundary_sha256']):
+                return {'result':'AWAITING_RETENTION','index':waiting['index']}
+            if (retained_selection.get('path')!=waiting['checkpoint_path']
+                or retained_selection.get('checkpoint')!=waiting['checkpoint']):
+                raise EvidenceError('retained primary differs from waiting publication')
         index=waiting['index'];state=self.output/'boundaries'/f'boundary-{index:05d}'
         state.mkdir(parents=True,exist_ok=True)
         intent_file=state/'intent.json'
@@ -120,8 +138,19 @@ class BoundaryPublisher:
                     kwargs['progress']=progress
                     return owner.transport.get(name,destination,item,limit,**kwargs)
             observed=ObservedSnapshot()
-            classified_export(observed,waiting['checkpoint_path'],snap,copy_deadline,selected_files,
-                lambda:snapshot(observed,self.registration,self.root,snap,copy_deadline))
+            from pod_transfer import TransientTransportError
+            try:
+                classified_export(observed,waiting['checkpoint_path'],snap,copy_deadline,selected_files,
+                    lambda:snapshot(observed,self.registration,self.root,snap,copy_deadline,retained_store=self.retained_store))
+            except TransientTransportError:
+                # Consume only the existing classified zero-payload allowance
+                # within this owner. Escaping to the enclosing run would abort.
+                require_retryable_checkpoint(self.transport,waiting['checkpoint_path'],snap,copy_deadline,selected_files)
+                retry=state/'snapshot-retry'
+                if snap==retry or retry.exists():raise
+                snap=retry
+                classified_export(observed,waiting['checkpoint_path'],snap,copy_deadline,selected_files,
+                    lambda:snapshot(observed,self.registration,self.root,snap,copy_deadline,retained_store=self.retained_store))
         if not(snap/'export.json').is_file():raise EvidenceError('boundary snapshot retries exhausted')
         chain,body,selected,_=state_check(self.registration,self.root,snap)
         if selected!=waiting:raise EvidenceError('snapshot selected a different waiting boundary')
@@ -155,14 +184,19 @@ class BoundaryPublisher:
             return result
         if self.health.now()>=deadline:raise EvidenceError('original boundary publication deadline expired')
         service=publisher.start_or_adopt(spec,digest(spec),state/'service')
-        for activity in sorted((published/'activity').glob('*.json')):
-            self.health.publication(self.job,snap,spec['deadline_epoch'],read_json(activity))
-        self.health.write(self.health_file)
         ack_file=published/'ack.json';service_result=state/'service/result.json'
         if not service_result.exists():
+            for activity in sorted((published/'activity').glob('*.json')):
+                self.health.publication(self.job,snap,spec['deadline_epoch'],read_json(activity))
+            self.health.write(self.health_file)
             if service['observation']['ActiveState'] not in ('active','activating'):
                 raise EvidenceError('persistent publisher exited without a checked result')
             return {'result':'PUBLISHING','index':index,'deadline_epoch':deadline}
+        # Completion adoption and delivery have the original enclosing boundary
+        # deadline. Do not replay expired liveness events after the worker has
+        # finished: they grant no new credit and cannot renew its deadline.
+        # The worker's result, acknowledgement, identities and complete public
+        # prefix still undergo every check below before any policy is delivered.
         done=read_json(service_result);ack=read_json(ack_file)
         fields(done,'schema selection_sha256 ack_sha256 ack_path scope','publisher result')
         if (done['selection_sha256']!=digest(spec) or done['ack_sha256']!=digest(ack)

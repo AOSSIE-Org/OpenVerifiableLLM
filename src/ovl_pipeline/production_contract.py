@@ -63,7 +63,8 @@ def validate(value):
     if set(value['coverage'])!={'wikipedia','conversation'} or set(value['pilots'])!=set(value['coverage']):
         raise EvidenceError('both full phases and pilots required')
     inp=value['forecast_input']
-    if inp.get('schema')!='ovl.cost-forecast-input.v3':raise EvidenceError('production requires v3 cost inputs')
+    if inp.get('schema') not in ('ovl.cost-forecast-input.v3','ovl.cost-forecast-input.v4'):
+        raise EvidenceError('production requires measured record and replay cost inputs')
     projected=forecast(inp)
     if projected['result']!='FITS_OPERATING_LIMIT':raise EvidenceError('full work exceeds operating budget')
     primary_count=2
