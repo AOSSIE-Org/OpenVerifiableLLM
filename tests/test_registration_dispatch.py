@@ -20,7 +20,13 @@ def configured(tmp_path,monkeypatch):
     packet,req=request(tmp_path);r=read_json(packet/'registration.json');source=PublisherPolicy(**req['source_policy'])
     calls=[];provider=Fake()
     upload=shared.transport.upload;download=shared.transport.download;reconcile=shared.transport.reconcile
-    monkeypatch.setattr(shared.transport,'upload',lambda *a:upload(*a,api=provider))
+    # The fake provider isolates these orchestration checks from publication.
+    # Forward deadline arguments to the real uploader; the exact review/scanner
+    # gate has its own positive and adversarial tests.
+    import publication_export_gate
+    monkeypatch.setattr(publication_export_gate,'require_review',
+        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'plan_sha256':digest(read_json(plan_path))})
+    monkeypatch.setattr(shared.transport,'upload',lambda *a,**kw:upload(*a,api=provider,**kw))
     monkeypatch.setattr(shared.transport,'download',lambda *a:download(*a,api=provider,fetch_file=provider.fetch))
     monkeypatch.setattr(shared.transport,'reconcile',lambda *a:reconcile(*a,api=provider))
     monkeypatch.setattr(m,'verify_code',lambda *a:{'explicit-source-test-double':True})

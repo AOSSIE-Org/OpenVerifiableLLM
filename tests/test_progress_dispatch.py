@@ -38,7 +38,13 @@ def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
         return {'explicit-publisher-test-double':True,'statement_sha256':policy.statement_sha256}
     monkeypatch.setattr(pa,'verify_anchor',anchor)
     provider=Fake();upload=m.transport.upload;download=m.transport.download;reconcile=m.transport.reconcile
-    monkeypatch.setattr(m.transport,'upload',lambda *a:upload(*a,api=provider))
+    # These tests replace the remote provider. Keep the original deadline flowing
+    # through the real uploader; exercise the privacy gate separately with its
+    # explicit adversarial/installed-scanner tests, never a real publication here.
+    import publication_export_gate
+    monkeypatch.setattr(publication_export_gate,'require_review',
+        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'plan_sha256':digest(read_json(plan_path))})
+    monkeypatch.setattr(m.transport,'upload',lambda *a,**kw:upload(*a,api=provider,**kw))
     monkeypatch.setattr(m.transport,'download',lambda *a:download(*a,api=provider,fetch_file=provider.fetch))
     monkeypatch.setattr(m.transport,'reconcile',lambda *a:reconcile(*a,api=provider))
     committed={}
