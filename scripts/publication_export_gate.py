@@ -37,6 +37,12 @@ def exact_tree(staging,entries):
     verify_inventory(staging,entries)
 
 
+def private_review(path):
+    regular(path);s=path.stat()
+    if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_nlink!=1 or s.st_mode&0o077 or s.st_size>1024**2:
+        raise EvidenceError('review must be a bounded owner-private regular file')
+
+
 def require_review(plan_path,staging,*,deadline=None,monotonic_deadline=None,execute=subprocess.run,
                    wall=time.time,monotonic=time.monotonic,sleep=time.sleep):
     """Return a private gate receipt; caller still verifies actual public bytes."""
@@ -66,9 +72,7 @@ def require_review(plan_path,staging,*,deadline=None,monotonic_deadline=None,exe
         remaining()
         if deadline is None:raise EvidenceError('exact semantic publication review required')
         sleep(min(2,remaining()))
-    remaining();regular(review_path);s=review_path.stat()
-    if not stat.S_ISREG(s.st_mode) or s.st_uid!=os.getuid() or s.st_nlink!=1 or s.st_mode&0o077 or s.st_size>1024**2:
-        raise EvidenceError('review must be a bounded owner-private regular file')
+    remaining();private_review(review_path)
     review=read_json(review_path)
     fields(review,'schema request_sha256 result repository_context content_review','local export review')
     if (review['schema']!='ovl.local-export-review.v1' or review['request_sha256']!=digest(request)
@@ -92,6 +96,7 @@ def require_review(plan_path,staging,*,deadline=None,monotonic_deadline=None,exe
     if (scan.get('schema')!='local.privacy-scan.v1' or scan.get('result')!='PASS'
         or scan.get('files')!=plan['files']):
         raise EvidenceError('privacy scan did not verify the exact export inventory')
+    private_review(review_path)
     if read_json(review_path)!=review or read_json(plan_path)!=plan:
         raise EvidenceError('publication selection changed during review')
     exact_tree(staging,plan['files']);remaining()

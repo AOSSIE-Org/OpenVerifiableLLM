@@ -43,6 +43,20 @@ def test_selection_rechecks_all_complete_inputs_and_executable_sources(tmp_path,
     with pytest.raises(EvidenceError,match='completeness'):m.validate(spec,digest(spec))
 
 
+def test_selected_stop_is_bound_and_blocks_service_start(tmp_path,monkeypatch):
+    spec,state,units,calls,*_=fixture(tmp_path,monkeypatch)
+    stop=tmp_path/'stop.json'
+    spec=m.selection(spec['registration_sha256'],spec['boundary_sha256'],spec['deadline_epoch'],spec['arguments'],
+                     python=Path(spec['python']),stop_request=stop)
+    original=digest(spec);assert spec['schema']=='ovl.persistent-publication.v2'
+    changed={**spec,'stop_request':str(tmp_path/'different-stop.json')}
+    with pytest.raises(EvidenceError,match='selection differs'):m.validate(changed,original)
+    write_json(stop,{'synthetic-test-stop':True})
+    with pytest.raises(EvidenceError,match='original controller requests stop'):
+        m.start_or_adopt(spec,original,state,execute=lambda a:calls.append(a),wall=lambda:100,unit_directory=units)
+    assert calls==[] and not (state/'start-fence.json').exists()
+
+
 @pytest.mark.parametrize('damage',['source','dependency','new-source','python','input','symlink'])
 def test_changed_selection_fails_before_service_start(tmp_path,monkeypatch,damage):
     spec,state,units,calls,_,_,_,run=fixture(tmp_path,monkeypatch)

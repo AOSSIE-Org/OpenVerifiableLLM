@@ -89,7 +89,8 @@ def test_reused_snapshot_runs_publication_and_complete_download_checks(prepared,
     provider.files.clear();provider.commits=0;provider.sha='2'*40
     def review(plan_path,staging,**kwargs):
         gate.exact_tree(staging,read_json(plan_path)['files'])
-        return {'synthetic-semantic-review-double':True,'plan_sha256':digest(read_json(plan_path))}
+        return {'synthetic-semantic-review-double':True,'schema':'ovl.local-export-gate.v1',
+                'result':'PASS','plan_sha256':digest(read_json(plan_path))}
     monkeypatch.setattr(gate,'require_review',review)
     original_request=public.request_commit
     def request(value,registration,directory,**kwargs):

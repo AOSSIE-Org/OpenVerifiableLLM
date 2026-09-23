@@ -25,7 +25,7 @@ def configured(tmp_path,monkeypatch):
     # gate has its own positive and adversarial tests.
     import publication_export_gate
     monkeypatch.setattr(publication_export_gate,'require_review',
-        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'plan_sha256':digest(read_json(plan_path))})
+        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'schema':'ovl.local-export-gate.v1','result':'PASS','plan_sha256':digest(read_json(plan_path))})
     monkeypatch.setattr(shared.transport,'upload',lambda *a,**kw:upload(*a,api=provider,**kw))
     monkeypatch.setattr(shared.transport,'download',lambda *a:download(*a,api=provider,fetch_file=provider.fetch))
     monkeypatch.setattr(shared.transport,'reconcile',lambda *a:reconcile(*a,api=provider))
@@ -66,9 +66,10 @@ def test_registration_reports_completed_finite_gates_only(tmp_path,monkeypatch):
     packet,r,source,provider,calls=configured(tmp_path,monkeypatch);events=[]
     m.publish(packet,digest(r),source,tmp_path,tmp_path/'publisher',int(time.time())+300,
               progress=lambda stage,identity:events.append((stage,identity)))
-    assert [stage for stage,_ in events]==['checkpoint-public-download-verified','request-public-commit-verified',
-        'actions-anchor-signature-verified','anchor-public-download-verified']
-    assert events[0][1]['kind']=='registration-packet'
+    assert [stage for stage,_ in events]==['checkpoint-privacy-review-verified','checkpoint-public-download-verified','request-public-commit-verified',
+        'actions-anchor-signature-verified','anchor-privacy-review-verified','anchor-public-download-verified']
+    assert events[1][1]['kind']=='registration-packet'
+    assert set(events[0][1])=={'plan_sha256','privacy_gate_sha256'}
 
 
 @pytest.mark.parametrize('damage',['registration','source-policy','packet-parent','changed-deadline','wrong-bundle','changed-actions','corrupt-public'])

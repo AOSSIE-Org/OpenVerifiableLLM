@@ -60,8 +60,9 @@ def save_once(path,value):
     else:write_json(path,value)
 
 
-def published(plan,staging,output,*,deadline=None):
+def published(plan,staging,output,*,deadline=None,reviewed=None,guard=None):
     """Preserve uncertain writes and adopt only a fully downloaded fixed revision."""
+    if guard is not None:guard()
     plan_path=output/'plan.json';output.mkdir(exist_ok=True);save_once(plan_path,plan)
     upload=output/'publication'
     pin=output/'archive.json'
@@ -71,7 +72,10 @@ def published(plan,staging,output,*,deadline=None):
             raise EvidenceError('saved archive selection differs from publication plan')
     else:
         if (upload/'upload.json').exists():receipt=read_json(upload/'upload.json')
-        else:receipt=transport.reconcile(plan_path,upload) if upload.exists() else transport.upload(plan_path,staging,upload,deadline=deadline)
+        else:
+            options={} if reviewed is None else {'reviewed':reviewed}
+            if guard is not None:options['guard']=guard
+            receipt=transport.reconcile(plan_path,upload) if upload.exists() else transport.upload(plan_path,staging,upload,deadline=deadline,**options)
         archive={'repo':plan['repo'],'revision':receipt['revision'],'prefix':plan['prefix'],'inventory':plan['files']}
         save_once(pin,archive)
     fresh=output/('download-'+uuid.uuid4().hex)
@@ -203,10 +207,14 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
 
 
 def _publish(packet,bundle,production_policy,source_policy,source_checkout,config,chain_directory,
-            previous_directory,previous_policies,output,deadline):
+            previous_directory,previous_policies,output,deadline,*,guard=None):
+    if guard is not None:guard()
     integer(deadline,1,2**53-1,'publisher deadline')
     if time.time()>=deadline:raise EvidenceError('publisher deadline expired before publication')
-    bounded_command=deadline_command(deadline)
+    bounded=deadline_command(deadline)
+    def bounded_command(*args,**kw):
+        if guard is not None:guard()
+        return bounded(*args,**kw)
     fields(config,'schema registration_request registration_anchor','progress dispatcher configuration')
     if config['schema']!='ovl.progress-dispatch.v1':raise EvidenceError('unsupported dispatcher configuration')
     verification=verify_packet(packet,bundle,production_policy,source_policy,source_checkout=source_checkout)
@@ -247,11 +255,13 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
               'deadline_epoch':deadline})
     def activity(stage,identity):
         from publication_activity import emit
+        if guard is not None:guard()
         emit(output/'activity',root,digest(envelopes[-1]),stage,identity,deadline)
     cpplan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'checkpoint',
             'prefix':f'production-checkpoints/{root}/{body["checkpoint_path"]}',
             'subject_sha256':digest(body['checkpoint']),'files':inventory(checkpoint,['checkpoint.json','state.json','state.safetensors'])}
-    archive,downloaded,cpdownload=published(cpplan,checkpoint,output/'checkpoint',deadline=deadline)
+    archive,downloaded,cpdownload=published(cpplan,checkpoint,output/'checkpoint',deadline=deadline,
+        reviewed=lambda identity:activity('checkpoint-privacy-review-verified',identity),guard=guard)
     md,ts=read_state(downloaded,body['checkpoint'])
     if unpack(md['tree'],ts)['control']!=body['control']:raise EvidenceError('downloaded checkpoint control differs')
     activity('checkpoint-public-download-verified',{'archive':archive,'checkpoint':body['checkpoint']})
@@ -275,7 +285,8 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':transport.REPO,'kind':'progress-anchor',
           'prefix':f'production-progress/{root}/progress-{index:05d}','subject_sha256':digest(value),
           'files':inventory(current,['statement.json','statement.sigstore.json'])}
-    public,downloaded,anchor_download=published(plan,current,output/'anchor',deadline=deadline)
+    public,downloaded,anchor_download=published(plan,current,output/'anchor',deadline=deadline,
+        reviewed=lambda identity:activity('anchor-privacy-review-verified',identity),guard=guard)
     # Verify the actual public bytes, not merely the temporary Actions artifact.
     public_prefix=output/('public-prefix-'+uuid.uuid4().hex);public_prefix.mkdir()
     for i in range(index):copy_anchor(confined(previous_directory,f'progress-{i:05d}'),public_prefix/f'progress-{i:05d}')
@@ -288,11 +299,12 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
          'registration_check':verification,'actions':actions,'actions_prefix_check':local_check,
          'checkpoint_download':cpdownload,'anchor_download':anchor_download,'public_prefix_check':checked,
          'anchor_directory':str(public_prefix.resolve()),'training_replay':'NOT_RUN'}
+    if guard is not None:guard()
     save_once(output/'ack.json',ack);return ack
 
 
 def publish(packet,bundle,production_policy,source_policy,source_checkout,config,chain_directory,
-            previous_directory,previous_policies,output,deadline):
+            previous_directory,previous_policies,output,deadline,*,guard=None):
     from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     output.mkdir(parents=True,exist_ok=True)
@@ -300,7 +312,7 @@ def publish(packet,bundle,production_policy,source_policy,source_checkout,config
     try:
         if (output/'ack.json').exists():raise EvidenceError('completed publication acknowledgement already exists; verify and adopt it instead of publishing again')
         return _publish(packet,bundle,production_policy,source_policy,source_checkout,config,chain_directory,
-                        previous_directory,previous_policies,output,deadline)
+                        previous_directory,previous_policies,output,deadline,guard=guard)
     finally:os.close(fd)
 
 

@@ -9,10 +9,11 @@ import publish_progress_boundary as publisher
 from ovl_pipeline.canonical import EvidenceError,read_json
 
 
-def test_repeated_stage_never_changes_bytes_and_cannot_renew_deadline(tmp_path):
-    args=(tmp_path,'a'*64,'b'*64,'request-public-commit-verified',{'revision':'c'*40},1000)
+@pytest.mark.parametrize('stage',['request-public-commit-verified','checkpoint-privacy-review-verified','anchor-privacy-review-verified'])
+def test_repeated_stage_never_changes_bytes_and_cannot_renew_deadline(tmp_path,stage):
+    args=(tmp_path,'a'*64,'b'*64,stage,{'revision':'c'*40},1000)
     assert m.emit(*args,wall=lambda:100)
-    path=tmp_path/'request-public-commit-verified.json';original=path.read_bytes();stamp=path.stat().st_mtime_ns
+    path=tmp_path/(stage+'.json');original=path.read_bytes();stamp=path.stat().st_mtime_ns
     assert not m.emit(*args,wall=lambda:999)
     assert path.read_bytes()==original and path.stat().st_mtime_ns==stamp
     with pytest.raises(EvidenceError,match='expired'):m.emit(*args,wall=lambda:1000)
