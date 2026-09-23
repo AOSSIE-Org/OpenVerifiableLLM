@@ -264,7 +264,13 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if known is not None and not terminating and 0<left<=21:sleep(min(5,left));continue
             stage='account'
             try:
-                obs=get_account();stage='observation';pod=match_pod(w,obs,known)
+                obs=get_account();stage='observation'
+                if 'retained_volume' in w:
+                    violations=retained_volume.independent_errors(w,obs)
+                    if violations:
+                        storage_errors.update(violations)
+                        log('failure',{'stage':'retained-account-guard','reasons':violations})
+                pod=match_pod(w,obs,known)
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale provider read')
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:raise EvidenceError('provider clock differs')

@@ -59,11 +59,17 @@ def baseline_valid(intent, observation):
             and observation['autopay'] is False and compute_hourly(intent,observation)==0)
 
 
-def account_errors(intent, observation, pod):
-    """Check retained storage even before discovery and after compute disappears."""
+def independent_errors(intent, observation):
+    """Preserve storage/autopay evidence even when pod attribution subsequently fails."""
     errors=[]
     if not matches(intent,observation):errors.append('retained-volume-identity')
     if observation['autopay'] is not False:errors.append('autopay')
+    return errors
+
+
+def account_errors(intent, observation, pod):
+    """Check retained storage even before discovery and after compute disappears."""
+    errors=independent_errors(intent,observation)
     if len(observation['pods'])!=(0 if pod is None else 1):errors.append('unrelated-pods')
     ceiling=Decimal(0) if pod is None else Decimal(intent['plan']['input']['hourly_upper_usd'])
     if compute_hourly(intent,observation)>ceiling:errors.append('account-rate')

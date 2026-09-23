@@ -107,7 +107,13 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                 sleep(min(5,left));continue
             stage='account'
             try:
-                obs=get_account();stage='observation';pod=match_pod(intent,obs,known)
+                obs=get_account();stage='observation'
+                if 'retained_volume' in intent:
+                    violations=retained_volume.independent_errors(intent,obs)
+                    if violations:
+                        storage_errors.update(violations)
+                        log('failure',{'stage':'retained-account-guard','reasons':violations})
+                pod=match_pod(intent,obs,known)
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
                     raise EvidenceError('provider clock mismatch')

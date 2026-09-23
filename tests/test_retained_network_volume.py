@@ -204,3 +204,23 @@ def test_account_rejects_malformed_volume_size(monkeypatch,size):
     raw={'myself':{'isAutoPayEnabled':False,'pods':[],'networkVolumes':[{'id':'synthetic-volume','name':'synthetic-cache','size':size,'dataCenterId':'EU-RO-1'}],'clientBalance':100,'currentSpendPerHr':Decimal('.023334')}}
     monkeypatch.setattr(provider,'request',lambda operation:(raw,'a'*64,{}))
     with pytest.raises(EvidenceError):provider.account()
+
+
+@pytest.mark.parametrize('guard',['controller','watchdog'])
+def test_attribution_error_cannot_hide_missing_volume(tmp_path,guard):
+    if guard=='controller':
+        f=VolumeFake(tmp_path)
+        def corrupt(obs):
+            obs['pods'][0]['name']='unexpected-name';obs['volume_ids']=[];obs['network_volumes']=[]
+        f.volume_change=corrupt;f.run();directory=f.directory
+    else:
+        f=Fake(volume_intent()['watchdog_intent']);original=f.account
+        def account():
+            obs=observation(original(),f.i['retained_volume'])
+            if f.alive and f.reads>=2:
+                obs['pods'][0]['name']='unexpected-name';obs['volume_ids']=[];obs['network_volumes']=[]
+            return obs
+        f.account=account;directory=tmp_path/'watchdog';f.run(directory)
+    result=read_json(directory/'result.json')
+    assert result['retained_storage_verification']=='FAIL'
+    assert 'retained-volume-identity' in result['account_guard_violations']
