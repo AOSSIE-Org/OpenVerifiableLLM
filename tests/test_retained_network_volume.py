@@ -27,14 +27,14 @@ def observation(obs,selection):
     obs['network_volumes']=[{'id':selection['id'],'name':selection['name'],'size':selection['size_gb'],'dataCenterId':selection['data_center_id']}]
     obs['account_hourly_usd']=str(Decimal(obs['account_hourly_usd'])+retained_volume.hourly(selection))
     for pod in obs['pods']:
-        pod.update(networkVolumeId=selection['id'],networkVolumeDataCenterId=selection['data_center_id'],volumeMountPath='/workspace',volumeInGb=selection['size_gb'])
+        pod.update(networkVolumeId=selection['id'],networkVolumeDataCenterId=selection['data_center_id'],volumeMountPath='/workspace',volumeInGb=0)
     return obs
 
 
 def volume_intent():
     value=intent();w=value['watchdog_intent'];s=selected()
     value['schema']='ovl.rental-controller-intent.v6';w['schema']='ovl.external-watchdog-intent.v2';w['retained_volume']=s
-    attachment={'networkVolumeId':s['id'],'dataCenterId':s['data_center_id'],'volumeMountPath':'/workspace','volumeInGb':s['size_gb']}
+    attachment={'networkVolumeId':s['id'],'dataCenterId':s['data_center_id'],'volumeMountPath':'/workspace','volumeInGb':0}
     w['payload'].update(attachment);value['payload'].update(attachment,allowedCudaVersions=['13.0'])
     w['baseline']=observation(w['baseline'],s)
     quote=value['quote'];quote.update(schema='ovl.rental-quote.v3',network_volume_sha256=digest(s))
@@ -224,3 +224,19 @@ def test_attribution_error_cannot_hide_missing_volume(tmp_path,guard):
     result=read_json(directory/'result.json')
     assert result['retained_storage_verification']=='FAIL'
     assert 'retained-volume-identity' in result['account_guard_violations']
+
+
+@pytest.mark.parametrize('value',[1,224,225,False,None,'0'])
+def test_network_volume_intent_requires_no_separate_volume_disk(value):
+    v=volume_intent()
+    for payload in (v['payload'],v['watchdog_intent']['payload']):payload['volumeInGb']=value
+    with pytest.raises(EvidenceError):controller.validate(v,digest(v))
+
+
+@pytest.mark.parametrize('value',[1,224,225])
+def test_separate_disk_observation_remains_exact(value):
+    w=volume_intent()['watchdog_intent'];f=Fake(w)
+    pod=observation(f.account(),w['retained_volume'])['pods'][0]
+    assert not provision_errors(w,pod)
+    pod['volumeInGb']=value
+    assert provision_errors(w,pod)==['volumeInGb']
