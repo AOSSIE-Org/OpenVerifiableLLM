@@ -33,8 +33,10 @@ def validate(selection, plan, payload):
     cost=(hourly(selection)*Decimal(ceiling-created)/3600).quantize(Decimal('.000001'),rounding=ROUND_CEILING)
     if money(selection['reserved_usd'])<int(cost*10**6) or money(plan['input']['reserved_remaining_usd'])<money(selection['reserved_usd']):
         raise EvidenceError('complete retained volume cost is not reserved')
+    # A network volume replaces the pod-local volume disk at /workspace.
+    # Its capacity is checked from network-volume metadata, not volumeInGb.
     if (payload.get('networkVolumeId')!=selection['id'] or payload.get('dataCenterId')!=selection['data_center_id']
-        or payload.get('volumeMountPath')!='/workspace' or payload['volumeInGb']!=selection['size_gb']):
+        or payload.get('volumeMountPath')!='/workspace' or type(payload['volumeInGb']) is not int or payload['volumeInGb']!=0):
         raise EvidenceError('attached volume differs from retained selection')
     return selection
 

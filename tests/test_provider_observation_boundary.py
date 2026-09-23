@@ -30,7 +30,7 @@ def test_integral_provider_float_can_be_journaled(tmp_path,monkeypatch,size):
     obs=provider.account()
     assert type(obs['pods'][0]['volumeInGb']) is int
     assert digest(obs)
-    assert not provider.provision_errors(f.i,obs['pods'][0])
+    assert provider.provision_errors(f.i,obs['pods'][0])==['volumeInGb']
 
 
 @pytest.mark.parametrize('size',[True,'224',None,Decimal('224.1'),Decimal('NaN'),Decimal('Infinity'),-1,2**54])
@@ -42,13 +42,13 @@ def test_malformed_provider_volume_remains_strict(tmp_path,monkeypatch,size):
 
 def test_shape_rejection_retains_observation_and_specific_fields(tmp_path):
     f=VolumeFake(tmp_path)
-    f.volume_change=lambda obs:obs['pods'][0].update(volumeInGb=0)
+    f.volume_change=lambda obs:obs['pods'][0].update(volumeInGb=224)
     f.run();events=Journal(f.directory)._read()
     rejected=[e for e in events if e['kind']=='failure' and e['body'].get('stage')=='resource-shape']
     assert rejected and rejected[0]['body']['fields']==['volumeInGb']
     raw=[e for e in events if e['kind']=='provider-observation' and e['body'].get('validation')=='PENDING']
     assert raw and raw[0]['sequence']<rejected[0]['sequence']
-    assert raw[0]['body']['account']['pods'][0]['volumeInGb']==0
+    assert raw[0]['body']['account']['pods'][0]['volumeInGb']==224
     assert not f.alive and f.writes==1
     assert next(c[2] for c in f.calls if c[0]=='terminate')<f.i['plan']['provider_terminate_epoch']
     assert read_json(f.directory/'result.json')['training_admission']=='NOT_RUN'
@@ -99,7 +99,7 @@ def test_storage_violation_survives_observation_serialization_failure(tmp_path,g
 
 
 @pytest.mark.parametrize('guard',['controller','watchdog'])
-@pytest.mark.parametrize('size',[224.0,225.0])
+@pytest.mark.parametrize('size',[0.0,224.0,225.0])
 def test_parsed_float_through_bounded_transport_and_guard(tmp_path,monkeypatch,guard,size):
     # Exercise the actual JSON parser and fork/pipe reader, not a normalized
     # account double. All transport and identity values are synthetic.
@@ -133,7 +133,7 @@ def test_parsed_float_through_bounded_transport_and_guard(tmp_path,monkeypatch,g
             wall=lambda:f.now,monotonic=lambda:f.elapsed,sleep=f.sleep,
             clock=lambda:{'boot_id':'fake-boot','boottime_ms':int(f.elapsed*1000)})
     events=Journal(path)._read();first=next(c[2] for c in f.calls if c[0]=='terminate')
-    if size==224.0:
+    if size==0.0:
         deadline=f.i['plan']['provider_terminate_epoch' if guard=='controller' else 'external_terminate_epoch']
         assert first==deadline
         assert not [e for e in events if e['kind']=='failure']
