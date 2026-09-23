@@ -7,7 +7,7 @@ from ovl_pipeline.canonical import EvidenceError,digest
 
 
 def parents():
-    r=registration();kernel=r['kernel'];env={'compatible':{'schema':'ovl.gpu-environment.v1','kernel':kernel}}
+    r=registration();kernel=r['kernel'];env={'compatible':{'schema':'ovl.gpu-environment.v1','kernel':kernel},'reproducibility_validation':'NOT_RUN','production_admission':'NOT_RUN'}
     r['runtime']['compatible_environment_sha256']=digest(env['compatible'])
     source={'schema':'ovl.source-preparation.v2','scope':'production-source-preparation','run_id':r['run_id'],
             'source_revision':'1'*40,'code':['synthetic-code-pin'],'environment':{'synthetic':True},
@@ -21,12 +21,17 @@ def parents():
         'conversation_selection':{'source_inventory_root':digest(source['conversation']['inventory']),'split_filenames':source['conversation']['splits']}}
     r['preparation_sha256']=digest(prepared)
     initial={'scope':'preproduction-regenerated-initial-state','result':'RECORDED_AWAITING_FRESH_REGENERATION','warmup_weights_discarded':True,'schema':'ovl.initialization-record.v1','recipe':r['recipe'],'kernel':kernel,'code_root':r['code_root'],
-        'checkpoint':{'state_root':'9'*64},'warmup_updates':4,'stream_sha256':digest(streams['wikipedia']),
-        'process_observation':{'pid':1},'environment':env}
+        'checkpoint':{'schema':'ovl.checkpoint.v1','state_root':'9'*64,'files':[{'path':n,'bytes':1,'sha256':'8'*64} for n in ('state.json','state.safetensors')]},'warmup_updates':4,'stream_sha256':digest(streams['wikipedia']),
+        'process_observation':{'pid':1,'boot_id':'00000000-0000-0000-0000-000000000001','start_ticks':'10'},'environment':env,
+        'control':{'phase':'wikipedia','global_step':0,'phase_step':0,'cursor':0,'transcript':'a'*64,'schedule':'constant-lr-v1','accumulation':'none','scaler':'none'},
+        'parameter_count':100,'production_admission':'NOT_RUN'}
     verified={'schema':'ovl.initialization-verification.v1','result':'PASS','scope':'complete-initial-state-regenerated-and-compared',
         'prover_tensors_loaded_as_state':False,'distinct_process_from_record':True,'record_sha256':digest(initial),
         'code_root':r['code_root'],'recipe_sha256':digest(r['recipe']),'initial_state_sha256':'9'*64,
-        'warmup_updates':4,'stream_sha256':digest(streams['wikipedia']),'process_observation':{'pid':2},'environment':env}
+        'warmup_updates':4,'stream_sha256':digest(streams['wikipedia']),
+        'process_observation':{'pid':2,'boot_id':'00000000-0000-0000-0000-000000000001','start_ticks':'20'},'environment':env,
+        'process_identity_scope':'operator OS observation, not hardware attestation',
+        'performed_by':'project-operator','independent_third_party':False,'production_admission':'NOT_RUN'}
     r['initialization']['regeneration_report_sha256']=digest(verified)
     records={};replays={}
     for phase in ('wikipedia','conversation'):

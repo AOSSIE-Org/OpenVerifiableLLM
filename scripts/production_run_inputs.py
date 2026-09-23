@@ -16,6 +16,8 @@ def dollars(value):return format(value.quantize(Decimal('.000001'),rounding=ROUN
 
 
 def registration(template,qualified,initial,rental,now,*,construction_seconds=0):
+    from ovl_pipeline.production_parents import public_initialization
+    initial=public_initialization(initial)
     r=deepcopy(template);plan=rental['watchdog_intent']['plan'];inp=plan['input']
     if not inp['now_epoch']<=now<plan['request_checkpoint_epoch']:raise EvidenceError('registration outside original rental work window')
     r['runtime']['compatible_environment_sha256']=qualified['compatible_environment_sha256']
