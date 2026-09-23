@@ -7,7 +7,7 @@ The closed inventory is rebuilt from every selected wheel's actual member bytes.
 from __future__ import annotations
 import argparse
 import hashlib
-from pathlib import Path
+from pathlib import Path,PurePosixPath
 import re
 import stat
 import sysconfig
@@ -48,6 +48,19 @@ def locked_requirements(path):
     return result
 
 
+def archive_name(name):
+    """Validate a virtual ZIP name without consulting unrelated working files.
+
+    Members are streamed, never extracted here. Actual archive and installed
+    paths retain their separate regular-file, symlink and confinement checks.
+    """
+    if type(name) is not str or '\\' in name or '\x00' in name:
+        raise EvidenceError('invalid inventory path')
+    p=PurePosixPath(name)
+    if p.is_absolute() or not p.parts or any(x in ('.','..') for x in name.split('/')) or str(p)!=name:
+        raise EvidenceError('noncanonical or escaping inventory path')
+
+
 def wheel_manifest(lock,wheels):
     """Fully hash archives and stream every member; never extract archive paths."""
     locked=locked_requirements(lock);packages=[];payloads={};seen=set();dist_infos=[]
@@ -75,7 +88,7 @@ def wheel_manifest(lock,wheels):
             data_root=info_root[:-len('.dist-info')]+'.data/'
             for member in infos:
                 n=member.filename
-                confined(Path('.'),n.rstrip('/'))
+                archive_name(n.rstrip('/'))
                 if member.is_dir():continue
                 mode=(member.external_attr>>16)&0xffff
                 if stat.S_IFMT(mode) not in (0,stat.S_IFREG):raise EvidenceError('nonregular wheel payload')

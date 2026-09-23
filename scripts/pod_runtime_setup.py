@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -32,7 +33,43 @@ def confined(root,name):
     return p
 
 
-def selected(config_file,expected,inputs):
+def cache_wheels(source,cache):
+    """Copy bounded regular archives once; all complete wheel audits still run."""
+    source=Path(source);cache=Path(cache)
+    if any(p.is_symlink() for p in [cache,*cache.parents]):raise ValueError('wheel cache symlink')
+    if cache.exists() or source==cache or source in cache.parents or cache in source.parents:
+        raise ValueError('fresh separate wheel cache required')
+    files=sorted(source.iterdir());total=0;snapshots={}
+    def identity(st):return (st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns)
+    if not 1<=len(files)<=1024:raise ValueError('wheel cache file bound')
+    for p in files:
+        if p.is_symlink() or not p.is_file() or p.suffix!='.whl':raise ValueError('regular wheel archives required')
+        snapshots[p.name]=identity(p.stat());total+=snapshots[p.name][2]
+    if total>4*1024**3:raise ValueError('wheel cache byte bound')
+    cache.mkdir(mode=0o700)
+    for p in files:
+        # Never follow a replaced input symlink or accept a growing archive.
+        with os.fdopen(os.open(p,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK),'rb') as src:
+            before=os.fstat(src.fileno());count=0
+            if not stat.S_ISREG(before.st_mode) or identity(before)!=snapshots[p.name]:
+                raise ValueError('wheel changed before cache copy')
+            with (cache/p.name).open('xb') as dst:
+                while True:
+                    data=src.read(min(1024**2,before.st_size-count+1))
+                    if not data:break
+                    count+=len(data)
+                    if count>before.st_size:raise ValueError('wheel changed during cache copy')
+                    dst.write(data)
+                dst.flush();os.fsync(dst.fileno())
+            after=os.fstat(src.fileno())
+            if count!=before.st_size or identity(before)!=identity(after) or identity(p.lstat())!=identity(before):
+                raise ValueError('wheel changed during cache copy')
+    if sorted(source.iterdir())!=files:raise ValueError('wheel inventory changed during cache copy')
+    # No cache-success or scientific credit: selected() next rebuilds the
+    # complete manifest from these copied bytes against the original lock.
+
+
+def selected(config_file,expected,inputs,*,wheel_cache=None,populate_cache=False):
     inputs=Path(inputs).absolute();config_file=Path(config_file)
     if not re.fullmatch('[0-9a-f]{64}',expected) or config_file.is_symlink() or sha(config_file)!=expected:
         raise ValueError('setup configuration differs from operator selection')
@@ -60,6 +97,12 @@ def selected(config_file,expected,inputs):
     if names!=sorted(set(names)) or sorted(actual)!=names:raise ValueError('source inventory is not complete')
     wheels=confined(inputs,value['wheels']);imports=value['bootstrap_wheels']
     if type(imports) is not list or len(imports)!=2:raise ValueError('explicit bootstrap wheel pair required')
+    if wheel_cache is not None:
+        wheel_cache=Path(wheel_cache)
+        if any(p.is_symlink() for p in [wheel_cache,*wheel_cache.parents]):raise ValueError('wheel cache symlink')
+        if populate_cache:cache_wheels(wheels,wheel_cache)
+        if not wheel_cache.is_dir():raise ValueError('missing selected wheel cache')
+        wheels=wheel_cache
     packages=[];paths=[]
     for item in imports:
         if set(item)!={'path','sha256'}:raise ValueError('bootstrap wheel shape')
@@ -106,12 +149,14 @@ def layout(runtime,output):
 def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     runtime,output=layout(runtime,output)
     if runtime.exists():raise ValueError('runtime setup requires a fresh tree; preserve partial attempts')
-    value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs)
+    runtime.mkdir(mode=0o700,parents=True)
+    value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs,
+                                                    wheel_cache=runtime/'wheels',populate_cache=True)
     from ovl_pipeline.canonical import digest,write_json
     from ovl_pipeline.python_origin import extract
     from ovl_pipeline.runtime_audit import verify_installed
     from ovl_pipeline.runtime_launch import launch
-    output.mkdir(mode=0o700,parents=True);runtime.mkdir(mode=0o700,parents=True)
+    output.mkdir(mode=0o700,parents=True)
     write_json(output/'selected-config.json',value);write_json(output/'wheel-payloads.json',manifest)
     python_root=runtime/'public-python';payloads,checked=extract(archive,value['interpreter_sha256'],python_root)
     write_json(output/'python-payloads.json',payloads);write_json(output/'python-audit.json',checked)
@@ -140,7 +185,7 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
 
 def audited(config_file,expected,inputs,runtime,output,module,arguments):
     runtime,output=layout(runtime,output)
-    value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs)
+    value,source,wheels,lock,manifest,archive=selected(config_file,expected,inputs,wheel_cache=runtime/'wheels')
     from ovl_pipeline.runtime_launch import launch
     return launch(lock,wheels,runtime/'venv',source/'src',output,module,arguments,
                   interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=runtime/'public-python')
