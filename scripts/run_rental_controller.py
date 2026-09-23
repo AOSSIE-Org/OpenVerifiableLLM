@@ -264,17 +264,25 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if known is not None and not terminating and 0<left<=21:sleep(min(5,left));continue
             stage='account'
             try:
-                obs=get_account();stage='observation'
+                obs=get_account();stage='account-identity'
                 if 'retained_volume' in w:
                     violations=retained_volume.independent_errors(w,obs)
                     if violations:
                         storage_errors.update(violations)
                         log('failure',{'stage':'retained-account-guard','reasons':violations})
+                stage='observation-journal'
+                # Preserve independent storage failures before a serialization
+                # failure in another field. All account journals remain private.
+                if not log('provider-observation',{'account':obs,'validation':'PENDING'}):
+                    raise EvidenceError('cannot preserve provider observation')
+                stage='pod-attribution'
                 pod=match_pod(w,obs,known)
+                stage='provider-clock'
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale provider read')
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:raise EvidenceError('provider clock differs')
                 last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
+                stage='retained-account-guard'
                 if 'retained_volume' in w:
                     violations=retained_volume.account_errors(w,obs,pod)
                     if violations:
@@ -296,21 +304,27 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                     missing_since=None
                     if known is None:
                         known=pod['id'];j.append('creation-observed',{'id':known,'adopted_from_unique_intent':True})
-                    if provision_errors(w,pod) or not retained_volume.matches(w,obs) or obs['autopay'] or len(obs['pods'])!=1:
+                    stage='resource-shape';shape_errors=provision_errors(w,pod)
+                    if shape_errors:
+                        log('failure',{'stage':stage,'fields':shape_errors})
+                    if shape_errors or not retained_volume.matches(w,obs) or obs['autopay'] or len(obs['pods'])!=1:
                         raise EvidenceError('resource shape/account singleton changed')
+                    stage='watchdog-heartbeat'
                     h=watchdog_heartbeat(heartbeat,w,int(wall()),known)
+                    stage='workload-health'
                     health_error=False
                     try:
                         health=read_json(health_path) if health_path.exists() else None
                         v=normalized(w,obs,pod,h,health,int(wall()))
                     except (EvidenceError,OSError,KeyError,TypeError):
                         health=None;health_error=True;v=normalized(w,obs,pod,h,None,int(wall()))
-                    decision=observe(p,v)
+                    stage='cost-policy';decision=observe(p,v)
                     if health_error and decision['action']!='TERMINATE':
                         decision['action']='CHECKPOINT_AND_STOP';decision['reasons'].append('invalid-workload-export-health')
                     decision['observed_epoch']=int(wall())
                     debit=max(Decimal(0),Decimal(w['baseline']['balance_usd'])-Decimal(obs['balance_usd']))
                     storage_reserve=Decimal(w['retained_volume']['reserved_usd']) if 'retained_volume' in w else Decimal(0)
+                    stage='account-debit'
                     if debit>Decimal(p['input']['outstanding_usd'])+Decimal(p['maximum_charge_micro_usd'])/10**6+storage_reserve:
                         raise EvidenceError('observed debit exceeded prior unsettled plus rental ceiling')
                     if not log('provider-observation',{'account':obs,'normalized':v}):raise EvidenceError('cannot preserve cost observation')
@@ -336,7 +350,10 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                 if (stage=='account' and lifetime.remaining()>25 and transient_read_grace(e,wall(),last_success,monotonic(),last_success_monotonic,recovery_limit,terminating)):
                     if log('failure',{'stage':'transient-account-read',**diagnostic(e),'action':'bounded-read-retry',
                                      'provider_observed_epoch':last_success,'stop_limit_epoch':recovery_limit}):sleep(5);continue
-                log('failure',{'stage':'supervision',**diagnostic(e)});terminate('invalid-observation-or-evidence',reconcile=True)
+                if stage=='account' and 'retained_volume' in w:
+                    storage_errors.add('provider-observation-unverified')
+                    log('failure',{'stage':'retained-account-guard','reasons':['provider-observation-unverified']})
+                log('failure',{'stage':'supervision','failed_check':stage,**diagnostic(e)});terminate('invalid-observation-or-evidence',reconcile=True)
             sleep(5 if terminating else 10)
 
 
