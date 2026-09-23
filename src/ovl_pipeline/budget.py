@@ -49,15 +49,17 @@ def forecast(value):
     all pilot work, including partial batches. Every remaining production update,
     including a final short batch, is charged at that conservative measured rate.
     v3 additionally binds sustained timing, complete checkpoint density and timed
-    continuous replay; both paths use the slower observed rate. Production callers
-    must require v3 and authenticate the cited census, record and replay.
+    continuous replay; both paths use the slower observed rate. v4 retains these
+    checks and the 25% margin but prices each direction at its own measured rate.
+    Production callers must authenticate the cited census, record and replay.
     """
     fields(value, "schema spent_usd committed_future_usd hourly_usd fixed_remaining_usd phases", "forecast")
     version = value["schema"]
-    if version not in ("ovl.cost-forecast-input.v1", "ovl.cost-forecast-input.v2", "ovl.cost-forecast-input.v3"):
+    if version not in ("ovl.cost-forecast-input.v1", "ovl.cost-forecast-input.v2", "ovl.cost-forecast-input.v3", "ovl.cost-forecast-input.v4"):
         raise EvidenceError("unsupported cost forecast")
     by_updates = version != "ovl.cost-forecast-input.v1"
-    representative = version == "ovl.cost-forecast-input.v3"
+    directional = version == "ovl.cost-forecast-input.v4"
+    representative = version in ("ovl.cost-forecast-input.v3", "ovl.cost-forecast-input.v4")
     spent, committed, hourly, fixed = [money(value[k]) for k in
         ("spent_usd", "committed_future_usd", "hourly_usd", "fixed_remaining_usd")]
     if hourly <= 0:
@@ -96,8 +98,8 @@ def forecast(value):
                 raise EvidenceError("production checkpoint count omits scheduled checkpoints")
             if phase["measured_checkpoints"] * phase[work] < phase["production_checkpoints"] * phase["measured_updates"]:
                 raise EvidenceError("pilot checkpoint density is below complete production schedule")
-            # Full replay must be timed too. Charge both remaining paths at the
-            # slower observed rate, including real save/compare boundary costs.
+            # The historical v3 branch charges both paths at the slower rate.
+            # V4 below uses the independently measured directional rates.
             measured_ms = max(measured_ms, phase["replay_measured_ms"])
         for key in ("training_completed", "replay_completed"):
             integer(phase[key], 0, phase[work], key)
@@ -105,7 +107,14 @@ def forecast(value):
             raise EvidenceError("replay cannot precede recorded training")
         remaining = 2 * phase[work] - phase["training_completed"] - phase["replay_completed"]
         # Include full sequential replay; never estimate a sampled audit.
-        ms = ceil_div(remaining * measured_ms, phase[measured])
+        if directional:
+            # Round each complete remaining trajectory up separately. Replay
+            # must be measured and authenticated, never inferred from FLOPs or
+            # a saved PASS marker. Fixed publication/export costs remain extra.
+            ms = (ceil_div((phase[work]-phase['training_completed'])*phase['measured_ms'],phase[measured])
+                  +ceil_div((phase[work]-phase['replay_completed'])*phase['replay_measured_ms'],phase[measured]))
+        else:
+            ms = ceil_div(remaining * measured_ms, phase[measured])
         estimates[name] = {f"remaining_{work}_including_replay": remaining,
                            "remaining_ms_with_margin": ceil_div(ms * 5, 4)}
     total_ms = sum(p["remaining_ms_with_margin"] for p in estimates.values())
@@ -113,7 +122,7 @@ def forecast(value):
     total = spent + committed + fixed + compute
     headroom = OPERATING_LIMIT - spent - committed - fixed
     return {
-        "schema": "ovl.cost-forecast.v3" if representative else "ovl.cost-forecast.v2" if by_updates else "ovl.cost-forecast.v1", "input_sha256": digest(value),
+        "schema": "ovl.cost-forecast.v4" if directional else "ovl.cost-forecast.v3" if representative else "ovl.cost-forecast.v2" if by_updates else "ovl.cost-forecast.v1", "input_sha256": digest(value),
         "scope": "forecast-arithmetic-only-not-production-admission",
         "result": "FITS_OPERATING_LIMIT" if total <= OPERATING_LIMIT else "STOP",
         "cap_micro_usd": CAP, "operating_limit_micro_usd": OPERATING_LIMIT,

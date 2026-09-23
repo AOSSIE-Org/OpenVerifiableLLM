@@ -31,6 +31,7 @@ def public_parents(p):
 def test_registration_freezes_actual_measurements_with_original_whole_rental_ceiling():
     r,p,rental,q,initial=fixture();now=rental['watchdog_intent']['plan']['input']['now_epoch']+100
     actual,basis=m.registration(r,q,initial,rental,now)
+    assert actual['forecast_input']['schema']=='ovl.cost-forecast-input.v4'
     assert validate_parents(actual,**public_parents(p))['result']=='PASS'
     assert actual['pilots']['wikipedia']['record_sha256']==digest(q['pilot_records']['wikipedia'])
     inp=rental['watchdog_intent']['plan']['input']

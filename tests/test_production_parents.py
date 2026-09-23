@@ -78,8 +78,10 @@ def test_synthetic_parent_consistency_cannot_authenticate_assertions_or_admit_ex
 @pytest.mark.parametrize('change',['source-run','validation','conversation-parent','vocab','init-loaded','init-same-process',
     'init-state','init-runtime','pilot-recipe','pilot-stream','sampled-replay','resume-replay','empty-boundaries',
     'boundary-parent','false-rate','false-replay-time','fixed-pilot'])
-def test_rehashed_parents_cannot_hide_inconsistent_evidence(change):
+@pytest.mark.parametrize('version',['v3','v4'])
+def test_rehashed_parents_cannot_hide_inconsistent_evidence(change,version):
     r,p=parents();record=p['pilot_records']['wikipedia'];replay=p['pilot_replays']['wikipedia']
+    r['forecast_input']['schema']='ovl.cost-forecast-input.'+version
     if change=='source-run':p['source']['run_id']='other-run'
     elif change=='validation':p['prepared']['validation_used_for_training']=True
     elif change=='conversation-parent':p['prepared']['conversation_selection']['source_inventory_root']='0'*64

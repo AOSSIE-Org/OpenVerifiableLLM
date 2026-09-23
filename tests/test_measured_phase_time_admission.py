@@ -19,9 +19,11 @@ def required_seconds(r, field):
 
 
 @pytest.mark.parametrize('record_ms,replay_ms', [(600001, 150003), (600001, 1200003), (600001, 600001)])
-def test_each_direction_uses_its_measured_rate_without_reducing_money(tmp_path, monkeypatch, record_ms, replay_ms):
+@pytest.mark.parametrize('version',['v3','v4'])
+def test_each_direction_uses_its_measured_rate_with_selected_money_schema(tmp_path, monkeypatch, record_ms, replay_ms,version):
     factory, *_ = configured(tmp_path, monkeypatch)
     _, r, _, provider, parents = registration_fixture(tmp_path, monkeypatch)
+    r['forecast_input']['schema']='ovl.cost-forecast-input.'+version
     for p in r['forecast_input']['phases'].values():
         p['measured_ms'], p['replay_measured_ms'] = record_ms, replay_ms
     expected = forecast(r['forecast_input'])

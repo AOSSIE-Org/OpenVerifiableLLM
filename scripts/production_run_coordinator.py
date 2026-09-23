@@ -204,9 +204,10 @@ class Run:
         incurred=Decimal(elapsed)*Decimal(inp['hourly_upper_usd'])/3600
         if Decimal(selected['spent_usd'])+Decimal(selected['committed_future_usd'])<prior+incurred:
             raise EvidenceError('registration omits prior reservations or elapsed rental exposure')
-        # Keep the monetary forecast's slower rate for BOTH directions. Phase
-        # deadlines instead use their own authenticated complete pilot timing,
+        # Each phase deadline uses its authenticated complete pilot timing,
         # including checkpoint save/delivery/comparison, with the same 25% margin.
+        # Historical v3 monetary envelopes still use the slower rate for both;
+        # prospective v4 monetary forecasts retain the separate measured rates.
         # Every production update is charged at a full-batch rate, even tails;
         # registration requires zero completed coverage and checks checkpoint density.
         from ovl_pipeline.budget import ceil_div

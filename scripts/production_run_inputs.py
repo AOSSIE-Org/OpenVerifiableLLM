@@ -48,7 +48,7 @@ def registration(template,qualified,initial,rental,now,*,construction_seconds=0)
           'measured_checkpoints':recorded['timed_checkpoints'],'measured_checkpoint_every':recorded['settings']['checkpoint_every'],
           'production_checkpoint_every':r['recovery_every'],
           'production_checkpoints':checkpoint_count(census['updates'],r['recipe']['boundary_every'],r['recovery_every'])}
-    base={'schema':'ovl.cost-forecast-input.v3','spent_usd':inp['spent_usd'],
+    base={'schema':'ovl.cost-forecast-input.v4','spent_usd':inp['spent_usd'],
           'committed_future_usd':dollars(Decimal(inp['outstanding_usd'])+Decimal(inp['reserved_remaining_usd'])+committed_elapsed),
           'hourly_usd':inp['hourly_upper_usd'],'fixed_remaining_usd':'0','phases':phases}
     numerical=forecast(base)
