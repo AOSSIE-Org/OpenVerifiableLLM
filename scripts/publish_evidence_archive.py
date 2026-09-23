@@ -89,9 +89,10 @@ def existing(api,plan,revision):
     return sorted(n for n in names if n==plan['prefix'] or n.startswith(plan['prefix']+'/'))
 
 
-def upload(plan_path,staging,output,*,api=None,deadline=None):
+def upload(plan_path,staging,output,*,api=None,deadline=None,reviewed=None,guard=None):
     from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
+    if guard is not None:guard()
     expires=time.monotonic()+max(0,deadline-time.time()) if deadline is not None else None
     plan=read_json(plan_path);validate(plan)
     if output.exists():raise EvidenceError('existing publication intent/result; reconcile rather than repeat upload')
@@ -110,11 +111,18 @@ def upload(plan_path,staging,output,*,api=None,deadline=None):
         privacy=require_review(plan_path,staging,deadline=deadline,monotonic_deadline=expires)
         if privacy.get('plan_sha256')!=digest(plan) or read_json(plan_path)!=plan:
             raise EvidenceError('privacy gate approved a different upload plan')
+        if reviewed is not None:
+            if privacy.get('schema')!='ovl.local-export-gate.v1' or privacy.get('result')!='PASS':
+                raise EvidenceError('completed privacy gate required for progress')
+            # One completed local gate, never a waiting heartbeat or download
+            # acknowledgement. The caller binds it to a finite publication stage.
+            reviewed({'plan_sha256':digest(plan),'privacy_gate_sha256':digest(privacy)})
         api=api or HfApi(endpoint='https://huggingface.co')
         info=api.repo_info(REPO,repo_type='dataset')
         if info.private or not re.fullmatch('[0-9a-f]{40}',info.sha):raise EvidenceError('existing public pinned parent required')
         if existing(api,plan,info.sha):raise EvidenceError('prefix already exists; adopt and verify, never overwrite')
         def check_deadline():
+            if guard is not None:guard()
             if deadline is not None and min(deadline-time.time(),expires-time.monotonic())<=0:
                 raise EvidenceError('original deadline forbids publication mutation')
         check_deadline()

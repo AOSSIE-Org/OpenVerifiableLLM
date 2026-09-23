@@ -39,15 +39,18 @@ def test_logs_only_cannot_finish_production_but_all_retained_outputs_can(prepare
         with pytest.raises(EvidenceError):h.write(tmp_path/'health.json')
 
 
-def test_verified_snapshot_publication_credit_is_finite_and_restart_deduplicated(prepared,tmp_path):
+@pytest.mark.parametrize('stage',['request-public-commit-verified','checkpoint-privacy-review-verified','anchor-privacy-review-verified'])
+def test_verified_snapshot_publication_credit_is_finite_and_restart_deduplicated(prepared,tmp_path,stage):
     control,record,job,root,worker,r,bindings=bound(prepared,tmp_path);w=intent();deadline=int(time.time())+60
     snapshot=tmp_path/'snapshot';export=pod_checkpoint_handoff.snapshot(record,r,digest(r),snapshot,deadline)
-    publication_activity.emit(tmp_path/'activity',digest(r),export['boundary_sha256'],'request-public-commit-verified',{'revision':'a'*40},deadline)
-    value=read_json(tmp_path/'activity/request-public-commit-verified.json')
+    publication_activity.emit(tmp_path/'activity',digest(r),export['boundary_sha256'],stage,{'revision':'a'*40},deadline)
+    value=read_json(tmp_path/'activity'/(stage+'.json'))
     with Journal(tmp_path/'health').lease() as j:
         h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings)
         h.start_job({'schema':'ovl.selected-workload-job.v1','job_sha256':root,'pod_id':h.pod,'kind':'production-record'})
+        exported=h.exported
         assert h.publication(root,snapshot,deadline,value)
+        assert h.exported==exported and not h.complete
         assert not h.publication(root,snapshot,deadline,value)
         with pytest.raises(EvidenceError):h.publication(root,snapshot,deadline+1,value)
         assert len(h.publications)==1

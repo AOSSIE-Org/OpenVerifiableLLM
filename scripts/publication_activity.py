@@ -11,7 +11,8 @@ from ovl_pipeline.canonical import EvidenceError,canonical,digest,read_json,requ
 from ovl_pipeline.schema import fields,integer
 
 STAGES={'checkpoint-public-download-verified','request-public-commit-verified','actions-run-observed',
-        'actions-anchor-signature-verified','anchor-public-download-verified'}
+        'actions-anchor-signature-verified','anchor-public-download-verified',
+        'checkpoint-privacy-review-verified','anchor-privacy-review-verified'}
 
 
 def stage_name(name):

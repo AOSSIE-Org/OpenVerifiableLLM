@@ -133,10 +133,11 @@ def publication(h,stage='actions-run-observed',deadline=NOW+200):
         'deadline_epoch':deadline,'scope':'operator-publication-liveness-only-not-training-or-signer-verification'}
 
 
-def test_registration_progress_is_finite_and_replayed_without_export_credit(tmp_path):
+@pytest.mark.parametrize('stage',['actions-run-observed','checkpoint-privacy-review-verified','anchor-privacy-review-verified'])
+def test_registration_progress_is_finite_and_replayed_without_export_credit(tmp_path,stage):
     c=Clock();path=tmp_path/'journal'
     with Journal(path).lease() as j:
-        h=registration_health(j,c);v=publication(h);c.advance(30)
+        h=registration_health(j,c);v=publication(h,stage);c.advance(30)
         assert h.registration_activity(v);assert h.progress==NOW+30 and h.exported==NOW and not h.complete
         c.advance(30);assert not h.registration_activity(v);assert h.progress==NOW+30
     with Journal(path).lease() as j:

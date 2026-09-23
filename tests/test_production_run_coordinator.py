@@ -158,6 +158,32 @@ def test_registration_uses_actual_downloads_then_adopts_without_republication(tm
         with pytest.raises(EvidenceError):run.register(*args)
 
 
+@pytest.mark.parametrize('stop_at',[1,2])
+def test_stop_during_registration_review_prevents_next_publication(tmp_path,monkeypatch,stop_at):
+    import publication_export_gate
+    factory,plan,*_=configured(tmp_path,monkeypatch)
+    packet,r,policy,provider,p=registration_fixture(tmp_path,monkeypatch)
+    original=publication_export_gate.require_review;seen=[]
+    with factory() as run:
+        run.phase('qualification',plan,digest(plan),tmp_path,tmp_path/'qualification')
+        run.qualified={'pilot_records':p['pilot_records'],'pilot_replays':p['pilot_replays']}
+        run.initial={'record':p['initial_record'],'verification':p['initial_verification']}
+        def completed(*args,**kw):
+            result=original(*args,**kw);seen.append(result)
+            if len(seen)==stop_at:
+                # The real guard treats any existing controller request as
+                # binding; this explicit fixture makes no provider claim.
+                write_json(run.controller/'stop-request.json',{'synthetic-test-stop':True})
+            return result
+        monkeypatch.setattr(publication_export_gate,'require_review',completed)
+        with pytest.raises(EvidenceError,match='original controller requests stop'):
+            run.register(r,p['source'],packet/'source-statement.sigstore.json',policy,p['prepared'],tmp_path)
+        assert provider.commits==stop_at-1
+        stage='checkpoint' if stop_at==1 else 'anchor'
+        assert not (run.output/'registration-publication/activity'/f'{stage}-privacy-review-verified.json').exists()
+        assert not (run.output/'registration-publication/verified-registration.json').exists()
+
+
 @pytest.mark.parametrize('existing_export',[False,True])
 def test_abort_retains_actual_terminal_production_bytes_and_partial_states(prepared,tmp_path,existing_export,monkeypatch):
     from test_production_health import bound

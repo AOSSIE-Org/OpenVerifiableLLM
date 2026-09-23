@@ -99,6 +99,82 @@ def test_upload_reaches_no_provider_before_review(tmp_path):
     assert not(tmp_path/'upload').exists()
 
 
+def test_completed_review_progress_precedes_provider_without_upload_credit(tmp_path,monkeypatch):
+    from test_evidence_publication import Fake
+    pp,stage,p=fixture(tmp_path);approval(pp,stage,p);seen=[];events=[];original=gate.require_review
+    monkeypatch.setattr(gate,'require_review',lambda *a,**kw:original(*a,**kw,execute=scanner(p,seen)))
+    class Ordered(Fake):
+        def repo_info(self,*args,**kwargs):
+            assert len(events)==1 and len(seen)==2
+            return super().repo_info(*args,**kwargs)
+    api=Ordered()
+    def reviewed(identity):
+        assert api.commits==0 and not(tmp_path/'upload').exists()
+        receipt=read_json(pp.with_name(pp.name+'.privacy-scan.json'))
+        assert identity=={'plan_sha256':digest(p),'privacy_gate_sha256':digest(receipt)}
+        events.append(identity)
+    pub.upload(pp,stage,tmp_path/'upload',api=api,reviewed=reviewed)
+    assert len(events)==1 and api.commits==1
+
+
+@pytest.mark.parametrize('failure',['no-review','wrong-inventory','expired','binding-stop'])
+def test_wait_failure_or_stop_cannot_advance_publication(tmp_path,monkeypatch,failure):
+    from test_evidence_publication import Fake
+    pp,stage,p=fixture(tmp_path);seen=[];events=[];original=gate.require_review
+    if failure!='no-review':approval(pp,stage,p)
+    monkeypatch.setattr(gate,'require_review',lambda *a,**kw:original(*a,**kw,
+        execute=scanner(p,seen,wrong=failure=='wrong-inventory'),wall=lambda:100,monotonic=lambda:100))
+    api=Fake()
+    def reviewed(identity):
+        if failure=='binding-stop':raise EvidenceError('original controller requests stop')
+        events.append(identity)
+    with pytest.raises(EvidenceError):
+        pub.upload(pp,stage,tmp_path/'upload',api=api,deadline=99 if failure=='expired' else None,reviewed=reviewed)
+    assert events==[] and api.commits==0 and not(tmp_path/'upload').exists()
+
+
+@pytest.mark.parametrize('damage',['mode','hardlink'])
+def test_review_metadata_changed_during_scan_blocks_progress_and_upload(tmp_path,monkeypatch,damage):
+    from test_evidence_publication import Fake
+    pp,stage,p=fixture(tmp_path);rp=approval(pp,stage,p);seen=[];events=[];original=gate.require_review
+    def change():
+        if damage=='mode':rp.chmod(0o644)
+        else:os.link(rp,tmp_path/'linked-review')
+    monkeypatch.setattr(gate,'require_review',lambda *a,**kw:original(*a,**kw,execute=scanner(p,seen,alter=change)))
+    api=Fake()
+    with pytest.raises(EvidenceError,match='owner-private'):
+        pub.upload(pp,stage,tmp_path/'upload',api=api,reviewed=events.append)
+    assert not events and api.commits==0 and not pp.with_name(pp.name+'.privacy-scan.json').exists()
+
+
+@pytest.mark.parametrize('when',['provider-read','prefix-read','payload-copy'])
+def test_stop_after_progress_before_remote_mutation_is_binding(tmp_path,monkeypatch,when):
+    from contextlib import contextmanager
+    from test_evidence_publication import Fake
+    pp,stage,p=fixture(tmp_path);approval(pp,stage,p);seen=[];events=[];stopped=[];original=gate.require_review
+    monkeypatch.setattr(gate,'require_review',lambda *a,**kw:original(*a,**kw,execute=scanner(p,seen)))
+    class Provider(Fake):
+        def repo_info(self,*a,**kw):
+            if when=='provider-read':stopped.append(True)
+            return super().repo_info(*a,**kw)
+        def list_repo_files(self,*a,**kw):
+            if when=='prefix-read':stopped.append(True)
+            return super().list_repo_files(*a,**kw)
+    original_copy=gate.frozen_payloads
+    @contextmanager
+    def copy(*a,**kw):
+        with original_copy(*a,**kw) as payloads:
+            if when=='payload-copy':stopped.append(True)
+            yield payloads
+    monkeypatch.setattr(gate,'frozen_payloads',copy)
+    def guard():
+        if stopped:raise EvidenceError('binding stop')
+    api=Provider()
+    with pytest.raises(EvidenceError,match='binding stop'):
+        pub.upload(pp,stage,tmp_path/'upload',api=api,guard=guard,reviewed=events.append)
+    assert len(events)==1 and api.commits==0 and not (tmp_path/'upload/upload.json').exists()
+
+
 def test_scan_finishing_after_deadline_is_not_accepted(tmp_path):
     pp,stage,p=fixture(tmp_path);approval(pp,stage,p);clock=[100];seen=[]
     run=scanner(p,seen,alter=lambda:clock.__setitem__(0,112))
