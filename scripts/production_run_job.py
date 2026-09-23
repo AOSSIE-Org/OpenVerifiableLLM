@@ -30,8 +30,11 @@ def command(job,r,packet,bundle,production_policy,source_policy,numerical,kind):
         secret=selected['--key-directory']
         if any(secret==p or secret.startswith(p+'/') or p.startswith(secret+'/') for p in job['export_roots']):
             raise EvidenceError('private run key overlaps a public retained root')
-        if selected['--anchor-directory']!=selected['--output']+'/public-anchors' or selected['--progress-policies']!=selected['--output']+'/external-progress-policies.json':
+        if selected['--anchor-directory']!=selected['--output']+'/anchors' or selected['--progress-policies']!=selected['--output']+'/external-progress-policies.json':
             raise EvidenceError('record public handoff paths differ from selected numerical output')
+    elif (selected['--progress-directory']!=selected['--chain-directory']+'/anchors'
+          or selected['--progress-policies']!=selected['--chain-directory']+'/external-progress-policies.json'):
+        raise EvidenceError('replay public handoff paths differ from selected recorded input')
     expected={selected['--packet']+'/'+name:file_hash(packet/name) for name in PACKET_FILES}
     expected.update({selected['--registration-bundle']:file_hash(bundle),selected['--production-policy']:digest(production_policy),
                      selected['--source-policy']:digest(source_policy)})

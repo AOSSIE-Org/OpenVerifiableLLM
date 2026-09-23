@@ -15,7 +15,7 @@ from test_pod_transfer import setup as ssh
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,write_json,verify_inventory
 
 
-def fixture(prepared,tmp_path,monkeypatch):
+def fixture(prepared,tmp_path,monkeypatch,*,retained_store=None):
     source=tmp_path/'reference';source.mkdir()
     run,provider,_=publication(prepared,source,monkeypatch,persistent=True)
     ack=run(0)
@@ -55,7 +55,7 @@ def fixture(prepared,tmp_path,monkeypatch):
                 'ack_sha256':digest(ack),'ack_path':str(dest/'ack.json'),'scope':'explicit completed-service double'})
         return {'observation':{'ActiveState':'inactive'}}
     monkeypatch.setattr(m.publisher,'start_or_adopt',start)
-    def hook():return m.BoundaryPublisher(r,job,h,tmp_path/'health.json',transport,output,arguments,policy)
+    def hook():return m.BoundaryPublisher(r,job,h,tmp_path/'health.json',transport,output,arguments,policy,retained_store=retained_store)
     def advance():
         from ovl_pipeline.progress_anchoring import ProgressPublisherPolicy
         run(1,Path(ack['anchor_directory']),[ProgressPublisherPolicy(**ack['policy'])])
@@ -123,17 +123,17 @@ def test_snapshot_retry_preserves_partial_and_original_deadline(prepared,tmp_pat
     hook,remote,out,h,starts,_=fixture(prepared,tmp_path,monkeypatch)
     original=m.snapshot;limits=[]
     def failed(*a,**kw):
+        if limits:
+            limits.append(a[4]);return original(*a,**kw)
         from pod_transfer import TransientTransportError
         limits.append(a[4]);Path(a[3]).mkdir();(Path(a[3])/'failure-note').write_bytes(b'preserved diagnostic')
         error=TransientTransportError('explicit interrupted snapshot')
         error.transfer_counts={'bytes_sent':0,'bytes_received':0};error.immutable_download_bytes=0
         raise error
     monkeypatch.setattr(m,'snapshot',failed)
-    with pytest.raises(EvidenceError,match='interrupted'):hook().poll()
-    old=read_json(out/'boundaries/boundary-00000/intent.json')
-    def retried(*a,**kw):limits.append(a[4]);return original(*a,**kw)
-    monkeypatch.setattr(m,'snapshot',retried)
     assert hook().poll()['index']==0 and len(starts)==1 and limits[0]==limits[1]
+    old=read_json(out/'boundaries/boundary-00000/intent.json')
+    assert hook().poll()['index']==0 and len(starts)==1 and len(limits)==2
     assert (out/'boundaries/boundary-00000/snapshot/failure-note').read_bytes()==b'preserved diagnostic'
     assert read_json(out/'boundaries/boundary-00000/intent.json')==old
 
@@ -150,3 +150,42 @@ def test_two_partial_snapshots_do_not_get_a_third_copy_attempt(prepared,tmp_path
     for _ in range(3):
         with pytest.raises(EvidenceError):hook().poll()
     assert len(calls)==2 and calls[0]==calls[1] and not starts
+
+
+@pytest.mark.parametrize('state',['complete','bad-result','running'])
+def test_completed_service_adopts_within_delivery_window_without_late_activity_credit(prepared,tmp_path,monkeypatch,state):
+    from production_health import ProductionHealth
+    hook,remote,out,h,starts,provider=fixture(prepared,tmp_path,monkeypatch)
+    first=hook();clock=[h.now()];h.now=lambda:clock[0]
+    h.plan['provider_terminate_epoch']=h.plan['external_terminate_epoch']
+    observed=[]
+    def activity(*args):
+        observed.append(args)
+        return ProductionHealth.publication(h,*args)
+    h.publication=activity
+    original=m.publisher.start_or_adopt;selected=[]
+    def service(spec,expected,directory):
+        value=original(spec,expected,directory);selected.append(spec)
+        clock[0]=spec['deadline_epoch']+1  # Original delivery window remains open.
+        destination=Path(spec['arguments']['output'])
+        assert list((destination/'activity').glob('*.json'))
+        result=Path(directory)/'result.json'
+        if state=='running':result.unlink();return {'observation':{'ActiveState':'active'}}
+        if state=='bad-result':
+            changed=read_json(result);changed['ack_sha256']='f'*64;write_json(result,changed)
+        return value
+    monkeypatch.setattr(m.publisher,'start_or_adopt',service)
+    if state=='complete':
+        assert first.poll()['index']==0 and observed==[]
+        assert (remote/'external-progress-policies.json').exists()
+        # The real health method still rejects late telemetry. Completion does
+        # not create a liveness exception or revive an expired worker deadline.
+        with pytest.raises(EvidenceError,match='publication deadline reached'):
+            ProductionHealth.publication(h,first.job,tmp_path,selected[0]['deadline_epoch'],{})
+    else:
+        with pytest.raises(EvidenceError,match='publication deadline reached' if state=='running' else 'publisher result differs'):
+            first.poll()
+        assert bool(observed)==(state=='running')
+        assert not(remote/'external-progress-policies.json').exists()
+    intent=read_json(out/'boundaries/boundary-00000/intent.json')
+    assert selected[0]['deadline_epoch']==intent['deadline_epoch']-first.policy['delivery_seconds']

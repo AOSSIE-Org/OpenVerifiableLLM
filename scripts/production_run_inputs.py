@@ -48,7 +48,7 @@ def registration(template,qualified,initial,rental,now,*,construction_seconds=0)
           'measured_checkpoints':recorded['timed_checkpoints'],'measured_checkpoint_every':recorded['settings']['checkpoint_every'],
           'production_checkpoint_every':r['recovery_every'],
           'production_checkpoints':checkpoint_count(census['updates'],r['recipe']['boundary_every'],r['recovery_every'])}
-    base={'schema':'ovl.cost-forecast-input.v3','spent_usd':inp['spent_usd'],
+    base={'schema':'ovl.cost-forecast-input.v4','spent_usd':inp['spent_usd'],
           'committed_future_usd':dollars(Decimal(inp['outstanding_usd'])+Decimal(inp['reserved_remaining_usd'])+committed_elapsed),
           'hourly_usd':inp['hourly_upper_usd'],'fixed_remaining_usd':'0','phases':phases}
     numerical=forecast(base)
@@ -124,8 +124,8 @@ def production_job(kind,profile,offline_config,static_files,packet,bundle,produc
             '--source-checkout':source,'--wikipedia-stream':prepared+'/wikipedia','--conversation-stream':prepared+'/conversation',
             '--output':remote,'--progress-policies':record+'/external-progress-policies.json'}
     if kind=='production-record':values.update({'--registration-sha256':digest(r),'--checkpoint-deadline':DEADLINE,
-        '--key-directory':base+'/private/run-key','--anchor-directory':record+'/public-anchors'})
-    else:values.update({'--chain-directory':record,'--progress-directory':record+'/public-anchors'})
+        '--key-directory':base+'/private/run-key','--anchor-directory':record+'/anchors'})
+    else:values.update({'--chain-directory':record,'--progress-directory':record+'/anchors'})
     inputs=list(deepcopy(static_files))
     def add(path,local):inputs.append({'path':path,'bytes':local.stat().st_size,'sha256':file_hash(local)})
     from ovl_pipeline.production_anchoring import PACKET_FILES

@@ -198,20 +198,22 @@ def test_primary_snapshot_reentry_does_not_reset_fatal_download_attempts(prepare
 def test_allowed_metadata_retry_cannot_rename_repeated_payload_progress(prepared,tmp_path,monkeypatch):
     from test_production_boundary_poll import fixture
     hook,remote,out,health,starts,provider=fixture(prepared,tmp_path,monkeypatch)
-    original=handoff.observe;failed=[];events=[]
+    original=handoff.observe;failed=[];events=[];first=[];intents=[]
     def observe(transport,name,destination,*args,**kwargs):
         if name=='chain.json' and Path(destination).parent.name=='after' and not failed:
+            first.extend(events)
+            intents.append(read_json(out/'boundaries/boundary-00000/intent.json'))
             failed.append(True);error=transfer.TransientTransportError('synthetic zero-byte metadata interruption')
             error.transfer_counts={'bytes_sent':0,'bytes_received':0};raise error
         return original(transport,name,destination,*args,**kwargs)
     monkeypatch.setattr(handoff,'observe',observe)
     monkeypatch.setattr(health,'bytes',lambda operation,counts,**kwargs:events.append((operation,counts,kwargs)))
-    with pytest.raises(transfer.TransientTransportError):hook().poll()
-    first=list(events);events.clear();assert first
-    intent=read_json(out/'boundaries/boundary-00000/intent.json')
+    # The bounded publisher now consumes its one eligible retry before returning
+    # to the enclosing stage. Repeated bytes must retain the original operation
+    # identity, and that recovery cannot renew the boundary deadline.
     assert hook().poll()['index']==0
-    assert events[:len(first)]==first
-    assert read_json(out/'boundaries/boundary-00000/intent.json')==intent
+    assert first and events[:len(first)]==first and events[len(first):2*len(first)]==first
+    assert read_json(out/'boundaries/boundary-00000/intent.json')==intents[0]
     assert read_json(out/'boundaries/boundary-00000/snapshot/failure.json')['retryable'] is True
     assert (out/'boundaries/boundary-00000/snapshot-retry/export.json').exists()
 

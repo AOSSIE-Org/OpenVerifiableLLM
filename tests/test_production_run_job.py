@@ -20,8 +20,8 @@ def selected(tmp_path,kind):
           '--wikipedia-stream':'/selected/wiki','--conversation-stream':'/selected/conversation',
           '--output':out,'--progress-policies':'/selected/record/external-progress-policies.json'}
     if kind=='production-record':args.update({'--registration-sha256':digest(r),'--checkpoint-deadline':'1000',
-        '--key-directory':'/selected/private','--anchor-directory':out+'/public-anchors'})
-    else:args.update({'--chain-directory':'/selected/record','--progress-directory':'/selected/record/public-anchors'})
+        '--key-directory':'/selected/private','--anchor-directory':out+'/anchors'})
+    else:args.update({'--chain-directory':'/selected/record','--progress-directory':'/selected/record/anchors'})
     expected={args['--packet']+'/'+name:file_hash(packet/name) for name in PACKET_FILES}
     expected.update({args['--registration-bundle']:file_hash(bundle),args['--production-policy']:digest(policy),args['--source-policy']:digest(source)})
     expected.update({args['--'+phase+'-stream']+'/stream.json':r['coverage'][phase]['stream_sha256'] for phase in ('wikipedia','conversation')})
@@ -37,6 +37,13 @@ def selected(tmp_path,kind):
 def test_exact_audited_invocation_binds_all_required_public_parents(tmp_path,kind):
     args=selected(tmp_path,kind);result=m.command(*args)
     assert result['--output']==args[6].profile['remote_root']
+
+
+@pytest.mark.parametrize('option',['--progress-directory','--progress-policies'])
+def test_replay_cannot_read_a_different_public_handoff_tree(tmp_path,option):
+    args=selected(tmp_path,'full-replay');argv=args[0]['argv']
+    argv[argv.index(option)+1]='/selected/unrelated'
+    with pytest.raises(EvidenceError,match='replay public handoff'):m.command(*args)
 
 
 @pytest.mark.parametrize('damage',['module','duplicate','missing-parent','wrong-parent','output','registration','secret-export','ack-path','deadline'])

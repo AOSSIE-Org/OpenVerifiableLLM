@@ -9,6 +9,7 @@ proves artifact preservation only, never execution or sequential replay.
 from dataclasses import asdict
 from pathlib import Path
 import os
+import shutil
 import time
 
 from ovl_pipeline.canonical import EvidenceError,canonical,confined,digest,inventory,read_json,sha256,write_json
@@ -59,7 +60,7 @@ def state_check(registration,root,directory):
     return chain,body,waiting,checked
 
 
-def snapshot(transport,registration,root,output,deadline,*,progress=None):
+def snapshot(transport,registration,root,output,deadline,*,progress=None,retained_store=None):
     """Caller must authenticate registration first; copies a whole paused primary."""
     output=Path(output);output.mkdir(mode=0o700,parents=True,exist_ok=False)
     observe(transport,'chain.json',output/'chain.json',16*1024**2,deadline)
@@ -69,11 +70,30 @@ def snapshot(transport,registration,root,output,deadline,*,progress=None):
     marker=canonical(body['checkpoint'])
     files=[{'path':'checkpoint.json','bytes':len(marker),'sha256':sha256(marker)},*body['checkpoint']['files']]
     transfers=[]
-    from pod_transfer import staged_get
-    for item in files:
-        name=body['checkpoint_path']+'/'+item['path']
-        transfers.append(staged_get(transport,name,checkpoint/item['path'],{**item,'path':name},deadline,
-                                    output/'transfers'/digest(item),progress=progress))
+    if retained_store is None:
+        from pod_transfer import staged_get
+        for item in files:
+            name=body['checkpoint_path']+'/'+item['path']
+            transfers.append(staged_get(transport,name,checkpoint/item['path'],{**item,'path':name},deadline,
+                                        output/'transfers'/digest(item),progress=progress))
+    else:
+        # The production loop has already retained this exact primary. Recheck
+        # the complete remote inventory and all local bytes; never silently fall
+        # back to another paid transfer when an object is absent or altered.
+        from pod_versioned_export import export
+        reused=export(transport,body['checkpoint_path'],retained_store,output/'retained',deadline,
+                      expected_files=files,maximum_bytes=sum(f['bytes'] for f in files),maximum_uncached_bytes=0)
+        if reused['transfers'] or reused['reused_paths']!=[f['path'] for f in files]:
+            raise EvidenceError('publication snapshot did not reuse all retained bytes')
+        for item in files:
+            # The installed publication gate requires unshared staging inodes.
+            # Local copies avoid a network transfer without weakening that gate.
+            target=checkpoint/item['path']
+            shutil.copyfile(confined(Path(reused['files_directory']),item['path']),target,follow_symlinks=False)
+            with target.open('rb') as handle:os.fsync(handle.fileno())
+        fd=os.open(checkpoint,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try:os.fsync(fd)
+        finally:os.close(fd)
     state_check(registration,root,output)
     after=output/'after';after.mkdir(mode=0o700)
     for name,expected,maximum in [('chain.json',chain,16*1024**2),('awaiting-anchor.json',waiting,1024**2)]:
