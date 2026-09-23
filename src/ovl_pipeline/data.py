@@ -249,11 +249,12 @@ def stream_arrays(directory):
             np.memmap(directory / "mask.u8", dtype=np.uint8, mode="r"))
 
 
-def validate_stream(directory: Path, manifest):
+def validate_stream(directory: Path, manifest, *, inventory_progress=None):
     """Independent count/layout validator; never calls the trainer's window code."""
     from .canonical import verify_inventory
     schema.stream(manifest)
-    verify_inventory(directory, manifest["files"])
+    if inventory_progress is None:verify_inventory(directory, manifest["files"])
+    else:verify_inventory(directory, manifest["files"],progress=inventory_progress)
     tok, masks = stream_arrays(directory)
     cursor = target = docs = 0
     with tempfile.TemporaryDirectory(prefix="ovl-index-check-") as temp:

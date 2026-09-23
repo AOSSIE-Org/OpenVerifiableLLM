@@ -13,7 +13,7 @@ import threading
 import time
 from types import FunctionType
 
-from . import data,runtime_activity,schema
+from . import data,runtime_activity,schema,inventory_activity
 from .canonical import EvidenceError,digest,read_json,verify_inventory
 
 _lock=threading.RLock()
@@ -77,7 +77,8 @@ def _scan(original,kind,directory,manifest,args):
         if kind!='stream-validation':globals_copy['validate_stream']=validate_stream
         observed=FunctionType(original.__code__,globals_copy,original.__name__,original.__defaults__,original.__closure__)
         observed.__kwdefaults__=original.__kwdefaults__
-        result=observed(*args)
+        kwargs={'inventory_progress':inventory_activity.observe(manifest)} if kind=='stream-validation' else {}
+        result=observed(*args,**kwargs)
         if not entered or count!=manifest['documents']:raise EvidenceError('production scan observation incomplete')
         emit(True)
         return result
@@ -92,13 +93,13 @@ def validate_stream(directory,manifest):
     if cache is not None and key in cache:
         schema.stream(manifest)
         # Never rely on mtime, inode, a prior hash receipt or caller assertion.
-        verify_inventory(directory,manifest['files'])
+        verify_inventory(directory,manifest['files'],progress=inventory_activity.observe(manifest))
         return cache[key]
     result=_scan(data.validate_stream,'stream-validation',directory,manifest,(directory,manifest))
     if cache is not None:
         if len(cache)>=2:raise EvidenceError('production validation scope exceeds two streams')
         # Bind completed semantic work to bytes still matching the same root.
-        verify_inventory(directory,manifest['files'])
+        verify_inventory(directory,manifest['files'],progress=inventory_activity.observe(manifest))
         cache[key]=result
     return result
 

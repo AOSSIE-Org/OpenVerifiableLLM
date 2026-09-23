@@ -9,12 +9,14 @@ import re
 from ovl_pipeline.canonical import EvidenceError,digest,require_digest
 from ovl_pipeline.schema import fields,integer
 from workload_health import Health
+from inventory_health import InventoryHealth
 
 
 class PilotHealth(Health):
     def __init__(self,journal,watchdog_intent,pod_id,bindings,**kwargs):
         self.bindings=bindings
         self.validations={}
+        self.inventory=InventoryHealth(self)
         super().__init__(journal,watchdog_intent,pod_id,**kwargs)
 
     def contract(self,job):
@@ -40,6 +42,7 @@ class PilotHealth(Health):
         self.event('job-start',selected);return True
 
     def _numeric_transition(self,job,observation):
+        self.inventory.transition(job,observation)
         if self.jobs[job]['selection'].get('validation_contract_sha256')!=digest(self.contract(job)):
             raise EvidenceError('selected validation contract changed')
         previous=self.validations.get(job)
@@ -50,6 +53,7 @@ class PilotHealth(Health):
         # all updates on successful complete validation; telemetry is not proof.
 
     def _validation(self,job,value):
+        self.inventory.transition(job,value)
         self.active(job)
         b=self.contract(job)
         if self.jobs[job]['selection'].get('validation_contract_sha256')!=digest(b):
@@ -77,10 +81,13 @@ class PilotHealth(Health):
             if value['sequence']==previous['sequence'] and value!=previous:
                 raise EvidenceError('same validation sequence changed')
             if previous['complete'] and value!=previous:raise EvidenceError('completed validation changed')
-        return previous is None or value['completed_documents']>previous['completed_documents'] or (value['complete'] and not previous['complete'])
+        return (value['completed_documents']>0 if previous is None else
+                value['completed_documents']>previous['completed_documents'] or (value['complete'] and not previous['complete']))
 
     def _apply(self,body):
+        if self.inventory.apply(body):return
         kind=body.get('kind');d=body.get('detail',{})
+        if kind in ('activity','pilot-phases'):self.inventory.transition(d['job_sha256'],d['observation'])
         if kind=='job-start' and d.get('kind')=='pilot':
             if d.get('validation_contract_sha256')!=digest(self.contract(d['job_sha256'])):
                 raise EvidenceError('retained pilot validation contract changed')
@@ -100,6 +107,8 @@ class PilotHealth(Health):
     def activity(self,job,observation):
         self.active(job)
         if self.jobs[job]['selection']['kind']!='pilot':return super().activity(job,observation)
+        if type(observation) is dict and observation.get('schema')=='ovl.runtime-inventory-read.v1':
+            return self.inventory.activity(job,observation)
         if type(observation) is dict and observation.get('schema')=='ovl.runtime-stream-validation.v1':
             advances=self._validation(job,observation)
             if self.validations.get(job)==observation:return False
@@ -109,3 +118,14 @@ class PilotHealth(Health):
             raise EvidenceError('selected pilot requires its numerical process activity')
         self._numeric_transition(job,observation)
         return super().activity(job,observation)
+
+    def inventory_contract(self,job):
+        b=self.contract(job)
+        if (self.jobs[job]['selection']['kind']!='pilot'
+                or self.jobs[job]['selection'].get('validation_contract_sha256')!=digest(b)):
+            raise EvidenceError('inventory selected pilot contract changed')
+        return {(b['stream_sha256'],b['documents'])},1
+
+    def _phase_activity(self,job,observation):
+        if job in self.bindings:raise EvidenceError('selected numerical pilot forbids wrapper phase protocol')
+        return super()._phase_activity(job,observation)

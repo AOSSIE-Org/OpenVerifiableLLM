@@ -13,12 +13,14 @@ from production_retention import verify as verify_retention
 from publication_activity import validate as validate_publication
 from workload_health import Health,terminal_status
 from ovl_pipeline.production_observation import MAX_PASSES
+from inventory_health import InventoryHealth
 
 
 class ProductionHealth(Health):
     def __init__(self,journal,watchdog_intent,pod_id,registration,bindings,**kwargs):
         self.registration=registration;self.registration_root=digest(registration)
         self.bindings=bindings;self.publications={};self.scans={}
+        self.inventory=InventoryHealth(self)
         super().__init__(journal,watchdog_intent,pod_id,**kwargs)
 
     def contract(self,job):
@@ -49,7 +51,9 @@ class ProductionHealth(Health):
         self.event('job-start',selected);return True
 
     def _apply(self,body):
+        if self.inventory.apply(body):return
         kind=body.get('kind');detail=body.get('detail',{})
+        if kind in ('activity','pilot-phases'):self.inventory.transition(detail['job_sha256'],detail['observation'])
         if kind=='job-start' and detail.get('kind') in ('production-record','full-replay'):
             if detail.get('retention_contract_sha256')!=digest(self.contract(detail['job_sha256'])):
                 raise EvidenceError('historical production retention contract differs')
@@ -78,11 +82,13 @@ class ProductionHealth(Health):
         self.publications[key]=value;self.progress=max(self.progress,body['observed_epoch'])
 
     def _scan_transition(self,job,value):
+        self.inventory.transition(job,value)
         previous=self.scans.get(job)
         if previous and (any(value[k]!=previous[k] for k in ('process_instance','pid')) or value['sequence']<=previous['sequence']):
             raise EvidenceError('numerical activity changed production scan process/sequence')
 
     def _scan(self,job,value):
+        self.inventory.transition(job,value)
         self.active(job);contract=self.contract(job)
         if self.jobs[job]['selection'].get('retention_contract_sha256')!=digest(contract):
             raise EvidenceError('selected production contract changed')
@@ -102,6 +108,10 @@ class ProductionHealth(Health):
             raise EvidenceError('production scan completion differs')
         previous=self.scans.get(job)
         if previous:
+            hashed=self.inventory.reads.get(job)
+            if (hashed and hashed['sequence']>previous['sequence']
+                    and value['pass_index']<=previous['pass_index']):
+                raise EvidenceError('production row pass reopened after inventory read')
             if any(value[k]!=previous[k] for k in ('process_instance','pid')):raise EvidenceError('production scan process changed')
             if value['sequence']<previous['sequence'] or value['pass_index']<previous['pass_index']:
                 raise EvidenceError('production scan sequence/pass regressed')
@@ -118,6 +128,9 @@ class ProductionHealth(Health):
 
     def activity(self,job,value):
         self.active(job)
+        if type(value) is dict and value.get('schema')=='ovl.runtime-inventory-read.v1':
+            return self.inventory.activity(job,value)
+        self.inventory.transition(job,value)
         if type(value) is dict and value.get('schema')=='ovl.runtime-production-scan.v1':
             advances=self._scan(job,value)
             if self.scans.get(job)==value:return False
@@ -125,6 +138,20 @@ class ProductionHealth(Health):
             return advances
         if job in self.scans:self._scan_transition(job,value)
         return super().activity(job,value)
+
+    def inventory_contract(self,job):
+        contract=self.contract(job)
+        if self.jobs[job]['selection'].get('retention_contract_sha256')!=digest(contract):
+            raise EvidenceError('inventory selected production contract changed')
+        return {(v['stream_sha256'],v['documents']) for v in self.registration['coverage'].values()},32
+
+    def _numerical_activity(self,job,value):
+        self.active(job)
+        if self.jobs[job]['selection']['kind'] in ('production-record','full-replay'):
+            contract=self.contract(job)
+            if self.jobs[job]['selection'].get('retention_contract_sha256')!=digest(contract):
+                raise EvidenceError('numerical production contract changed')
+        return super()._numerical_activity(job,value)
 
     def publication(self,job,snapshot,deadline,value):
         self.active(job);contract=self.contract(job)

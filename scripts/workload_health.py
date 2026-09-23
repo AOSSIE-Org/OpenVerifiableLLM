@@ -5,6 +5,7 @@ age. Transfer counters, runtime sequences and export identities survive restart.
 The independent rental controller/watchdog retain all cost and deadline authority.
 """
 from pathlib import Path
+from copy import deepcopy
 import re
 import time
 
@@ -63,8 +64,18 @@ class Health:
         kind=body['kind'];d=body['detail']
         if kind=='job-start':self.jobs[d['job_sha256']]={'finished':False,'selection':d}
         elif kind=='bytes':self.transfers[d['operation_sha256']]=d
-        elif kind=='activity':self.activities[d['job_sha256']]=d['observation']
-        elif kind=='pilot-phases':self.phase_activities[d['job_sha256']]=d['observation']
+        elif kind=='activity':
+            fields(d,'job_sha256 observation','runtime cost detail')
+            advances=self._numerical_activity(d['job_sha256'],d['observation'])
+            if (body['advances_progress'] is not advances or body['advances_export'] is not False
+                    or body['completes'] is not False):raise EvidenceError('invalid numerical activity cost decision')
+            self.activities[d['job_sha256']]=d['observation']
+        elif kind=='pilot-phases':
+            fields(d,'job_sha256 observation','pilot phase cost detail')
+            advances=self._phase_activity(d['job_sha256'],d['observation'])
+            if (body['advances_progress'] is not advances or body['advances_export'] is not False
+                    or body['completes'] is not False):raise EvidenceError('invalid pilot phase cost decision')
+            self.phase_activities[d['job_sha256']]=d['observation']
         elif kind=='export':self.exports.add(d['export_sha256'])
         elif kind in ('job-exit','job-abandon'):self.jobs[d['job_sha256']]['finished']=True
         elif kind!='complete':raise EvidenceError('unknown cost activity event')
@@ -81,6 +92,7 @@ class Health:
 
     def event(self,kind,detail,*,progress=False,export=False,complete=False):
         if self.complete:raise EvidenceError('completed workload cannot acquire new work')
+        detail=deepcopy(detail)  # Retained observations must not alias caller snapshots.
         body={'schema':'ovl.cost-activity-event.v2','kind':kind,'observed_epoch':self.now(),'detail':detail,
               'advances_progress':progress,'advances_export':export,'completes':complete}
         self.journal.append('checkpoint' if export else 'decision',body);self._apply(body)
@@ -133,6 +145,14 @@ class Health:
     def activity(self,job,observation):
         self.active(job)
         if type(observation) is dict and observation.get('schema')=='ovl.audited-pilot-phases.v1':return self.pilot_phases(job,observation)
+        changed=self._numerical_activity(job,observation)
+        if self.activities.get(job)==observation:return False
+        self.event('activity',{'job_sha256':job,'observation':observation},progress=changed)
+        return changed
+
+    def _numerical_activity(self,job,observation):
+        """One non-mutating check for both ingestion and journal adoption."""
+        self.active(job)
         if job in self.phase_activities:raise EvidenceError('job changed its activity protocol')
         fields(observation,'schema process_instance pid sequence kind control scope','runtime activity')
         if (observation['schema']!='ovl.runtime-activity.v1' or observation['kind']!='completed-numerical-update'
@@ -154,7 +174,6 @@ class Health:
         changed=previous is None or previous['control']!=observation['control']
         # Warmup is genuine paid work and may reset global_step when fresh
         # initialization starts. This is liveness, never a monotonic coverage proof.
-        self.event('activity',{'job_sha256':job,'observation':observation},progress=changed)
         return changed
 
     def pilot_phases(self,job,observation):
@@ -164,6 +183,12 @@ class Health:
         report checks. This remains peer-reported operational progress, not proof
         of arithmetic, authenticity, safe-state retention or training acceptance.
         """
+        changed=self._phase_activity(job,observation)
+        if not changed:return False
+        self.event('pilot-phases',{'job_sha256':job,'observation':observation},progress=True)
+        return True
+
+    def _phase_activity(self,job,observation):
         self.active(job)
         if self.jobs[job]['selection']['kind']!='pilot' or job in self.activities:
             raise EvidenceError('completed-phase activity requires a distinct pilot wrapper')
@@ -186,7 +211,6 @@ class Health:
             if completed[:len(previous['completed'])]!=previous['completed']:
                 raise EvidenceError('completed pilot prefix changed or regressed')
             if previous==observation:return False
-        self.event('pilot-phases',{'job_sha256':job,'observation':observation},progress=True)
         return True
 
     def exported_files(self,job,directory,expected,*,deadline=None):

@@ -1,8 +1,9 @@
 """Observe completed work in the unchanged complete stream validator.
 
 The function body and all its checks remain data.validate_stream's exact code.
-A private globals mapping replaces only its rows iterator. No data module globals
-are patched. The selected pilot telemetry permits one observed validator at a time;
+A private globals mapping replaces its rows iterator and the validator's optional
+inventory callback observes hashed bytes. No data module globals are patched.
+The selected pilot telemetry permits one observed validator at a time;
 ordinary preparation without the activity environment still calls the original.
 Generator continuation runs only after the caller has checked the yielded row.
 Even a complete row prefix is not final validation success: final roots/counts
@@ -14,7 +15,7 @@ import threading
 from pathlib import Path
 from types import FunctionType
 
-from . import data, runtime_activity
+from . import data, runtime_activity,inventory_activity
 from .canonical import EvidenceError,digest
 
 _observing=threading.Lock()
@@ -56,7 +57,7 @@ def _observed(directory,manifest,original):
     observed=FunctionType(original.__code__,{**original.__globals__,'rows':observed_rows},
                           original.__name__,original.__defaults__,original.__closure__)
     observed.__kwdefaults__=original.__kwdefaults__
-    result=observed(directory,manifest)
+    result=observed(directory,manifest,inventory_progress=inventory_activity.observe(manifest))
     if not entered or count!=manifest['documents']:
         raise EvidenceError('validation iterator observation incomplete')
     runtime_activity.stream_validation(stream_root,manifest['documents'],count,True)
