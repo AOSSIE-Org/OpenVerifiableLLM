@@ -276,6 +276,7 @@ def run(directory,expected,worker_sha256):
             checked_bytes+=f['bytes']
             save(directory/'input-progress.json',{'schema':'ovl.job-input-progress.v1','job_sha256':expected,'verified_bytes':checked_bytes})
         if shutil.disk_usage(directory).free<v['minimum_free_bytes']:raise Refusal('insufficient free space')
+        if shutil.disk_usage('/').free<4*1024**3:raise Refusal('insufficient pod root reserve')
         # Environment is explicitly selected; no HF/RunPod/signing credentials,
         # agent sockets, loader overrides or inherited Python hooks enter the job.
         with (directory/'stdout.log').open('xb') as stdout,(directory/'stderr.log').open('xb') as stderr:
@@ -290,7 +291,8 @@ def run(directory,expected,worker_sha256):
                 if now>=deadline or time.time()>=v['deadline_epoch']:reason='job-deadline';stop_at=now
                 elif (directory/'request-stop').exists() and stop_at is None:reason='operator-stop';stop_at=now+v['stop_grace_seconds']
                 elif ((directory/'stdout.log').stat().st_size+(directory/'stderr.log').stat().st_size>16*1024**2
-                      or shutil.disk_usage(directory).free<v['minimum_free_bytes']):reason='storage-bound';stop_at=now
+                      or shutil.disk_usage(directory).free<v['minimum_free_bytes']
+                      or shutil.disk_usage('/').free<4*1024**3):reason='storage-bound';stop_at=now
                 if stop_at is not None and now>=stop_at:
                     signal_owned(identity,signal.SIGTERM)
                     term_deadline=time.monotonic()+2
