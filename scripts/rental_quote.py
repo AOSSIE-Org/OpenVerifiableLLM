@@ -22,9 +22,15 @@ def rate(value):
     return Decimal(money(value))/10**6
 
 
-def validate_quote(quote,payload,plan):
-    fields(quote,'schema observed_epoch catalog_response catalog_response_sha256 selected_gpu storage_source storage_page_sha256 storage_observed_epoch container_gb_month_usd volume_gb_month_upper_usd monthly_hours rate_margin_percent','rental price evidence')
-    if quote['schema'] not in ('ovl.rental-quote.v1','ovl.rental-quote.v2') or quote['storage_source']!=STORAGE_URL:raise EvidenceError('unsupported rental quote source')
+def validate_quote(quote,payload,plan,*,network_volume=None):
+    retained=quote.get('schema')=='ovl.rental-quote.v3'
+    fields(quote,'schema observed_epoch catalog_response catalog_response_sha256 selected_gpu storage_source storage_page_sha256 storage_observed_epoch container_gb_month_usd volume_gb_month_upper_usd monthly_hours rate_margin_percent'+(' network_volume_sha256' if retained else ''),'rental price evidence')
+    if quote['schema'] not in ('ovl.rental-quote.v1','ovl.rental-quote.v2','ovl.rental-quote.v3') or quote['storage_source']!=STORAGE_URL:raise EvidenceError('unsupported rental quote source')
+    if retained:
+        from retained_volume import validate
+        validate(network_volume,plan,payload)
+        if payload['cloudType']!='SECURE' or quote['network_volume_sha256']!=digest(network_volume):raise EvidenceError('retained volume quote identity differs')
+    elif network_volume is not None or 'networkVolumeId' in payload:raise EvidenceError('retained storage requires separately reserved quote')
     require_digest(quote['catalog_response_sha256']);require_digest(quote['storage_page_sha256'])
     g=quote['selected_gpu']
     if quote['schema']=='ovl.rental-quote.v1':
@@ -56,7 +62,7 @@ def validate_quote(quote,payload,plan):
         or type(quote['rate_margin_percent']) is not int or quote['rate_margin_percent']!=125):
         raise EvidenceError('storage price bound or rate margin differs from selected policy')
     computed=(rate(selected_rate)+(Decimal(payload['containerDiskInGb'])*rate(quote['container_gb_month_usd'])+
-                  Decimal(payload['volumeInGb'])*rate(quote['volume_gb_month_upper_usd']))/quote['monthly_hours'])*Decimal(quote['rate_margin_percent'])/100
+                  Decimal(0 if retained else payload['volumeInGb'])*rate(quote['volume_gb_month_upper_usd']))/quote['monthly_hours'])*Decimal(quote['rate_margin_percent'])/100
     upper=format(computed.quantize(Decimal('0.000001'),rounding=ROUND_CEILING),'f')
     if plan['input']['hourly_upper_usd']!=upper or plan['input']['quote_sha256']!=digest(quote):
         raise EvidenceError('rental rate/quote root differs from complete compute and storage arithmetic')

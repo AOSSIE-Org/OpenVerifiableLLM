@@ -20,21 +20,25 @@ from probe_provider_deadline import account,request,match_pod,provision_errors,d
 from run_external_watchdog import validate_intent
 from rental_safety import Lifetime,boot_clock,attributed_ids,account_lease,fence
 from rental_quote import validate_quote
+import retained_volume
 
 
 def validate(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('rental intent differs from selected pin')
     fields(value,'schema watchdog_intent payload quote','rental intent')
-    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5'):raise EvidenceError('unsupported rental controller intent')
+    if value['schema'] not in ('ovl.rental-controller-intent.v1','ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5','ovl.rental-controller-intent.v6'):raise EvidenceError('unsupported rental controller intent')
     w=value['watchdog_intent'];p=validate_intent(w,digest(w));payload=value['payload']
+    retained=value['schema']=='ovl.rental-controller-intent.v6'
+    if (w['schema']=='ovl.external-watchdog-intent.v2')!=retained:raise EvidenceError('watchdog storage version differs')
     names='name gpuCount imageName containerDiskInGb volumeInGb terminateAfter cloudType gpuTypeId minVcpuCount minMemoryInGb dockerArgs startSsh startJupyter ports'
-    explicit_cuda=value['schema'] in ('ovl.rental-controller-intent.v2','ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5')
+    explicit_cuda=value['schema']!='ovl.rental-controller-intent.v1'
     if explicit_cuda:names+=' allowedCudaVersions'
     network_minimums=value['schema'] in ('ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5')
     if network_minimums:names+=' minDownload minUpload'
     country_selection=value['schema']=='ovl.rental-controller-intent.v5'
     if country_selection:names+=' countryCode'
+    if retained:names+=' networkVolumeId dataCenterId volumeMountPath'
     fields(payload,names,'creation payload')
     if country_selection and (type(payload['countryCode']) is not str or not re.fullmatch(r'[A-Z]{2}',payload['countryCode'])):
         raise EvidenceError('explicit two-letter country placement required')
@@ -53,13 +57,14 @@ def validate(value,expected):
     if payload['cloudType'] not in clouds or payload['startSsh'] is not True or payload['startJupyter'] is not False:
         raise EvidenceError('selected cloud and SSH-only rental required')
     quote_schema='ovl.rental-quote.v2' if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else 'ovl.rental-quote.v1'
+    if retained:quote_schema='ovl.rental-quote.v3'
     if value['quote'].get('schema')!=quote_schema:raise EvidenceError('quote version differs from rental intent')
     if payload['ports']!='22/tcp':raise EvidenceError('only SSH port may be exposed')
     if payload['dockerArgs']!='':raise EvidenceError('only immutable image entrypoint may start')
     if type(payload['gpuTypeId']) is not str or not re.fullmatch(r'[A-Za-z0-9 ._-]{1,96}',payload['gpuTypeId']):raise EvidenceError('invalid selected GPU')
     for k in ('minVcpuCount','minMemoryInGb'):
         if type(payload[k]) is not int or not 1<=payload[k]<=1024:raise EvidenceError('invalid selected resource minimum')
-    validate_quote(value['quote'],payload,p)
+    validate_quote(value['quote'],payload,p,network_volume=w.get('retained_volume'))
     # No env/key/registry credential fields are accepted in the published intent.
     b=w['baseline'];balance=Decimal(b['balance_usd'])
     needed=sum(Decimal(p['input'][k]) for k in ('outstanding_usd','reserved_remaining_usd'))+Decimal(p['maximum_charge_micro_usd']+p['protected_reserve_micro_usd'])/10**6
@@ -125,7 +130,7 @@ def normalized(w,obs,pod,h,health,now):
     return {'schema':'ovl.supervisor-observation.v2','now_epoch':now,'observed_epoch':obs['observed_epoch'],
         'attributed_pod_ids':[pod['id']],'active_pod_ids':[x['id'] for x in obs['pods']],
         'pod_id':pod['id'],'gpu_count':pod['gpuCount'],
-        'hourly_usd':dollars(max(Decimal(pod['costPerHr']),Decimal(pod['adjustedCostPerHr']),Decimal(obs['account_hourly_usd']))),
+        'hourly_usd':dollars(max(Decimal(pod['costPerHr']),Decimal(pod['adjustedCostPerHr']),retained_volume.compute_hourly(w,obs))),
         'actual_project_spend_usd':p['input']['spent_usd'],'outstanding_usd':dollars(outstanding),
         'reserved_remaining_usd':p['input']['reserved_remaining_usd'],'account_balance_usd':dollars(balance,balance=True),
         'progress_epoch':progress,'last_checkpoint_epoch':checkpoint,
@@ -165,6 +170,7 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
         terminating=any(e['kind']=='decision' and e['body'].get('action')=='TERMINATE' for e in j.events)
         missing_since=None
         last_success=None;last_success_monotonic=None
+        storage_errors={reason for e in j.events if e['kind']=='failure' and e['body'].get('stage')=='retained-account-guard' for reason in e['body']['reasons']}
         def log(kind,body):
             try:j.append(kind,body)
             except Exception:return False
@@ -194,9 +200,22 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if storage_budget is not None:storage_budget.admit()
             now=int(wall());watchdog_heartbeat(heartbeat,w,now)
             obs=get_account()
-            if (obs['pods'] or obs['volume_ids'] or obs['autopay'] or Decimal(obs['account_hourly_usd'])!=0
-                or not 0<=wall()-obs['observed_epoch']<=25 or Decimal(obs['balance_usd'])<Decimal(w['baseline']['balance_usd'])):
+            if 'retained_volume' in w:
+                # Storage can legitimately debit the balance between two reads.
+                # Recheck full funding; neither lower reserves nor renew deadlines.
+                minimum_balance=sum(Decimal(p['input'][k]) for k in ('outstanding_usd','reserved_remaining_usd'))+Decimal(p['maximum_charge_micro_usd']+p['protected_reserve_micro_usd'])/10**6
+            else:minimum_balance=Decimal(w['baseline']['balance_usd'])
+            if (not retained_volume.baseline_valid(w,obs)
+                or not 0<=wall()-obs['observed_epoch']<=25 or Decimal(obs['balance_usd'])<minimum_balance):
                 raise EvidenceError('account changed before one-shot creation')
+            if 'retained_volume' in w:
+                debit=max(Decimal(0),Decimal(w['baseline']['balance_usd'])-Decimal(obs['balance_usd']))
+                prior=Decimal(p['input']['outstanding_usd']);ceiling=Decimal(p['maximum_charge_micro_usd'])/10**6
+                if debit>prior+ceiling+Decimal(w['retained_volume']['reserved_usd']):
+                    raise EvidenceError('observed pre-creation debit exceeds reserved exposure')
+                from ovl_pipeline.budget import OPERATING_LIMIT
+                if Decimal(p['input']['spent_usd'])+max(prior,debit)+Decimal(p['input']['reserved_remaining_usd'])+ceiling>Decimal(OPERATING_LIMIT)/10**6:
+                    raise EvidenceError('fresh account debit leaves insufficient operating budget')
             clock=obs['http_clock']
             if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
                 raise EvidenceError('provider clock differs before creation')
@@ -245,11 +264,23 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
             if known is not None and not terminating and 0<left<=21:sleep(min(5,left));continue
             stage='account'
             try:
-                obs=get_account();stage='observation';pod=match_pod(w,obs,known)
+                obs=get_account();stage='observation'
+                if 'retained_volume' in w:
+                    violations=retained_volume.independent_errors(w,obs)
+                    if violations:
+                        storage_errors.update(violations)
+                        log('failure',{'stage':'retained-account-guard','reasons':violations})
+                pod=match_pod(w,obs,known)
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale provider read')
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:raise EvidenceError('provider clock differs')
                 last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
+                if 'retained_volume' in w:
+                    violations=retained_volume.account_errors(w,obs,pod)
+                    if violations:
+                        storage_errors.update(violations)
+                        log('failure',{'stage':'retained-account-guard','reasons':violations})
+                        terminate('retained-account-guard',reconcile=known is None)
                 if pod is None:
                     if known is not None or wall()>p['external_terminate_epoch']+180:
                         if missing_since is None:missing_since=obs['observed_epoch']
@@ -259,12 +290,13 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                                 'provider_requested_only_fields':['cloudType','gpuTypeId','ports','startSsh','startJupyter','minVcpuCount','minMemoryInGb']+(['allowedCudaVersions'] if 'allowedCudaVersions' in value['payload'] else [])+(['minDownload','minUpload'] if value['schema'] in ('ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else [])+(['countryCode'] if value['schema']=='ovl.rental-controller-intent.v5' else []),
                                 'runtime_identity_admission':'NOT_RUN',
                                 'automatic_provider_termination':'UNVERIFIED','provider_billing_reconciliation':'PENDING','training_admission':'NOT_RUN'}
+                            if 'retained_volume' in w:report.update(retained_storage_verification='FAIL' if storage_errors else 'PASS',account_guard_violations=sorted(storage_errors))
                             j.append('teardown',report);write_json(directory/'result.json',report);return
                 else:
                     missing_since=None
                     if known is None:
                         known=pod['id'];j.append('creation-observed',{'id':known,'adopted_from_unique_intent':True})
-                    if provision_errors(w,pod) or obs['volume_ids'] or obs['autopay'] or len(obs['pods'])!=1:
+                    if provision_errors(w,pod) or not retained_volume.matches(w,obs) or obs['autopay'] or len(obs['pods'])!=1:
                         raise EvidenceError('resource shape/account singleton changed')
                     h=watchdog_heartbeat(heartbeat,w,int(wall()),known)
                     health_error=False
@@ -278,7 +310,8 @@ def run(directory,value,expected,heartbeat,health_path,*,get_account=account,pro
                         decision['action']='CHECKPOINT_AND_STOP';decision['reasons'].append('invalid-workload-export-health')
                     decision['observed_epoch']=int(wall())
                     debit=max(Decimal(0),Decimal(w['baseline']['balance_usd'])-Decimal(obs['balance_usd']))
-                    if debit>Decimal(p['input']['outstanding_usd'])+Decimal(p['maximum_charge_micro_usd'])/10**6:
+                    storage_reserve=Decimal(w['retained_volume']['reserved_usd']) if 'retained_volume' in w else Decimal(0)
+                    if debit>Decimal(p['input']['outstanding_usd'])+Decimal(p['maximum_charge_micro_usd'])/10**6+storage_reserve:
                         raise EvidenceError('observed debit exceeded prior unsettled plus rental ceiling')
                     if not log('provider-observation',{'account':obs,'normalized':v}):raise EvidenceError('cannot preserve cost observation')
                     if health is not None and health['complete']:terminate('workload-complete-exported')
