@@ -124,8 +124,8 @@ def production_job(kind,profile,offline_config,static_files,packet,bundle,produc
             '--source-checkout':source,'--wikipedia-stream':prepared+'/wikipedia','--conversation-stream':prepared+'/conversation',
             '--output':remote,'--progress-policies':record+'/external-progress-policies.json'}
     if kind=='production-record':values.update({'--registration-sha256':digest(r),'--checkpoint-deadline':DEADLINE,
-        '--key-directory':base+'/private/run-key','--anchor-directory':record+'/public-anchors'})
-    else:values.update({'--chain-directory':record,'--progress-directory':record+'/public-anchors'})
+        '--key-directory':base+'/private/run-key','--anchor-directory':record+'/anchors'})
+    else:values.update({'--chain-directory':record,'--progress-directory':record+'/anchors'})
     inputs=list(deepcopy(static_files))
     def add(path,local):inputs.append({'path':path,'bytes':local.stat().st_size,'sha256':file_hash(local)})
     from ovl_pipeline.production_anchoring import PACKET_FILES
