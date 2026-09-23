@@ -19,7 +19,7 @@ from ovl_pipeline.run_key import load as load_key
 from pod_transfer import Transport
 from pod_job_client import save_once
 from production_run_coordinator import Run,restore_phase_bindings
-from production_run_inputs import registration,production_job
+from production_run_inputs import registration,production_job,qualified_runtime
 
 
 def transport(profile,key,known):return Transport(profile,key,known)
@@ -96,6 +96,10 @@ def run(spec,expected):
     key=Path(spec['key']);known=Path(spec['known_hosts']);profile=read_json(Path(spec['profile']))
     control=transport(profile,key,known);output=Path(spec['output']);bindings={};downloads={}
     phases=selected_phases(spec,bindings,downloads)
+    runtime=qualified_runtime(phases['qualification'][0],phases['qualification'][2])
+    for plan,_,directory,_ in phases.values():
+        if qualified_runtime(plan,directory)!=runtime:
+            raise EvidenceError('selected phases use different runtimes')
     profiles={kind:{**profile,'remote_root':profile['remote_root']+'-'+name} for kind,name in
               [('production-record','production-record'),('full-replay','production-replay')]}
     transports={kind:transport(value,key,known) for kind,value in profiles.items()}
@@ -133,7 +137,7 @@ def run(spec,expected):
         offline=Path(spec['qualification']['inputs'])/'offline-config.json'
         record_output=output/'production-record'
         template=production_job('production-record',profile,offline,static,a['packet'],a['bundle'],
-                                 output/'production-policy.json',output/'source-policy.json')
+                                 output/'production-policy.json',output/'source-policy.json',runtime_root=runtime)
         job,job_root=owner.select_job(template,record_output)
         owner.stage('production-record',job,job_root,[transports['production-record']],transports['production-record'],record_output,owner.store)
         record=read_json(record_output/'checked-numerical-result.json');chain=Path(record['directory'])
@@ -143,7 +147,7 @@ def run(spec,expected):
             raise EvidenceError('recorded policies differ from independently retained operator policy history')
         replay_output=output/'full-replay'
         template=production_job('full-replay',profile,offline,static,a['packet'],a['bundle'],output/'production-policy.json',
-                                 output/'source-policy.json',record_files=record['files'])
+                                 output/'source-policy.json',record_files=record['files'],runtime_root=runtime)
         job,job_root=owner.select_job(template,replay_output)
         owner.stage('full-replay',job,job_root,[transports['full-replay']],transports['full-replay'],replay_output,owner.store,
                     chain=chain,progress_directory=progress,progress_policies=policies)
