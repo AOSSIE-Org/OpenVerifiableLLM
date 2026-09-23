@@ -8,6 +8,14 @@ import publish_evidence_archive as pub
 from ovl_pipeline.canonical import EvidenceError,digest,inventory,read_json,write_json
 
 
+@pytest.fixture(autouse=True)
+def synthetic_privacy_gate(monkeypatch):
+    # Transport unit tests use a named double. The actual fail-closed review and
+    # installed scanner contract are exercised in test_publication_export_gate.
+    import publication_export_gate
+    monkeypatch.setattr(publication_export_gate,'require_review',lambda plan_path,*a,**kw:{'synthetic-test-double':True,'plan_sha256':digest(read_json(plan_path))})
+
+
 def plan(tmp_path):
     stage=tmp_path/'stage';stage.mkdir();statement={'synthetic':True};root=digest(statement)
     write_json(stage/'statement.json',statement);write_json(stage/'statement.sigstore.json',{'explicit-test-double':True})
@@ -22,7 +30,7 @@ class Fake:
     def list_repo_files(self,*a,**kw):return sorted(self.files)
     def create_commit(self,*a,**kw):
         assert kw['parent_commit']==self.sha
-        self.commits+=1;self.files.update({e.path_in_repo:Path(e.path_or_fileobj).read_bytes() for e in kw['operations']});self.sha='3'*40
+        self.commits+=1;self.files.update({e.path_in_repo:(e.path_or_fileobj.read() if hasattr(e.path_or_fileobj,'read') else Path(e.path_or_fileobj).read_bytes()) for e in kw['operations']});self.sha='3'*40
         if self.fail_after_commit:raise TimeoutError('unknown client completion')
         return SimpleNamespace(oid=self.sha,commit_url='https://huggingface.co/datasets/'+pub.REPO+'/commit/'+self.sha)
     def fetch(self,**kw):

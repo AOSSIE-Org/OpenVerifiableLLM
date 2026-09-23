@@ -90,7 +90,7 @@ def test_operational_publisher_requires_review_then_preserves_roundtrip(tmp_path
         def repo_info(self,*args,**kwargs):return SimpleNamespace(private=False,sha=self.sha)
         def list_repo_files(self,*args,**kwargs):return sorted(self.files)
         def create_commit(self,*args,**kwargs):
-            self.files={op.path_in_repo:Path(op.path_or_fileobj).read_bytes() for op in kwargs['operations']}
+            self.files={op.path_in_repo:op.path_or_fileobj.read() for op in kwargs['operations']}
             self.sha='b'*40
             return SimpleNamespace(oid=self.sha,commit_url='https://huggingface.co/placeholder')
         def fetch(self,**kwargs):
@@ -100,6 +100,12 @@ def test_operational_publisher_requires_review_then_preserves_roundtrip(tmp_path
         transport.upload(pp,stage,tmp_path/'missing-review',api=api)
     assert not api.files
     review['plan_sha256']=digest(plan);write_json(pp.with_name(pp.name+'.review.json'),review)
+    # Keep the operational member review and the new exact semantic gate real;
+    # replace only the external scanner/Git commands for this synthetic archive.
+    import publication_export_gate as gate
+    from test_publication_export_gate import approval,scanner
+    approval(pp,stage,plan);original=gate.require_review
+    monkeypatch.setattr(gate,'require_review',lambda *a,**kw:original(*a,**kw,execute=scanner(plan,[])))
     transport.upload(pp,stage,tmp_path/'upload',api=api)
     assert transport.download(pp,api.sha,tmp_path/'download',api=api,fetch_file=api.fetch)['result']=='PASS'
 

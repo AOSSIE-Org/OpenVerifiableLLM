@@ -13,6 +13,7 @@ import fcntl
 import os
 from pathlib import Path
 import re
+import time
 
 from huggingface_hub import CommitOperationAdd,HfApi
 from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,read_json,require_digest,verify_inventory,write_json
@@ -88,9 +89,10 @@ def existing(api,plan,revision):
     return sorted(n for n in names if n==plan['prefix'] or n.startswith(plan['prefix']+'/'))
 
 
-def upload(plan_path,staging,output,*,api=None):
+def upload(plan_path,staging,output,*,api=None,deadline=None):
     from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
+    expires=time.monotonic()+max(0,deadline-time.time()) if deadline is not None else None
     plan=read_json(plan_path);validate(plan)
     if output.exists():raise EvidenceError('existing publication intent/result; reconcile rather than repeat upload')
     fd=lease(plan_path.with_name(plan_path.name+'.publication.lock'))
@@ -104,18 +106,31 @@ def upload(plan_path,staging,output,*,api=None):
         if sorted(actual)!=[e['path'] for e in plan['files']]:raise EvidenceError('staging contains unregistered files')
         from ovl_pipeline.publication_privacy import review_export
         review_export(plan,staging,plan_path.with_name(plan_path.name+'.review.json'))
+        from publication_export_gate import require_review,frozen_payloads
+        privacy=require_review(plan_path,staging,deadline=deadline,monotonic_deadline=expires)
+        if privacy.get('plan_sha256')!=digest(plan) or read_json(plan_path)!=plan:
+            raise EvidenceError('privacy gate approved a different upload plan')
         api=api or HfApi(endpoint='https://huggingface.co')
         info=api.repo_info(REPO,repo_type='dataset')
         if info.private or not re.fullmatch('[0-9a-f]{40}',info.sha):raise EvidenceError('existing public pinned parent required')
         if existing(api,plan,info.sha):raise EvidenceError('prefix already exists; adopt and verify, never overwrite')
+        def check_deadline():
+            if deadline is not None and min(deadline-time.time(),expires-time.monotonic())<=0:
+                raise EvidenceError('original deadline forbids publication mutation')
+        check_deadline()
+        if read_json(plan_path)!=plan:raise EvidenceError('upload plan changed after privacy review')
         output.mkdir(parents=True,exist_ok=False)
-        intent={'schema':'ovl.evidence-publication-intent.v1','plan_sha256':file_hash(plan_path),'plan':plan,
+        intent={'schema':'ovl.evidence-publication-intent.v1','plan_sha256':digest(plan),'plan':plan,
                 'parent_revision':info.sha,'started_utc':datetime.now(timezone.utc).isoformat(),
-                'publisher_code_sha256':file_hash(Path(__file__)),'semantic_verification':'NOT_RUN'}
+                'publisher_code_sha256':file_hash(Path(__file__)),'privacy_gate_sha256':digest(privacy),'semantic_verification':'NOT_RUN'}
         write_json(output/'intent.json',intent)
-        commit=api.create_commit(REPO,repo_type='dataset',parent_commit=info.sha,
-            commit_message='Archive immutable '+plan['kind']+' evidence '+plan['subject_sha256'][:16],
-            operations=[CommitOperationAdd(path_in_repo=plan['prefix']+'/'+e['path'],path_or_fileobj=confined(staging,e['path'])) for e in plan['files']],num_threads=2)
+        with frozen_payloads(staging,plan['files'],output,check_deadline) as payloads:
+            operations=[CommitOperationAdd(path_in_repo=plan['prefix']+'/'+e['path'],path_or_fileobj=handle)
+                        for e,handle in payloads]
+            check_deadline()
+            commit=api.create_commit(REPO,repo_type='dataset',parent_commit=info.sha,
+                commit_message='Archive immutable '+plan['kind']+' evidence '+plan['subject_sha256'][:16],
+                operations=operations,num_threads=2)
         if not re.fullmatch('[0-9a-f]{40}',commit.oid):raise EvidenceError('provider returned invalid commit identity; reconcile intent')
         receipt={'schema':'ovl.evidence-publication.v1','result':'UPLOADED_NOT_DOWNLOAD_VERIFIED','repo':REPO,
                  'revision':commit.oid,'url':commit.commit_url,'intent_sha256':digest(intent),
