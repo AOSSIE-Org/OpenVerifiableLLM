@@ -60,7 +60,7 @@ def test_actual_bytes_bridge_long_setup_to_unchanged_stall_guard(tmp_path,monkey
         assert (tmp_path/'wheels'/item['path']).read_bytes()==data
 
 
-def test_setup_forwards_selected_activity_only_to_download_child(tmp_path,monkeypatch):
+def test_setup_forwards_selected_activity_to_download_and_offline_children(tmp_path,monkeypatch):
     inputs,config,value=fixture(tmp_path);output=tmp_path/'output';calls=[]
     activity=str(output/'activity.json');monkeypatch.setenv('OVL_ACTIVITY_FILE',activity)
     def execute(argv,**kwargs):
@@ -71,7 +71,7 @@ def test_setup_forwards_selected_activity_only_to_download_child(tmp_path,monkey
             write_json(output/'downloads.json',{'schema':'ovl.public-wheel-download-result.v1',
                 'plan_sha256':value['wheel_plan_sha256'],'files':[{**f,'result':'COMPLETE_HASH_MATCH'}]})
         else:
-            assert 'OVL_ACTIVITY_FILE' not in kwargs['env']
+            assert kwargs['env']['OVL_ACTIVITY_FILE']==activity
             (output/'offline').mkdir();write_json(output/'offline/setup.json',{
                 'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':value['offline_config_sha256']})
     setupper.setup(config,file_hash(config),inputs,tmp_path/'runtime',output,int(setupper.time.time())+900,execute=execute)

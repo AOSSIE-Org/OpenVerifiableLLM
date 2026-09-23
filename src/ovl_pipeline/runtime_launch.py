@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import sysconfig
+import tempfile
 
 from .canonical import EvidenceError,digest,file_hash,read_json,write_json
 from .runtime_audit import wheel_manifest,verify_installed
@@ -58,7 +59,7 @@ def current_launch():
 
 
 def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=None,execute=subprocess.run,
-           interpreter_archive=None,interpreter_sha256=None,interpreter_root=None):
+           interpreter_archive=None,interpreter_sha256=None,interpreter_root=None,progress=None,bytecode_root=None):
     if module not in MODULES:raise EvidenceError('unsupported audited target module')
     if output.exists():raise EvidenceError('launch requires a fresh record and bytecode cache')
     if venv.is_symlink() or source.is_symlink():raise EvidenceError('target environment/source roots must be regular directories')
@@ -80,13 +81,25 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
             raise EvidenceError('target interpreter is outside audited public distribution')
         origin={'archive_sha256':interpreter_sha256,'manifest_sha256':digest(python_payloads),
                 'audit_sha256':digest(python_audit),'root':str(interpreter_root)}
+    if progress is not None:progress('launch-interpreter')
     # Complete archive and installed-file hashing occurs in the trusted parent,
     # before any code from the selected environment is imported by the child.
     manifest=wheel_manifest(lock,wheels)
+    if progress is not None:progress('launch-wheels')
     audit=verify_installed(manifest,{'site':site,'prefix':venv,'scripts':venv/'bin','headers':venv/'include/python3.12'},
                            allowed_generated=allowed_generated)
+    if progress is not None:progress('launch-installed')
     output.mkdir(parents=True,exist_ok=False);output=output.resolve()
-    cache=output/'pycache';cache.mkdir(mode=0o700)
+    if bytecode_root is None:
+        cache=output/'pycache';cache.mkdir(mode=0o700)
+    else:
+        bytecode_root=Path(bytecode_root).absolute()
+        if any(p.is_symlink() for p in [bytecode_root,*bytecode_root.parents]):raise EvidenceError('bytecode root symlink')
+        bytecode_root.mkdir(mode=0o700,parents=True,exist_ok=True)
+        cache=Path(tempfile.mkdtemp(prefix='launch-',dir=bytecode_root))
+    # A fresh local prefix excludes old caches. -B prevents per-launch cache
+    # growth and remote bytecode writes without admitting pre-existing code.
+
     write_json(output/'wheel-payloads.json',manifest);write_json(output/'installed-audit.json',audit)
     if origin is not None:
         write_json(output/'python-payloads.json',python_payloads);write_json(output/'python-audit.json',python_audit)
@@ -102,7 +115,7 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(output)}
     if 'OVL_ACTIVITY_FILE' in os.environ:env['OVL_ACTIVITY_FILE']=os.environ['OVL_ACTIVITY_FILE']
     env.update(DETERMINISTIC_ENV)
-    command=[str(python),'-s','-S','-P','-X','pycache_prefix='+str(cache),str(bootstrap),
+    command=[str(python),'-B','-s','-S','-P','-X','pycache_prefix='+str(cache),str(bootstrap),
              '--source',str(source),'--site',str(site),'--launch-record',str(output/'launch.json'),'--module',module,'--',*arguments]
     # REMAINDER retains the '--'; remove it only in the bootstrap argument parser
     # and record the exact user arguments independently of shell interpolation.
