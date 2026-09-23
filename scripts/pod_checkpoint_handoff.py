@@ -69,9 +69,11 @@ def snapshot(transport,registration,root,output,deadline,*,progress=None):
     marker=canonical(body['checkpoint'])
     files=[{'path':'checkpoint.json','bytes':len(marker),'sha256':sha256(marker)},*body['checkpoint']['files']]
     transfers=[]
+    from pod_transfer import staged_get
     for item in files:
         name=body['checkpoint_path']+'/'+item['path']
-        transfers.append(transport.get(name,checkpoint/item['path'],{**item,'path':name},deadline,progress=progress))
+        transfers.append(staged_get(transport,name,checkpoint/item['path'],{**item,'path':name},deadline,
+                                    output/'transfers'/digest(item),progress=progress))
     state_check(registration,root,output)
     after=output/'after';after.mkdir(mode=0o700)
     for name,expected,maximum in [('chain.json',chain,16*1024**2),('awaiting-anchor.json',waiting,1024**2)]:

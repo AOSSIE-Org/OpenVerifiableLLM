@@ -181,7 +181,7 @@ def test_transient_retry_count_is_finite_and_preserves_every_failure(tmp_path,mo
 
 def test_total_deadline_expires_before_further_retry(tmp_path,monkeypatch):
     transport,expected,data,clock,attempts=virtual_transport(tmp_path,monkeypatch,failure=lambda n,o:True)
-    with pytest.raises(m.TransientTransportError):transport.get('state',tmp_path/'download',expected,1090)
+    with pytest.raises(m.RangeRecoveryExhausted):transport.get('state',tmp_path/'download',expected,1090)
     assert len(attempts)==1 and attempts[0][2]==1090
     assert not(tmp_path/'download').exists()
 

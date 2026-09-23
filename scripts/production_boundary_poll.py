@@ -9,12 +9,12 @@ from dataclasses import asdict
 from pathlib import Path
 import uuid
 
-from ovl_pipeline.canonical import EvidenceError,digest,inventory,read_json
+from ovl_pipeline.canonical import EvidenceError,canonical,digest,inventory,read_json
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.progress_anchoring import ProgressPublisherPolicy,verify_prefix
 from pod_job_client import save_once
 from pod_checkpoint_handoff import observe,snapshot,state_check,deliver
-from pod_versioned_export import regular_directory
+from pod_versioned_export import regular_directory,classified_export,require_retryable_checkpoint
 from reconcile_checkpoint_delivery import reconcile
 import persistent_publication as publisher
 
@@ -102,18 +102,26 @@ class BoundaryPublisher:
         integer(intent['started_epoch'],self.health.plan['input']['now_epoch'],self.health.plan['request_checkpoint_epoch'],'boundary start')
         deadline=intent['deadline_epoch'];copy_deadline=min(deadline,intent['started_epoch']+self.policy['snapshot_seconds'])
         snap=state/'snapshot'
-        # One preserved partial-copy retry, never a renewed copy deadline.
-        if snap.exists() and not(snap/'export.json').exists():snap=state/'snapshot-retry'
+        selected_files=[{'path':'checkpoint.json','bytes':len(canonical(waiting['checkpoint'])),
+                         'sha256':digest(waiting['checkpoint'])},*waiting['checkpoint']['files']]
+        # One positively classified zero-payload retry; never reset exhausted
+        # range/small-read budgets or retry strict failures on publisher re-entry.
+        if snap.exists() and not(snap/'export.json').exists():
+            require_retryable_checkpoint(self.transport,waiting['checkpoint_path'],snap,copy_deadline,selected_files)
+            snap=state/'snapshot-retry'
         if not snap.exists():
             owner=self
             class ObservedSnapshot:
                 def __getattr__(self,name):return getattr(owner.transport,name)
                 def get(self,name,destination,item,limit,**kwargs):
-                    operation=digest({'job':owner.job,'snapshot':str(snap),'file':name})
+                    operation=digest({'job':owner.job,'boundary':digest(waiting),'file':item})
                     def progress(counts):
                         owner.health.bytes(operation,counts,total=item['bytes']);owner.health.write(owner.health_file)
-                    return owner.transport.get(name,destination,item,limit,progress=progress)
-            snapshot(ObservedSnapshot(),self.registration,self.root,snap,copy_deadline)
+                    kwargs['progress']=progress
+                    return owner.transport.get(name,destination,item,limit,**kwargs)
+            observed=ObservedSnapshot()
+            classified_export(observed,waiting['checkpoint_path'],snap,copy_deadline,selected_files,
+                lambda:snapshot(observed,self.registration,self.root,snap,copy_deadline))
         if not(snap/'export.json').is_file():raise EvidenceError('boundary snapshot retries exhausted')
         chain,body,selected,_=state_check(self.registration,self.root,snap)
         if selected!=waiting:raise EvidenceError('snapshot selected a different waiting boundary')
