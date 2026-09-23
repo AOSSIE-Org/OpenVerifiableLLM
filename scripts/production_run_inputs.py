@@ -67,10 +67,53 @@ def registration(template,qualified,initial,rental,now,*,construction_seconds=0)
               'scope':'measured pilot rates with required margins, bounded by original whole-rental ceiling; fixed costs not claimed measured'}
 
 
+def qualified_runtime(plan,inputs):
+    """Retain the runtime placement in the selected qualification job bytes."""
+    roots=set();inputs=Path(inputs).resolve()
+    for stage in plan['stages']:
+        template=inputs/stage['template_path']
+        if template.is_symlink() or not template.resolve().is_relative_to(inputs):
+            raise EvidenceError('runtime template outside selected inputs')
+        job=read_json(template)
+        if digest(job)!=stage['template_sha256']:raise EvidenceError('runtime template changed')
+        args=job['argv']
+        if len(args)<4 or args[1:3]!=['-I','-S']:
+            raise EvidenceError('explicit audited launcher structure required')
+        script=Path(args[3]).name
+        if script=='pod_fetch_prepared.py':continue
+        if script not in ('pod_public_setup.py','pod_runtime_setup.py',
+                          'pod_sustained_pilot.py','pod_initialization.py'):
+            raise EvidenceError('unrecognized qualification launcher')
+        # The launcher consumes only its own argument segment. Require the
+        # canonical separate-value spelling rather than silently ignoring an
+        # argparse abbreviation or --runtime=value in another selected job.
+        args=args[:args.index('--')] if '--' in args else args
+        if any(a.startswith('--') and '--runtime'.startswith(a.split('=',1)[0])
+               and a!='--runtime' for a in args):
+            raise EvidenceError('canonical explicit runtime option required')
+        if '--runtime' not in args:raise EvidenceError('explicit runtime option required')
+        index=args.index('--runtime')
+        if args.count('--runtime')!=1 or index+1>=len(args):raise EvidenceError('ambiguous runtime argument')
+        root=args[index+1]
+        if (not isinstance(root,str) or not root.startswith('/') or root=='/'
+            or '..' in Path(root).parts or str(Path(root))!=root):
+            raise EvidenceError('explicit normalized runtime path required')
+        roots.add(root)
+    if len(roots)!=1:raise EvidenceError('one consistent qualified runtime required')
+    return roots.pop()
+
+
 def production_job(kind,profile,offline_config,static_files,packet,bundle,production_policy,source_policy,
-                   *,record_files=None):
+                   *,record_files=None,runtime_root=None):
     if kind not in ('production-record','full-replay'):raise EvidenceError('unsupported production stage')
     base=profile['remote_root'];name='production-record' if kind=='production-record' else 'production-replay'
+    runtime=base+'/runtime' if runtime_root is None else runtime_root
+    if (not isinstance(runtime,str) or not runtime.startswith('/') or runtime=='/'
+        or '..' in Path(runtime).parts or str(Path(runtime))!=runtime):
+        raise EvidenceError('explicit normalized runtime path required')
+    executable=runtime+'/public-python/python/bin/python3.12'
+    if runtime_root is not None and sum(f['path']==executable for f in static_files)!=1:
+        raise EvidenceError('selected runtime executable must be uniquely hash bound')
     remote=base+'-'+name;record=base+'-production-record';audit=base+'/control-'+name
     public=base+'/production-inputs';source=base+'/inputs/source';prepared=base+'/prepared'
     r=read_json(packet/'registration.json')
@@ -95,8 +138,8 @@ def production_job(kind,profile,offline_config,static_files,packet,bundle,produc
     return {'schema':'ovl.pod-job.v1','kind':kind,'cwd':base,'deadline_epoch':DEADLINE,'stop_grace_seconds':15,
       'minimum_free_bytes':16*1024**3,'required_files':inputs,'export_roots':[remote,audit],
       'environment':{'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','OVL_ACTIVITY_FILE':audit+'/activity.json'},
-      'argv':[base+'/runtime/public-python/python/bin/python3.12','-I','-S',base+'/inputs/pod_runtime_setup.py','launch',
+      'argv':[executable,'-I','-S',base+'/inputs/pod_runtime_setup.py','launch',
               '--config',base+'/inputs/offline-config.json','--config-sha256',file_hash(offline_config),
-              '--inputs',base+'/inputs','--runtime',base+'/runtime','--output',audit+'/audit',
+              '--inputs',base+'/inputs','--runtime',runtime,'--output',audit+'/audit',
               '--module','ovl_pipeline.'+('production_record' if kind=='production-record' else 'production_replay'),
               '--',*[v for item in values.items() for v in item]]}
