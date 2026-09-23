@@ -358,7 +358,7 @@ class Run:
             save_once(self.output/'source-policy.json',asdict(a['source_policy']))
             save_once(self.output/'production-policy.json',asdict(a['production_policy']))
             publisher=BoundaryPublisher(r,expected,self.health,self.health_file,numerical,output/'publication',args,
-                                        self.selection['timing']['publication_policy'])
+                                        self.selection['timing']['publication_policy'],retained_store=self.store)
         if not (output/'stage-result.json').exists():self.guards(starting=not (output/'launch/launch-intent.json').exists())
         if not self.health.jobs.get(expected,{}).get('finished',False):self.active_stage=(binding,job_file,expected,output,store)
         result=run_stage(self.control,self.health,job_file,expected,self.worker,self.selection['worker_sha256'],output,

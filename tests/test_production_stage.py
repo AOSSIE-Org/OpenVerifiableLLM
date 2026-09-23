@@ -75,7 +75,7 @@ def test_live_loop_uses_actual_checkpoint_hook_and_selected_publisher(prepared,t
     monkeypatch.setattr(m,'bounded_read',running_once)
     with Journal(tmp_path/'health').lease() as j:
         h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
-        pub.poll=lambda:calls.append('explicit-publisher-double')
+        pub.poll=lambda **kw:calls.append('explicit-publisher-double')
         execute(tmp_path,data,h,cp,pub)
         assert calls==['observed','explicit-publisher-double']
         assert list((tmp_path/'live/checkpoints').glob('*/retained/retention.json'))
@@ -272,3 +272,52 @@ def test_stop_clock_rechecked_after_blocking_control_operation(prepared,tmp_path
         with pytest.raises(EvidenceError,match='inspected stop ordering'):execute(tmp_path,data,h,cp,pub)
         assert events==['numerical','adoption']
         assert read_json(out/'stop-intent.json')['hard_stop_epoch']==hard
+
+
+@pytest.mark.parametrize('interrupt_snapshot',[False,True])
+def test_primary_appearing_between_polls_defers_then_reuses_retained_bytes(prepared,tmp_path,monkeypatch,interrupt_snapshot):
+    import production_boundary_poll as boundary
+    from pod_transfer import TransientTransportError
+    data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    original_read=m.bounded_read;iterations=[];snapshots=[]
+    def running(kind,*args,**kw):
+        value=original_read(kind,*args,**kw)
+        if kind=='supervision':
+            iterations.append(len(iterations))
+            assert len(iterations)<=2
+            return {**value,'state':'RUNNING_UNVERIFIED','terminal':None,'runner_alive':True}
+        return value
+    monkeypatch.setattr(m,'bounded_read',running)
+    class ReachedCheckedSnapshot(Exception):pass
+    original_snapshot=boundary.snapshot
+    def snapshot(*args,**kw):
+        snapshots.append(args[4])
+        if interrupt_snapshot and len(snapshots)==1:
+            Path(args[3]).mkdir()
+            error=TransientTransportError('synthetic zero-payload inventory interruption')
+            error.transfer_counts={'bytes_sent':0,'bytes_received':0};error.immutable_download_bytes=0
+            raise error
+        original_get=t.get
+        t.get=lambda *a,**k:pytest.fail('publisher downloaded an already retained primary')
+        try:result=original_snapshot(*args,**kw)
+        finally:t.get=original_get
+        assert result['transfers']==[]
+        raise ReachedCheckedSnapshot()
+    monkeypatch.setattr(boundary,'snapshot',snapshot)
+    with Journal(tmp_path/'health').lease() as j:
+        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,old=hooks(tmp_path,t,root,r,h)
+        pub=BoundaryPublisher(r,root,h,tmp_path/'health.json',t,tmp_path/'publication-reuse',old.arguments,old.policy,retained_store=cp.store)
+        original_poll=cp.poll;retentions=[];chain=tmp_path/'record/remote/chain.json'
+        def race():
+            if not retentions:
+                saved=chain.read_bytes();chain.unlink()
+                try:value=original_poll()
+                finally:chain.write_bytes(saved)
+                assert value is None
+            else:value=original_poll()
+            retentions.append(value);return value
+        cp.poll=race
+        with pytest.raises(ReachedCheckedSnapshot):execute(tmp_path,data,h,cp,pub)
+        assert len(iterations)==2 and retentions[0] is None and retentions[1]['retention']['result']=='PASS'
+        assert len(snapshots)==(2 if interrupt_snapshot else 1) and len(set(snapshots))==1
+        assert not (out/'stage-result.json').exists() and not h.complete
