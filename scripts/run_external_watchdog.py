@@ -107,18 +107,23 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                 sleep(min(5,left));continue
             stage='account'
             try:
-                obs=get_account();stage='observation'
+                obs=get_account();stage='account-identity'
                 if 'retained_volume' in intent:
                     violations=retained_volume.independent_errors(intent,obs)
                     if violations:
                         storage_errors.update(violations)
                         log('failure',{'stage':'retained-account-guard','reasons':violations})
+                stage='observation-journal'
+                if not log('provider-observation',obs):raise EvidenceError('cannot preserve provider observation')
+                stage='pod-attribution'
                 pod=match_pod(intent,obs,known)
+                stage='provider-clock'
                 clock=obs['http_clock']
                 if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
                     raise EvidenceError('provider clock mismatch')
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale account read')
                 last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
+                stage='retained-account-guard'
                 if 'retained_volume' in intent:
                     violations=retained_volume.account_errors(intent,obs,pod)
                     if violations:
@@ -133,7 +138,9 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                             terminate('identity-journal-failure')
                     unrelated=[x['id'] for x in obs['pods'] if x['id']!=known]
                     excessive=max(Decimal(pod['costPerHr']),Decimal(pod['adjustedCostPerHr']),retained_volume.compute_hourly(intent,obs))>Decimal(p['input']['hourly_upper_usd'])
-                    if provision_errors(intent,pod) or unrelated or not retained_volume.matches(intent,obs) or obs['autopay'] or excessive:
+                    stage='resource-shape';shape_errors=provision_errors(intent,pod)
+                    if shape_errors:log('failure',{'stage':stage,'fields':shape_errors})
+                    if shape_errors or unrelated or not retained_volume.matches(intent,obs) or obs['autopay'] or excessive:
                         terminate('resource-shape-or-budget-guard')
                     if terminating or wall()>=p['external_terminate_epoch'] or monotonic()>=mono_deadline:
                         terminate('late-discovered-resource-or-deadline')
@@ -148,7 +155,6 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                                 'provider_billing_reconciliation':'PENDING','execution_admission':'NOT_RUN'}
                         if 'retained_volume' in intent:report.update(retained_storage_verification='FAIL' if storage_errors else 'PASS',account_guard_violations=sorted(storage_errors))
                         j.append('teardown',report);write_json(directory/'result.json',report);return
-                if not log('provider-observation',obs):terminate('observation-journal-failure')
                 write_json(directory/'heartbeat.json',{'schema':'ovl.external-watchdog-heartbeat.v1',
                            'observed_epoch':int(wall()),'pid':os.getpid(),'pod_id':known,'intent_sha256':expected,
                            'plan_sha256':digest(p),'external_terminate_epoch':p['external_terminate_epoch'],
@@ -163,7 +169,10 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                             'plan_sha256':digest(p),'external_terminate_epoch':p['external_terminate_epoch'],'state':'ARMED',
                             'automatic_provider_termination':'UNVERIFIED'})
                         sleep(5);continue
-                terminate('observation-or-evidence-failure',reconcile=True);log('failure',{'stage':'observation',**diagnostic(e)})
+                if stage=='account' and 'retained_volume' in intent:
+                    storage_errors.add('provider-observation-unverified')
+                    log('failure',{'stage':'retained-account-guard','reasons':['provider-observation-unverified']})
+                terminate('observation-or-evidence-failure',reconcile=True);log('failure',{'stage':'observation','failed_check':stage,**diagnostic(e)})
             sleep(max(.01,min(10,p['external_terminate_epoch']-wall())) if not terminating else 5)
 
 
