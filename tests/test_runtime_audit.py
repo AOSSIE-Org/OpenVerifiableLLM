@@ -98,3 +98,19 @@ def test_direct_url_is_still_bound_to_selected_archive_hash(tmp_path):
 def test_unfrozen_dependency_forms_fail(tmp_path,line):
     p=tmp_path/'lock';p.write_text(line+' --hash=sha256:'+'a'*64+'\n')
     with pytest.raises(EvidenceError):locked_requirements(p)
+
+
+@pytest.mark.parametrize('name',['../escape','/absolute','a/../b','a/./b','a//b','a\\b','a\x00b','','.','a/'])
+def test_virtual_archive_path_validation_rejects_escaping_or_ambiguous_names(name):
+    from ovl_pipeline.runtime_audit import archive_name
+    with pytest.raises(EvidenceError):archive_name(name)
+
+
+def test_virtual_members_do_not_consult_unrelated_working_directory(tmp_path,monkeypatch):
+    lock,wheels,paths=fixture(tmp_path);expected=wheel_manifest(lock,wheels)
+    cwd=tmp_path/'unrelated';cwd.mkdir();(cwd/'example').symlink_to(tmp_path/'absent')
+    monkeypatch.chdir(cwd)
+    import ovl_pipeline.runtime_audit as module
+    def no_real_path_lookup(*args,**kwargs):raise AssertionError('virtual member consulted real filesystem')
+    monkeypatch.setattr(module,'confined',no_real_path_lookup)
+    assert wheel_manifest(lock,wheels)==expected
