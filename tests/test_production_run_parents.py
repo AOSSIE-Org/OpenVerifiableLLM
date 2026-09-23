@@ -15,6 +15,8 @@ def selected(tmp_path):
     r['source_bundle_sha256']=digest(read_json(bundle))
     q={'pilot_records':p['pilot_records'],'pilot_replays':p['pilot_replays']}
     initial={'record':p['initial_record'],'verification':p['initial_verification']}
+    from ovl_pipeline.production_parents import public_initialization
+    r['initialization']['regeneration_report_sha256']=digest(public_initialization(initial)['verification'])
     return r,p,bundle,q,initial
 
 
@@ -38,3 +40,13 @@ def test_wrong_parents_cannot_create_a_registration_packet(tmp_path,damage):
     else:r['forecast_input']['spent_usd']='130'
     with pytest.raises(EvidenceError):m.packet(r,p['source'],bundle,p['source_policy'],p['prepared'],q,initial,tmp_path/'packet')
     assert not(tmp_path/'packet').exists()
+
+
+@pytest.mark.parametrize('kind',['record','verification'])
+def test_private_envelope_rejected_before_any_packet_write(tmp_path,kind):
+    r,p,bundle,q,initial=selected(tmp_path)
+    initial[kind]['environment']={**initial[kind]['environment'],'process_observation':{'synthetic':'private'}}
+    initial['verification']['record_sha256']=digest(initial['record'])
+    with pytest.raises(EvidenceError,match='environment envelope'):
+        m.packet(r,p['source'],bundle,p['source_policy'],p['prepared'],q,initial,tmp_path/'packet')
+    assert not (tmp_path/'packet').exists()

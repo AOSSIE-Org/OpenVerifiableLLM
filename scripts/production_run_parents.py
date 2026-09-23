@@ -114,9 +114,10 @@ def initialization(plan,expected,output,profile,qualified):
 
 def packet(registration,source,source_bundle,source_policy,prepared,qualified,initial,output):
     """Write only the exact closed packet after validating every report link."""
-    from ovl_pipeline.production_parents import validate_parents
+    from ovl_pipeline.production_parents import validate_parents,public_initialization
     from ovl_pipeline.production_anchoring import PACKET_FILES
     from ovl_pipeline.canonical import file_hash
+    initial=public_initialization(initial)
     parents={'source':source,'source_policy':source_policy,'prepared':prepared,'initial_record':initial['record'],
              'initial_verification':initial['verification'],'pilot_records':qualified['pilot_records'],
              'pilot_replays':qualified['pilot_replays']}

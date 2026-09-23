@@ -5,7 +5,7 @@ from copy import deepcopy
 from decimal import Decimal
 import pytest
 from ovl_pipeline.canonical import EvidenceError,digest,read_json,write_json
-from ovl_pipeline.production_parents import validate_parents
+from ovl_pipeline.production_parents import validate_parents,public_initialization
 from ovl_pipeline.supervision import rental_plan
 from test_production_parents import parents
 from test_rental_controller import intent
@@ -21,10 +21,17 @@ def fixture():
     return r,p,rental,q,initial
 
 
+def public_parents(p):
+    result=deepcopy(p)
+    projected=public_initialization({'record':p['initial_record'],'verification':p['initial_verification']})
+    result.update(initial_record=projected['record'],initial_verification=projected['verification'])
+    return result
+
+
 def test_registration_freezes_actual_measurements_with_original_whole_rental_ceiling():
     r,p,rental,q,initial=fixture();now=rental['watchdog_intent']['plan']['input']['now_epoch']+100
     actual,basis=m.registration(r,q,initial,rental,now)
-    assert validate_parents(actual,**p)['result']=='PASS'
+    assert validate_parents(actual,**public_parents(p))['result']=='PASS'
     assert actual['pilots']['wikipedia']['record_sha256']==digest(q['pilot_records']['wikipedia'])
     inp=rental['watchdog_intent']['plan']['input']
     ceiling=sum(Decimal(inp[k]) for k in ('spent_usd','outstanding_usd','reserved_remaining_usd'))+Decimal(basis['original_maximum_rental_micro_usd'])/10**6
@@ -39,7 +46,7 @@ def test_construction_exposure_is_reallocated_inside_original_ceiling_and_expire
     r,p,rental,q,initial=fixture();plan=rental['watchdog_intent']['plan'];now=plan['input']['now_epoch']+100
     plain,old_basis=m.registration(r,q,initial,rental,now)
     actual,basis=m.registration(r,q,initial,rental,now,construction_seconds=120)
-    assert validate_parents(actual,**p)['result']=='PASS'
+    assert validate_parents(actual,**public_parents(p))['result']=='PASS'
     assert abs(basis['forecast']['projected_total_micro_usd']-old_basis['forecast']['projected_total_micro_usd'])<=3
     assert Decimal(actual['forecast_input']['fixed_remaining_usd'])<Decimal(plain['forecast_input']['fixed_remaining_usd'])
     owner=Run.__new__(Run);owner.plan=plan;owner.qualified=q
