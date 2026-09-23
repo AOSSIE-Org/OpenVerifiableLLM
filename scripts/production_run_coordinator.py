@@ -73,7 +73,11 @@ class Run:
         if optimized:
             from pilot_optimization import policy
             policy(selection['optimization_policy'])
-        fields(selection['timing'],'registration_seconds record_seconds replay_seconds record_fixed_seconds replay_fixed_seconds export_seconds checkpoint_policy publication_policy','enclosing fixed phase budgets')
+        fields(selection['timing'],'registration_seconds record_seconds replay_seconds record_fixed_seconds replay_fixed_seconds export_seconds checkpoint_policy publication_policy'
+               +(' post_export_seconds' if 'post_export_seconds' in selection['timing'] else ''),'enclosing fixed phase budgets')
+        # Prospective selections may reserve measured local validation after
+        # each complete export. Historical selections retain their exact bytes.
+        integer(selection['timing'].get('post_export_seconds',0),0,1500,'post-export validation reserve')
         for name in ('registration_seconds','export_seconds'):integer(selection['timing'][name],1,1500,name)
         for name in ('record_seconds','replay_seconds','record_fixed_seconds','replay_fixed_seconds'):
             integer(selection['timing'][name],1,7*86400,name)
@@ -255,7 +259,8 @@ class Run:
         timing=self.selection['timing'];intent=self.output/'registration-deadline.json'
         if not intent.exists():
             self.guards();now=self.health.now()
-            needed=timing['registration_seconds']+timing['record_seconds']+timing['replay_seconds']+2*timing['export_seconds']
+            needed=(timing['registration_seconds']+timing['record_seconds']+timing['replay_seconds']
+                    +2*(timing['export_seconds']+timing.get('post_export_seconds',0)))
             if now+needed>self.plan['request_checkpoint_epoch']:raise EvidenceError('whole remaining production/replay does not fit original rental')
             save_once(intent,{'run_selection_sha256':self.root,'registration_sha256':digest(r),
                               'started_epoch':now,'deadline_epoch':now+timing['registration_seconds']})
@@ -304,8 +309,8 @@ class Run:
         else:
             if job_file.exists():raise EvidenceError('production job lost its original deadline selection')
             self.guards();now=self.health.now();deadline=now+timing[name]
-        needed=deadline+timing['export_seconds']
-        if kind=='production-record':needed+=timing['replay_seconds']+timing['export_seconds']
+        needed=deadline+timing['export_seconds']+timing.get('post_export_seconds',0)
+        if kind=='production-record':needed+=timing['replay_seconds']+timing['export_seconds']+timing.get('post_export_seconds',0)
         if deadline!=now+timing[name] or needed>self.plan['request_checkpoint_epoch']:
             raise EvidenceError('complete record and full replay cannot fit original remaining rental')
         job={**template,'deadline_epoch':deadline,'argv':[str(deadline) if a==DEADLINE else a for a in template['argv']]}
