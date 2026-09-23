@@ -126,6 +126,12 @@ def registration_fixture(tmp_path,monkeypatch):
     r['forecast_input']['committed_future_usd']='61'
     write_json(packet/'registration.json',r)
     _,objects=packet_objects(packet)
+    from ovl_pipeline.production_parents import public_initialization
+    public=public_initialization({'record':objects['initial_record'],'verification':objects['initial_verification']})
+    r['initialization']['regeneration_report_sha256']=digest(public['verification'])
+    write_json(packet/'registration.json',r)
+    write_json(packet/'initial-record.json',public['record'])
+    write_json(packet/'initial-verification.json',public['verification'])
     original=m.registration_publisher.request_commit
     def commit(request,registration,directory,**kw):
         revision=original(request,registration,directory,**kw)
@@ -210,3 +216,26 @@ def test_journaled_stop_forbids_new_work_but_allows_existing_job_shutdown_adopti
         with pytest.raises(EvidenceError,match='requests stop'):run.guards()
         run.guards(starting=False)
         assert not calls and not run.health.complete
+
+
+def test_cold_registration_adoption_keeps_projected_bytes_deadline_and_writes(tmp_path,monkeypatch):
+    from copy import deepcopy
+    from ovl_pipeline.production_anchoring import PACKET_FILES
+    factory,plan,*_=configured(tmp_path,monkeypatch)
+    packet,r,policy,provider,p=registration_fixture(tmp_path,monkeypatch)
+    args=(r,p['source'],packet/'source-statement.sigstore.json',policy,p['prepared'],tmp_path)
+    with factory() as run:
+        run.phase('qualification',plan,digest(plan),tmp_path,tmp_path/'qualification')
+        run.qualified={k:deepcopy(p[k]) for k in ('pilot_records','pilot_replays')}
+        run.initial={'record':deepcopy(p['initial_record']),'verification':deepcopy(p['initial_verification'])}
+        first=run.register(*args)
+        original=read_json(run.output/'registration-deadline.json')
+        files={n:(run.output/'packet'/n).read_bytes() for n in PACKET_FILES}
+    with factory() as resumed:
+        assert resumed.initial is None and resumed.authenticated is None
+        resumed.phase('qualification',plan,digest(plan),tmp_path,tmp_path/'qualification')
+        resumed.qualified={k:deepcopy(p[k]) for k in ('pilot_records','pilot_replays')}
+        resumed.initial={'record':deepcopy(p['initial_record']),'verification':deepcopy(p['initial_verification'])}
+        assert resumed.register(*args)==first and provider.commits==2
+        assert read_json(resumed.output/'registration-deadline.json')==original
+        assert {n:(resumed.output/'packet'/n).read_bytes() for n in PACKET_FILES}==files

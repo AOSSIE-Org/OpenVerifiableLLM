@@ -233,8 +233,10 @@ class Run:
     def register(self,r,source,source_bundle,source_policy,prepared,source_checkout):
         if self.qualified is None or self.initial is None:raise EvidenceError('complete same-host qualification and initialization required')
         if any(not j['finished'] for j in self.health.jobs.values()):raise EvidenceError('precommitment cannot overlap numerical work')
-        expected={'source':source,'source_policy':asdict(source_policy),'prepared':prepared,'initial_record':self.initial['record'],
-                  'initial_verification':self.initial['verification'],'pilot_records':self.qualified['pilot_records'],
+        from ovl_pipeline.production_parents import public_initialization
+        public_initial=public_initialization(self.initial)
+        expected={'source':source,'source_policy':asdict(source_policy),'prepared':prepared,'initial_record':public_initial['record'],
+                  'initial_verification':public_initial['verification'],'pilot_records':self.qualified['pilot_records'],
                   'pilot_replays':self.qualified['pilot_replays']}
         validate_parents(r,**expected)
         if not (self.output/'registration-deadline.json').exists():self.forecast_window(r)

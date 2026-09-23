@@ -4,13 +4,112 @@ These checks authenticate no signature and execute no training. The caller must
 first select/verify the public registration and source anchors independently.
 Report consistency is not evidence that an operator's assertions are truthful.
 """
-from .canonical import EvidenceError,digest
+from .canonical import EvidenceError,digest,require_digest
 from .schema import integer,fields,control
 from .production_contract import validate
 
 
 def equal(actual,expected,label):
     if actual!=expected:raise EvidenceError('production parent mismatch: '+label)
+
+
+INITIAL_RECORD_FIELDS='schema scope result recipe kernel warmup_updates warmup_weights_discarded stream_sha256 code_root environment checkpoint control parameter_count process_observation production_admission'
+INITIAL_VERIFICATION_FIELDS='schema result record_sha256 initial_state_sha256 recipe_sha256 code_root stream_sha256 environment warmup_updates scope prover_tensors_loaded_as_state process_observation distinct_process_from_record process_identity_scope performed_by independent_third_party production_admission'
+
+
+def initialization_report_shape(value, *, verification=False):
+    """Check nested structural metadata without claiming tensor regeneration.
+
+    The compatible runtime object is separately hash-bound to the selected host.
+    Its technical descriptions still require semantic publication review; this
+    validator is not a general-purpose privacy classifier.
+    """
+    e=value['environment']
+    fields(e,'compatible reproducibility_validation production_admission','initial environment envelope')
+    if type(e['compatible']) is not dict:raise EvidenceError('invalid compatible runtime')
+    for key in ('reproducibility_validation','production_admission'):
+        equal(e[key],'NOT_RUN','initial environment scope')
+    integer(value['warmup_updates'],0,10000,'initial warmup updates')
+    for key in ('code_root','stream_sha256'):require_digest(value[key])
+    if verification:
+        for key in ('record_sha256','recipe_sha256','initial_state_sha256'):require_digest(value[key])
+        return
+    from .schema import recipe
+    recipe(value['recipe'],gpu=True)
+    fields(value['kernel'],'schema precision','initial kernel')
+    if value['kernel']['schema']!='ovl.gpu-kernel.v1' or value['kernel']['precision'] not in ('bf16','fp32'):
+        raise EvidenceError('invalid initial kernel')
+    control(value['control'])
+    c=value['control']
+    if c['phase']!='wikipedia' or any(c[k]!=0 for k in ('global_step','phase_step','cursor')):
+        raise EvidenceError('initial state retained progress')
+    integer(value['parameter_count'],1,2**40,'initial parameter count')
+    checkpoint=value['checkpoint'];fields(checkpoint,'schema state_root files','initial checkpoint')
+    if checkpoint['schema']!='ovl.checkpoint.v1':raise EvidenceError('invalid initial checkpoint schema')
+    require_digest(checkpoint['state_root'])
+    entries=checkpoint['files']
+    if type(entries) is not list or len(entries)!=2:raise EvidenceError('incomplete initial checkpoint inventory')
+    for entry in entries:
+        fields(entry,'path bytes sha256','initial checkpoint file')
+        integer(entry['bytes'],1,2*1024**3,'initial checkpoint bytes');require_digest(entry['sha256'])
+    if [x['path'] for x in entries]!=['state.json','state.safetensors']:
+        raise EvidenceError('invalid initial checkpoint inventory')
+
+
+def reject_private_process_fields(value):
+    """Reject OS process observations anywhere in a new public report packet.
+
+    This narrowly prevents the observed nested-field leak. It does not replace
+    exact semantic review of every emitted artifact or the publication scanner.
+    """
+    if type(value) is dict:
+        if {'process_observation','pid','boot_id','start_ticks'} & set(value):
+            raise EvidenceError('private process field in public report')
+        for child in value.values():reject_private_process_fields(child)
+    elif type(value) is list:
+        for child in value:reject_private_process_fields(child)
+
+
+def private_process_commitment(p):
+    import re
+    fields(p,'pid boot_id start_ticks','private process observation')
+    integer(p['pid'],1,2**31-1,'private process PID')
+    if (type(p['boot_id']) is not str or not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}',p['boot_id'])
+            or type(p['start_ticks']) is not str or not re.fullmatch(r'(?:0|[1-9][0-9]{0,23})',p['start_ticks'])):
+        raise EvidenceError('noncanonical private process observation')
+    return digest({'schema':'ovl.private-process-observation.v1','observation':p})
+
+
+def public_initialization(initial):
+    """Project checked local reports without disclosing OS process identities.
+
+    Commitments preserve the process-inequality assertion, not an attestation.
+    Original reports remain local; all numerical parents and state roots survive.
+    The derivative has its own schema and freshly recomputed report-parent hash.
+    """
+    from copy import deepcopy
+    record=initial['record'];verified=initial['verification']
+    fields(record,INITIAL_RECORD_FIELDS,'local initialization record')
+    fields(verified,INITIAL_VERIFICATION_FIELDS,'local initialization verification')
+    equal(record['schema'],'ovl.initialization-record.v1','local initial schema')
+    equal(verified['schema'],'ovl.initialization-verification.v1','local regeneration schema')
+    equal(verified['record_sha256'],digest(record),'local regeneration parent')
+    equal(verified['process_identity_scope'],'operator OS observation, not hardware attestation','local process scope')
+    observations=[]
+    for value in (record,verified):
+        initialization_report_shape(value,verification=value is verified)
+        observations.append(private_process_commitment(value['process_observation']))
+    if observations[0]==observations[1]:raise EvidenceError('same initialization process')
+    public=[]
+    for value,commitment,kind in zip((record,verified),observations,('record','verification')):
+        value=deepcopy(value);del value['process_observation']
+        value['schema']='ovl.public-initialization-'+kind+'.v1'
+        value['process_observation_commitment']=commitment;public.append(value)
+    public[1]['record_sha256']=digest(public[0])
+    public[1]['process_identity_scope']='operator process commitment, not hardware attestation'
+    result={'record':public[0],'verification':public[1]}
+    reject_private_process_fields(result)
+    return result
 
 
 def validate_parents(registration,*,source,source_policy,prepared,initial_record,initial_verification,pilot_records,pilot_replays):
@@ -35,13 +134,25 @@ def validate_parents(registration,*,source,source_policy,prepared,initial_record
     equal(prepared['conversation_selection']['source_inventory_root'],digest(source['conversation']['inventory']),'conversation public source')
     equal(prepared['conversation_selection']['split_filenames'],source['conversation']['splits'],'conversation official splits')
     equal(digest(initial_verification),r['initialization']['regeneration_report_sha256'],'initial regeneration report')
-    equal(initial_verification.get('schema'),'ovl.initialization-verification.v1','initial report schema')
+    public=initial_record.get('schema')=='ovl.public-initialization-record.v1'
+    if public:
+        reject_private_process_fields([registration,source,source_policy,prepared,initial_record,initial_verification,pilot_records,pilot_replays])
+        fields(initial_record,INITIAL_RECORD_FIELDS.replace('process_observation','process_observation_commitment'),'public initial record')
+        fields(initial_verification,INITIAL_VERIFICATION_FIELDS.replace('process_observation','process_observation_commitment'),'public initial verification')
+        initialization_report_shape(initial_record)
+        initialization_report_shape(initial_verification,verification=True)
+        for value in (initial_record,initial_verification):require_digest(value['process_observation_commitment'])
+        equal(initial_verification['process_identity_scope'],'operator process commitment, not hardware attestation','public process scope')
+        equal(initial_verification['performed_by'],'project-operator','public verifier scope')
+        if initial_verification['independent_third_party'] is not False:raise EvidenceError('public process commitment is not independent verification')
+        for value in (initial_record,initial_verification):equal(value['production_admission'],'NOT_RUN','public initial admission')
+    equal(initial_verification.get('schema'),'ovl.public-initialization-verification.v1' if public else 'ovl.initialization-verification.v1','initial report schema')
     equal(initial_verification.get('result'),'PASS','initial regeneration result')
     equal(initial_verification.get('scope'),'complete-initial-state-regenerated-and-compared','initial verification scope')
     if (initial_verification.get('prover_tensors_loaded_as_state') is not False
             or initial_verification.get('distinct_process_from_record') is not True):raise EvidenceError('initial state was not freshly regenerated')
     equal(initial_verification['record_sha256'],digest(initial_record),'initial record')
-    equal(initial_record.get('schema'),'ovl.initialization-record.v1','initial record schema')
+    equal(initial_record.get('schema'),'ovl.public-initialization-record.v1' if public else 'ovl.initialization-record.v1','initial record schema')
     equal(initial_record.get('scope'),'preproduction-regenerated-initial-state','initial record scope')
     equal(initial_record.get('result'),'RECORDED_AWAITING_FRESH_REGENERATION','initial record result')
     if initial_record.get('warmup_weights_discarded') is not True:raise EvidenceError('initial record retained warmup weights')
@@ -56,7 +167,8 @@ def validate_parents(registration,*,source,source_policy,prepared,initial_record
     equal(initial_verification['warmup_updates'],r['initialization']['warmup_updates'],'verifier warmup')
     equal(initial_record['stream_sha256'],digest(prepared['streams']['wikipedia']),'initial warmup source')
     equal(initial_verification['stream_sha256'],digest(prepared['streams']['wikipedia']),'verified warmup source')
-    if initial_record['process_observation']==initial_verification['process_observation']:raise EvidenceError('same initialization process')
+    process_key='process_observation_commitment' if public else 'process_observation'
+    if initial_record[process_key]==initial_verification[process_key]:raise EvidenceError('same initialization process')
     for e in (initial_record['environment'],initial_verification['environment']):
         equal(e['compatible'].get('schema'),'ovl.gpu-environment.v1','GPU environment profile')
         equal(e['compatible'].get('kernel'),r['kernel'],'GPU environment kernel')
