@@ -20,7 +20,7 @@ import persistent_publication as publisher
 
 
 class BoundaryPublisher:
-    def __init__(self,registration,job,health,health_file,transport,output,arguments,policy,*,retained_store=None):
+    def __init__(self,registration,job,health,health_file,transport,output,arguments,policy,*,retained_store=None,stop_request=None):
         fields(policy,'schema boundary_seconds snapshot_seconds delivery_seconds python','production publication policy')
         if policy['schema']!='ovl.production-boundary-publication-policy.v1':
             raise EvidenceError('unsupported production publication policy')
@@ -33,6 +33,7 @@ class BoundaryPublisher:
         self.health=health;self.health_file=health_file;self.transport=transport
         self.output=regular_directory(output);self.arguments=dict(arguments);self.policy=dict(policy)
         self.retained_store=None if retained_store is None else Path(retained_store)
+        self.stop_request=None if stop_request is None else publisher.path(str(stop_request))
         if self.retained_store is not None and (not self.retained_store.is_absolute()
                 or any(p.is_symlink() for p in [self.retained_store,*self.retained_store.parents])):
             raise EvidenceError('explicit regular retained publication store required')
@@ -45,7 +46,11 @@ class BoundaryPublisher:
             'registration_sha256':self.root,'profile_sha256':digest(transport.profile),
             'arguments':arguments,'policy':policy}
         if self.retained_store is not None:self.identity['retained_store']=str(self.retained_store)
+        if self.stop_request is not None:self.identity['stop_request']=str(self.stop_request)
         save_once(self.output/'selection.json',self.identity)
+
+    def guard(self):
+        if self.stop_request is not None:publisher.stop_guard(self.stop_request)
 
     def previous(self,index,envelopes):
         """Adopt only delivered preceding policies from this publisher's history."""
@@ -65,6 +70,7 @@ class BoundaryPublisher:
         return anchors,policies
 
     def poll(self,*,retained_selection=None):
+        self.guard()
         self.health.active(self.job)
         if read_json(self.output/'selection.json')!=self.identity:
             raise EvidenceError('publisher selection changed')
@@ -166,9 +172,10 @@ class BoundaryPublisher:
         if spec_file.exists():spec=read_json(spec_file)
         else:
             spec=publisher.selection(self.root,waiting['boundary_sha256'],deadline-self.policy['delivery_seconds'],
-                                     args,python=Path(self.policy['python']))
+                                     args,python=Path(self.policy['python']),stop_request=self.stop_request)
             save_once(spec_file,spec)
         if (spec['arguments']!=args or spec['registration_sha256']!=self.root
+            or spec.get('stop_request')!=(None if self.stop_request is None else str(self.stop_request))
             or spec['boundary_sha256']!=waiting['boundary_sha256']
             or spec['deadline_epoch']!=deadline-self.policy['delivery_seconds']):
             raise EvidenceError('publisher selection changed boundary/parents/deadline')
@@ -187,6 +194,7 @@ class BoundaryPublisher:
         ack_file=published/'ack.json';service_result=state/'service/result.json'
         if not service_result.exists():
             for activity in sorted((published/'activity').glob('*.json')):
+                self.guard()
                 self.health.publication(self.job,snap,spec['deadline_epoch'],read_json(activity))
             self.health.write(self.health_file)
             if service['observation']['ActiveState'] not in ('active','activating'):
@@ -220,15 +228,17 @@ class BoundaryPublisher:
         if ack['policy']!=selected_policy:raise EvidenceError('ack chose another policy')
         policies=[*policies,current]
         handoff=state/'delivery'
+        self.guard()
         if handoff.exists():
             check=state/('reconcile-'+uuid.uuid4().hex)
             recovered=reconcile(self.transport,self.registration,self.root,snap,ack,policies,check,deadline)
             if recovered['result']!='DELIVERED':
                 handoff=state/'delivery-retry'
                 if handoff.exists():raise EvidenceError('bounded policy handoff attempts exhausted')
+                self.guard()
                 deliver(self.transport,self.registration,self.root,snap,ack,policies,handoff,deadline)
         else:deliver(self.transport,self.registration,self.root,snap,ack,policies,handoff,deadline)
         result={'schema':'ovl.production-boundary-completion.v1','registration_sha256':self.root,
             'index':index,'boundary_sha256':waiting['boundary_sha256'],'ack_sha256':digest(ack),
             'external_policy_sha256':digest(selected_policy)}
-        save_once(complete,result);return result
+        self.guard();save_once(complete,result);return result

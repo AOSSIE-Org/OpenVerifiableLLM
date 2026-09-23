@@ -269,12 +269,15 @@ class Run:
             or fixed['deadline_epoch']!=fixed['started_epoch']+timing['registration_seconds']):raise EvidenceError('registration deadline changed')
         publication=self.output/'registration-publication';receipt=publication/'verified-registration.json'
         def progress(stage,identity):
+            # A completed review may arrive after a binding controller stop.
+            # Reject before the upload callback can proceed to a remote write.
+            self.guards()
             emit(publication/'activity',digest(r),digest(r),stage,identity,fixed['deadline_epoch'])
             self.health.registration_activity(read_json(publication/'activity'/(stage+'.json')))
             self.health.write(self.health_file);self.heartbeat.check()
         if not receipt.exists():
             if self.health.now()>=fixed['deadline_epoch']:raise EvidenceError('original registration publication expired')
-            registration_publisher.publish(packet,digest(r),source_policy,source_checkout,publication,fixed['deadline_epoch'],progress=progress)
+            registration_publisher.publish(packet,digest(r),source_policy,source_checkout,publication,fixed['deadline_epoch'],progress=progress,guard=self.guards)
         saved=read_json(receipt)
         # Policy is independently rebuilt from the operator-selected append-only
         # request commit, not taken from a returned signature or remote packet.
@@ -364,7 +367,8 @@ class Run:
             save_once(self.output/'source-policy.json',asdict(a['source_policy']))
             save_once(self.output/'production-policy.json',asdict(a['production_policy']))
             publisher=BoundaryPublisher(r,expected,self.health,self.health_file,numerical,output/'publication',args,
-                                        self.selection['timing']['publication_policy'],retained_store=self.store)
+                                        self.selection['timing']['publication_policy'],retained_store=self.store,
+                                        stop_request=self.controller/'stop-request.json')
         if not (output/'stage-result.json').exists():self.guards(starting=not (output/'launch/launch-intent.json').exists())
         if not self.health.jobs.get(expected,{}).get('finished',False):self.active_stage=(binding,job_file,expected,output,store)
         result=run_stage(self.control,self.health,job_file,expected,self.worker,self.selection['worker_sha256'],output,

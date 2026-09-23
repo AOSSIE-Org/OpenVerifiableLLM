@@ -49,7 +49,17 @@ def sources(project):
                   +[p.relative_to(project).as_posix() for p in (project/'requirements').iterdir() if p.is_file()])
 
 
-def selection(registration,boundary,deadline,arguments,*,python):
+def stop_guard(stop_request):
+    """Any observable request at the operator-selected path is binding.
+
+    This read grants no liveness or verification credit. It cannot cancel a
+    provider request that was already sent before the stop became observable.
+    """
+    p=path(str(stop_request))
+    if p.exists():raise EvidenceError('original controller requests stop')
+
+
+def selection(registration,boundary,deadline,arguments,*,python,stop_request=None):
     """Build an operator selection from already retained, independently checked inputs.
 
     Inventory construction is not trust validation. The worker's existing publisher
@@ -61,6 +71,9 @@ def selection(registration,boundary,deadline,arguments,*,python):
            'python':str(path(str(python),python=True)),'python_sha256':file_hash(python),
            'arguments':arguments,'inputs':{name:tree(path(arguments[name])) for name in PARAMETERS[:-1]},
            'sources':inventory(ROOT,sources(ROOT))}
+    if stop_request is not None:
+        value['schema']='ovl.persistent-publication.v2'
+        value['stop_request']=str(path(str(stop_request)))
     validate(value,digest(value))
     return value
 
@@ -78,8 +91,10 @@ def separate_writes(spec,directory):
 
 
 def validate(spec,expected):
-    fields(spec,'schema registration_sha256 boundary_sha256 deadline_epoch project python python_sha256 arguments inputs sources','persistent publication selection')
-    if spec['schema']!='ovl.persistent-publication.v1' or digest(spec)!=expected:raise EvidenceError('publication selection differs')
+    v2=spec.get('schema')=='ovl.persistent-publication.v2'
+    fields(spec,'schema registration_sha256 boundary_sha256 deadline_epoch project python python_sha256 arguments inputs sources'+(' stop_request' if v2 else ''),'persistent publication selection')
+    if spec['schema'] not in ('ovl.persistent-publication.v1','ovl.persistent-publication.v2') or digest(spec)!=expected:raise EvidenceError('publication selection differs')
+    if v2:path(spec['stop_request'])
     from ovl_pipeline.canonical import require_digest
     for k in ('registration_sha256','boundary_sha256','python_sha256'):require_digest(spec[k])
     integer(spec['deadline_epoch'],1,2**53-1,'original publisher deadline')
@@ -140,6 +155,7 @@ def observe(name,*,execute=command):
 
 def start_or_adopt(spec,expected,directory,*,execute=command,wall=time.time,unit_directory=None):
     validate(spec,expected);directory=path(str(Path(directory).absolute()));separate_writes(spec,directory)
+    if 'stop_request' in spec:stop_guard(spec['stop_request'])
     directory.mkdir(mode=0o700,parents=True,exist_ok=True)
     fd=os.open(directory/'.controller.lock',os.O_WRONLY|os.O_CREAT|os.O_NOFOLLOW,0o600)
     try:
@@ -178,6 +194,7 @@ def start_or_adopt(spec,expected,directory,*,execute=command,wall=time.time,unit
             save_once(fence,{'schema':'ovl.publisher-start-fence.v1','selection_sha256':expected,'unit_file':str(target),
                 'unit_sha256':file_hash(target),'runtime_seconds':remaining,'requested_epoch':now})
             # No caller, restart or timeout may repeat this start after the fence.
+            if 'stop_request' in spec:stop_guard(spec['stop_request'])
             execute(['systemctl','--user','start',name])
         observation=observe(name,execute=execute)
         if observation['LoadState']!='loaded' or observation['FragmentPath']!=str(target) or observation['DropInPaths']:
@@ -189,6 +206,8 @@ def start_or_adopt(spec,expected,directory,*,execute=command,wall=time.time,unit
 
 def worker(spec,expected,directory):
     validate(spec,expected);directory=path(str(Path(directory).absolute()));separate_writes(spec,directory)
+    guard=None if 'stop_request' not in spec else lambda:stop_guard(spec['stop_request'])
+    if guard is not None:guard()
     if read_json(directory/'selection.json')!=spec:raise EvidenceError('worker selection differs from original service')
     left=spec['deadline_epoch']-time.time()
     if left<=0:raise EvidenceError('original publisher deadline expired')
@@ -207,8 +226,10 @@ def worker(spec,expected,directory):
         p={k:Path(v) for k,v in spec['arguments'].items()}
         result=publish(p['packet'],p['registration-bundle'],ProductionPublisherPolicy(**read_json(p['production-policy'])),
             PublisherPolicy(**read_json(p['source-policy'])),p['source-checkout'],read_json(p['config']),p['chain-directory'],
-            p['previous-directory'],[ProgressPublisherPolicy(**v) for v in read_json(p['previous-policies'])],p['output'],spec['deadline_epoch'])
+            p['previous-directory'],[ProgressPublisherPolicy(**v) for v in read_json(p['previous-policies'])],p['output'],spec['deadline_epoch'],
+            **({} if guard is None else {'guard':guard}))
         validate(spec,expected)
+        if guard is not None:guard()
         if (time.time()>=spec['deadline_epoch'] or result['registration_sha256']!=spec['registration_sha256']
             or result['boundary_sha256']!=spec['boundary_sha256'] or read_json(p['output']/'ack.json')!=result):
             raise EvidenceError('completed publisher identity/deadline differs')

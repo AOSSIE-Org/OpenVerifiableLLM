@@ -21,7 +21,7 @@ from ovl_pipeline.production_identity import ProductionPublisherPolicy,PRODUCTIO
 from ovl_pipeline import progress_anchoring as pa
 
 
-def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
+def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False,stop_request=None):
     numerical=tmp_path/'numerical';numerical.mkdir();r,root,envs,key,chain,streams=actual_artifacts(prepared,numerical)
     source=tmp_path/'source';source.mkdir();packet,rr=production_request(source)
     write_json(packet/'registration.json',r);rr['registration_sha256']=root
@@ -43,7 +43,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
     # explicit adversarial/installed-scanner tests, never a real publication here.
     import publication_export_gate
     monkeypatch.setattr(publication_export_gate,'require_review',
-        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'plan_sha256':digest(read_json(plan_path))})
+        lambda plan_path,*a,**kw:{'synthetic-test-double':True,'schema':'ovl.local-export-gate.v1','result':'PASS','plan_sha256':digest(read_json(plan_path))})
     monkeypatch.setattr(m.transport,'upload',lambda *a,**kw:upload(*a,api=provider,**kw))
     monkeypatch.setattr(m.transport,'download',lambda *a:download(*a,api=provider,fetch_file=provider.fetch))
     monkeypatch.setattr(m.transport,'reconcile',lambda *a:reconcile(*a,api=provider))
@@ -87,7 +87,7 @@ def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
                   'source-checkout':str(source),'chain-directory':str(chain),'previous-directory':str(previous),
                   'output':str(tmp_path/f'publication/boundary-{index:05d}'),
                   **{name:str(inputs/(name+'.json')) for name in ('production-policy','source-policy','config','previous-policies')}}
-            spec=service.selection(root,digest(selected[-1]),deadline,args,python=Path(sys.executable).resolve())
+            spec=service.selection(root,digest(selected[-1]),deadline,args,python=Path(sys.executable).resolve(),stop_request=stop_request)
             if damage=='service-boundary':spec['boundary_sha256']='c'*64
             if damage=='service-input-change':
                 original=m.publish
@@ -104,6 +104,28 @@ def setup(prepared,tmp_path,monkeypatch,damage=None,*,persistent=False):
         return m.publish(packet,bundle/'registration.sigstore.json',pp,sp,tmp_path,config,chain,
                          previous or tmp_path/'none',policies or [],tmp_path/f'publication/boundary-{index:05d}',deadline)
     return run,provider,committed
+
+
+@pytest.mark.parametrize('stop_at',[1,2])
+def test_persistent_worker_stop_during_exact_gate_blocks_upload_and_ack(prepared,tmp_path,monkeypatch,stop_at):
+    import publication_export_gate as gate
+    from test_publication_export_gate import approval,scanner
+    original=gate.require_review;stop=tmp_path/'controller-stop.json'
+    run,provider,committed=setup(prepared,tmp_path,monkeypatch,persistent=True,stop_request=stop)
+    calls=[]
+    def reviewed(plan_path,staging,**kw):
+        plan=read_json(plan_path);approval(plan_path,staging,plan)
+        calls.append(plan)
+        def stop_now():
+            if len(calls)==stop_at:write_json(stop,{'synthetic-test-stop':True})
+        return original(plan_path,staging,**kw,execute=scanner(plan,[],alter=stop_now))
+    monkeypatch.setattr(gate,'require_review',reviewed)
+    with pytest.raises(EvidenceError,match='original controller requests stop'):run(0)
+    assert provider.commits==stop_at-1
+    out=tmp_path/'publication/boundary-00000'
+    stage='checkpoint' if stop_at==1 else 'anchor'
+    assert not (out/'activity'/f'{stage}-privacy-review-verified.json').exists()
+    assert not (out/'ack.json').exists() and not (tmp_path/'service-state-00000/result.json').exists()
 
 
 def file_root(path):

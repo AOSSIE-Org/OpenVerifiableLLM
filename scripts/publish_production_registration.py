@@ -140,9 +140,10 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
     raise EvidenceError('publisher deadline reached; checkpoint remains preserved and unacknowledged')
 
 
-def publish(packet,expected_registration,source_policy,source_checkout,output,deadline,*,progress=None):
+def publish(packet,expected_registration,source_policy,source_checkout,output,deadline,*,progress=None,guard=None):
     from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
+    if guard is not None:guard()
     integer(deadline,1,2**53-1,'registration publication deadline')
     if time.time()>=deadline:raise EvidenceError('registration publication deadline expired')
     if type(source_policy) is not PublisherPolicy:raise EvidenceError('independent source publisher policy required')
@@ -156,11 +157,15 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
         'packet_inventory':inventory(packet,sorted(PACKET_FILES)),'source_policy':asdict(source_policy),
         'source_checkout':str(source_checkout.resolve()),'deadline_epoch':deadline}
     save_once(output/'selection.json',identity)
-    bounded_command=deadline_command(deadline,execute=command)
+    bounded=deadline_command(deadline,execute=command)
+    def bounded_command(*args,**kw):
+        if guard is not None:guard()
+        return bounded(*args,**kw)
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':REPO,'kind':'registration-packet',
         'prefix':'production-registration/'+expected_registration,'subject_sha256':expected_registration,
         'files':identity['packet_inventory']}
-    archive,downloaded,receipt=published(plan,packet,output/'packet-publication',deadline=deadline)
+    options={} if progress is None else {'reviewed':lambda identity:progress('checkpoint-privacy-review-verified',identity)}
+    archive,downloaded,receipt=published(plan,packet,output/'packet-publication',deadline=deadline,guard=guard,**options)
     if time.time()>=deadline:raise EvidenceError('packet publication exceeded original deadline')
     if progress is not None:progress('checkpoint-public-download-verified',{'kind':'registration-packet','archive':archive})
     request={'schema':'ovl.production-signing-request.v1','registration_sha256':expected_registration,
@@ -193,7 +198,8 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
         'prefix':'production-anchors/'+expected_registration,'subject_sha256':expected_registration,
         'files':inventory(staging,['registration.sigstore.json'])}
     if time.time()>=deadline:raise EvidenceError('original deadline forbids anchor publication')
-    anchor,downloaded_anchor,anchor_receipt=published(anchor_plan,staging,output/'anchor-publication',deadline=deadline)
+    options={} if progress is None else {'reviewed':lambda identity:progress('anchor-privacy-review-verified',identity)}
+    anchor,downloaded_anchor,anchor_receipt=published(anchor_plan,staging,output/'anchor-publication',deadline=deadline,guard=guard,**options)
     final=verify_packet(downloaded,downloaded_anchor/'registration.sigstore.json',policy,source_policy,
         policy_origin='operator-reconstructed-from-source',source_checkout=source_checkout)
     if time.time()>=deadline:raise EvidenceError('registration publication completed after original deadline')
@@ -206,6 +212,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
     # Observations are content addressed because a fresh signature/download check
     # can contain a later operator timestamp. The original selections never move.
     observation={'packet_download':receipt,'anchor_download':anchor_receipt,'signature_and_parent_checks':final}
+    if guard is not None:guard()
     write_json(output/('verification-'+digest(observation)+'.json'),observation)
     save_once(output/'verified-registration.json',result)
     config={'schema':'ovl.progress-dispatch.v1','registration_request':request,'registration_anchor':anchor}
