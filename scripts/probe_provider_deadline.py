@@ -45,6 +45,14 @@ class ProviderFailure(Refused):
 
 def diagnostic(error):
     return {'error_type':type(error).__name__,
+            **({'observation_failure':{'invalid provider pod volume size':'pod-volume-size',
+                'invalid provider container disk size':'container-disk-size',
+                'invalid provider account observation':'account-shape',
+                'invalid pod identity':'pod-identity','invalid network volume size':'network-volume-size',
+                'invalid network volume identity':'network-volume-identity'}[str(error)]}
+               if type(error) is EvidenceError and str(error) in ('invalid provider pod volume size',
+                   'invalid provider container disk size','invalid provider account observation',
+                   'invalid pod identity','invalid network volume size','invalid network volume identity') else {}),
             **({'category':error.category,'http_status':error.status,'transient':error.transient}
                if isinstance(error,ProviderFailure) else {})}
 
@@ -117,6 +125,17 @@ def account():
                 or type(p['createdAt']) is not str or type(p['gpuCount']) is not int):
             raise EvidenceError('invalid pod identity')
         selected={k:p[k] for k in ('id','name','createdAt','desiredStatus','gpuCount','imageName','containerDiskInGb','volumeInGb')}
+        if type(p['containerDiskInGb']) is not int or not 0<=p['containerDiskInGb']<=2**50:
+            raise EvidenceError('invalid provider container disk size')
+        # GraphQL Pod.volumeInGb is Float; canonical evidence permits integers,
+        # not Decimal objects. Convert only exact nonnegative integral sizes.
+        # A fractional, missing or nonfinite value must not become a rounded
+        # match for the frozen request.
+        size=p['volumeInGb']
+        if (type(size) not in (int,Decimal) or not Decimal(size).is_finite()
+                or not 0<=size<=2**50 or size!=int(size)):
+            raise EvidenceError('invalid provider pod volume size')
+        selected['volumeInGb']=int(size)
         selected.update(costPerHr=amount(p['costPerHr']),adjustedCostPerHr=amount(p['adjustedCostPerHr']))
         if p.get('networkVolume') is not None:
             selected.update(networkVolumeId=p['networkVolume']['id'],networkVolumeDataCenterId=p['networkVolume']['dataCenterId'],volumeMountPath=p['volumeMountPath'])
@@ -315,7 +334,9 @@ def prior_probe_receipt(root):
         terminal=events[-1]
         report=read_json(directory/'result.json')
         if (terminal['kind']!='teardown' or terminal['body']!=report or report.get('complete') is not True
-                or report.get('result')!='FAIL_REQUIRED_CALLER_TEARDOWN' or report.get('pod_id')!='lrsbh9avgltuxm'
+                or report.get('result')!='FAIL_REQUIRED_CALLER_TEARDOWN'
+                or type(report.get('pod_id')) is not str
+                or hashlib.sha256(report['pod_id'].encode()).hexdigest()!='cc7b7b396aaac4a0510ba434262cd9661dd3e5cf3c0a466c49963b29ec0b8bc9'
                 or report.get('residual_network_volumes')!=[]):raise EvidenceError('predecessor not reconciled absent')
         prior=events[0]['body']
         if (digest(prior)!=report['intent_sha256'] or prior['plan']['maximum_charge_micro_usd']!=75000
