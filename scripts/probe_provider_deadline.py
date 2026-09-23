@@ -25,8 +25,9 @@ from ovl_pipeline.canonical import EvidenceError, digest, read_json, write_json
 from ovl_pipeline.supervision import Journal, rental_plan
 
 ACCOUNT='''query OvlGuardAccount { myself { clientBalance currentSpendPerHr isAutoPayEnabled
- pods { id name createdAt desiredStatus gpuCount costPerHr adjustedCostPerHr imageName containerDiskInGb volumeInGb }
- networkVolumes { id } } }'''
+ pods { id name createdAt desiredStatus gpuCount costPerHr adjustedCostPerHr imageName containerDiskInGb volumeInGb
+ networkVolume { id dataCenterId } volumeMountPath }
+ networkVolumes { id name size dataCenterId } } }'''
 CREATE='''mutation OvlGuardCreate($input: PodFindAndDeployOnDemandInput!) {
  podFindAndDeployOnDemand(input:$input) { id name createdAt gpuCount imageName } }'''
 TERMINATE='''mutation OvlGuardTerminate($input: PodTerminateInput!) { podTerminate(input:$input) }'''
@@ -117,10 +118,21 @@ def account():
             raise EvidenceError('invalid pod identity')
         selected={k:p[k] for k in ('id','name','createdAt','desiredStatus','gpuCount','imageName','containerDiskInGb','volumeInGb')}
         selected.update(costPerHr=amount(p['costPerHr']),adjustedCostPerHr=amount(p['adjustedCostPerHr']))
+        if p.get('networkVolume') is not None:
+            selected.update(networkVolumeId=p['networkVolume']['id'],networkVolumeDataCenterId=p['networkVolume']['dataCenterId'],volumeMountPath=p['volumeMountPath'])
         pods.append(selected)
+    volumes=[]
+    for volume in v['networkVolumes']:
+        size=volume['size']
+        if type(size) not in (int,Decimal) or not Decimal(size).is_finite() or size!=int(size) or not 1<=size<=2**50:
+            raise EvidenceError('invalid network volume size')
+        if any(type(volume[k]) is not str or not volume[k] for k in ('id','name','dataCenterId')):
+            raise EvidenceError('invalid network volume identity')
+        volumes.append({**{k:volume[k] for k in ('id','name','dataCenterId')},'size':int(size)})
     return {'observed_epoch':int(time.time()),'response_sha256':h,'balance_usd':amount(v['clientBalance']),
             'account_hourly_usd':amount(v['currentSpendPerHr']),'autopay':v['isAutoPayEnabled'],
-            'pods':pods,'volume_ids':[p['id'] for p in v['networkVolumes']],'http_clock':clock}
+            'pods':pods,'volume_ids':[p['id'] for p in volumes],
+            'network_volumes':volumes,'http_clock':clock}
 
 
 def make_intent(now, initial, quote, image, prior=None):
@@ -170,6 +182,9 @@ def provision_errors(intent,pod):
     p=intent['payload'];errors=[]
     for k in ('imageName','gpuCount','containerDiskInGb','volumeInGb'):
         if pod[k]!=p[k]:errors.append(k)
+    if 'networkVolumeId' in p:
+        for observed,selected in (('networkVolumeId','networkVolumeId'),('networkVolumeDataCenterId','dataCenterId'),('volumeMountPath','volumeMountPath')):
+            if pod.get(observed)!=p[selected]:errors.append(observed)
     try:
         created=int(datetime.fromisoformat(pod['createdAt'].replace('Z','+00:00')).timestamp())
         if not intent['plan']['input']['now_epoch']-60<=created<=intent['creation_latest_epoch']+120:errors.append('createdAt')

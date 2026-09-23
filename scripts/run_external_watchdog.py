@@ -21,28 +21,31 @@ from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.supervision import ControllerBusy,Journal,rental_plan
 from probe_provider_deadline import account,request,diagnostic,match_pod,provision_errors,transient_read_grace
 from rental_safety import Lifetime,boot_clock,attributed_ids
+import retained_volume
 
 
 def validate_intent(value,expected):
     require_digest(expected)
     if digest(value)!=expected:raise EvidenceError('watchdog intent differs from caller pin')
-    fields(value,'schema plan payload creation_latest_epoch baseline','watchdog intent')
-    if value['schema']!='ovl.external-watchdog-intent.v1':raise EvidenceError('unsupported watchdog intent')
+    retained=value.get('schema')=='ovl.external-watchdog-intent.v2'
+    fields(value,'schema plan payload creation_latest_epoch baseline'+(' retained_volume' if retained else ''),'watchdog intent')
+    if value['schema'] not in ('ovl.external-watchdog-intent.v1','ovl.external-watchdog-intent.v2'):raise EvidenceError('unsupported watchdog intent')
     p=value['plan']
     if p!=rental_plan(p['input']) or p['schema']!='ovl.rental-budget-plan.v2':raise EvidenceError('revised bounded rental plan required')
     payload=value['payload']
-    fields(payload,'name gpuCount imageName containerDiskInGb volumeInGb terminateAfter','watchdog resource identity')
+    fields(payload,'name gpuCount imageName containerDiskInGb volumeInGb terminateAfter'+(' networkVolumeId dataCenterId volumeMountPath' if retained else ''),'watchdog resource identity')
+    if retained:retained_volume.validate(value['retained_volume'],p,payload)
     if payload['name']!=p['input']['attempt_id']:raise EvidenceError('resource name differs from budget attempt')
     if not re.fullmatch(r'ovllm-[a-z0-9-]*[0-9a-f]{32}',payload['name']):raise EvidenceError('unique UUID-suffixed project attempt name required')
     if type(payload['gpuCount']) is not int or payload['gpuCount']!=1:raise EvidenceError('one GPU required')
     if type(payload['imageName']) is not str or not re.fullmatch(r'[A-Za-z0-9./:_-]+@sha256:[0-9a-f]{64}',payload['imageName']):raise EvidenceError('immutable image required')
-    for k in ('containerDiskInGb','volumeInGb'):integer(payload[k],0,1024,k)
+    for k in ('containerDiskInGb','volumeInGb'):integer(payload[k],0,4096 if retained and k=='volumeInGb' else 1024,k)
     if payload['terminateAfter']!=datetime.fromtimestamp(p['provider_terminate_epoch'],timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'):
         raise EvidenceError('terminateAfter must request exact planned deadline')
     integer(value['creation_latest_epoch'],p['input']['now_epoch']+1,p['input']['now_epoch']+120,'creation window')
     b=value['baseline']
-    if b['pods'] or b['volume_ids'] or b['autopay'] is not False or Decimal(b['account_hourly_usd'])!=0:
-        raise EvidenceError('empty zero-rate account baseline required')
+    if not retained_volume.baseline_valid(value,b):
+        raise EvidenceError('empty compute account with exact reserved storage required')
     if not 0<=p['input']['now_epoch']-b['observed_epoch']<=60:raise EvidenceError('fresh baseline required')
     clock=b['http_clock']
     if not clock['request_started_epoch']-5<=clock['server_epoch']<=clock['request_completed_epoch']+5:
@@ -67,6 +70,7 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
         mono_deadline=monotonic()+remaining
         missing_since=None
         last_success=None;last_success_monotonic=None
+        storage_errors={reason for e in j.events if e['kind']=='failure' and e['body'].get('stage')=='retained-account-guard' for reason in e['body']['reasons']}
         def log(kind,body):
             # Evidence storage failure must not suppress attributed teardown.
             try:j.append(kind,body)
@@ -109,6 +113,12 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                     raise EvidenceError('provider clock mismatch')
                 if not 0<=wall()-obs['observed_epoch']<=25:raise EvidenceError('stale account read')
                 last_success=obs['observed_epoch'];last_success_monotonic=monotonic()
+                if 'retained_volume' in intent:
+                    violations=retained_volume.account_errors(intent,obs,pod)
+                    if violations:
+                        storage_errors.update(violations)
+                        log('failure',{'stage':'retained-account-guard','reasons':violations})
+                        terminate('retained-account-guard',reconcile=known is None)
                 if pod is not None:
                     missing_since=None
                     if known is None:
@@ -116,8 +126,8 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                         if not log('creation-observed',{'id':known,'adopted_from_unique_intent':True}):
                             terminate('identity-journal-failure')
                     unrelated=[x['id'] for x in obs['pods'] if x['id']!=known]
-                    excessive=max(Decimal(pod['costPerHr']),Decimal(pod['adjustedCostPerHr']),Decimal(obs['account_hourly_usd']))>Decimal(p['input']['hourly_upper_usd'])
-                    if provision_errors(intent,pod) or unrelated or obs['volume_ids'] or obs['autopay'] or excessive:
+                    excessive=max(Decimal(pod['costPerHr']),Decimal(pod['adjustedCostPerHr']),retained_volume.compute_hourly(intent,obs))>Decimal(p['input']['hourly_upper_usd'])
+                    if provision_errors(intent,pod) or unrelated or not retained_volume.matches(intent,obs) or obs['autopay'] or excessive:
                         terminate('resource-shape-or-budget-guard')
                     if terminating or wall()>=p['external_terminate_epoch'] or monotonic()>=mono_deadline:
                         terminate('late-discovered-resource-or-deadline')
@@ -130,6 +140,7 @@ def run(directory,intent,expected,*,get_account=account,provider_request=request
                                 'automatic_provider_termination':'UNVERIFIED',
                                 'external_termination_requested':terminating,'residual_network_volumes':obs['volume_ids'],
                                 'provider_billing_reconciliation':'PENDING','execution_admission':'NOT_RUN'}
+                        if 'retained_volume' in intent:report.update(retained_storage_verification='FAIL' if storage_errors else 'PASS',account_guard_violations=sorted(storage_errors))
                         j.append('teardown',report);write_json(directory/'result.json',report);return
                 if not log('provider-observation',obs):terminate('observation-journal-failure')
                 write_json(directory/'heartbeat.json',{'schema':'ovl.external-watchdog-heartbeat.v1',
