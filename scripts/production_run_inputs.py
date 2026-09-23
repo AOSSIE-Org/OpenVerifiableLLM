@@ -81,7 +81,8 @@ def qualified_runtime(plan,inputs):
             raise EvidenceError('explicit audited launcher structure required')
         script=Path(args[3]).name
         if script=='pod_fetch_prepared.py':continue
-        if script not in ('pod_public_setup.py','pod_runtime_setup.py'):
+        if script not in ('pod_public_setup.py','pod_runtime_setup.py',
+                          'pod_sustained_pilot.py','pod_initialization.py'):
             raise EvidenceError('unrecognized qualification launcher')
         # The launcher consumes only its own argument segment. Require the
         # canonical separate-value spelling rather than silently ignoring an

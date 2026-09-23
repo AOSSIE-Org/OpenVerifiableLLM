@@ -62,6 +62,14 @@ def test_module_arguments_are_not_mistaken_for_launcher_runtime(tmp_path):
     assert m.qualified_runtime(plan,tmp_path)=='/opt/runtime'
 
 
+@pytest.mark.parametrize('script',['pod_public_setup.py','pod_runtime_setup.py',
+                                   'pod_sustained_pilot.py','pod_initialization.py'])
+def test_all_audited_workflow_entrypoints_retain_the_runtime(tmp_path,script):
+    job={'argv':['/usr/bin/python3','-I','-S','/inputs/'+script,'--runtime','/opt/runtime']}
+    write_json(tmp_path/'job.json',job)
+    assert m.qualified_runtime({'stages':[{'template_path':'job.json','template_sha256':digest(job)}]},tmp_path)=='/opt/runtime'
+
+
 def test_template_escape_and_symlink_are_rejected(tmp_path):
     inputs=tmp_path/'inputs';inputs.mkdir()
     job={'argv':['/bin/python','--runtime','/opt/runtime']};write_json(tmp_path/'outside.json',job)
