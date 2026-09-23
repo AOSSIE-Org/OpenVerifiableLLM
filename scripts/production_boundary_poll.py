@@ -184,14 +184,19 @@ class BoundaryPublisher:
             return result
         if self.health.now()>=deadline:raise EvidenceError('original boundary publication deadline expired')
         service=publisher.start_or_adopt(spec,digest(spec),state/'service')
-        for activity in sorted((published/'activity').glob('*.json')):
-            self.health.publication(self.job,snap,spec['deadline_epoch'],read_json(activity))
-        self.health.write(self.health_file)
         ack_file=published/'ack.json';service_result=state/'service/result.json'
         if not service_result.exists():
+            for activity in sorted((published/'activity').glob('*.json')):
+                self.health.publication(self.job,snap,spec['deadline_epoch'],read_json(activity))
+            self.health.write(self.health_file)
             if service['observation']['ActiveState'] not in ('active','activating'):
                 raise EvidenceError('persistent publisher exited without a checked result')
             return {'result':'PUBLISHING','index':index,'deadline_epoch':deadline}
+        # Completion adoption and delivery have the original enclosing boundary
+        # deadline. Do not replay expired liveness events after the worker has
+        # finished: they grant no new credit and cannot renew its deadline.
+        # The worker's result, acknowledgement, identities and complete public
+        # prefix still undergo every check below before any policy is delivered.
         done=read_json(service_result);ack=read_json(ack_file)
         fields(done,'schema selection_sha256 ack_sha256 ack_path scope','publisher result')
         if (done['selection_sha256']!=digest(spec) or done['ack_sha256']!=digest(ack)

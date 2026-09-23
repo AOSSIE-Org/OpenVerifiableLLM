@@ -150,3 +150,42 @@ def test_two_partial_snapshots_do_not_get_a_third_copy_attempt(prepared,tmp_path
     for _ in range(3):
         with pytest.raises(EvidenceError):hook().poll()
     assert len(calls)==2 and calls[0]==calls[1] and not starts
+
+
+@pytest.mark.parametrize('state',['complete','bad-result','running'])
+def test_completed_service_adopts_within_delivery_window_without_late_activity_credit(prepared,tmp_path,monkeypatch,state):
+    from production_health import ProductionHealth
+    hook,remote,out,h,starts,provider=fixture(prepared,tmp_path,monkeypatch)
+    first=hook();clock=[h.now()];h.now=lambda:clock[0]
+    h.plan['provider_terminate_epoch']=h.plan['external_terminate_epoch']
+    observed=[]
+    def activity(*args):
+        observed.append(args)
+        return ProductionHealth.publication(h,*args)
+    h.publication=activity
+    original=m.publisher.start_or_adopt;selected=[]
+    def service(spec,expected,directory):
+        value=original(spec,expected,directory);selected.append(spec)
+        clock[0]=spec['deadline_epoch']+1  # Original delivery window remains open.
+        destination=Path(spec['arguments']['output'])
+        assert list((destination/'activity').glob('*.json'))
+        result=Path(directory)/'result.json'
+        if state=='running':result.unlink();return {'observation':{'ActiveState':'active'}}
+        if state=='bad-result':
+            changed=read_json(result);changed['ack_sha256']='f'*64;write_json(result,changed)
+        return value
+    monkeypatch.setattr(m.publisher,'start_or_adopt',service)
+    if state=='complete':
+        assert first.poll()['index']==0 and observed==[]
+        assert (remote/'external-progress-policies.json').exists()
+        # The real health method still rejects late telemetry. Completion does
+        # not create a liveness exception or revive an expired worker deadline.
+        with pytest.raises(EvidenceError,match='publication deadline reached'):
+            ProductionHealth.publication(h,first.job,tmp_path,selected[0]['deadline_epoch'],{})
+    else:
+        with pytest.raises(EvidenceError,match='publication deadline reached' if state=='running' else 'publisher result differs'):
+            first.poll()
+        assert bool(observed)==(state=='running')
+        assert not(remote/'external-progress-policies.json').exists()
+    intent=read_json(out/'boundaries/boundary-00000/intent.json')
+    assert selected[0]['deadline_epoch']==intent['deadline_epoch']-first.policy['delivery_seconds']
