@@ -231,6 +231,43 @@ def relative(name):
     return name
 
 
+def staged_get(transport,name,destination,expected,deadline,staging,*,progress=None):
+    """Keep private recovery journals outside the caller's exact artifact tree.
+
+    The caller selects a fresh staging directory outside its artifact root.
+    Successful and failed transfer evidence stays there. Only a fully checked
+    regular payload is linked into the artifact tree; no inventory exclusions,
+    retry-budget resets or deadline extensions are introduced.
+    """
+    relative(name);fields(expected,'path bytes sha256','expected staged transfer')
+    require_digest(expected['sha256']);integer(expected['bytes'],0,2**40,'staged transfer size')
+    integer(deadline,1,2**53-1,'staged transfer deadline')
+    if expected['path']!=name:raise EvidenceError('staged transfer selection differs')
+    now=getattr(transport,'wall',time.time);monotonic=getattr(transport,'monotonic',time.monotonic)
+    end=monotonic()+max(0,deadline-now())
+    def check_deadline():
+        if now()>=deadline or monotonic()>=end:raise EvidenceError('staged transfer exceeded original deadline')
+    check_deadline()
+    destination=Path(destination);staging=Path(staging)
+    for path in (destination,staging):
+        if any(p.is_symlink() for p in [path,*path.parents]):raise EvidenceError('staged transfer symlink')
+    if destination.exists():raise EvidenceError('staged transfer requires fresh destination')
+    staging.mkdir(mode=0o700,parents=True,exist_ok=False)
+    payload=staging/'payload'
+    check_deadline()
+    result=transport.get(name,payload,expected,deadline,progress=progress,monotonic_deadline=end)
+    if (payload.is_symlink() or not payload.is_file() or payload.stat().st_size!=expected['bytes']
+        or file_hash(payload)!=expected['sha256']):raise EvidenceError('staged transfer payload differs')
+    check_deadline()
+    if any(p.is_symlink() for p in [destination,*destination.parents]):raise EvidenceError('staged destination changed')
+    os.link(payload,destination,follow_symlinks=False)
+    dfd=os.open(destination.parent,os.O_RDONLY|os.O_DIRECTORY)
+    try:os.fsync(dfd)
+    finally:os.close(dfd)
+    check_deadline()
+    return result
+
+
 class Transport:
     def __init__(self,profile,key,known_hosts,*,popen=subprocess.Popen,wall=time.time,monotonic=time.monotonic):
         self.profile=validate(profile,key,known_hosts);self.key=Path(key);self.known=Path(known_hosts)
@@ -394,8 +431,8 @@ class Transport:
             raise EvidenceError('live SSH bytes differ from their framing')
         return data
 
-    def get(self,name,destination,expected,deadline,*,progress=None):
-        try:return self._get(name,destination,expected,deadline,progress=progress)
+    def get(self,name,destination,expected,deadline,*,progress=None,monotonic_deadline=None):
+        try:return self._get(name,destination,expected,deadline,progress=progress,monotonic_deadline=monotonic_deadline)
         except Exception as error:
             partial=Path(destination).with_name(Path(destination).name+'.partial')
             # A fresh snapshot must not discard an observed immutable prefix.
@@ -403,11 +440,16 @@ class Transport:
             error.immutable_download_bytes=partial.stat().st_size if partial.is_file() and not partial.is_symlink() else None
             raise
 
-    def _get(self,name,destination,expected,deadline,*,progress=None):
+    def _get(self,name,destination,expected,deadline,*,progress=None,monotonic_deadline=None):
         relative(name);fields(expected,'path bytes sha256','expected transfer');require_digest(expected['sha256'])
         integer(expected['bytes'],0,2**40,'expected transfer size')
         integer(deadline,1,2**53-1,'transfer deadline')
         end=self.monotonic()+max(0,deadline-self.wall())
+        if monotonic_deadline is not None:
+            if type(monotonic_deadline) not in (int,float) or not math.isfinite(monotonic_deadline):
+                raise EvidenceError('finite original monotonic deadline required')
+            end=min(end,monotonic_deadline)
+        if self.wall()>=deadline or self.monotonic()>=end:raise EvidenceError('original download deadline expired')
         if expected['path']!=name:raise EvidenceError('transfer path differs from selected inventory')
         validate(self.profile,self.key,self.known)
         profile_root=digest(self.profile);selected=dict(expected)
@@ -525,7 +567,8 @@ class Transport:
                 if len(saved_bytes)>len(observed_prefix):observed_prefix=saved_bytes
                 failures+=1
                 if failures>RANGE_RETRIES:raise RangeRecoveryExhausted('immutable range retry budget exhausted; preserve attempts') from error
-                if min(deadline-self.wall(),end-self.monotonic())<=0:raise
+                if min(deadline-self.wall(),end-self.monotonic())<=0:
+                    raise RangeRecoveryExhausted('range recovery exhausted original transfer deadline; preserve attempts') from error
                 continue
             payload+=length;destination.write(data.getbuffer());destination.flush()
             receipt={'offset':offset,'bytes_requested':length,'bytes_received':length,'deadline_epoch':attempt_deadline,'result':'TRANSFERRED_NOT_YET_WHOLE_FILE_VERIFIED'}

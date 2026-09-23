@@ -51,9 +51,11 @@ def reconcile(transport,registration,root,snapshot_directory,ack,policies,output
     if tree(transport,'anchors',deadline)!=expected:raise EvidenceError('peer anchor inventory differs from selected public prefix')
     downloaded=output/'anchors';downloaded.mkdir()
     transfers=[]
+    from pod_transfer import staged_get
     for item in expected:
         target=confined(downloaded,item['path']);target.parent.mkdir(parents=True,exist_ok=True)
-        transfers.append(transport.get('anchors/'+item['path'],target,{**item,'path':'anchors/'+item['path']},deadline))
+        transfers.append(staged_get(transport,'anchors/'+item['path'],target,{**item,'path':'anchors/'+item['path']},deadline,
+                                    output/'transfers'/digest(item)))
     checked=verify_prefix(registration,root,envelopes,downloaded,policies,complete=False)
     # A read-only check must not bless a moving or concurrently replaced prefix.
     after=observe(transport,'external-progress-policies.json',output/'policies-after.json',16*1024**2,deadline)

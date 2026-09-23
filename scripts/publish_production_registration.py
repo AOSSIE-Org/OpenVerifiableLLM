@@ -160,7 +160,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
     plan={'schema':'ovl.evidence-publication-plan.v1','repo':REPO,'kind':'registration-packet',
         'prefix':'production-registration/'+expected_registration,'subject_sha256':expected_registration,
         'files':identity['packet_inventory']}
-    archive,downloaded,receipt=published(plan,packet,output/'packet-publication')
+    archive,downloaded,receipt=published(plan,packet,output/'packet-publication',deadline=deadline)
     if time.time()>=deadline:raise EvidenceError('packet publication exceeded original deadline')
     if progress is not None:progress('checkpoint-public-download-verified',{'kind':'registration-packet','archive':archive})
     request={'schema':'ovl.production-signing-request.v1','registration_sha256':expected_registration,
@@ -193,7 +193,7 @@ def publish(packet,expected_registration,source_policy,source_checkout,output,de
         'prefix':'production-anchors/'+expected_registration,'subject_sha256':expected_registration,
         'files':inventory(staging,['registration.sigstore.json'])}
     if time.time()>=deadline:raise EvidenceError('original deadline forbids anchor publication')
-    anchor,downloaded_anchor,anchor_receipt=published(anchor_plan,staging,output/'anchor-publication')
+    anchor,downloaded_anchor,anchor_receipt=published(anchor_plan,staging,output/'anchor-publication',deadline=deadline)
     final=verify_packet(downloaded,downloaded_anchor/'registration.sigstore.json',policy,source_policy,
         policy_origin='operator-reconstructed-from-source',source_checkout=source_checkout)
     if time.time()>=deadline:raise EvidenceError('registration publication completed after original deadline')

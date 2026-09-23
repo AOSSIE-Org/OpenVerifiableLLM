@@ -283,9 +283,11 @@ def export_tree(transport,name,output,deadline,*,progress=None):
             destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
             os.link(confined(Path(batch['files_directory']),item['path']),destination,follow_symlinks=False)
     else:
+        from pod_transfer import staged_get
         for item in files:
             destination=confined(target,item['path']);destination.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
-            transport.get(name+'/'+item['path'],destination,{**item,'path':name+'/'+item['path']},deadline,
+            staged_get(transport,name+'/'+item['path'],destination,{**item,'path':name+'/'+item['path']},deadline,
+                          output/'transfers'/digest(item),
                           progress=None if progress is None else lambda counts,item=item:progress(digest({'tree':name,'file':item}),counts,item['bytes']))
     verify_inventory(target,files)
     after=tree(transport,name,deadline);write_json(output/'after-inventory.json',after)
