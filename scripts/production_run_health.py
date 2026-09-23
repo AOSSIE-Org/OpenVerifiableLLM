@@ -34,6 +34,11 @@ class ProductionRunHealth(ProductionHealth,InitializationCycleHealth):
     def _initialization(self,job):
         return self.bindings.get(job,{}).get('schema')=='ovl.initialization-validation-binding.v1'
 
+    def inventory_contract(self,job):
+        if self.jobs[job]['selection']['kind'] in ('production-record','full-replay'):
+            return ProductionHealth.inventory_contract(self,job)
+        return PilotHealth.inventory_contract(self,job)
+
     def _validation(self,job,value):
         if self._initialization(job):return InitializationHealth._validation(self,job,value)
         return PilotHealth._validation(self,job,value)

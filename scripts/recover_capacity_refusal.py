@@ -2,7 +2,8 @@
 """Close a verified supply refusal without waiting for an unused rental lifetime.
 
 The provider's complete authenticated refusal is trusted as a terminal outcome,
-along with its identified account observations. This is an explicit operational
+along with its identified account observations. The exact originally selected
+network volume may remain within its unchanged separate reservation. This is an explicit operational
 trust policy, not a provider SLA, proof of noncreation, or final billing evidence.
 Timeouts and ambiguous responses retain the original deadline recovery path.
 
@@ -24,7 +25,7 @@ import time
 from ovl_pipeline.canonical import EvidenceError, digest, read_json, require_digest, write_json
 from ovl_pipeline.schema import fields, integer
 from ovl_pipeline.supervision import Journal
-from reconcile_capacity_rejection import capture, verify as verify_rejection
+from reconcile_capacity_rejection import capture, verify as verify_rejection, selected_baseline, identified_baseline, retained_window
 from rental_safety import account_lease, creation_root
 from provider_request_receipts import private_directory
 
@@ -38,6 +39,7 @@ def journal(events, intent, now):
     """Validate the complete retained chain, including events after reconciliation."""
     insist(type(events) is list and bool(events), 'complete guard journal required')
     previous = digest({'schema': 'ovl.controller-journal.v1'})
+    watch = intent.get('watchdog_intent', intent)
     for i, event in enumerate(events):
         fields(event, 'schema sequence previous observed_epoch kind body', 'guard event')
         insist(event['schema'] == 'ovl.controller-event.v1' and event['sequence'] == i
@@ -49,28 +51,17 @@ def journal(events, intent, now):
         body = event['body']
         if event['kind'] == 'provider-observation':
             observation = body.get('account', body)
-            insist(observation.get('pods') == [] and observation.get('volume_ids') == []
-                    and observation.get('autopay') is False,
-                    'resource or incomplete account history; normal teardown required')
-            rate = observation.get('account_hourly_usd')
-            insist(type(rate) is str and Decimal(rate).is_finite() and Decimal(rate) == 0,
-                    'nonzero or missing historical account rate')
+            selected_baseline(watch, observation)
         if event['kind'] in ('teardown', 'decision'):
             insist(body.get('pod_id') is None, 'guard attributed a resource')
     insist([e['body'] for e in events if e['kind'] == 'creation-intent'] == [intent],
             'guard intent identity differs')
 
 
-def identified_absence(observations, account_identity, earliest, now):
+def identified_absence(observations, account_identity, earliest, now, watch=None):
     insist(type(observations) is list and len(observations) == 2, 'two identified absence reads required')
     for observation in observations:
-        fields(observation, 'schema account_identity_sha256 response_sha256 http_clock observed_epoch pods volume_ids autopay account_hourly_usd', 'absence observation')
-        require_digest(observation['response_sha256'])
-        insist(observation['schema'] == 'ovl.empty-account-identity-observation.v1'
-                and observation['account_identity_sha256'] == account_identity
-                and observation['pods'] == [] and observation['volume_ids'] == []
-                and observation['autopay'] is False and observation['account_hourly_usd'] == '0',
-                'account identity or absence differs')
+        identified_baseline(observation, watch or {}, account_identity)
         integer(observation['observed_epoch'], earliest, now, 'absence time')
         clock = observation['http_clock']
         fields(clock, 'server_epoch request_started_epoch request_completed_epoch', 'provider clock')
@@ -89,6 +80,7 @@ def verify_history(original_args, receipt, controller, watchdog, fence, now):
     insist(verify_rejection(*original_args) == receipt, 'original refusal evidence differs')
     rental = original_args[0]
     watch = rental['watchdog_intent']
+    retained_window(watch, now)
     journal(controller, rental, now)
     journal(watchdog, watch, now)
     insist(controller[:len(original_args[5])] == original_args[5], 'original creator prefix changed')
@@ -104,7 +96,7 @@ def prepare(original_args, receipt, controller, watchdog, fence, observations, h
     integer(now, receipt['observed_epoch'], 2**53 - 1, 'recovery time')
     rental, watch = verify_history(original_args, receipt, controller, watchdog, fence, now)
     identified_absence(observations, receipt['account_identity_sha256'],
-                       max(watch['creation_latest_epoch'] + 180, receipt['observed_epoch']), now)
+                       max(watch['creation_latest_epoch'] + 180, receipt['observed_epoch']), now, watch)
     fields(heartbeat, 'schema intent_sha256 plan_sha256 external_terminate_epoch observed_epoch state pod_id pid automatic_provider_termination', 'watchdog heartbeat')
     insist(heartbeat['schema'] == 'ovl.external-watchdog-heartbeat.v1'
             and heartbeat['intent_sha256'] == digest(watch)
@@ -132,9 +124,9 @@ def finalize(original_args, receipt, before, preparation, controller, watchdog, 
             and watchdog[:len(before['watchdog'])] == before['watchdog'], 'guard history changed during closure')
     integer(stopped_epoch, preparation['observed_epoch'], now, 'guard stop time')
     insist(service_states == {'controller': 'inactive', 'watchdog': 'inactive'}, 'original guards must be inactive')
-    identified_absence(observations, receipt['account_identity_sha256'], stopped_epoch, now)
+    identified_absence(observations, receipt['account_identity_sha256'], stopped_epoch, now, watch)
     allowance = Decimal(watch['plan']['maximum_charge_micro_usd']) / 10**6
-    return {'schema': 'ovl.terminal-capacity-refusal-closure.v1', 'result': 'PASS',
+    result = {'schema': 'ovl.terminal-capacity-refusal-closure.v1', 'result': 'PASS',
             'attempt_id': rental['payload']['name'], 'rental_intent_sha256': digest(rental),
             'original_rejection_sha256': digest(receipt), 'preparation_sha256': digest(preparation),
             'controller_events_sha256': digest(controller), 'watchdog_events_sha256': digest(watchdog),
@@ -147,6 +139,12 @@ def finalize(original_args, receipt, before, preparation, controller, watchdog, 
             'creation_fence': 'PRESERVE_NEVER_REISSUE_ORIGINAL_REQUEST',
             'trust_basis': 'Authenticated supply refusal treated as terminal; same-account observations trusted. Not a provider SLA or proof against hidden provider state.',
             'training_verification_credit': False}
+    if watch.get('retained_volume') is not None:
+        result.update(schema='ovl.terminal-capacity-refusal-closure.v2',
+                      retained_volume_sha256=digest(watch['retained_volume']),
+                      retained_storage_reserved_usd=watch['retained_volume']['reserved_usd'],
+                      storage_action='RETAIN_UNCHANGED_NO_STORAGE_RESERVATION_RELEASE')
+    return result
 
 
 def release_budget(budget, releases, closure, public_bytes, *, closure_inputs):
@@ -160,7 +158,13 @@ def release_budget(budget, releases, closure, public_bytes, *, closure_inputs):
     from ovl_pipeline.canonical import canonical
     insist(finalize(**closure_inputs) == closure, 'closure evidence differs')
     insist(public_bytes == canonical(closure), 'public reconciliation bytes differ')
-    insist(closure.get('schema') == 'ovl.terminal-capacity-refusal-closure.v1'
+    if closure.get('schema') == 'ovl.terminal-capacity-refusal-closure.v2':
+        from ovl_pipeline.budget import money
+        reserved = money(closure['retained_storage_reserved_usd'])
+        insist(money(budget.get('retained_volume_reserved_usd')) >= reserved
+                and money(budget.get('remaining_mandatory_reservation_usd')) >= reserved,
+                'current retained storage reservation is not covered')
+    insist(closure.get('schema') in ('ovl.terminal-capacity-refusal-closure.v1', 'ovl.terminal-capacity-refusal-closure.v2')
             and closure.get('result') == 'PASS'
             and closure.get('budget_release') == 'NOT_APPLIED_REQUIRES_VERIFIED_PUBLIC_RECONCILIATION',
             'invalid terminal refusal closure')
@@ -224,13 +228,13 @@ class LocalGuards:
         subprocess.run(['systemctl', '--user', 'start', self.units['watchdog']], check=True, timeout=30)
 
 
-def collect_absence():
-    first = capture()
+def collect_absence(watch=None):
+    first = capture(watch)
     time.sleep(16)
-    return [first, capture()]
+    return [first, capture(watch)]
 
 
-def recover(attempt, expected, output, guards, *, execute=False, collect=collect_absence,
+def recover(attempt, expected, output, guards, *, execute=False, collect=None,
             wall=time.time, fences=None):
     output = private_directory(output)
     with Journal(attempt / 'terminal-recovery-operation').lease():
@@ -238,10 +242,11 @@ def recover(attempt, expected, output, guards, *, execute=False, collect=collect
                         collect=collect, wall=wall, fences=fences)
 
 
-def _recover(attempt, expected, output, guards, *, execute=False, collect=collect_absence,
+def _recover(attempt, expected, output, guards, *, execute=False, collect=None,
              wall=time.time, fences=None):
     rental = read_json(attempt / 'rental-intent.json')
     insist(digest(rental) == expected, 'rental differs from caller pin')
+    if collect is None:collect = lambda: collect_absence(rental['watchdog_intent'])
     prior = attempt / 'capacity-reconciliation'
     receipt = read_json(prior / 'verification.json')
     private = Path.home() / '.local/share/openverifiablellm/provider-responses' / rental['payload']['name']

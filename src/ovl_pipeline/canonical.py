@@ -77,11 +77,14 @@ def digest(value) -> str:
     return sha256(canonical(value))
 
 
-def file_hash(path: Path) -> str:
+def file_hash(path: Path, *, progress=None) -> str:
     h = hashlib.sha256()
+    count = 0
     with Path(path).open("rb") as f:
         for block in iter(lambda: f.read(4 * 1024 * 1024), b""):
             h.update(block)
+            count += len(block)
+            if progress is not None:progress(count)
     return h.hexdigest()
 
 
@@ -118,11 +121,11 @@ def inventory(root: Path, names: list[str]) -> list[dict]:
              "sha256": file_hash(confined(root, n))} for n in sorted(names)]
 
 
-def verify_inventory(root: Path, entries: list[dict], *, max_bytes=2**40):
+def verify_inventory(root: Path, entries: list[dict], *, max_bytes=2**40, progress=None):
     if type(entries) is not list or not entries:
         raise EvidenceError("empty or invalid inventory")
     seen, total = set(), 0
-    for e in entries:
+    for index,e in enumerate(entries):
         if type(e) is not dict or set(e) != {"path", "bytes", "sha256"}:
             raise EvidenceError("invalid inventory entry")
         if type(e["bytes"]) is not int or e["bytes"] < 0:
@@ -135,8 +138,11 @@ def verify_inventory(root: Path, entries: list[dict], *, max_bytes=2**40):
         total += e["bytes"]
         if total > max_bytes or not p.is_file() or p.stat().st_size != e["bytes"]:
             raise EvidenceError("missing, oversized or wrong-size artifact")
-        if file_hash(p) != e["sha256"]:
+        actual=(file_hash(p) if progress is None else
+                file_hash(p,progress=lambda count:progress(index,count,False)))
+        if actual != e["sha256"]:
             raise EvidenceError(f"artifact hash mismatch: {e['path']}")
+        if progress is not None:progress(index,e['bytes'],True)
     return entries
 
 

@@ -25,7 +25,7 @@ def test_prefix_restart_no_heartbeat_or_export_credit_then_numerical_work(tmp_pa
     c=Clock();path=tmp_path/'j'
     with Journal(path).lease() as j:
         h=health(j,c);h.start_job(SELECTION);c.advance(1)
-        assert h.activity(JOB,validation());assert h.progress==NOW+1
+        assert not h.activity(JOB,validation());assert h.progress==NOW
         c.advance(30);assert h.activity(JOB,validation(2,20));assert h.exported==NOW
     with Journal(path).lease() as j:
         h=health(j,c);assert not h.start_job(SELECTION)

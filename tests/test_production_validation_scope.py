@@ -25,8 +25,8 @@ def test_each_scope_scans_once_but_rehashes_every_use(prepared,monkeypatch):
     path,manifest=selection(prepared);calls=[];hashes=[]
     monkeypatch.delenv('OVL_ACTIVITY_FILE',raising=False)
     original=data.validate_stream;verify=m.verify_inventory
-    monkeypatch.setattr(data,'validate_stream',lambda *a:calls.append(a) or original(*a))
-    monkeypatch.setattr(m,'verify_inventory',lambda *a:hashes.append(a) or verify(*a))
+    monkeypatch.setattr(data,'validate_stream',lambda *a,**kw:calls.append(a) or original(*a,**kw))
+    monkeypatch.setattr(m,'verify_inventory',lambda *a,**kw:hashes.append(a) or verify(*a,**kw))
     @m.checked_stream_scope
     def run():
         assert m.validate_stream(path,manifest)==manifest['targets']
