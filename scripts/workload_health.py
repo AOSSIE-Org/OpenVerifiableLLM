@@ -48,12 +48,13 @@ class Health:
         self.lifetime=Lifetime(journal,self.plan,wall=wall,clock=clock,initialize=fresh)
         self.progress=self.exported=self.plan['input']['now_epoch'];self.complete=False
         self.jobs={};self.transfers={};self.activities={};self.phase_activities={};self.exports=set()
-        self._complete_verified=False
+        self._complete_verified=False;self.preflight_selection=None;self.preflight_reports={}
         for event in journal.events:
             body=event['body']
             if event['kind'] in ('creation-intent',):continue
             if event['kind']=='decision' and body.get('action')=='LIFETIME_CLOCK':continue
             self._apply(body)
+        self.verify_preflight()
 
     def _apply(self,body):
         fields(body,'schema kind observed_epoch detail advances_progress advances_export completes','cost activity event')
@@ -62,7 +63,16 @@ class Health:
         if any(type(body[k]) is not bool for k in ('advances_progress','advances_export','completes')):
             raise EvidenceError('explicit activity decisions required')
         kind=body['kind'];d=body['detail']
-        if kind=='job-start':self.jobs[d['job_sha256']]={'finished':False,'selection':d}
+        if kind=='preflight-export':
+            fields(d,'selection report export_sha256 files_sha256 manifest_sha256 directory scope','preflight retention detail')
+            selection=self._preflight_selection(d['selection'])
+            if d['scope']!='retained storage-recovery evidence only; no workload or model acceptance':raise EvidenceError('preflight retention scope')
+            if d['report'] not in selection['reports'] or d['report'] in self.preflight_reports:raise EvidenceError('unselected or duplicate preflight report')
+            if self.preflight_selection is not None and self.preflight_selection!=selection:raise EvidenceError('preflight selection changed')
+            if body['advances_progress'] is not True or body['advances_export'] is not True or body['completes'] is not False:raise EvidenceError('invalid preflight retention credit')
+            if self.jobs:raise EvidenceError('storage recovery after workload selection')
+            self.preflight_selection=selection;self.preflight_reports[d['report']]=d
+        elif kind=='job-start':self.jobs[d['job_sha256']]={'finished':False,'selection':d}
         elif kind=='bytes':self.transfers[d['operation_sha256']]=d
         elif kind=='activity':
             fields(d,'job_sha256 observation','runtime cost detail')
@@ -92,6 +102,7 @@ class Health:
 
     def event(self,kind,detail,*,progress=False,export=False,complete=False):
         if self.complete:raise EvidenceError('completed workload cannot acquire new work')
+        if kind=='job-start':self.verify_preflight()
         detail=deepcopy(detail)  # Retained observations must not alias caller snapshots.
         body={'schema':'ovl.cost-activity-event.v2','kind':kind,'observed_epoch':self.now(),'detail':detail,
               'advances_progress':progress,'advances_export':export,'completes':complete}
@@ -99,6 +110,7 @@ class Health:
         return body
 
     def start_job(self,selection):
+        self.verify_preflight()
         fields(selection,'schema job_sha256 pod_id kind','selected workload job')
         require_digest(selection['job_sha256'])
         if selection['schema']!='ovl.selected-workload-job.v1' or selection['pod_id']!=self.pod or selection['kind'] not in ('setup','pilot','export'):
@@ -213,6 +225,64 @@ class Health:
             if previous==observation:return False
         return True
 
+    def _preflight_selection(self,value):
+        fields(value,'schema pod_id watchdog_intent_sha256 reports deadline_epoch','preflight retention selection')
+        if value['schema']!='ovl.storage-recovery-retention.v1' or value['pod_id']!=self.pod or value['watchdog_intent_sha256']!=self.root:
+            raise EvidenceError('preflight retention identity differs')
+        integer(value['deadline_epoch'],self.plan['input']['now_epoch']+1,self.plan['request_checkpoint_epoch'],'selected original recovery deadline')
+        reports=value['reports']
+        if (type(reports) is not list or not 1<=len(reports)<=64 or any(type(n) is not str or not re.fullmatch('[a-z0-9-]{1,64}',n) for n in reports)
+            or len(set(reports))!=len(reports)):
+            raise EvidenceError('bounded explicit preflight reports required')
+        return value
+
+    def verify_preflight(self):
+        """Rehash retained recovery inputs on adoption and before workload entry."""
+        for d in self.preflight_reports.values():
+            manifest=read_json(confined(self.journal.directory,'preflight-manifests/'+d['export_sha256']+'.json'))
+            if (digest(manifest)!=d['manifest_sha256'] or digest(manifest['files'])!=d['files_sha256']
+                or manifest['selection']!=d['selection'] or manifest['report']!=d['report']):raise EvidenceError('preflight export manifest changed')
+            prior=Path(d['directory'])
+            if prior.is_symlink():raise EvidenceError('preflight export directory changed')
+            verify_inventory(prior,manifest['files'],max_bytes=8*1024**2)
+
+    def retained_preflight(self,selection,report,directory,expected,*,deadline):
+        """Retain actual off-pod storage-recovery receipts before jobs begin.
+
+        Caller owns transport/source checks and the original recovery deadline.
+        This provides finite cost-health exports, never process or science credit.
+        Receipts stay separate from workload terminal and numerical evidence.
+        """
+        selection=self._preflight_selection(selection);directory=Path(directory)
+        if self.jobs or report not in selection['reports']:raise EvidenceError('preflight retention outside selected recovery')
+        if self.preflight_selection is not None and self.preflight_selection!=selection:raise EvidenceError('preflight selection changed')
+        integer(deadline,1,self.plan['request_checkpoint_epoch'],'original recovery deadline')
+        if deadline!=selection['deadline_epoch']:raise EvidenceError('original recovery deadline changed')
+        if self.now()>=deadline:raise EvidenceError('recovery deadline expired')
+        if directory.is_symlink() or not directory.is_dir():raise EvidenceError('regular preflight receipt tree required')
+        actual=[]
+        for p in directory.rglob('*'):
+            if p.is_symlink() or not(p.is_file() or p.is_dir()):raise EvidenceError('unsafe preflight receipt tree')
+            if p.is_file():actual.append(p.relative_to(directory).as_posix())
+        if not expected or len(expected)>256 or sorted(actual)!=[f['path'] for f in expected]:raise EvidenceError('complete bounded recovery receipt inventory required')
+        verify_inventory(directory,expected,max_bytes=8*1024**2)
+        key=digest({'selection':selection,'report':report,'files':expected})
+        old=self.preflight_reports.get(report)
+        if old:
+            if old['export_sha256']!=key or old['directory']!=str(directory.resolve()):raise EvidenceError('retained preflight receipt changed')
+            return False
+        if any(d['files_sha256']==digest(expected) for d in self.preflight_reports.values()):raise EvidenceError('repeated receipt cannot renew export age')
+        manifest={'schema':'ovl.storage-recovery-export.v1','selection':selection,'report':report,'files':expected}
+        path=self.journal.directory/'preflight-manifests'/f'{key}.json'
+        if path.exists():
+            if read_json(path)!=manifest:raise EvidenceError('preflight manifest changed')
+        else:write_json(path,manifest)
+        if self.now()>=deadline:raise EvidenceError('recovery export exceeded original deadline')
+        self.event('preflight-export',{'selection':selection,'report':report,'export_sha256':key,'files_sha256':digest(expected),
+            'manifest_sha256':digest(manifest),'directory':str(directory.resolve()),
+            'scope':'retained storage-recovery evidence only; no workload or model acceptance'},progress=True,export=True)
+        return True
+
     def exported_files(self,job,directory,expected,*,deadline=None):
         """Verify actual complete selected file bytes, not a report's PASS field.
 
@@ -276,6 +346,7 @@ class Health:
             prior=Path(d['directory'])
             if prior.is_symlink():raise EvidenceError('preserved export directory is now a symlink')
             verify_inventory(prior,manifest['files'])
+        self.verify_preflight()
         # Re-read the terminal records in the actual exported bytes. A standalone
         # local exit assertion without its preserved matching remote record fails.
         terminal={digest(read_json(directory/f['path'])) for f in expected if Path(f['path']).name in ('exit.json','abandoned.json')}

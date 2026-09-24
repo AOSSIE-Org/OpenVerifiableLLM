@@ -41,3 +41,18 @@ budget; they cannot replace it or guarantee containment of arbitrary writers.
 Census checks retain the original deadline. A pending operator stop follows its
 existing grace interval without starting another census. Off-pod guards remain
 necessary if filesystem operations or the worker itself become unavailable.
+
+Pre-workload recovery can retain a finite, explicitly selected set of small
+receipts through `Health.retained_preflight`. Each selection binds the pod,
+original watchdog intent, report names and an original recovery deadline.
+Complete receipt bytes are rehashed off-pod and on journal adoption. Repeated
+receipts cannot renew export age. Changed bytes, identities or deadlines fail.
+These exports provide cost-health evidence only: they create no workload job,
+process-exit record, completion event or model verification credit.
+
+The recovery caller must authenticate actual remote reports, reconcile its one
+mutation owner, retain inspection manifests before modifying redundant links and
+verify all required recovery results before admitting work. It must release its
+heartbeat and journal lease before the production coordinator adopts that same
+journal. The original progress, export-age and shutdown guards remain active;
+a heartbeat alone cannot renew useful progress or durable-export age.
