@@ -56,3 +56,11 @@ verify all required recovery results before admitting work. It must release its
 heartbeat and journal lease before the production coordinator adopts that same
 journal. The original progress, export-age and shutdown guards remain active;
 a heartbeat alone cannot renew useful progress or durable-export age.
+
+Recovery control files may use the explicitly selected SSH root
+`/opt/ovllm-recovery/<task-name>` on pod-local storage. This allows durable
+worker supervision and receipt export while the persistent volume is at quota.
+Ordinary workload roots retain `/workspace/ovllm/<task-name>`. Both have the
+same closed task-name grammar and endpoint, host-key and path confinement
+checks. An ephemeral root is not durable evidence: required receipts and
+inspection manifests must be exported and verified off-pod before reuse.
