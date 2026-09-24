@@ -183,3 +183,17 @@ def test_bounded_live_json_inventory_is_only_a_peer_observation(tmp_path):
     t.get('awaiting-anchor.json',tmp_path/'observed.json',expected,deadline)
     assert read_json(tmp_path/'observed.json')=={'test':True}
     with pytest.raises(EvidenceError):t.inspect('awaiting-anchor.json',2,deadline)
+
+
+@pytest.mark.parametrize('root',['/opt/ovllm-recovery/fixture','/workspace/ovllm/fixture'])
+def test_explicit_owned_recovery_or_workload_root(tmp_path,root):
+    t,_,_,_=setup(tmp_path)
+    profile={**t.profile,'remote_root':root}
+    assert m.validate(profile,t.key,t.known)==profile
+
+
+@pytest.mark.parametrize('root',['/opt','/opt/ovllm-recovery','/opt/ovllm-recovery/../outside','/opt/ovllm-recovery/a/b','/tmp/arbitrary','/workspace/other/fixture'])
+def test_unscoped_or_traversing_recovery_root_is_rejected(tmp_path,root):
+    t,_,_,_=setup(tmp_path)
+    with pytest.raises(EvidenceError,match='closed task-owned'):
+        m.validate({**t.profile,'remote_root':root},t.key,t.known)

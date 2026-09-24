@@ -26,8 +26,68 @@ class Refusal(RuntimeError):pass
 
 
 ENVIRONMENT={'PATH','HOME','LANG','LC_ALL','PYTHONPATH','TOKENIZERS_PARALLELISM','OMP_NUM_THREADS','MKL_NUM_THREADS',
-             'CUBLAS_WORKSPACE_CONFIG','CUDA_VISIBLE_DEVICES','OVL_ACTIVITY_FILE','XDG_CACHE_HOME','TMPDIR',
+             'OVL_VOLUME_ROOT','OVL_VOLUME_QUOTA_BYTES','CUBLAS_WORKSPACE_CONFIG','CUDA_VISIBLE_DEVICES','OVL_ACTIVITY_FILE','XDG_CACHE_HOME','TMPDIR',
              'UV_CACHE_DIR','HF_HUB_DISABLE_TELEMETRY','HF_HUB_DISABLE_PROGRESS_BARS','HF_HUB_OFFLINE','TRANSFORMERS_OFFLINE'}
+
+
+QUOTA_KEYS={'OVL_VOLUME_ROOT','OVL_VOLUME_QUOTA_BYTES'}
+
+
+def volume_selection(environment):
+    present=set(environment)&QUOTA_KEYS
+    if not present:return None
+    if present!=QUOTA_KEYS:raise Refusal('complete volume quota selection required')
+    root=environment['OVL_VOLUME_ROOT'];quota=environment['OVL_VOLUME_QUOTA_BYTES']
+    if (type(root) is not str or root=='/' or not root.startswith('/') or
+        str(Path(root))!=root or '..' in Path(root).parts or
+        type(quota) is not str or not re.fullmatch('[1-9][0-9]{0,15}',quota) or int(quota)>2**50):
+        raise Refusal('explicit volume quota root and byte limit required')
+    return Path(root),int(quota)
+
+
+def volume_usage(root,check):
+    """Conservative live byte census, never the network filesystem pool size.
+
+    The caller pins the quota from its provider selection and owns all writers.
+    Count each inode once, including hardlinks, and the larger of logical and
+    allocated size. Symlinks are counted but never followed. A concurrent unlink
+    can disappear; creation/allocation lag is covered by the explicit reserve.
+    This is supervision, not a filesystem/provider quota attestation.
+    """
+    root=Path(root)
+    if any(p.is_symlink() for p in [root,*root.parents]) or not root.is_dir():raise Refusal('regular volume root required')
+    device=root.stat().st_dev;seen=set();total=0;pending=[root]
+    while pending:
+        check();path=pending.pop()
+        try:st=path.lstat()
+        except FileNotFoundError:continue
+        if st.st_dev!=device:raise Refusal('nested filesystem in selected volume')
+        key=(st.st_dev,st.st_ino)
+        if key in seen:continue
+        seen.add(key);total+=max(st.st_size,st.st_blocks*512,4096)
+        if stat.S_ISDIR(st.st_mode):
+            with os.scandir(path) as entries:
+                for entry in entries:check();pending.append(Path(entry.path))
+        elif not (stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode)):
+            raise Refusal('unexpected special file on selected volume')
+    check();return total
+
+
+class VolumeGuard:
+    def __init__(self,environment,directory,check,*,clock=time.monotonic):
+        self.selection=volume_selection(environment);self.directory=Path(directory)
+        self.check=check;self.clock=clock;self.checked_at=None;self.free=None
+        if self.selection is not None:
+            root,_=self.selection
+            if not self.directory.is_relative_to(root):raise Refusal('job outside selected volume root')
+    def available(self):
+        if self.selection is None:return shutil.disk_usage(self.directory).free
+        now=self.clock()
+        if self.checked_at is None or now-self.checked_at>=30:
+            root,quota=self.selection
+            self.free=min(shutil.disk_usage(root).free,max(0,quota-volume_usage(root,self.check)))
+            self.checked_at=now
+        return self.free
 
 
 def encoded(value):return json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()
@@ -103,6 +163,7 @@ def validate_job(v,*,resolve_executable=True):
         raise Refusal('unapproved or credential environment')
     if any(type(k) is not str or type(x) is not str or '\x00' in x or len(x)>8192 for k,x in v['environment'].items()):
         raise Refusal('invalid environment')
+    volume_selection(v['environment'])
     for k,lo,hi in [('deadline_epoch',1,2**53-1),('stop_grace_seconds',1,300),('minimum_free_bytes',1,2**50)]:
         if type(v[k]) is not int or not lo<=v[k]<=hi:raise Refusal('invalid job bound')
     files=v['required_files']
@@ -265,9 +326,13 @@ def run(directory,expected,worker_sha256):
         save(launch/'execution-intent.json',expected_intent,exclusive=True)
         owns_execution=True
         started=time.monotonic();remaining=max(0,v['deadline_epoch']-time.time());deadline=started+remaining
+        def within_deadline():
+            if time.time()>=v['deadline_epoch'] or time.monotonic()>=deadline:raise Refusal('original job deadline')
         def eligible():
-            if time.time()>=v['deadline_epoch'] or time.monotonic()>=deadline:raise Refusal('deadline during input verification or before spawn')
+            within_deadline()
             if (directory/'request-stop').exists():raise Refusal('stop before workload spawn')
+        storage=VolumeGuard(v['environment'],directory,within_deadline)
+        if storage.available()<v['minimum_free_bytes']:raise Refusal('insufficient selected volume headroom')
         checked_bytes=0
         for f in v['required_files']:
             eligible()
@@ -275,7 +340,7 @@ def run(directory,expected,worker_sha256):
             if p.stat().st_size!=f['bytes'] or hash_file(p,check=eligible)!=f['sha256']:raise Refusal('required input differs')
             checked_bytes+=f['bytes']
             save(directory/'input-progress.json',{'schema':'ovl.job-input-progress.v1','job_sha256':expected,'verified_bytes':checked_bytes})
-        if shutil.disk_usage(directory).free<v['minimum_free_bytes']:raise Refusal('insufficient free space')
+        if storage.available()<v['minimum_free_bytes']:raise Refusal('insufficient free space')
         if shutil.disk_usage('/').free<4*1024**3:raise Refusal('insufficient pod root reserve')
         # Environment is explicitly selected; no HF/RunPod/signing credentials,
         # agent sockets, loader overrides or inherited Python hooks enter the job.
@@ -290,8 +355,8 @@ def run(directory,expected,worker_sha256):
                 now=time.monotonic()
                 if now>=deadline or time.time()>=v['deadline_epoch']:reason='job-deadline';stop_at=now
                 elif (directory/'request-stop').exists() and stop_at is None:reason='operator-stop';stop_at=now+v['stop_grace_seconds']
-                elif ((directory/'stdout.log').stat().st_size+(directory/'stderr.log').stat().st_size>16*1024**2
-                      or shutil.disk_usage(directory).free<v['minimum_free_bytes']
+                elif stop_at is None and ((directory/'stdout.log').stat().st_size+(directory/'stderr.log').stat().st_size>16*1024**2
+                      or storage.available()<v['minimum_free_bytes']
                       or shutil.disk_usage('/').free<4*1024**3):reason='storage-bound';stop_at=now
                 if stop_at is not None and now>=stop_at:
                     signal_owned(identity,signal.SIGTERM)

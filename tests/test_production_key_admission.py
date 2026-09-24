@@ -80,6 +80,7 @@ def test_registration_change_after_entry_is_rejected_before_publication(tmp_path
     monkeypatch.setattr(lifetime,'transport',lambda *args:None)
     monkeypatch.setattr(lifetime,'Run',Owner)
     monkeypatch.setattr(lifetime,'qualified_runtime',lambda *args:'/explicit-runtime')
+    monkeypatch.setattr(lifetime,'qualified_volume',lambda *args:None)
     monkeypatch.setattr(lifetime,'selected_phases',lambda *args:{name:({},'0'*64,tmp_path,tmp_path) for name in ('qualification','initialization')})
     monkeypatch.setattr(lifetime,'registration',lambda *args,**kwargs:({**template,'run_public_key':digest(public)},{'explicit-fixture':True}))
     with pytest.raises(EvidenceError,match='external identity pin'):lifetime.run(spec,digest(spec))
