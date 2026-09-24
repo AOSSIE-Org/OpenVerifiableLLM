@@ -115,10 +115,11 @@ def generate(root,environ,output):
     registration,checks=check_source_parents(output/'packet',source_policy,policy_origin='ci-self-generated')
     if Path(name).stem!=registration['run_id']+'-'+registration['attempt_id']:raise EvidenceError('request name differs from registered run/attempt')
     if digest(registration)!=request['registration_sha256']:raise EvidenceError('registration differs from signing request')
-    # CPU preparation environment is available in this job. This independently
-    # checks the frozen source contract; it does not rerun corpus transformations.
-    from .preparation import validate_contract
-    validate_contract(object_at(output/'packet','source-statement.json'))
+    # Preparation and training have distinct frozen code identities. Validate
+    # the original contract with its reviewed historical source, after signature
+    # authentication above; never replace its inventory with the training tree.
+    from .production_preparation import verify_preparation
+    checks['preparation_contract']=verify_preparation(root,object_at(output/'packet','source-statement.json'))
     checks['code']=verify_code(root,registration)
     checks['request_uniqueness_scope']='observed Git ancestry only; global equivocation prevention NOT_ESTABLISHED'
     policy=ProductionPublisherPolicy('ovl.publisher-policy.v2',REPOSITORY,PRODUCTION_WORKFLOW,ISSUER,REF,

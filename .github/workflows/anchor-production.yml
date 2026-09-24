@@ -33,6 +33,21 @@ jobs:
           python-version: '3.12.14'
       - name: Install hash-locked verification dependencies
         run: python -m pip install --require-hashes -r requirements/preparation.lock -r requirements/endorsement.lock
+      - name: Check reviewed preparation contract in the signing runtime
+        # Runs on source updates before any new rental. This fixed-digest runtime
+        # check neither signs a request nor repeats corpus reconstruction.
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from ovl_pipeline.canonical import canonical
+          from ovl_pipeline.production_anchoring import object_at
+          from ovl_pipeline.production_preparation import verify_preparation
+          root = Path.cwd()
+          statement = object_at(root, 'project/source-commitments/enwiki-20260901-20260918-r1-preparation-1.json')
+          assert statement['source_revision'] == 'github-actions-head'
+          statement['source_revision'] = 'f6d43711bf0895c7f90974d1bbfd46ccc4aebda6'
+          print(canonical(verify_preparation(root, statement)).decode())
+          PY
       - name: Select new append-only registration request
         id: request
         run: python -m ovl_pipeline.production_commitment --select >> "$GITHUB_OUTPUT"
