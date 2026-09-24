@@ -66,9 +66,21 @@ def process_failure(code, errors):
 def fatal_diagnostic(errors):
     # Act on complete received denial lines without waiting for process exit.
     # Incomplete chunks remain buffered; neither text nor key paths are exposed.
-    denied=(b'host key',b'host identification',b'permission denied',b'authentication',
-            b'load key ',b'sign_and_send_pubkey:',b'no more authentication methods')
-    return any(any(word in line.lower() for word in denied) for line in bytes(errors).split(b'\n')[:-1])
+    # A remote program may print a Python PermissionError (or the words "host
+    # key") to stderr after SSH has already authenticated. Only complete lines
+    # with OpenSSH's own diagnostic shape establish an early identity failure.
+    patterns=(
+        rb'(?:[^\s:@]+@)?[^\s:]+: permission denied \([^\r\n]*\)\.?',
+        rb'permission denied, please try again\.',
+        rb'host key verification failed\.',
+        rb'@+\s*warning: remote host identification has changed!\s*@+',
+        rb'warning: remote host identification has changed!',
+        rb'load key [^\r\n]+: [^\r\n]+',
+        rb'sign_and_send_pubkey: [^\r\n]+',
+        rb'no more authentication methods to try\.',
+    )
+    return any(any(re.fullmatch(p,line.strip().lower()) for p in patterns)
+               for line in bytes(errors).split(b'\n')[:-1] if line.strip())
 
 
 def deadline_failure(process,errors):
