@@ -109,7 +109,8 @@ def test_eof_denial_cannot_be_hidden_by_success_exit_and_matching_payload(tmp_pa
         processes.append(process)
         return process
     transport.popen = child
-    with pytest.raises(EvidenceError, match='authentication or identity'):
+    expected='ambiguous SSH or remote denial' if message==b'Permission denied' else 'authentication or identity'
+    with pytest.raises(EvidenceError, match=expected):
         transport.get('state', tmp_path/'download', {'path':'state','bytes':1,'sha256':sha256(b'x')}, int(time.time())+30)
     assert not (tmp_path/'download').exists()
     assert all(p.poll() is not None and p.stdout.closed and p.stderr.closed for p in processes)

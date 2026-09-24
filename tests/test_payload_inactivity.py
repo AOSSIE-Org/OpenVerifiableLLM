@@ -129,10 +129,10 @@ def test_inactivity_exit_and_parent_limits_reap_owned_process(tmp_path, monkeypa
     assert all(p.returncode is not None and p.stdout.closed and p.stderr.closed for p in processes)
 
 
-def test_inactivity_does_not_delay_authentication_failure(tmp_path, monkeypatch):
+def test_inactivity_does_not_delay_ambiguous_denial_failure(tmp_path, monkeypatch):
     transport, clock, processes = scheduled(tmp_path, monkeypatch,
         lambda argv: ([(1,'stderr',b'Permission denied\n')], False))
-    with pytest.raises(EvidenceError, match='authentication or identity') as error:
+    with pytest.raises(EvidenceError, match='ambiguous SSH or remote denial') as error:
         transport.stream(['/bin/cat','fixture'], io.BytesIO(), 10, 1400, payload_idle_seconds=90)
     assert type(error.value) is EvidenceError and clock[0] == 1001
     assert len(processes) == 1 and processes[0].returncode is not None

@@ -133,6 +133,49 @@ def test_expiry_drains_waiting_diagnostics_and_checks_available_exit(tmp_path,mo
     assert all(p.poll() is not None and p.stdout.closed and p.stderr.closed for p in processes)
 
 
+@pytest.mark.parametrize('diagnostic,expected',[
+    (b"PermissionError: [Errno 13] Permission denied: '/proc/123/fd/0'\n",'SSH transfer process failed'),
+    (b'Traceback: remote program rejected host key in its input\n','SSH transfer process failed'),
+    (b'Permission denied\n','ambiguous SSH or remote denial'),
+])
+def test_remote_program_error_is_not_misclassified_as_ssh_identity(tmp_path,diagnostic,expected):
+    t,_,_,processes=setup(tmp_path)
+    def child(command,**kw):
+        p=subprocess.Popen([sys.executable,'-c',
+            'import os,sys;os.write(2,bytes.fromhex(sys.argv[1]));sys.exit(1)',diagnostic.hex()],**kw)
+        processes.append(p);return p
+    t.popen=child
+    with pytest.raises(EvidenceError,match=expected) as error:
+        t.stream(['/bin/true'],None,4096,int(time.time())+15)
+    assert not isinstance(error.value,m.TransientTransportError)
+    assert all(p.poll() is not None for p in processes)
+
+
+def test_remote_diagnostic_cannot_gain_success_from_matching_payload(tmp_path):
+    t,_,_,processes=setup(tmp_path)
+    def child(command,**kw):
+        p=subprocess.Popen([sys.executable,'-c',
+            'import os;os.write(1,b"x");os.write(2,b"PermissionError: synthetic remote filesystem failure\\n")'],**kw)
+        processes.append(p);return p
+    t.popen=child
+    with pytest.raises(EvidenceError,match='diagnostics despite zero exit'):
+        t.get('state',tmp_path/'download',{'path':'state','bytes':1,'sha256':sha256(b'x')},int(time.time())+15)
+    assert not (tmp_path/'download').exists()
+    assert all(p.poll() is not None for p in processes)
+
+
+@pytest.mark.parametrize('diagnostic',[
+    b'root@127.0.0.1: Permission denied (publickey).\n',
+    b'Host key verification failed.\n',
+    b'WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!\n',
+    b'Load key "/tmp/fixture": invalid format\n',
+    b'sign_and_send_pubkey: signing failed: agent refused operation\n',
+])
+def test_complete_openssh_identity_diagnostic_remains_fatal(diagnostic):
+    assert m.fatal_diagnostic(diagnostic)
+    assert not m.fatal_diagnostic(diagnostic[:-1])
+
+
 @pytest.mark.parametrize('path',['../seed.key','/root/key','a/../../key','-o ProxyCommand=bad','a;command','a//b','a/./b'])
 def test_remote_path_cannot_escape_or_become_a_shell_option(tmp_path,path):
     t,remote,calls,processes=setup(tmp_path);source=tmp_path/'source';source.write_bytes(b'x')
