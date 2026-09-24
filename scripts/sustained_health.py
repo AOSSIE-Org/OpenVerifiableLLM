@@ -50,7 +50,8 @@ class SustainedHealth(PilotHealth):
             return
         if kind!='public-download-process':return super()._apply(body)
         fields(body,'schema kind observed_epoch detail advances_progress advances_export completes','public download process event')
-        fields(d,'job_sha256 process_instance pid','selected public download process')
+        fields(d,'job_sha256 process_instance pid'+(' source' if 'source' in d else ''),'selected public input process')
+        if 'source' in d and d['source']!='local-cache-read':raise EvidenceError('invalid retained input origin')
         self.active(d['job_sha256']);self.download_contract(d['job_sha256'])
         integer(body['observed_epoch'],self.plan['input']['now_epoch'],self.plan['external_terminate_epoch'],'download identity clock')
         if (body['schema']!='ovl.cost-activity-event.v2' or any(body[k] is not False for k in ('advances_progress','advances_export','completes'))
@@ -96,16 +97,17 @@ class SustainedHealth(PilotHealth):
         if job in self.setup_audits:raise EvidenceError('download activity after offline setup')
         if self.jobs[job]['selection'].get('download_contract_sha256')!=digest(b):raise EvidenceError('selected download contract changed')
         fields(value,'schema process_instance pid plan_sha256 total_bytes received_bytes scope','public download activity')
-        if (value['schema']!='ovl.public-input-transfer.v1' or value['scope']!='operator-supervision-only-not-input-verification'
+        if (value['schema'] not in ('ovl.public-input-transfer.v1','ovl.public-input-cache-read.v1') or value['scope']!='operator-supervision-only-not-input-verification'
             or value['plan_sha256']!=b['plan_sha256'] or value['total_bytes']!=b['bytes']
             or type(value['process_instance']) is not str or not re.fullmatch('[0-9a-f]{32}',value['process_instance'])):
             raise EvidenceError('public transfer differs from selected input contract')
         integer(value['pid'],1,2**31-1,'download PID');integer(value['total_bytes'],1,64*1024**3,'download total')
         integer(value['received_bytes'],0,b['bytes'],'download received bytes')
         identity={'job_sha256':job,'process_instance':value['process_instance'],'pid':value['pid']}
+        if value['schema']=='ovl.public-input-cache-read.v1':identity['source']='local-cache-read'
         prior=self.download_processes.get(job)
         if prior is not None and prior!=identity:raise EvidenceError('public input process changed within selected job')
-        operation=digest({'job_sha256':job,'public_input_plan_sha256':b['plan_sha256'],'operation':'actual-public-response-bytes'})
+        operation=digest({'job_sha256':job,'public_input_plan_sha256':b['plan_sha256'],'operation':('actual-cache-read-bytes' if value['schema']=='ovl.public-input-cache-read.v1' else 'actual-public-response-bytes')})
         if operation in self.transfers and value['received_bytes']<self.transfers[operation]['bytes_received']:
             raise EvidenceError('public input byte count regressed')
         if prior is None:self.event('public-download-process',identity)
