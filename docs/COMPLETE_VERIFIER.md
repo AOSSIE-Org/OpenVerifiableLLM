@@ -105,3 +105,59 @@ Both report versions retain all existing release coverage, ancestry, model,
 evaluation and scope checks. A release using v2 also explains the separate
 executions in its model cards. Neither assembly, a signed report, nor a public
 download constitutes independent third-party recomputation.
+
+## Historical preparation with frozen production code
+
+When the signed preparation inventory predates the registered production tree,
+use the separately pinned `scripts/verify_complete.py` driver. The older
+`ovl_pipeline.production_verify` command above imports preparation from the current
+production tree and rejects that historical inventory. It is unsuitable for this
+combination; a signature or the historical contract smoke check does not repair it.
+
+Select an immutable reviewed driver revision independently of the model packet.
+Keep three identities separate: the original signed preparation inventory, the
+registered production/replay/loader revision, and the new driver revision. Obtain
+the driver scripts from the approved source repository at that exact revision.
+Run with the frozen production checkout on `PYTHONPATH`; do not copy newer modules
+into it. The driver checkout may be separate from the frozen checkout:
+
+```bash
+TOKENIZERS_PARALLELISM=false PYTHONPATH=FROZEN_CHECKOUT/src TRUSTED_CPU_PYTHON \
+  DRIVER_CHECKOUT/scripts/verify_complete.py \
+  --source-checkout FROZEN_CHECKOUT \
+  --source FROZEN_CHECKOUT/src \
+  --lock FROZEN_CHECKOUT/requirements/gpu.lock \
+  OTHER_REQUIRED_OPTIONS_FROM_THE_COMPLETE_COMMAND_ABOVE
+```
+
+The remaining options are identical to the full command above. All directories
+must be supplied explicitly; the uppercase names are placeholders. This driver
+provisions nothing. It materializes only the reviewed closed historical inventory
+from the retained clean Git revision, authenticates its bytes before import, and
+runs the original `prepare_committed` in a fresh isolated CPU child. The original
+publisher policy remains mandatory; the retained revision is a byte supplier, not
+a replacement signing revision. Python and installed CPU dependencies remain
+trusted. Isolated mode is not a sandbox or runtime attestation.
+
+All six transformations execute into fresh output; no stage adoption is allowed.
+The unchanged audited GPU launcher then executes complete sequential replay from
+regenerated initialization. The driver checks launch/session parents, complete
+coverage, both exports, every held-out target and repeated inference. Its exact
+three script hashes are retained separately in `driver.json`; the existing v1
+computation report retains its original schema and truthful execution scope.
+
+For both freshly downloaded releases, use
+`scripts/verify_release_complete.py full` with the same arguments as the older
+`ovl_pipeline.release_download full` command. The external driver performs actual
+anonymous downloads, independent release/parent authentication, the repaired fresh
+computation, model-root comparisons and downloaded inference. `FAIL` and
+`UNSUPPORTED` inference results remain distinct and are never promoted to PASS.
+The frozen `release_download artifacts` command remains valid for its narrower
+identity-and-operator-evidence scope.
+
+Before signing release inventories, model cards must link to the exact immutable
+revision of this corrected guide and the independently selected driver, alongside
+the frozen loader revision. Changing a card after signing invalidates its inventory.
+Synthetic bridge tests are software evidence only. Reusing a previously completed
+full operator reconstruction with a later full replay remains the separate v2
+assembly route described above; it must not claim a fresh full-driver execution.

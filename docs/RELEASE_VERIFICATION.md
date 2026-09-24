@@ -161,3 +161,14 @@ initialization, continuous all-update state comparisons, both downloaded models,
 complete held-out evaluation and repeated greedy inference. A run performed by
 this project remains operator verification, never independent third-party credit.
 Neither mode makes generated answers factually reliable by proving provenance.
+
+## Historical preparation inventory
+
+For a registration whose signed preparation source predates its production module
+tree, use the separately pinned `scripts/verify_release_complete.py full` command
+with the same full-mode options. The frozen `release_download full` entrypoint
+rejects that historical preparation source. Follow the source selection and fresh
+execution instructions in [Complete verification](COMPLETE_VERIFIER.md#historical-preparation-with-frozen-production-code).
+Artifact mode remains a narrower valid check; it does not execute reconstruction
+or numerical replay. Final model cards must pin the corrected driver and guides
+at an immutable revision while retaining the registered loader revision.
