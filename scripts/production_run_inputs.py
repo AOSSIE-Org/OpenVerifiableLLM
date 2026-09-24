@@ -126,9 +126,31 @@ def qualified_runtime(plan,inputs):
     return roots.pop()
 
 
+def qualified_volume(plan,inputs):
+    """Carry the exact selected quota guard into production and replay."""
+    from pod_job_worker import volume_selection,QUOTA_KEYS,Refusal
+    selected=None
+    for stage in plan['stages']:
+        path=Path(inputs)/stage['template_path']
+        if path.is_symlink() or not path.resolve().is_relative_to(Path(inputs).resolve()):raise EvidenceError('quota template outside selected inputs')
+        job=read_json(path)
+        if digest(job)!=stage['template_sha256']:raise EvidenceError('quota template changed')
+        try:volume_selection(job['environment'])
+        except Refusal as error:raise EvidenceError('invalid selected quota') from error
+        value={k:v for k,v in job['environment'].items() if k in QUOTA_KEYS}
+        if selected is not None and selected!=value:raise EvidenceError('selected stages use different volume quotas')
+        selected=value
+    if selected is None:raise EvidenceError('quota selection requires stages')
+    return selected
+
+
 def production_job(kind,profile,offline_config,static_files,packet,bundle,production_policy,source_policy,
-                   *,record_files=None,runtime_root=None):
+                   *,record_files=None,runtime_root=None,volume_environment=None):
     if kind not in ('production-record','full-replay'):raise EvidenceError('unsupported production stage')
+    from pod_job_worker import volume_selection,QUOTA_KEYS
+    volume_environment={} if volume_environment is None else dict(volume_environment)
+    if set(volume_environment)-QUOTA_KEYS:raise EvidenceError('unexpected volume environment')
+    volume_selection(volume_environment)
     base=profile['remote_root'];name='production-record' if kind=='production-record' else 'production-replay'
     runtime=base+'/runtime' if runtime_root is None else runtime_root
     if (not isinstance(runtime,str) or not runtime.startswith('/') or runtime=='/'
@@ -160,7 +182,7 @@ def production_job(kind,profile,offline_config,static_files,packet,bundle,produc
     if len({f['path'] for f in inputs})!=len(inputs):raise EvidenceError('duplicate independently selected production inputs')
     return {'schema':'ovl.pod-job.v1','kind':kind,'cwd':base,'deadline_epoch':DEADLINE,'stop_grace_seconds':15,
       'minimum_free_bytes':16*1024**3,'required_files':inputs,'export_roots':[remote,audit],
-      'environment':{'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','OVL_ACTIVITY_FILE':audit+'/activity.json'},
+      'environment':{'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','OVL_ACTIVITY_FILE':audit+'/activity.json',**volume_environment},
       'argv':[executable,'-I','-S',base+'/inputs/pod_runtime_setup.py','launch',
               '--config',base+'/inputs/offline-config.json','--config-sha256',file_hash(offline_config),
               '--inputs',base+'/inputs','--runtime',runtime,'--output',audit+'/audit',

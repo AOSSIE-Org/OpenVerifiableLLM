@@ -213,7 +213,7 @@ def validate(profile,key,known_hosts):
     try:ipaddress.IPv4Address(profile['host'])
     except Exception:raise EvidenceError('explicit provider-observed IPv4 address required') from None
     integer(profile['port'],1,65535,'SSH endpoint port')
-    if type(profile['remote_root']) is not str or not re.fullmatch('/workspace/ovllm/[a-z0-9][a-z0-9-]{0,127}',profile['remote_root']):
+    if type(profile['remote_root']) is not str or not re.fullmatch('/(?:workspace/ovllm|opt/ovllm-recovery)/[a-z0-9][a-z0-9-]{0,127}',profile['remote_root']):
         raise EvidenceError('closed task-owned remote root required')
     if profile['host_key_trust'] not in ('operator-pinned-TOFU','operator-pinned-independently-corroborated'):
         raise EvidenceError('explicit host-key trust scope required')
