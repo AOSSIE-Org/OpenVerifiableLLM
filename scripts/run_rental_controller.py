@@ -57,7 +57,7 @@ def validate(value,expected):
     if payload['cloudType'] not in clouds or payload['startSsh'] is not True or payload['startJupyter'] is not False:
         raise EvidenceError('selected cloud and SSH-only rental required')
     quote_schema='ovl.rental-quote.v2' if value['schema'] in ('ovl.rental-controller-intent.v3','ovl.rental-controller-intent.v4','ovl.rental-controller-intent.v5') else 'ovl.rental-quote.v1'
-    quote_schemas=('ovl.rental-quote.v3','ovl.rental-quote.v4') if retained else (quote_schema,)
+    quote_schemas=('ovl.rental-quote.v3','ovl.rental-quote.v4','ovl.rental-quote.v5') if retained else (quote_schema,)
     if value['quote'].get('schema') not in quote_schemas:raise EvidenceError('quote version differs from rental intent')
     if payload['ports']!='22/tcp':raise EvidenceError('only SSH port may be exposed')
     if payload['dockerArgs']!='':raise EvidenceError('only immutable image entrypoint may start')
