@@ -55,6 +55,7 @@ def process_failure(code, errors):
         rb'connection (?:reset|closed) by [0-9.]+ port [0-9]+',
         rb'connection to [0-9.]+ closed by remote host\.',
         rb'timeout, server [0-9.]+ not responding\.',
+        rb'connection to [0-9.]+ port [0-9]+ timed out',
     )
     lines = [line.strip().lower() for line in bytes(errors).splitlines() if line.strip()]
     if code == 255 and lines and all(any(re.fullmatch(p,line) for p in patterns) for line in lines):

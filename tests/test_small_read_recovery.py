@@ -114,12 +114,13 @@ def test_successful_retry_still_rejects_wrong_hash(tmp_path,monkeypatch):
     assert len(calls)==2 and (tmp_path/'download.partial').read_bytes()==b'bad' and not(tmp_path/'download').exists()
 
 
-def test_actual_failed_child_is_reaped_before_retry(tmp_path,monkeypatch):
+@pytest.mark.parametrize('message', ['ssh: connect to host 127.0.0.1 port 2222: Connection timed out', 'Connection to 127.0.0.1 port 2222 timed out'])
+def test_actual_failed_child_is_reaped_before_retry(tmp_path,monkeypatch,message):
     t,remote,calls,processes=setup(tmp_path);(remote/'metadata').write_bytes(b'abc');original=t.popen;attempts=[]
     def popen(command,**kw):
         assert all(p.poll() is not None for p in attempts)
         if not attempts:
-            p=subprocess.Popen([sys.executable,'-c','import sys;sys.stderr.write("ssh: connect to host 127.0.0.1 port 2222: Connection timed out\\n");sys.exit(255)'],**kw)
+            p=subprocess.Popen([sys.executable,'-c','import sys;sys.stderr.write(sys.argv[1]+"\\n");sys.exit(255)',message],**kw)
         else:p=original(command,**kw)
         attempts.append(p);return p
     t.popen=popen;monkeypatch.setattr(m.time,'sleep',lambda n:None)
