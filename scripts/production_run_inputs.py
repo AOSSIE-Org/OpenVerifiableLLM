@@ -15,6 +15,27 @@ from sustained_pilot_selection import DEADLINE
 def dollars(value):return format(value.quantize(Decimal('.000001'),rounding=ROUND_CEILING),'f')
 
 
+def validate_run_key(directory, templates):
+    """Check all prospective registrations against the selected private key.
+
+    Callers pin the template bytes independently. A descriptor digest is not
+    its Ed25519 public key, even though both use the same hexadecimal length.
+    This read-only check belongs before resource admission and publication;
+    delivery retains its own later check to detect intervening changes.
+    """
+    from ovl_pipeline.run_key import descriptor, load
+    if type(templates) not in (list,tuple) or not templates:
+        raise EvidenceError('at least one registration key pin in a list or tuple required')
+    selected=None
+    for template in templates:
+        value=descriptor(template['run_id'],template['run_public_key'])
+        if selected is not None and value!=selected:
+            raise EvidenceError('registration variants select different run keys')
+        load(Path(directory),run_id=value['run_id'],expected_public_key=value['public_key'])
+        selected=value
+    return selected
+
+
 def registration(template,qualified,initial,rental,now,*,construction_seconds=0):
     from ovl_pipeline.production_parents import public_initialization
     initial=public_initialization(initial)
