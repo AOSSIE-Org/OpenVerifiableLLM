@@ -83,6 +83,22 @@ def fatal_diagnostic(errors):
                for line in bytes(errors).split(b'\n')[:-1] if line.strip())
 
 
+def bare_denial_diagnostic(errors):
+    # This line alone is ambiguous: OpenSSH may have emitted it, but a remote
+    # program can emit the same bytes. Preserve immediate strict failure while
+    # refusing to label it as proven authentication failure.
+    return any(line.strip().lower()==b'permission denied'
+               for line in bytes(errors).split(b'\n')[:-1])
+
+
+def denial_failure(errors):
+    if fatal_diagnostic(errors):
+        return EvidenceError('SSH authentication or identity failure; diagnostics withheld')
+    if bare_denial_diagnostic(errors):
+        return EvidenceError('ambiguous SSH or remote denial; diagnostics withheld')
+    return None
+
+
 def deadline_failure(process,errors):
     # A timed-out process may already have reported a strict failure. Do not
     # erase that evidence merely because it has not exited. Empty stderr gives
@@ -343,13 +359,15 @@ class Transport:
                         try:data=os.read(channel.fileno(),1024*1024)
                         except BlockingIOError:continue
                         if not data:
-                            if key.data=='error' and fatal_diagnostic(errors+b'\n'):
-                                raise EvidenceError('SSH authentication or identity failure; diagnostics withheld')
+                            if key.data=='error':
+                                failure=denial_failure(errors+b'\n')
+                                if failure is not None:raise failure
                             selector.unregister(channel);channel.close();continue
                         if key.data=='error':
                             errors.extend(data)
                             if len(errors)>65536:raise EvidenceError('SSH diagnostics exceeded bound')
-                            if fatal_diagnostic(errors):raise EvidenceError('SSH authentication or identity failure; diagnostics withheld')
+                            failure=denial_failure(errors)
+                            if failure is not None:raise failure
                         else:
                             out_count+=len(data)
                             if out_count>maximum:
@@ -371,6 +389,7 @@ class Transport:
             except subprocess.TimeoutExpired:
                 raise deadline_failure(process,errors) from None
             if code!=0:raise process_failure(code,errors)
+            if errors:raise EvidenceError('SSH transfer emitted diagnostics despite zero exit; diagnostics withheld')
             if not input_done:raise EvidenceError('SSH transfer input incomplete')
             if progress is not None and (in_count,out_count)!=last_counts:progress({'bytes_sent':in_count,'bytes_received':out_count})
             if min(end-self.monotonic(),deadline-self.wall())<=0:raise deadline_failure(process,errors)
