@@ -84,3 +84,22 @@ def test_v2_adoption_rebuilds_every_completed_predecessor_without_rerunning(tmp_
     output=tmp_path/'initialization-candidate';output.mkdir()
     write_json(output/'selected-plan.json',{'schema':'explicit-phase-double','prior_jobs':['1'*64]})
     with pytest.raises(EvidenceError,match='parent selection'):m.selected_phases(spec,{}, {})
+
+
+def test_private_seed_response_loss_preserves_window_and_private_receipts(tmp_path,monkeypatch):
+    run,spec,a,remote,calls=fixture(tmp_path);put=run.control.put;once=[]
+    def uncertain(name,*args,**kwargs):
+        value=put(name,*args,**kwargs)
+        if name=='private/run-key/seed.key' and not once:
+            once.append(True);raise TimeoutError('explicit response loss after private write')
+        return value
+    monkeypatch.setattr(run.control,'put',uncertain)
+    with pytest.raises(TimeoutError):m.inputs(run,spec,a)
+    private=Path(spec['run_key']);receipts=private/'operator-transfer-receipts'
+    windows={p:p.read_bytes() for p in receipts.rglob('*-intent.json')}
+    monkeypatch.setattr(run.control,'put',put);m.inputs(run,spec,a)
+    assert windows and all(p.read_bytes()==data for p,data in windows.items())
+    assert (remote/'private/run-key/seed.key').read_bytes()==(private/'seed.key').read_bytes()
+    seed=(private/'seed.key').read_bytes();secret_hash=__import__('hashlib').sha256(seed).hexdigest().encode()
+    for p in run.output.rglob('*'):
+        if p.is_file():assert seed.hex().encode() not in p.read_bytes() and secret_hash not in p.read_bytes()
