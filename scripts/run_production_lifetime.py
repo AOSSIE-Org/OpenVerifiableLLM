@@ -19,10 +19,27 @@ from ovl_pipeline.run_key import load as load_key
 from pod_transfer import Transport
 from pod_job_client import save_once
 from production_run_coordinator import Run,restore_phase_bindings
-from production_run_inputs import registration,production_job,qualified_runtime
+from production_run_inputs import registration,production_job,qualified_runtime,validate_run_key
 
 
 def transport(profile,key,known):return Transport(profile,key,known)
+
+
+def registration_templates(spec):
+    """Read only explicitly inventoried, hash-pinned candidate templates."""
+    root=Path(spec['input_inventory']['directory']).absolute()
+    locations=spec['registration_template'] if spec['schema']=='ovl.production-lifetime-invocation.v2' else {'baseline':spec['registration_template']}
+    entries={e['path']:e for e in spec['input_inventory']['files']}
+    selected={}
+    for variant,location in locations.items():
+        try:name=Path(location).absolute().relative_to(root).as_posix()
+        except ValueError as exc:raise EvidenceError('registration template outside pinned inventory') from exc
+        if name not in entries:raise EvidenceError('registration template missing from pinned inventory')
+        verify_inventory(root,[entries[name]])
+        value=read_json(root/name)
+        if digest(value)!=entries[name]['sha256']:raise EvidenceError('registration template changed while reading')
+        selected[variant]=value
+    return selected
 
 
 def selected_phases(spec,bindings,downloads):
@@ -93,6 +110,8 @@ def run(spec,expected):
     # no filesystem orientation, credential discovery or private-project search.
     fields(spec['input_inventory'],'directory files','pinned lifetime inputs')
     verify_inventory(Path(spec['input_inventory']['directory']),spec['input_inventory']['files'])
+    templates=registration_templates(spec)
+    run_identity=validate_run_key(Path(spec['run_key']),list(templates.values()))
     key=Path(spec['key']);known=Path(spec['known_hosts']);profile=read_json(Path(spec['profile']))
     control=transport(profile,key,known);output=Path(spec['output']);bindings={};downloads={}
     phases=selected_phases(spec,bindings,downloads)
@@ -126,10 +145,12 @@ def run(spec,expected):
         if (selected['invocation_sha256']!=expected or selected['qualification_sha256']!=digest(q)
             or selected['initialization_sha256']!=digest(initial)):
             raise EvidenceError('original registration parents changed')
-        template=spec['registration_template'][variant] if optimized else spec['registration_template']
-        r,basis=registration(read_json(Path(template)),q,initial,owner.rental,selected['selected_epoch'],
+        if registration_templates(spec)!=templates:raise EvidenceError('admitted registration templates changed')
+        r,basis=registration(templates[variant],q,initial,owner.rental,selected['selected_epoch'],
                              construction_seconds=spec['selection']['timing']['registration_seconds'])
         save_once(output/'forecast-basis.json',basis)
+        if validate_run_key(Path(spec['run_key']),[r])!=run_identity:
+            raise EvidenceError('registration run key differs from admitted identity')
         a=owner.register(r,read_json(Path(spec['source_statement'])),Path(spec['source_bundle']),
              PublisherPolicy(**read_json(Path(spec['source_policy']))),read_json(Path(spec['preparation'])),Path(spec['source_checkout']))
         inputs(owner,spec,a)
