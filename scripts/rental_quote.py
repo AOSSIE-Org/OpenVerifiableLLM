@@ -4,7 +4,7 @@ The catalog is an operator-captured provider observation, not a signed price off
 Live actual rates, runtime device selection, capacity and final billing remain
 separate checks. Storage uses the documented higher stopped-volume rate and a
 short28-day denominator. Historical quotes retain their25% all-in price
-margin; prospective retained-volume v4 quotes select10%. This price cushion is
+margin; retained-volume v4 quotes select10%, and prospective v5 quotes select2%. This price cushion is
 separate from the unchanged25% measured-runtime forecast margin. Actual observed
 rates must still fit the frozen bound; watchdog deadlines and reserves do not move.
 """
@@ -26,9 +26,9 @@ def rate(value):
 
 
 def validate_quote(quote,payload,plan,*,network_volume=None):
-    retained=quote.get('schema') in ('ovl.rental-quote.v3','ovl.rental-quote.v4')
+    retained=quote.get('schema') in ('ovl.rental-quote.v3','ovl.rental-quote.v4','ovl.rental-quote.v5')
     fields(quote,'schema observed_epoch catalog_response catalog_response_sha256 selected_gpu storage_source storage_page_sha256 storage_observed_epoch container_gb_month_usd volume_gb_month_upper_usd monthly_hours rate_margin_percent'+(' network_volume_sha256' if retained else ''),'rental price evidence')
-    if quote['schema'] not in ('ovl.rental-quote.v1','ovl.rental-quote.v2','ovl.rental-quote.v3','ovl.rental-quote.v4') or quote['storage_source']!=STORAGE_URL:raise EvidenceError('unsupported rental quote source')
+    if quote['schema'] not in ('ovl.rental-quote.v1','ovl.rental-quote.v2','ovl.rental-quote.v3','ovl.rental-quote.v4','ovl.rental-quote.v5') or quote['storage_source']!=STORAGE_URL:raise EvidenceError('unsupported rental quote source')
     if retained:
         from retained_volume import validate
         validate(network_volume,plan,payload)
@@ -62,7 +62,7 @@ def validate_quote(quote,payload,plan,*,network_volume=None):
         if not 0<=plan['input']['now_epoch']-quote[k]<=age:raise EvidenceError('stale quote evidence')
     if (quote['container_gb_month_usd']!='0.10' or quote['volume_gb_month_upper_usd']!='0.20'
         or type(quote['monthly_hours']) is not int or quote['monthly_hours']!=672
-        or type(quote['rate_margin_percent']) is not int or quote['rate_margin_percent']!=(110 if quote['schema']=='ovl.rental-quote.v4' else 125)):
+        or type(quote['rate_margin_percent']) is not int or quote['rate_margin_percent']!=({'ovl.rental-quote.v4':110,'ovl.rental-quote.v5':102}.get(quote['schema'],125))):
         raise EvidenceError('storage price bound or rate margin differs from selected policy')
     computed=(rate(selected_rate)+(Decimal(payload['containerDiskInGb'])*rate(quote['container_gb_month_usd'])+
                   Decimal(0 if retained else payload['volumeInGb'])*rate(quote['volume_gb_month_upper_usd']))/quote['monthly_hours'])*Decimal(quote['rate_margin_percent'])/100

@@ -124,6 +124,7 @@ def test_no_retry_at_original_deadline_or_mutation(tmp_path,monkeypatch):
 
 
 @pytest.mark.parametrize('code,diagnostic,transient',[
+    (255,b'Connection to 127.0.0.1 port 2222 timed out\r\n',True),
     (255,b'Connection timed out',True),(255,b'Connection reset by peer',True),
     (255,b'Connection closed; HOST KEY VERIFICATION FAILED',False),
     (255,b'Permission denied; connection closed',False),(255,b'unknown failure',False),

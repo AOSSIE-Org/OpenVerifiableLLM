@@ -40,7 +40,8 @@ def test_selected_command_keeps_info_without_verbose_auth_output(tmp_path):
 
 
 @pytest.mark.parametrize('fault', ['recover', 'exhaust', 'empty', 'denial', 'conflict'])
-def test_partial_range_keepalive_failure_preserves_checks(tmp_path, monkeypatch, fault):
+@pytest.mark.parametrize('timeout_message',[TIMEOUT,b'Connection to 127.0.0.1 port 2222 timed out\r\n'])
+def test_partial_range_keepalive_failure_preserves_checks(tmp_path, monkeypatch, fault,timeout_message):
     transport, remote, calls, processes = setup(tmp_path)
     monkeypatch.setattr(m, 'RANGE_BYTES', 16)
     data = b'x' * 32
@@ -57,7 +58,7 @@ def test_partial_range_keepalive_failure_preserves_checks(tmp_path, monkeypatch,
     def fail(command, **kwargs):
         if not failures or fault == 'exhaust':
             failures.append(True)
-            message = b'' if fault == 'empty' else TIMEOUT
+            message = b'' if fault == 'empty' else timeout_message
             if fault == 'denial': message += b'Permission denied\n'
             prefix = b'z' * 8 if fault == 'conflict' else data[:8]
             child = subprocess.Popen([sys.executable, '-c',
@@ -112,3 +113,16 @@ def test_eof_denial_cannot_be_hidden_by_success_exit_and_matching_payload(tmp_pa
         transport.get('state', tmp_path/'download', {'path':'state','bytes':1,'sha256':sha256(b'x')}, int(time.time())+30)
     assert not (tmp_path/'download').exists()
     assert all(p.poll() is not None and p.stdout.closed and p.stderr.closed for p in processes)
+
+
+@pytest.mark.parametrize('message,retry', [
+    (b'Connection to 127.0.0.1 port 2222 timed out\r\n', True),
+    (b'Connection to 127.0.0.1 port 2222 timed out\nPermission denied\n', False),
+    (b'Host key verification failed\nConnection to 127.0.0.1 port 2222 timed out\n', False),
+    (b'Connection to arbitrary-host port 2222 timed out\n', False),
+    (b'Connection to 127.0.0.1 port 2222 timed out extra\n', False),
+    (b'Connection to 127.0.0.1 port 2222 timed out\nunknown error\n', False),
+])
+def test_numeric_endpoint_timeout_retains_closed_diagnostic_policy(message, retry):
+    assert (type(m.process_failure(255, message)) is m.TransientTransportError) == retry
+    assert type(m.process_failure(1, message)) is EvidenceError
