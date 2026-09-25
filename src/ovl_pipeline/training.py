@@ -290,10 +290,17 @@ def train(registration, policy, stream_dirs, output: Path, key: SigningKey, *, s
                             else Path(recovery_directory))
                 if recovery.resolve().is_relative_to(output.resolve()):
                     raise EvidenceError("recovery evidence must be outside the training directory")
-                recovery.mkdir(parents=True, exist_ok=True)
+                from .lifecycle import durable_mkdir, sync_directory
+                from .lifecycle_artifacts import durable_tree
+                durable_mkdir(recovery)
                 destination = recovery / (name + "-" + uuid.uuid4().hex)
                 files = inventory(target, [p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()])
-                shutil.move(str(target), str(destination))
+                # Persist original bytes and ancestry before replacing evidence.
+                # Cross-filesystem recovery must not silently become copy/delete.
+                durable_tree(target)
+                target.rename(destination)
+                sync_directory(recovery)
+                sync_directory(target.parent)
                 write_json(recovery / (destination.name + ".json"),
                            {"schema": "ovl.recovery-observation.v1", "scope": "operator-local discarded incomplete checkpoint",
                             "registration": policy.registration_sha256, "original_path": name,

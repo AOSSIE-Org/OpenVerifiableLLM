@@ -59,7 +59,8 @@ def current_launch():
 
 
 def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=None,execute=subprocess.run,
-           interpreter_archive=None,interpreter_sha256=None,interpreter_root=None,progress=None,bytecode_root=None):
+           interpreter_archive=None,interpreter_sha256=None,interpreter_root=None,progress=None,bytecode_root=None,
+           lease_fd=None,lease_path=None):
     if module not in MODULES:raise EvidenceError('unsupported audited target module')
     if output.exists():raise EvidenceError('launch requires a fresh record and bytecode cache')
     if venv.is_symlink() or source.is_symlink():raise EvidenceError('target environment/source roots must be regular directories')
@@ -108,6 +109,9 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
             'source':str(source),'site':str(site),'pycache_prefix':str(cache),'module':module,'arguments':arguments,
             'allowed_generated':allowed_generated or {},'interpreter_origin':origin,
             'performed_by':'project-operator','production_admission':'NOT_RUN'}
+    if lease_fd is not None:
+        from .process_safety import identity
+        record['lifecycle_parent']=identity(os.getpid())
     write_json(output/'launch.json',record)
     # Do not pass the operator's credentials, numerical overrides or executable
     # search path to the numerical child. Only the selected liveness path crosses
@@ -119,7 +123,20 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
              '--source',str(source),'--site',str(site),'--launch-record',str(output/'launch.json'),'--module',module,'--',*arguments]
     # REMAINDER retains the '--'; remove it only in the bootstrap argument parser
     # and record the exact user arguments independently of shell interpolation.
-    result=execute(command,env=env,check=False)
+    execution={}
+    if lease_fd is not None or lease_path is not None:
+        # Preserve the operating owner's lease through this extra process layer.
+        # It grants no scientific admission and passes no operator environment.
+        import fcntl
+        if type(lease_fd) is not int or lease_fd<0 or lease_path is None:
+            raise EvidenceError('complete workload lease selection required')
+        selected=os.fstat(lease_fd);path=Path(lease_path)
+        expected=path.stat()
+        if path.is_symlink() or (selected.st_dev,selected.st_ino)!=(expected.st_dev,expected.st_ino):
+            raise EvidenceError('workload lease descriptor differs')
+        fcntl.flock(lease_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        execution['pass_fds']=(lease_fd,)
+    result=execute(command,env=env,check=False,**execution)
     receipt={'schema':'ovl.audited-runtime-process.v1','launch_sha256':digest(record),'exit_code':result.returncode,
              'scope':'external package audit and constrained target-process launch; not model verification by itself'}
     write_json(output/'process.json',receipt)
@@ -135,11 +152,13 @@ def main():
     for name in ('lock','wheels','venv','source','output'):p.add_argument('--'+name,required=True,type=Path)
     p.add_argument('--module',required=True,choices=sorted(MODULES));p.add_argument('--allowed-generated',type=Path)
     p.add_argument('--interpreter-archive',type=Path);p.add_argument('--interpreter-sha256');p.add_argument('--interpreter-root',type=Path)
+    p.add_argument('--lifecycle-lease-fd',type=int);p.add_argument('--lifecycle-lease-path',type=Path)
     p.add_argument('arguments',nargs=argparse.REMAINDER);a=p.parse_args();args=a.arguments
     if args[:1]==['--']:args=args[1:]
     result=launch(a.lock,a.wheels,a.venv,a.source,a.output,a.module,args,
                   allowed_generated=read_json(a.allowed_generated) if a.allowed_generated else None,
-                  interpreter_archive=a.interpreter_archive,interpreter_sha256=a.interpreter_sha256,interpreter_root=a.interpreter_root)
+                  interpreter_archive=a.interpreter_archive,interpreter_sha256=a.interpreter_sha256,interpreter_root=a.interpreter_root,
+                  lease_fd=a.lifecycle_lease_fd,lease_path=a.lifecycle_lease_path)
     print('Audited target exited successfully; launch receipt '+digest(result))
 
 if __name__=='__main__':main()
