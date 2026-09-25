@@ -1,0 +1,231 @@
+{
+  "schemaVersion": "ovllm.frontend.snapshot.v1",
+  "generatedAt": "2026-09-19T12:00:00Z",
+  "mode": "public-snapshot",
+  "source": {
+    "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+    "revision": "03551ddedf9e54ae4355cf7e3f85c83c27e5f971",
+    "path": null,
+    "sha256": null
+  },
+  "summary": {
+    "headline": "OpenVerifiableLLM keeps a public record of a small language model’s data, training, checkpoints, and released files so other people can inspect and later reproduce them. The models are not released yet.",
+    "mayClaim": [
+      "The project team listed and downloaded the Wikipedia files for a practice run (G01–G02)"
+    ],
+    "mayNotClaim": [
+      "that a model is available to download or chat with",
+      "that training was fully re-run and matched",
+      "that someone outside the team has independently rebuilt it",
+      "that generated answers are true"
+    ],
+    "workflow": "The team has listed and fetched the Wikipedia files for a practice run (G01–G02). Training, a full re-run, and both models are not done yet."
+  },
+  "pipeline": [
+    {
+      "id": "wiki-source",
+      "title": "List the Wikipedia files to use",
+      "phase": "source",
+      "result": "PASS",
+      "scope": "pilot",
+      "checkId": "chk-g01"
+    },
+    {
+      "id": "wiki-acquire",
+      "title": "Download those Wikipedia files",
+      "phase": "source",
+      "result": "PASS",
+      "scope": "pilot",
+      "checkId": "chk-g02"
+    },
+    {
+      "id": "extract",
+      "title": "Turn Wikipedia pages into clean text",
+      "phase": "prepare",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "tokenizer",
+      "title": "Turn that text into tokens the model can train on",
+      "phase": "prepare",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "init",
+      "title": "Start the model from scratch (no hidden pretrained weights)",
+      "phase": "train",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "wiki-train",
+      "title": "Train once on that Wikipedia text",
+      "phase": "train",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "chat-train",
+      "title": "Then train for chat, using public conversation data",
+      "phase": "train",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "replay",
+      "title": "Re-run training and check it matches the saved files",
+      "phase": "replay",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    },
+    {
+      "id": "publish",
+      "title": "Publish the model files and the evidence",
+      "phase": "release",
+      "result": "NOT_RUN",
+      "scope": "production",
+      "checkId": null
+    }
+  ],
+  "releases": [
+    {
+      "id": "base",
+      "role": "base",
+      "availability": "not-released",
+      "title": "Base model (Wikipedia)",
+      "parentReleaseId": null,
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "The Wikipedia-trained model has not been published. Download and chat stay off until there is a public folder, a fixed version, and a published checksum for those files."
+    },
+    {
+      "id": "chat",
+      "role": "chat",
+      "availability": "not-released",
+      "title": "Chat model (built on the base model)",
+      "parentReleaseId": "base",
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "The chat model is trained after the Wikipedia model, so it is not “Wikipedia-only.” It is also not released."
+    }
+  ],
+  "checks": [
+    {
+      "id": "chk-g01",
+      "profile": "artifact-identity",
+      "phase": "source",
+      "scope": "pilot",
+      "result": "PASS",
+      "explanation": "The team listed the exact English Wikipedia files for a practice run and published links to that list. This only checks the file list, not training.",
+      "performedBy": "project-operator",
+      "attestedBy": "project-operator",
+      "locallyRecomputed": false,
+      "evidence": [
+        {
+          "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+          "revision": null,
+          "path": null,
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "id": "chk-g02",
+      "profile": "data-reconstruction",
+      "phase": "source",
+      "scope": "pilot",
+      "result": "PASS",
+      "explanation": "The team says the Wikipedia files used in the practice run are stored in a public archive. Someone outside the team has not yet rebuilt that from scratch.",
+      "performedBy": "project-operator",
+      "attestedBy": "project-operator",
+      "locallyRecomputed": false,
+      "evidence": [
+        {
+          "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/101",
+          "revision": null,
+          "path": null,
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "id": "chk-replay",
+      "profile": "full-replay",
+      "phase": "replay",
+      "scope": "production",
+      "result": "NOT_RUN",
+      "explanation": "The real training has not been fully re-run and accepted. Practice GPU runs do not count as the finished real run.",
+      "performedBy": null,
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "evidence": []
+    },
+    {
+      "id": "chk-infer",
+      "profile": "inference-reproduction",
+      "phase": "release",
+      "scope": "production",
+      "result": "NOT_RUN",
+      "explanation": "No model files have been released, so there is nothing to re-run as a saved chat example.",
+      "performedBy": null,
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "evidence": []
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-hf-dataset",
+      "title": "Public evidence files (practice run)",
+      "kind": "dataset",
+      "phase": "source",
+      "scope": "pilot",
+      "result": "PASS",
+      "checkId": "chk-g01",
+      "source": {
+        "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parentIds": [],
+      "childIds": ["ev-pr-101"],
+      "sizeBytes": null,
+      "timestamp": "2026-09-18T00:00:00Z",
+      "supersededBy": null,
+      "supersedes": null
+    },
+    {
+      "id": "ev-pr-101",
+      "title": "Training-pipeline work on GitHub (pull request 101)",
+      "kind": "report",
+      "phase": "source",
+      "scope": "pilot",
+      "result": "PASS",
+      "checkId": "chk-g02",
+      "source": {
+        "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/101",
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parentIds": ["ev-hf-dataset"],
+      "childIds": [],
+      "sizeBytes": null,
+      "timestamp": "2026-09-17T18:01:11Z",
+      "supersededBy": null,
+      "supersedes": null
+    }
+  ],
+  "commands": []
+}

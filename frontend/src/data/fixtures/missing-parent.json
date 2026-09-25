@@ -1,0 +1,96 @@
+{
+  "schemaVersion": "ovllm.frontend.snapshot.v1",
+  "generatedAt": "2026-09-19T12:00:00Z",
+  "mode": "fixture",
+  "source": {
+    "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+    "revision": "fixture",
+    "path": "frontend/src/data/fixtures/missing-parent.json",
+    "sha256": null
+  },
+  "summary": {
+    "headline": "Test record: an item points at an earlier file that is missing.",
+    "mayClaim": ["this is a synthetic fixture"],
+    "mayNotClaim": ["production status", "a released model"],
+    "workflow": "Used to test a missing link. Not real project status."
+  },
+  "pipeline": [
+    {
+      "id": "hash",
+      "title": "Artifact hash",
+      "phase": "source",
+      "result": "FAIL",
+      "scope": "fixture",
+      "checkId": "chk-hash"
+    }
+  ],
+  "releases": [
+    {
+      "id": "base",
+      "role": "base",
+      "availability": "not-released",
+      "title": "Base",
+      "parentReleaseId": null,
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "Fixture. Not a release."
+    },
+    {
+      "id": "chat",
+      "role": "chat",
+      "availability": "not-released",
+      "title": "Chat",
+      "parentReleaseId": "base",
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "Fixture. Not a release."
+    }
+  ],
+  "checks": [
+    {
+      "id": "chk-hash",
+      "profile": "artifact-identity",
+      "phase": "source",
+      "scope": "fixture",
+      "result": "FAIL",
+      "explanation": "Declared parent digest is absent from the snapshot.",
+      "performedBy": "fixture",
+      "attestedBy": "fixture",
+      "locallyRecomputed": false,
+      "evidence": [
+        {
+          "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+          "revision": "fixture",
+          "path": "frontend/src/data/fixtures/missing-parent.json",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-child",
+      "title": "Prepared stream (child)",
+      "kind": "artifact",
+      "phase": "prepare",
+      "scope": "fixture",
+      "result": "FAIL",
+      "checkId": "chk-hash",
+      "source": {
+        "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+        "revision": "fixture",
+        "path": "missing-parent",
+        "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "parentIds": ["ev-parent-absent"],
+      "childIds": [],
+      "sizeBytes": 2048,
+      "timestamp": "2026-09-19T12:00:00Z",
+      "supersededBy": null,
+      "supersedes": null
+    }
+  ],
+  "commands": []
+}
