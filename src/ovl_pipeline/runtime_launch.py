@@ -15,7 +15,7 @@ import tempfile
 from .canonical import EvidenceError,digest,file_hash,read_json,write_json
 from .runtime_audit import wheel_manifest,verify_installed
 
-MODULES={'ovl_pipeline','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization',
+MODULES={'ovl_pipeline','ovl_pipeline.lifecycle_fixture','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization',
          'ovl_pipeline.production_replay','ovl_pipeline.production_record','ovl_pipeline.production_export',
          'ovl_pipeline.runtime_audit','ovl_pipeline.runtime_launch'}
 DETERMINISTIC_ENV={'CUBLAS_WORKSPACE_CONFIG':':4096:8','TOKENIZERS_PARALLELISM':'false','CUDA_VISIBLE_DEVICES':'0',
@@ -60,8 +60,30 @@ def current_launch():
 
 def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=None,execute=subprocess.run,
            interpreter_archive=None,interpreter_sha256=None,interpreter_root=None,progress=None,bytecode_root=None,
-           lease_fd=None,lease_path=None):
+           lease_fd=None,lease_path=None,lifecycle_request=None):
     if module not in MODULES:raise EvidenceError('unsupported audited target module')
+    binding=None
+    if lifecycle_request is not None:
+        from .lifecycle_process import validate,target
+        request=read_json(lifecycle_request);validate(request)
+        selected_module,numerical,audit=target(request)
+        if lease_fd is None or lease_path is None or Path(lifecycle_request)!=Path(lease_path).parent.parent/'request.json':
+            raise EvidenceError('audited lifecycle request is outside its owner lease')
+        raw=request['arguments'];split=raw.index('--');fields=dict(zip(raw[:split:2],raw[1:split:2]))
+        actual={'--lock':str(lock),'--wheels':str(wheels),'--venv':str(venv),'--source':str(source),
+                '--output':str(output),'--module':module,'--interpreter-archive':str(interpreter_archive),
+                '--interpreter-sha256':interpreter_sha256,'--interpreter-root':str(interpreter_root)}
+        expected_generated=read_json(Path(fields.pop('--allowed-generated'))) if '--allowed-generated' in fields else {}
+        expected_arguments=raw[split+1:]
+        recovery=Path(lifecycle_request).parent/'recovery.json'
+        if recovery.exists():
+            state=read_json(recovery)
+            if state['operation']!=digest(request):raise EvidenceError('audited recovery operation differs')
+            if state['resume_recording'] and module=='ovl_pipeline.production_record':expected_arguments=[*expected_arguments,'--resume']
+        if (fields!=actual or selected_module!=module or audit!=output
+                or expected_arguments!=arguments or expected_generated!=(allowed_generated or {})):
+            raise EvidenceError('actual audited launch differs from lifecycle request')
+        binding={'request_sha256':digest(request),'source_sha256':request['source_sha256']}
     if output.exists():raise EvidenceError('launch requires a fresh record and bytecode cache')
     if venv.is_symlink() or source.is_symlink():raise EvidenceError('target environment/source roots must be regular directories')
     venv=venv.resolve(strict=True);source=source.resolve(strict=True)
@@ -109,6 +131,7 @@ def launch(lock,wheels,venv,source,output,module,arguments,*,allowed_generated=N
             'source':str(source),'site':str(site),'pycache_prefix':str(cache),'module':module,'arguments':arguments,
             'allowed_generated':allowed_generated or {},'interpreter_origin':origin,
             'performed_by':'project-operator','production_admission':'NOT_RUN'}
+    if binding is not None:record['lifecycle_binding']=binding
     if lease_fd is not None:
         from .process_safety import identity
         record['lifecycle_parent']=identity(os.getpid())
@@ -153,12 +176,13 @@ def main():
     p.add_argument('--module',required=True,choices=sorted(MODULES));p.add_argument('--allowed-generated',type=Path)
     p.add_argument('--interpreter-archive',type=Path);p.add_argument('--interpreter-sha256');p.add_argument('--interpreter-root',type=Path)
     p.add_argument('--lifecycle-lease-fd',type=int);p.add_argument('--lifecycle-lease-path',type=Path)
+    p.add_argument('--lifecycle-request',type=Path)
     p.add_argument('arguments',nargs=argparse.REMAINDER);a=p.parse_args();args=a.arguments
     if args[:1]==['--']:args=args[1:]
     result=launch(a.lock,a.wheels,a.venv,a.source,a.output,a.module,args,
                   allowed_generated=read_json(a.allowed_generated) if a.allowed_generated else None,
                   interpreter_archive=a.interpreter_archive,interpreter_sha256=a.interpreter_sha256,interpreter_root=a.interpreter_root,
-                  lease_fd=a.lifecycle_lease_fd,lease_path=a.lifecycle_lease_path)
+                  lease_fd=a.lifecycle_lease_fd,lease_path=a.lifecycle_lease_path,lifecycle_request=a.lifecycle_request)
     print('Audited target exited successfully; launch receipt '+digest(result))
 
 if __name__=='__main__':main()

@@ -4,7 +4,9 @@ on:
     branches: [feat/verifiable-wikipedia-pipeline]
     paths:
       - .github/workflows/anchor-production.yml
-      - src/ovl_pipeline/production_*.py
+      # Imported verifier/runtime contracts also affect registration checks.
+      - src/ovl_pipeline/*.py
+      - requirements/preparation.lock
       - requirements/endorsement.*
       - project/production-commitments/**
 permissions:

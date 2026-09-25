@@ -275,7 +275,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("run", "verify"))
     parser.add_argument("--source", type=Path, required=True)
-    parser.add_argument("--run", type=Path, required=True)
+    parser.add_argument("--run", "--output", dest="run", type=Path, required=True)
     parser.add_argument("--through", choices=STAGES, default="close")
     args = parser.parse_args()
     task = FixtureLifecycle(args.source, args.run)

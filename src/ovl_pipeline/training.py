@@ -23,6 +23,7 @@ from .canonical import EvidenceError, canonical, confined, digest, file_hash, in
 from . import schema, phase_timing
 from .data import batches, check_coverage, rows, validate_stream
 from .state import capture, read_state, restore, save_state, state_root, tensor_digest
+from .source_identity import code_root
 
 
 MAX_BOUNDARIES = 4096
@@ -79,12 +80,6 @@ def environment():
             "machine": platform.machine(), "system": platform.system(), "packages": packages,
             "device": "cpu", "tokenizers_parallelism": os.environ.get("TOKENIZERS_PARALLELISM"), "threads": torch.get_num_threads(), "deterministic": torch.are_deterministic_algorithms_enabled(),
             "torch_build": torch.__config__.show()}
-
-
-def code_root():
-    base = Path(__file__).parent
-    return digest([{ "path": "ovl_pipeline/" + p.name, "sha256": file_hash(p)} for p in sorted(base.glob("*.py"))]
-                  + [{"path": "model.py", "sha256": file_hash(base.parent / "model.py")}])
 
 
 def new_optimizer(model, recipe):

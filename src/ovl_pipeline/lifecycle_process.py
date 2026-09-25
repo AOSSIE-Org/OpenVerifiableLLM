@@ -12,6 +12,8 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import sysconfig
+import tempfile
 import time
 
 from .canonical import EvidenceError, canonical, digest, file_hash, read_json, require_digest, write_json
@@ -45,7 +47,7 @@ def target(request):
     if set(fields)-{'--allowed-generated'}!=required:
         raise EvidenceError('complete audited runtime and interpreter origin required')
     module=fields['--module']
-    if module not in {'ovl_pipeline.gpu_pilot','ovl_pipeline.initialization','ovl_pipeline.production_record',
+    if module not in {'ovl_pipeline.lifecycle_fixture','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization','ovl_pipeline.production_record',
                       'ovl_pipeline.production_replay','ovl_pipeline.production_export'}:
         raise EvidenceError('unsupported audited scientific target')
     if inner.count('--output')!=1 or inner.index('--output')==len(inner)-1:
@@ -112,7 +114,7 @@ def validate(request):
                 or type(entry['bytes']) is not int or path.stat().st_size!=entry['bytes']
                 or file_hash(path)!=entry['sha256']):
             raise EvidenceError('workload input bytes differ')
-    from .training import code_root
+    from .source_identity import code_root
     if request['source_sha256'] != code_root():
         raise EvidenceError('workload executing source differs')
     import ovl_pipeline
@@ -120,6 +122,11 @@ def validate(request):
     if Path(ovl_pipeline.__file__).resolve()!=expected.resolve():
         raise EvidenceError('workload checkout import differs')
     target(request)
+    if request['module']=='ovl_pipeline.runtime_launch':
+        args=request['arguments'];split=args.index('--');fields=dict(zip(args[:split:2],args[1:split:2]))
+        for key in ('--lock','--allowed-generated'):
+            if key in fields and fields[key] not in names:
+                raise EvidenceError('audited dependency selection file must be a frozen input: '+key)
 
 
 def observe(directory, request):
@@ -153,12 +160,30 @@ def observe(directory, request):
 
 
 def spawn_supervisor(directory, request, lease, event):
+    cache=Path(tempfile.mkdtemp(prefix='supervisor-cache-',dir=directory))
+    env=parent_environment(request)
     with (directory/'supervisor.log').open('ab') as log:
-        child=subprocess.Popen([sys.executable,'-m','ovl_pipeline.lifecycle_process','supervise',
+        child=subprocess.Popen([sys.executable,'-B','-s','-S','-P','-X','pycache_prefix='+str(cache),
+                                '-m','ovl_pipeline.lifecycle_process','supervise',
                                 '--directory',str(directory),'--operation',digest(request),'--lease',str(lease)],
-                               stdin=subprocess.DEVNULL,stdout=log,stderr=log,pass_fds=(lease,),start_new_session=True)
+                               env=env,stdin=subprocess.DEVNULL,stdout=log,stderr=log,pass_fds=(lease,),start_new_session=True)
     event('submitted')
     return {'status':'submitted','operation':digest(request),'supervisor_pid':child.pid}
+
+
+def parent_environment(request):
+    env=dict(os.environ)
+    for name in list(env):
+        if name.startswith('PYTHON'):del env[name]
+    prefix=Path(sys.executable).absolute().parent.parent
+    # Python 3.12 -S skips venv prefix initialization. Preserve the installation
+    # selected by this executable, rather than accidentally using its base site.
+    site=(prefix/'lib'/('python'+str(sys.version_info.major)+'.'+str(sys.version_info.minor))/'site-packages'
+          if (prefix/'pyvenv.cfg').is_file() else Path(sysconfig.get_path('purelib')))
+    env['PYTHONPATH']=os.pathsep.join((str(Path(request['source_root'])/'src'),str(site)))
+    env['PYTHONDONTWRITEBYTECODE']='1'
+    env['TOKENIZERS_PARALLELISM']='false'
+    return env
 
 
 def submit(directory, request, *, event=lambda _:None):
@@ -204,6 +229,8 @@ def recover(directory, request):
         if read_json(directory/'request.json') != request:
             raise EvidenceError('recovery request differs')
         terminal=directory/'terminal.json'
+        if terminal.exists() and read_json(terminal).get('deadline_expired') is True:
+            raise EvidenceError('recorded workload deadline failure cannot become completion')
         if terminal.exists() and read_json(terminal)['status']=='complete':
             result=read_json(terminal)
             if result['operation']!=digest(request):
@@ -220,7 +247,8 @@ def recover(directory, request):
             if (receipt.get('schema')!='ovl.audited-runtime-process.v1'
                     or receipt.get('launch_sha256')!=digest(launch)
                     or launch['module']!=module or launch['arguments']!=expected_args
-                    or launch['source']!=str(Path(request['source_root'])/'src')):
+                    or launch['source']!=str(Path(request['source_root'])/'src')
+                    or launch.get('lifecycle_binding')!={'request_sha256':digest(request),'source_sha256':request['source_sha256']}):
                 raise EvidenceError('saved audited process completion differs')
             if receipt['exit_code']==0:
                 durable_tree(Path(request['output']));sync_directory(Path(request['output']).parent)
@@ -235,7 +263,7 @@ def recover(directory, request):
             raise EvidenceError('recovery cannot extend original workload deadline')
         recovery=directory/'recovery'/uuid.uuid4().hex
         durable_mkdir(recovery)
-        for name in ('process.json','child.json','terminal.json','stdout.log','stderr.log','supervisor.log','recovery.json'):
+        for name in ('process.json','child.json','terminal.json','stdout.log','stderr.log','supervisor.log'):
             path=directory/name
             if path.exists():
                 with path.open('rb') as f: os.fsync(f.fileno())
@@ -258,6 +286,10 @@ def recover(directory, request):
                 sync_directory(output.parent)
         sync_directory(recovery)
         sync_directory(directory)
+        # Preserve the previous resume interpretation until its replacement is
+        # atomically durable. A crash may otherwise misinterpret the old audit.
+        if (directory/'recovery.json').exists():
+            write_json(recovery/'recovery.json',read_json(directory/'recovery.json'))
         write_json(directory/'recovery.json',{'operation':digest(request),'resume_recording':resume,
                                              'prior_attempt':recovery.name,'replay_from_prover_state':False})
         return spawn_supervisor(directory,request,lease,lambda _:None)
@@ -275,13 +307,12 @@ def supervise(directory, operation, lease):
         raise EvidenceError('supervisor lease descriptor differs')
     fcntl.flock(lease,fcntl.LOCK_EX|fcntl.LOCK_NB)
     write_json(directory/'process.json',process_identity())
-    env=dict(os.environ)
-    env['PYTHONPATH']=str(Path(request['source_root'])/'src')
-    env['TOKENIZERS_PARALLELISM']='false'
+    env=parent_environment(request)
     command=[sys.executable,'-m',request['module'],*request['arguments']]
     module,_,_=target(request)
     if request['module']=='ovl_pipeline.runtime_launch':
-        command[3:3]=['--lifecycle-lease-fd',str(lease),'--lifecycle-lease-path',str(directory/'lease/owner.lock')]
+        command[3:3]=['--lifecycle-lease-fd',str(lease),'--lifecycle-lease-path',str(directory/'lease/owner.lock'),
+                      '--lifecycle-request',str(directory/'request.json')]
     recovery=directory/'recovery.json'
     if recovery.exists():
         chosen=read_json(recovery)
@@ -292,10 +323,14 @@ def supervise(directory, operation, lease):
     # Bind the actual child to this enforcing supervisor. The audited bootstrap
     # repeats that binding for its numerical child, including startup races.
     runner=env.pop('OVL_WORKLOAD_NUMERIC_RUNNER',None)
+    if runner and request['module']=='ovl_pipeline.runtime_launch':
+        raise EvidenceError('audited runtime requires native execution without an injected numeric runner')
     from .process_safety import identity
     wrapper=directory/'numeric-entry.py'
     wrapper.write_text("import runpy\nfrom ovl_pipeline.process_safety import bind_parent\nif __name__ == '__main__':\n    bind_parent("+repr(identity(os.getpid()))+")\n    runpy.run_module("+repr(request['module'])+",run_name='__main__')\n")
-    command=([runner,'run','--python',sys.executable] if runner else [sys.executable])+[str(wrapper),*command[3:]]
+    cache=Path(tempfile.mkdtemp(prefix='wrapper-cache-',dir=directory))
+    native=[sys.executable,'-B','-s','-S','-P','-X','pycache_prefix='+str(cache)]
+    command=([runner,'run','--python',sys.executable] if runner else native)+[str(wrapper),*command[3:]]
     deadline=time.monotonic()+max(0,remaining(directory,request))
     if remaining(directory,request)<=0:
         result={'operation':operation,'status':'failed','exit_code':None,'deadline_expired':True,
@@ -317,6 +352,9 @@ def supervise(directory, operation, lease):
                     os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=5)
                 break
             time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
+        # A suspended supervisor may first observe an exit after the bound.
+        # Without timely exit evidence, do not affirm completion within it.
+        expired=expired or time.time()>=request['deadline'] or time.monotonic()>=deadline
     result={'operation':operation,'status':'failed','exit_code':child.returncode,'deadline_expired':expired,
             'scope':'actual-child-exit-and-byte-inventory-only; scientific validation required','output':None}
     if not expired and child.returncode==0:

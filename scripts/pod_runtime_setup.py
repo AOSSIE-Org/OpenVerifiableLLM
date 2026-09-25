@@ -16,6 +16,7 @@ import stat
 import subprocess
 import sys
 import time
+import tempfile
 import uuid
 
 
@@ -193,6 +194,13 @@ def layout(runtime,output):
     return runtime,output
 
 
+def isolated_install_command(python,module,cache_parent,environment):
+    """Exclude old caches in the parent and pip's delegated interpreter."""
+    cache=tempfile.mkdtemp(prefix='setup-cache-',dir=cache_parent)
+    environment['PYTHONPYCACHEPREFIX']=cache
+    return [str(python),'-I','-B','-X','pycache_prefix='+cache,'-m',module]
+
+
 def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     runtime,output=layout(runtime,output)
     if runtime.exists():raise ValueError('runtime setup requires a fresh tree; preserve partial attempts')
@@ -212,12 +220,12 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     temporary=runtime/'temporary-install';temporary.mkdir(mode=0o700)
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PIP_CONFIG_FILE':'/dev/null',
          'PIP_NO_INDEX':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONDONTWRITEBYTECODE':'1','TMPDIR':str(temporary)}
-    execute([str(python),'-I','-m','venv','--without-pip',str(venv)],env=env,check=True)
+    execute([*isolated_install_command(python,'venv',runtime,env),'--without-pip',str(venv)],env=env,check=True)
     install=output/'offline-install.txt'
     # Use the exact selected local wheels, including Torch's direct-URL lock row.
     # A direct URL in pip's original requirements would bypass --no-index.
     install.write_text(''.join(str(p.resolve())+' --hash=sha256:'+sha(p)+'\n' for p in sorted(wheels.glob('*.whl'))))
-    execute([str(python),'-I','-m','pip','--python',str(venv/'bin/python'),'install','--no-index','--no-deps','--no-compile',
+    execute([*isolated_install_command(python,'pip',runtime,env),'--python',str(venv/'bin/python'),'install','--no-index','--no-deps','--no-compile',
              '--require-hashes','-r',str(install)],env=env,check=True)
     progress('installation')
     installed=verify_installed(manifest,{'site':venv/'lib/python3.12/site-packages','prefix':venv,'scripts':venv/'bin','headers':venv/'include/python3.12'})

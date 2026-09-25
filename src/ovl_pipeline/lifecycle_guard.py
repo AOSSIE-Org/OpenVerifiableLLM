@@ -69,16 +69,19 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
     with exclusive(directory):
         path = directory / "guard.json"
         state = {"intent_sha256": expected, "resource_id": None, "status": "ARMED", "last_observed": None,
+                 "last_observed_monotonic_ms": None,
                  "provisioning_match": None, "resource_seen": False, "deletion_confirmed": False,
                  "boot_id": Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
                  "stop_monotonic_ms": int((monotonic_start+intent['terminate_at']-wall_start)*1000)}
         current_boot = state['boot_id']
         if path.exists():
             state = read_json(path)
-            if set(state) != {"intent_sha256", "resource_id", "status", "last_observed", "provisioning_match", "resource_seen", "deletion_confirmed", "boot_id", "stop_monotonic_ms"} or state["intent_sha256"] != expected:
+            if set(state) != {"intent_sha256", "resource_id", "status", "last_observed", "last_observed_monotonic_ms", "provisioning_match", "resource_seen", "deletion_confirmed", "boot_id", "stop_monotonic_ms"} or state["intent_sha256"] != expected:
                 raise EvidenceError("guard recovery identity mismatch")
             if type(state['stop_monotonic_ms']) is not int or type(state['boot_id']) is not str:
                 raise EvidenceError('invalid persisted guard clock binding')
+            if state['last_observed_monotonic_ms'] is not None and type(state['last_observed_monotonic_ms']) is not int:
+                raise EvidenceError('invalid persisted provider observation clock')
         if state['boot_id'] != current_boot:
             # Elapsed lifetime across a host reboot cannot be reconstructed from
             # this boot's monotonic clock. Close admission and clean up now.
@@ -96,18 +99,32 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 # authorized emergency termination of our verified resource.
                 if state["resource_id"] is None:
                     raise
-        last_success = clock()
+        # Supervision restart does not grant a new provider observation window.
+        # A reboot already forces immediate cleanup using the frozen clock.
+        last_success = (state['last_observed_monotonic_ms']/1000
+                        if state['last_observed_monotonic_ms'] is not None and state['boot_id']==current_boot else monotonic_start)
+        if last_success>monotonic_start:last_success=monotonic_start-observation_window
+        def stop_requested():
+            stop=directory/'stop.json'
+            if not stop.exists():return False
+            if read_json(stop)!={'intent_sha256':expected,'resource_id':state['resource_id']}:
+                raise EvidenceError('conflicting stop identity')
+            return True
         def terminate_current():
-            nonlocal termination_attempted
+            nonlocal termination_attempted,journal_failed
             if termination_attempted:
                 return
             termination_attempted = True
             state['status'] = 'TERMINATING'
+            try:creation_update(directory,expected,close=True)
+            except (OSError,Pending):journal_failed=True
+            save_safety_state()
             try:
                 if provider.terminate(state['resource_id'], deadline=monotonic()+10) is True:
                     state['deletion_confirmed'] = True
             except RetryableRead:
                 pass
+            save_safety_state()
         while True:
             termination_attempted = False
             now = clock()
@@ -127,20 +144,32 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 state['resource_id'] = claim['resource_id']
                 if now >= intent['terminate_at'] and state['status'] != 'TERMINATING':
                     terminate_current()
+            if monotonic()>=last_success+observation_window:
+                try:gate=creation_update(directory,expected,close=True)
+                except (OSError,Pending):
+                    journal_failed=True;gate={**gate,'admission_closed':True}
+                state['status']='TERMINATING'
+                save_safety_state()
+                if state['resource_id'] is not None:terminate_current()
+            if state['resource_id'] is not None and state['status']!='TERMINATING' and stop_requested():
+                terminate_current()
             try:
                 budget = min(10, max(0.01, intent['terminate_at']-now)) if now < intent['terminate_at'] else 10
                 resources = provider.list(deadline=monotonic()+budget)
             except RetryableRead:
                 now = clock()
-                if now >= intent["terminate_at"] and state["resource_id"] is not None:
+                if (now >= intent["terminate_at"] or state['status']=='TERMINATING') and state["resource_id"] is not None:
                     try:
                         provider.terminate(state["resource_id"], deadline=monotonic()+10)
                     except RetryableRead:
                         pass
-                if now >= min(last_success + observation_window, intent["terminate_at"]+120):
+                if monotonic()>=last_success+observation_window or now>=intent['terminate_at']+120:
+                    try:creation_update(directory,expected,close=True)
+                    except (OSError,Pending):journal_failed=True
+                    if state['resource_id'] is not None:terminate_current()
                     raise Pending("guard cannot authenticate current resources; supervised recovery required")
                 next_bound = intent['terminate_at'] if now < intent['terminate_at'] else intent['terminate_at']+120
-                sleep(min(interval, last_success+observation_window-now, next_bound-now))
+                sleep(min(interval, last_success+observation_window-monotonic(), next_bound-now))
                 continue
             if type(resources) is not list:
                 raise EvidenceError("incomplete provider inventory")
@@ -152,8 +181,9 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 if same_id and same_id != matching:
                     raise EvidenceError("known resource identity changed")
             now = clock()
-            last_success = now
+            last_success = monotonic()
             state["last_observed"] = int(now)
+            state['last_observed_monotonic_ms']=int(last_success*1000)
             if matching:
                 resource = matching[0]
                 if (type(resource.get("id")) is not str or not resource["id"]
@@ -167,16 +197,10 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 state["resource_id"] = resource["id"]
                 state['resource_seen'] = True
                 state["provisioning_match"] = all(resource.get(k) == v for k, v in intent["identity"].items())
-                stop = directory / "stop.json"
-                requested = False
-                if stop.exists():
-                    value = read_json(stop)
-                    if value != {"intent_sha256": expected, "resource_id": resource["id"]}:
-                        raise EvidenceError("conflicting stop identity")
-                    requested = True
+                requested = stop_requested()
                 # Proactively terminate at the frozen deadline. The extra 120s
                 # is a billing/observation bound, never an extended run allowance.
-                if requested or now >= intent["terminate_at"] or not state["provisioning_match"] or journal_failed:
+                if state['status']=='TERMINATING' or requested or now >= intent["terminate_at"] or not state["provisioning_match"] or journal_failed:
                     state["status"] = "TERMINATING"
                     save_safety_state()
                     event("termination-intent")
@@ -191,7 +215,7 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 state['status'] = 'RECONCILING' if now >= intent['terminate_at'] else 'ARMED'
                 save_safety_state()
                 event('creation-unresolved')
-            elif state["resource_id"] is not None or (now >= intent["terminate_at"] and gate['admission_closed']):
+            elif state["resource_id"] is not None or gate['admission_closed']:
                 state["status"] = "CLOSED"
                 save_safety_state()
                 if journal_failed:

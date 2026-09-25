@@ -164,6 +164,8 @@ def audited_request(tmp_path):
            '--interpreter-sha256':'a'*64,'--interpreter-root':str(tmp_path/'python')}
     r['module']='ovl_pipeline.runtime_launch'
     r['arguments']=[x for pair in outer.items() for x in pair]+['--','--output',str(root/'result')]
+    lock=Path(outer['--lock']);lock.write_text('synthetic dependency selection; never installed')
+    r['inputs'].append({'path':str(lock),'bytes':lock.stat().st_size,'sha256':file_hash(lock)})
     return r
 
 
@@ -174,7 +176,8 @@ def test_completed_record_reconciles_actual_audit_receipt_without_resuming(tmp_p
     submit(job,r)
     output=Path(r['output']);audit=output/'audit'
     launch={'module':'ovl_pipeline.production_record','arguments':r['arguments'][r['arguments'].index('--')+1:],
-            'source':str(Path(r['source_root'])/'src')}
+            'source':str(Path(r['source_root'])/'src'),
+            'lifecycle_binding':{'request_sha256':digest(r),'source_sha256':r['source_sha256']}}
     write_json(audit/'launch.json',launch)
     write_json(audit/'process.json',{'schema':'ovl.audited-runtime-process.v1','launch_sha256':digest(launch),'exit_code':0})
     write_json(output/'result/record.json',{'scope':'synthetic process protocol fixture; no scientific credit'})
@@ -192,3 +195,93 @@ def test_completed_record_without_execution_receipt_remains_uncertain(tmp_path,m
     submit(job,r);write_json(Path(r['output'])/'result/record.json',{'scope':'synthetic'})
     with pytest.raises(Pending,match='never resume completed'):recover(job,r)
     assert not (job/'terminal.json').exists()
+
+
+def saved_audit(tmp_path,monkeypatch,*,exit_code=0,resumed=False):
+    import ovl_pipeline.lifecycle_process as m
+    r=audited_request(tmp_path);job=tmp_path/'job'
+    monkeypatch.setattr(m,'spawn_supervisor',lambda *args:{'status':'submitted'})
+    submit(job,r);audit=Path(r['output'])/'audit'
+    args=r['arguments'][r['arguments'].index('--')+1:]+(['--resume'] if resumed else [])
+    launch={'module':'ovl_pipeline.production_record','arguments':args,
+            'source':str(Path(r['source_root'])/'src'),
+            'lifecycle_binding':{'request_sha256':digest(r),'source_sha256':r['source_sha256']}}
+    write_json(audit/'launch.json',launch)
+    write_json(audit/'process.json',{'schema':'ovl.audited-runtime-process.v1','launch_sha256':digest(launch),'exit_code':exit_code})
+    return r,job,audit
+
+
+def test_audit_adoption_rejects_different_runtime_request_binding(tmp_path,monkeypatch):
+    r,job,audit=saved_audit(tmp_path,monkeypatch)
+    launch=read_json(audit/'launch.json');launch['lifecycle_binding']['request_sha256']='f'*64
+    write_json(audit/'launch.json',launch)
+    write_json(audit/'process.json',{'schema':'ovl.audited-runtime-process.v1','launch_sha256':digest(launch),'exit_code':0})
+    with pytest.raises(EvidenceError,match='completion differs'):recover(job,r)
+    assert not (job/'terminal.json').exists()
+
+
+def test_zero_target_exit_cannot_erase_observed_deadline_failure(tmp_path,monkeypatch):
+    r,job,audit=saved_audit(tmp_path,monkeypatch)
+    failed={'operation':digest(r),'status':'failed','deadline_expired':True,'exit_code':-15}
+    write_json(job/'terminal.json',failed)
+    with pytest.raises(EvidenceError,match='deadline failure'):recover(job,r)
+    assert read_json(job/'terminal.json')==failed
+
+
+def test_repeated_record_recovery_retains_resume_metadata_during_interruption(tmp_path,monkeypatch):
+    r,job,audit=saved_audit(tmp_path,monkeypatch,exit_code=1,resumed=True)
+    state={'operation':digest(r),'resume_recording':True,'prior_attempt':'prior','replay_from_prover_state':False}
+    write_json(job/'recovery.json',state)
+    write_json(Path(r['output'])/'result/chain.json',{'scope':'synthetic recovery routing only; driver validation remains required'})
+    original=Path.rename
+    def interrupted(path,destination):
+        if path==audit:raise InterruptedError('synthetic audit archive interruption')
+        return original(path,destination)
+    monkeypatch.setattr(Path,'rename',interrupted)
+    with pytest.raises(InterruptedError):recover(job,r)
+    assert read_json(job/'recovery.json')==state
+    monkeypatch.setattr(Path,'rename',original)
+    assert recover(job,r)['status']=='submitted'
+    assert read_json(job/'recovery.json')['resume_recording'] is True
+    assert list((job/'recovery').glob('*/prior-audit/process.json'))
+
+
+def test_detached_supervisor_ignores_old_bytecode_and_caller_path(tmp_path,monkeypatch):
+    import py_compile
+    from ovl_pipeline.lifecycle import exclusive
+    from ovl_pipeline.lifecycle_process import spawn_supervisor
+    source=tmp_path/'source';package=source/'src/ovl_pipeline';package.mkdir(parents=True)
+    (package/'__init__.py').write_text('')
+    marker=tmp_path/'marker';module=package/'lifecycle_process.py'
+    module.write_text('from pathlib import Path\nPath('+repr(str(marker))+').write_text("EVIL")\n')
+    py_compile.compile(str(module),doraise=True,invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+    module.write_text('from pathlib import Path\nPath('+repr(str(marker))+').write_text("CLEAN")\n')
+    env={**os.environ,'PYTHONPATH':str(source/'src')}
+    subprocess.run([sys.executable,'-B','-m','ovl_pipeline.lifecycle_process'],env=env,check=True)
+    assert marker.read_text()=='EVIL';marker.unlink()
+    monkeypatch.delenv('PYTHONPATH',raising=False)
+    job=tmp_path/'job';job.mkdir()
+    with exclusive(job/'lease') as fd:
+        result=spawn_supervisor(job,{'source_root':str(source)},fd,lambda _:None)
+    end=time.time()+10
+    while not marker.exists() and time.time()<end:time.sleep(.02)
+    assert marker.read_text()=='CLEAN'
+    assert not list(job.glob('supervisor-cache-*/**/*.pyc'))
+
+
+def test_late_observed_success_is_not_timely_completion(tmp_path,monkeypatch):
+    import ovl_pipeline.lifecycle_process as m
+    from ovl_pipeline.lifecycle import exclusive
+    r=request(tmp_path);job=tmp_path/'job';job.mkdir();write_json(job/'request.json',r)
+    monkeypatch.setattr(m,'remaining',lambda *args:10)
+    now=[r['deadline']-1];monkeypatch.setattr(m.time,'time',lambda:now[0])
+    class Child:
+        pid=os.getpid();returncode=0
+        def poll(self):return 0
+    def finished_late(*args,**kwargs):
+        now[0]=r['deadline']+1
+        return Child()
+    monkeypatch.setattr(m.subprocess,'Popen',finished_late)
+    with exclusive(job/'lease') as lease:
+        result=m.supervise(job,digest(r),os.dup(lease))
+    assert result['status']=='failed' and result['deadline_expired'] is True and result['exit_code']==0

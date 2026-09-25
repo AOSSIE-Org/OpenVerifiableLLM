@@ -63,6 +63,26 @@ lost. A completed recording without that receipt remains uncertain. It is never
 sent to the recording driver's incomplete-run resume path. Replay restarts from
 initialization; no process receipt permits restoring prover state into replay.
 
+Run the supervisor and audit parent in a separately trusted verifier environment
+with the selected source and the `rfc8785` and `packaging` dependencies. Source
+identity checks do not import Torch or other target numerical packages. The
+audited child alone imports the separately installed numerical runtime.
+`scripts/pod_verifier_setup.py` builds and audits that minimal environment from
+the already selected public interpreter and bootstrap wheels. The synthetic
+fixture also accepts `--output` for execution through this audited launch path.
+Start the initial verifier with `-B -s -S -P`, a newly created
+`-X pycache_prefix=...` directory, and an explicit `PYTHONPATH` containing only
+the selected source and minimal verifier site-packages. Python 3.12 does not add
+the virtual environment's site-packages under `-S`. Detached supervisors and
+audit wrappers preserve these paths and create their own fresh cache prefixes.
+The setup commands also propagate a fresh prefix to pip's delegated interpreter.
+See the [Python startup options](https://docs.python.org/3.12/using/cmdline.html).
+
+Audited lifecycle receipts bind the original complete process request and source
+digest. Recovery retains an observed deadline failure and the prior recording
+resume selection through interrupted archival. Provider guard restarts retain
+the last authenticated observation time; they cannot renew its recovery window.
+
 `lifecycle_runpod` supplies bounded provider inventory, creation and termination
 adapters. REST v2 is used for reads and deletion; the existing GraphQL creation
 contract is retained for its explicit `terminateAfter` field. `lifecycle_storage`

@@ -69,3 +69,23 @@ def test_bootstrap_helper_digest_must_belong_to_its_own_lock_row(tmp_path):
     original=list(sys.path)
     with pytest.raises(ValueError,match='own pure-Python lock row'):m.selected(config,file_hash(config),tmp_path)
     assert sys.path==original
+
+
+def test_setup_and_delegated_python_exclude_unaudited_bytecode(tmp_path):
+    import os,py_compile
+    package=tmp_path/'module';package.mkdir();probe=package/'probe.py'
+    probe.write_text('print("EVIL")\n')
+    py_compile.compile(str(probe),doraise=True,invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+    probe.write_text('print("CLEAN")\n')
+    code='import sys;sys.path.insert(0,'+repr(str(package))+');import probe'
+    plain={k:v for k,v in os.environ.items() if not k.startswith('PYTHON')}
+    before=subprocess.run([sys.executable,'-B','-c',code],env=plain,capture_output=True,text=True,check=True)
+    assert before.stdout.strip()=='EVIL'
+    env={**plain,'PYTHONDONTWRITEBYTECODE':'1'}
+    command=m.isolated_install_command(Path(sys.executable),'venv',tmp_path,env)
+    delegated='import subprocess,sys;subprocess.run([sys.executable,"-c",'+repr(code)+'],check=True)'
+    # Substitute a deterministic probe for the selected stdlib tool, preserving
+    # exactly the setup startup flags and delegated environment.
+    after=subprocess.run([*command[:-2],'-c',delegated],env=env,capture_output=True,text=True,check=True)
+    assert after.stdout.strip()=='CLEAN'
+    assert not list(Path(env['PYTHONPYCACHEPREFIX']).rglob('*.pyc'))

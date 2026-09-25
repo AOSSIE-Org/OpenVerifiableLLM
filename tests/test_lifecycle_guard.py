@@ -298,7 +298,7 @@ def test_reboot_cleanup_time_advances_when_wall_clock_is_behind(tmp_path):
     p=intent(100);now=[0]
     state={'intent_sha256':digest(p),'resource_id':'synthetic','status':'ARMED','last_observed':100,
            'provisioning_match':True,'resource_seen':True,'deletion_confirmed':False,
-           'boot_id':'previous-boot','stop_monotonic_ms':104000}
+           'boot_id':'previous-boot','stop_monotonic_ms':104000,'last_observed_monotonic_ms':100000}
     write_json(tmp_path/'guard.json',state)
     class Provider:
         def list(self,**kwargs):raise RetryableRead('synthetic unavailable')
@@ -307,3 +307,108 @@ def test_reboot_cleanup_time_advances_when_wall_clock_is_behind(tmp_path):
     with pytest.raises(Pending,match='authenticate'):
         supervise(p,digest(p),tmp_path,Provider(),clock=lambda:20,monotonic=lambda:now[0],sleep=sleep,interval=30)
     assert now[0]==120
+
+
+def test_restart_does_not_renew_expired_provider_observation_window(tmp_path):
+    from ovl_pipeline.lifecycle import RetryableRead,Pending
+    p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'}
+    state={'intent_sha256':digest(p),'resource_id':'synthetic','status':'ARMED','last_observed':100,
+           'provisioning_match':True,'resource_seen':True,'deletion_confirmed':False,
+           'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
+    write_json(tmp_path/'guard.json',state)
+    class Provider:
+        calls=[]
+        def list(self,**kwargs):self.calls.append('list');raise RetryableRead('synthetic outage')
+        def terminate(self,ident,**kwargs):
+            assert ident=='synthetic';self.calls.append('delete');return True
+    provider=Provider()
+    with pytest.raises(Pending,match='authenticate'):
+        supervise(p,digest(p),tmp_path,provider,clock=lambda:221,monotonic=lambda:221,
+                  sleep=lambda _:pytest.fail('expired observation window must not restart'))
+    assert 'delete' in provider.calls
+    assert read_json(tmp_path/'guard.json')['status']=='TERMINATING'
+    assert read_json(tmp_path/'guard.json')['last_observed']==100
+
+
+def test_explicit_stop_terminates_known_resource_before_failed_inventory(tmp_path):
+    from ovl_pipeline.lifecycle import RetryableRead,Pending
+    p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'}
+    state={'intent_sha256':digest(p),'resource_id':'synthetic','status':'ARMED','last_observed':100,
+           'provisioning_match':True,'resource_seen':True,'deletion_confirmed':False,
+           'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
+    write_json(tmp_path/'guard.json',state)
+    write_json(tmp_path/'stop.json',{'intent_sha256':digest(p),'resource_id':'synthetic'})
+    class Provider:
+        calls=[]
+        def list(self,**kwargs):self.calls.append('list');raise RetryableRead('synthetic outage')
+        def terminate(self,ident,**kwargs):self.calls.append('delete');return True
+    provider=Provider()
+    def interrupted(_):raise Pending('stop acknowledged; synthetic probe finished')
+    with pytest.raises(Pending):
+        supervise(p,digest(p),tmp_path,provider,clock=lambda:101,monotonic=lambda:101,sleep=interrupted)
+    assert provider.calls[:2]==['delete','list']
+
+
+def test_failed_stale_window_delete_remains_required_after_successful_reads(tmp_path):
+    from ovl_pipeline.lifecycle import RetryableRead
+    p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'};now=[100]
+    class Provider:
+        resources=[{**p['identity'],'id':'synthetic','created_at':100}]
+        deletes=0
+        def list(self,**kwargs):return self.resources
+        def terminate(self,ident,**kwargs):
+            self.deletes+=1
+            if self.deletes==1:raise RetryableRead('first cleanup response unavailable')
+            self.resources=[];return True
+    provider=Provider()
+    def interrupted(event):
+        if event=='armed':raise InterruptedError()
+    with pytest.raises(InterruptedError):
+        supervise(p,digest(p),tmp_path,provider,clock=lambda:now[0],monotonic=lambda:now[0],event=interrupted)
+    now[0]=221
+    def sleep(n):now[0]+=n
+    result=supervise(p,digest(p),tmp_path,provider,clock=lambda:now[0],monotonic=lambda:now[0],sleep=sleep)
+    assert result['status']=='CLOSED' and provider.deletes==2 and now[0]<1000
+    assert read_json(tmp_path/'creation/claim.json')['admission_closed'] is True
+
+
+def test_forward_wall_jump_then_restart_does_not_extend_observation_age(tmp_path):
+    from ovl_pipeline.lifecycle import RetryableRead,Pending
+    p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'};wall=[100];mono=[100]
+    class Provider:
+        unavailable=False;stopped=None
+        def list(self,**kwargs):
+            if self.unavailable:raise RetryableRead('synthetic read outage')
+            return [{**p['identity'],'id':'synthetic','created_at':100}]
+        def terminate(self,ident,**kwargs):
+            if self.stopped is None:self.stopped=mono[0]
+            return True
+    provider=Provider()
+    def interrupted(event):
+        if event=='armed':raise InterruptedError()
+    for w,m in ((100,100),(500,101)):
+        wall[0]=w;mono[0]=m
+        with pytest.raises(InterruptedError):
+            supervise(p,digest(p),tmp_path,provider,clock=lambda:wall[0],monotonic=lambda:mono[0],event=interrupted)
+    assert read_json(tmp_path/'guard.json')['last_observed']==500
+    assert read_json(tmp_path/'guard.json')['last_observed_monotonic_ms']==101000
+    wall[0]=mono[0]=102;provider.unavailable=True
+    def sleep(n):mono[0]+=n;wall[0]+=n
+    with pytest.raises(Pending,match='authenticate'):
+        supervise(p,digest(p),tmp_path,provider,clock=lambda:wall[0],monotonic=lambda:mono[0],sleep=sleep)
+    assert provider.stopped==221
+
+
+def test_expired_observation_closes_unclaimed_admission_before_fresh_empty_read(tmp_path):
+    p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'};now=[100]
+    class Provider:
+        def list(self,**kwargs):return []
+    def interrupted(event):
+        if event=='armed':raise InterruptedError()
+    with pytest.raises(InterruptedError):
+        supervise(p,digest(p),tmp_path,Provider(),clock=lambda:now[0],monotonic=lambda:now[0],event=interrupted)
+    now[0]=221
+    result=supervise(p,digest(p),tmp_path,Provider(),clock=lambda:now[0],monotonic=lambda:now[0],
+                     sleep=lambda _:pytest.fail('closed empty operation must finish'))
+    assert result['status']=='CLOSED'
+    assert read_json(tmp_path/'creation/claim.json')['admission_closed'] is True
