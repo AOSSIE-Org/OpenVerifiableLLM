@@ -69,3 +69,58 @@ def test_bootstrap_helper_digest_must_belong_to_its_own_lock_row(tmp_path):
     original=list(sys.path)
     with pytest.raises(ValueError,match='own pure-Python lock row'):m.selected(config,file_hash(config),tmp_path)
     assert sys.path==original
+
+
+def test_setup_and_delegated_python_exclude_unaudited_bytecode(tmp_path):
+    import os,py_compile
+    package=tmp_path/'module';package.mkdir();probe=package/'probe.py'
+    probe.write_text('print("EVIL")\n')
+    py_compile.compile(str(probe),doraise=True,invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH)
+    probe.write_text('print("CLEAN")\n')
+    code='import sys;sys.path.insert(0,'+repr(str(package))+');import probe'
+    plain={k:v for k,v in os.environ.items() if not k.startswith('PYTHON')}
+    before=subprocess.run([sys.executable,'-B','-c',code],env=plain,capture_output=True,text=True,check=True)
+    assert before.stdout.strip()=='EVIL'
+    env={**plain,'PYTHONDONTWRITEBYTECODE':'1'}
+    command=m.isolated_install_command(Path(sys.executable),'venv',tmp_path,env)
+    delegated='import subprocess,sys;subprocess.run([sys.executable,"-c",'+repr(code)+'],check=True)'
+    # Substitute a deterministic probe for the selected stdlib tool, preserving
+    # exactly the setup startup flags and delegated environment.
+    after=subprocess.run([*command[:-2],'-c',delegated],env=env,capture_output=True,text=True,check=True)
+    assert after.stdout.strip()=='CLEAN'
+    assert not list(Path(env['PYTHONPYCACHEPREFIX']).rglob('*.pyc'))
+
+
+@pytest.mark.parametrize('parent_exits',[False,True])
+def test_install_deadline_reaps_direct_process_and_stops_delegated_group(tmp_path,parent_exits):
+    import os,time,signal
+    marker=tmp_path/'child.pid';helper=tmp_path/'install.py'
+    helper.write_text('''import os,time,signal
+from pathlib import Path
+marker=Path('''+repr(str(marker))+''')
+if os.fork()==0:
+ signal.signal(signal.SIGTERM,signal.SIG_IGN)
+ marker.write_text(str(os.getpid()))
+ while True:time.sleep(1)
+while not marker.exists():time.sleep(.01)
+if '''+repr(parent_exits)+''':raise SystemExit(0)
+while True:time.sleep(1)
+''')
+    started=time.monotonic()
+    try:
+        if parent_exits:
+            assert m.bounded_install([sys.executable,str(helper)],env=os.environ.copy(),deadline=started+2).returncode==0
+        else:
+            with pytest.raises(subprocess.TimeoutExpired):
+                m.bounded_install([sys.executable,str(helper)],env=os.environ.copy(),deadline=started+2)
+        pid=int(marker.read_text());limit=time.monotonic()+3
+        while time.monotonic()<limit:
+            stat=Path('/proc')/str(pid)/'stat'
+            if not stat.exists() or stat.read_text().rsplit(')',1)[1].split()[0]=='Z':break
+            time.sleep(.01)
+        else:raise AssertionError('delegated installation survived cleanup')
+        assert time.monotonic()-started<5
+    finally:
+        if marker.exists():
+            try:os.kill(int(marker.read_text()),signal.SIGKILL)
+            except ProcessLookupError:pass

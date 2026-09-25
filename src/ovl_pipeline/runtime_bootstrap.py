@@ -38,6 +38,9 @@ def bootstrap():
         or record['site']!=str(site) or record['pycache_prefix']!=str(cache)
         or record['module']!=a.module or record['arguments']!=a.arguments):
         raise RuntimeError('launch selection differs from audited parent record')
+    if 'lifecycle_parent' in record:
+        from ovl_pipeline.process_safety import bind_parent
+        bind_parent(record['lifecycle_parent'])
     os.environ['OVL_AUDITED_RUNTIME_LAUNCH']=str(a.launch_record.resolve())
     sys.argv=[a.module]+a.arguments
     runpy.run_module(a.module,run_name='__main__',alter_sys=True)

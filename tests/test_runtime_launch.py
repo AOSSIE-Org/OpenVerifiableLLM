@@ -133,3 +133,63 @@ def test_bytecode_root_symlink_refused_before_target(tmp_path):
     args=setup(tmp_path);root=tmp_path/'bad-cache';root.symlink_to(tmp_path,target_is_directory=True)
     with pytest.raises(EvidenceError,match='bytecode root symlink'):
         runtime_launch.launch(*args,'ovl_pipeline',[],bytecode_root=root,execute=lambda *a,**k:pytest.fail('must not execute'))
+
+
+def test_real_audited_child_inherits_same_exclusive_workload_lease(tmp_path):
+    import fcntl
+    from ovl_pipeline.lifecycle import exclusive
+    args=setup(tmp_path);lease_dir=tmp_path/'owner'
+    with exclusive(lease_dir) as fd:
+        def execute(command,env,check,pass_fds):
+            assert pass_fds==(fd,)
+            # Spawn a real process with exactly the launcher's descriptor handoff.
+            code='import os,sys; fd=int(sys.argv[1]); s=os.fstat(fd); print(str(s.st_dev)+":"+str(s.st_ino))'
+            result=subprocess.run([sys.executable,'-c',code,str(fd)],pass_fds=pass_fds,
+                                  capture_output=True,text=True,check=True)
+            stat=(lease_dir/'owner.lock').stat()
+            assert result.stdout.strip()==str(stat.st_dev)+':'+str(stat.st_ino)
+            return result
+        runtime_launch.launch(*args,'ovl_pipeline',[],execute=execute,lease_fd=fd,lease_path=lease_dir/'owner.lock')
+
+
+def test_incorrect_inherited_lease_refused_before_target(tmp_path):
+    args=setup(tmp_path)
+    with (tmp_path/'wrong').open('w') as f:
+        with pytest.raises(EvidenceError,match='descriptor'):
+            runtime_launch.launch(*args,'ovl_pipeline',[],lease_fd=f.fileno(),lease_path=args[0],
+                                  execute=lambda *a,**k:pytest.fail('must not start'))
+
+
+def test_audited_numerical_child_dies_when_launcher_is_killed(tmp_path):
+    import signal,time
+    from ovl_pipeline.lifecycle_process import live,process_identity
+    from ovl_pipeline.lifecycle import exclusive
+    args=setup(tmp_path);synthetic=tmp_path/'synthetic-source';package=synthetic/'ovl_pipeline';package.mkdir(parents=True)
+    for name in ('runtime_bootstrap.py','process_safety.py'):
+        shutil.copyfile(args[3]/'ovl_pipeline'/name,package/name)
+    (package/'__init__.py').write_text('')
+    ready=tmp_path/'numerical-ready'
+    (package/'__main__.py').write_text('import os,time,signal\nfrom pathlib import Path\nsignal.signal(signal.SIGTERM,signal.SIG_IGN)\nPath('+repr(str(ready))+').write_text(str(os.getpid()))\ntime.sleep(60)\n')
+    helper=tmp_path/'launcher.py'
+    helper.write_text('''from pathlib import Path
+from ovl_pipeline.lifecycle import exclusive
+from ovl_pipeline.runtime_launch import launch
+if __name__=='__main__':
+ with exclusive(Path('''+repr(str(tmp_path/'owner'))+''')) as fd:
+  launch('''+','.join('Path('+repr(str(x))+')' for x in [*args[:3],synthetic,args[4]])+''','ovl_pipeline',[],lease_fd=fd,lease_path=Path('''+repr(str(tmp_path/'owner/owner.lock'))+'''))
+''')
+    with (tmp_path/'parent.log').open('w') as log:
+        parent=subprocess.Popen([sys.executable,str(helper)],stdout=log,stderr=log)
+    selected=None
+    try:
+        end=time.time()+15
+        while not ready.exists() and time.time()<end:time.sleep(.03)
+        assert ready.exists(),(tmp_path/'parent.log').read_text()
+        selected=process_identity(int(ready.read_text()));parent.kill();parent.wait(timeout=5)
+        end=time.time()+5
+        while live(selected) and time.time()<end:time.sleep(.02)
+        assert not live(selected)
+        with exclusive(tmp_path/'owner'):pass
+    finally:
+        if parent.poll() is None:parent.kill();parent.wait(timeout=5)
+        if selected and live(selected):os.kill(selected['pid'],signal.SIGKILL)

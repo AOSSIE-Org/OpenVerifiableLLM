@@ -100,6 +100,35 @@ def copy_anchor(source,destination):
     for name in names:shutil.copyfile(confined(source,name),destination/name)
 
 
+def recover_request_commit(request,clone,name,parent,message,*,execute=command):
+    """Reconcile exact staged bytes or an unrecorded commit before any push."""
+    head=execute(['git','rev-parse','HEAD'],cwd=clone)
+    if head==parent:
+        changed=execute(['git','diff','--cached','--name-only'],cwd=clone)
+        if changed not in ('',name):raise EvidenceError('publisher would commit unrelated changes')
+        if changed and execute(['git','show',':'+name],cwd=clone)!=canonical(request).decode():
+            raise EvidenceError('retained staged request differs from original intent')
+        target=confined(clone,name)
+        if target.exists():
+            if not target.is_file() or file_hash(target)!=digest(request):
+                raise EvidenceError('retained request differs from original intent')
+        else:write_json(target,request)
+        execute(['git','add','--',name],cwd=clone)
+        if execute(['git','status','--porcelain','--untracked-files=all'],cwd=clone)!='A  '+name:
+            raise EvidenceError('publisher checkout contains unrelated changes')
+        execute(['git','-c','user.name=Rajat Roy','-c','user.email=135772548+ryoari@users.noreply.github.com',
+                 'commit','-m',message],cwd=clone,timeout=600)
+        head=execute(['git','rev-parse','HEAD'],cwd=clone)
+    if (not re.fullmatch('[0-9a-f]{40}',head)
+        or file_hash(confined(clone,name))!=digest(request)
+        or execute(['git','show',head+':'+name],cwd=clone)!=canonical(request).decode()
+        or execute(['git','status','--porcelain','--untracked-files=all'],cwd=clone)
+        or execute(['git','rev-list','--parents','-n','1',head],cwd=clone).split()!=[head,parent]
+        or execute(['git','diff-tree','--no-commit-id','--name-status','-r','--no-renames',head],cwd=clone)!='A\t'+name):
+        raise EvidenceError('unrecorded request commit differs from original intent')
+    return head
+
+
 def request_commit(request,r,directory,*,execute=command):
     """Dedicated clone only; never stage the owner's working tree or force-push."""
     from ovl_pipeline.publication_pause import require_publication_open
@@ -119,16 +148,8 @@ def request_commit(request,r,directory,*,execute=command):
     selected=read_json(intent)
     if selected['request_sha256']!=digest(request) or selected['path']!=name:raise EvidenceError('request write intent changed')
     if not saved.exists():
-        head=execute(['git','rev-parse','HEAD'],cwd=clone)
-        if head!=selected['parent']:raise EvidenceError('unrecorded request commit requires read-only reconciliation')
-        target=confined(clone,name)
-        if target.exists():raise EvidenceError('unrecorded staged request requires read-only reconciliation')
-        write_json(target,request);execute(['git','add','--',name],cwd=clone)
-        changed=execute(['git','diff','--cached','--name-only'],cwd=clone)
-        if changed!=name:raise EvidenceError('publisher would commit unrelated changes')
-        execute(['git','-c','user.name=Rajat Roy','-c','user.email=135772548+ryoari@users.noreply.github.com',
-                 'commit','-m',f"Commit public progress boundary {len(request['envelopes'])-1}"],cwd=clone,timeout=600)
-        revision=execute(['git','rev-parse','HEAD'],cwd=clone)
+        revision=recover_request_commit(request,clone,name,selected['parent'],
+            f"Commit public progress boundary {len(request['envelopes'])-1}",execute=execute)
         save_once(saved,{'revision':revision,'request_sha256':digest(request),'path':name})
     record=read_json(saved);revision=record['revision']
     if (record['path']!=name or record['request_sha256']!=digest(request) or not re.fullmatch('[0-9a-f]{40}',revision)

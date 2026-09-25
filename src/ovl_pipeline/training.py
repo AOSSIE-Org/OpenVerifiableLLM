@@ -23,6 +23,7 @@ from .canonical import EvidenceError, canonical, confined, digest, file_hash, in
 from . import schema, phase_timing
 from .data import batches, check_coverage, rows, validate_stream
 from .state import capture, read_state, restore, save_state, state_root, tensor_digest
+from .source_identity import code_root
 
 
 MAX_BOUNDARIES = 4096
@@ -79,12 +80,6 @@ def environment():
             "machine": platform.machine(), "system": platform.system(), "packages": packages,
             "device": "cpu", "tokenizers_parallelism": os.environ.get("TOKENIZERS_PARALLELISM"), "threads": torch.get_num_threads(), "deterministic": torch.are_deterministic_algorithms_enabled(),
             "torch_build": torch.__config__.show()}
-
-
-def code_root():
-    base = Path(__file__).parent
-    return digest([{ "path": "ovl_pipeline/" + p.name, "sha256": file_hash(p)} for p in sorted(base.glob("*.py"))]
-                  + [{"path": "model.py", "sha256": file_hash(base.parent / "model.py")}])
 
 
 def new_optimizer(model, recipe):
@@ -290,10 +285,17 @@ def train(registration, policy, stream_dirs, output: Path, key: SigningKey, *, s
                             else Path(recovery_directory))
                 if recovery.resolve().is_relative_to(output.resolve()):
                     raise EvidenceError("recovery evidence must be outside the training directory")
-                recovery.mkdir(parents=True, exist_ok=True)
+                from .lifecycle import durable_mkdir, sync_directory
+                from .lifecycle_artifacts import durable_tree
+                durable_mkdir(recovery)
                 destination = recovery / (name + "-" + uuid.uuid4().hex)
                 files = inventory(target, [p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()])
-                shutil.move(str(target), str(destination))
+                # Persist original bytes and ancestry before replacing evidence.
+                # Cross-filesystem recovery must not silently become copy/delete.
+                durable_tree(target)
+                target.rename(destination)
+                sync_directory(recovery)
+                sync_directory(target.parent)
                 write_json(recovery / (destination.name + ".json"),
                            {"schema": "ovl.recovery-observation.v1", "scope": "operator-local discarded incomplete checkpoint",
                             "registration": policy.registration_sha256, "original_path": name,

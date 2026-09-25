@@ -12,10 +12,12 @@ import json
 import os
 from pathlib import Path
 import re
+import signal
 import stat
 import subprocess
 import sys
 import time
+import tempfile
 import uuid
 
 
@@ -193,7 +195,31 @@ def layout(runtime,output):
     return runtime,output
 
 
-def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
+def isolated_install_command(python,module,cache_parent,environment):
+    """Exclude old caches in the parent and pip's delegated interpreter."""
+    cache=tempfile.mkdtemp(prefix='setup-cache-',dir=cache_parent)
+    environment['PYTHONPYCACHEPREFIX']=cache
+    return [str(python),'-I','-B','-X','pycache_prefix='+cache,'-m',module]
+
+
+def bounded_install(command,*,env,check=True,deadline):
+    """One original monotonic setup deadline, including delegated pip children."""
+    remaining=deadline-time.monotonic()
+    if remaining<=0:raise subprocess.TimeoutExpired(command,0)
+    child=subprocess.Popen(command,env=env,start_new_session=True)
+    try:
+        result=child.wait(timeout=max(0,deadline-time.monotonic()))
+        if check and result:raise subprocess.CalledProcessError(result,command)
+        return subprocess.CompletedProcess(command,result)
+    finally:
+        # A delegated installer may survive an exited or timed-out direct child.
+        try:os.killpg(child.pid,signal.SIGKILL)
+        except ProcessLookupError:pass
+        child.wait(timeout=5)
+
+
+def setup(config_file,expected,inputs,runtime,output,*,execute=bounded_install,deadline=None):
+    limit=time.monotonic()+max(0,(deadline-time.time()) if deadline is not None else 3600)
     runtime,output=layout(runtime,output)
     if runtime.exists():raise ValueError('runtime setup requires a fresh tree; preserve partial attempts')
     runtime.mkdir(mode=0o700,parents=True);progress=SetupProgress()
@@ -212,13 +238,13 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=subprocess.run):
     temporary=runtime/'temporary-install';temporary.mkdir(mode=0o700)
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(runtime),'PIP_CONFIG_FILE':'/dev/null',
          'PIP_NO_INDEX':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONDONTWRITEBYTECODE':'1','TMPDIR':str(temporary)}
-    execute([str(python),'-I','-m','venv','--without-pip',str(venv)],env=env,check=True)
+    execute([*isolated_install_command(python,'venv',runtime,env),'--without-pip',str(venv)],env=env,check=True,deadline=limit)
     install=output/'offline-install.txt'
     # Use the exact selected local wheels, including Torch's direct-URL lock row.
     # A direct URL in pip's original requirements would bypass --no-index.
     install.write_text(''.join(str(p.resolve())+' --hash=sha256:'+sha(p)+'\n' for p in sorted(wheels.glob('*.whl'))))
-    execute([str(python),'-I','-m','pip','--python',str(venv/'bin/python'),'install','--no-index','--no-deps','--no-compile',
-             '--require-hashes','-r',str(install)],env=env,check=True)
+    execute([*isolated_install_command(python,'pip',runtime,env),'--python',str(venv/'bin/python'),'install','--no-index','--no-deps','--no-compile',
+             '--require-hashes','-r',str(install)],env=env,check=True,deadline=limit)
     progress('installation')
     installed=verify_installed(manifest,{'site':venv/'lib/python3.12/site-packages','prefix':venv,'scripts':venv/'bin','headers':venv/'include/python3.12'})
     write_json(output/'installed-audit.json',installed);progress('installed')
@@ -244,14 +270,14 @@ def audited(config_file,expected,inputs,runtime,output,module,arguments):
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('action',choices=['setup','launch'])
     for name in ('config','inputs','runtime','output'):p.add_argument('--'+name,required=True,type=Path)
-    p.add_argument('--config-sha256',required=True);p.add_argument('--module')
+    p.add_argument('--config-sha256',required=True);p.add_argument('--module');p.add_argument('--deadline',type=int)
     raw=sys.argv[1:];split=raw.index('--') if '--' in raw else len(raw)
     a=p.parse_args(raw[:split]);args=raw[split+1:]
     if not(sys.flags.isolated and sys.flags.no_site):p.exit(1,'bootstrap requires -I -S\n')
     try:
         if a.action=='setup':
             if a.module or args:raise ValueError('setup takes no target command')
-            result=setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output)
+            result=setup(a.config,a.config_sha256,a.inputs,a.runtime,a.output,deadline=a.deadline)
         else:
             if not a.module:raise ValueError('launch requires selected module')
             result=audited(a.config,a.config_sha256,a.inputs,a.runtime,a.output,a.module,args)

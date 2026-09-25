@@ -21,7 +21,7 @@ from ovl_pipeline.production_commitment import validate_request,verify_code
 from ovl_pipeline.production_identity import PRODUCTION_WORKFLOW,ProductionPublisherPolicy
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.source_commitment import REF
-from publish_progress_boundary import command,deadline_command,save_once,published
+from publish_progress_boundary import command,deadline_command,save_once,published,recover_request_commit
 from publish_evidence_archive import REPO
 
 BRANCH=REF.removeprefix('refs/heads/')
@@ -53,16 +53,8 @@ def request_commit(request,r,directory,*,execute=command):
     selected=read_json(intent)
     if selected['request_sha256']!=digest(request) or selected['path']!=name:raise EvidenceError('request write intent changed')
     if not saved.exists():
-        head=execute(['git','rev-parse','HEAD'],cwd=clone)
-        if head!=selected['parent']:raise EvidenceError('unrecorded request commit requires read-only reconciliation')
-        target=confined(clone,name)
-        if target.exists():raise EvidenceError('unrecorded staged request requires read-only reconciliation')
-        write_json(target,request);execute(['git','add','--',name],cwd=clone)
-        changed=execute(['git','diff','--cached','--name-only'],cwd=clone)
-        if changed!=name:raise EvidenceError('publisher would commit unrelated changes')
-        execute(['git','-c','user.name=Rajat Roy','-c','user.email=135772548+ryoari@users.noreply.github.com',
-                 'commit','-m','Commit public production registration'],cwd=clone,timeout=600)
-        revision=execute(['git','rev-parse','HEAD'],cwd=clone)
+        revision=recover_request_commit(request,clone,name,selected['parent'],
+            'Commit public production registration',execute=execute)
         save_once(saved,{'revision':revision,'request_sha256':digest(request),'path':name})
     record=read_json(saved);revision=record['revision']
     if (record['path']!=name or record['request_sha256']!=digest(request) or not re.fullmatch('[0-9a-f]{40}',revision)
