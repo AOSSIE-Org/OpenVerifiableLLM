@@ -14,6 +14,17 @@ PASS = "PASS"
 FAIL = "FAIL"
 SKIP = "SKIP"
 
+# The signer we expect is pinned here rather than read from the artifact: a
+# manifest travels inside the directory it describes, so it must not be allowed
+# to name its own signer. Published artifacts are signed by the repository's
+# publish workflow through GitHub OIDC; forks and one-off publishers override
+# with --identity / OVLLM_EXPECTED_IDENTITY.
+EXPECTED_IDENTITY_PROVIDER = "https://token.actions.githubusercontent.com"
+EXPECTED_IDENTITY_PREFIX = (
+    "https://github.com/AOSSIE-Org/OpenVerifiableLLM"
+    "/.github/workflows/publish-verified-model.yml@refs/"
+)
+
 
 @dataclass
 class CheckResult:
@@ -183,11 +194,19 @@ def check_artifact_hashes(model_dir: Path, manifest: Dict[str, Any]) -> List[Che
     return results
 
 
+def _identity_is_trusted(identity: str, expected: Optional[str]) -> bool:
+    if expected:
+        return identity == expected
+    return identity.startswith(EXPECTED_IDENTITY_PREFIX)
+
+
 def check_sigstore_bundle(
     model_dir: Path,
     manifest: Dict[str, Any],
     *,
     allow_unsigned: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_identity_provider: Optional[str] = None,
 ) -> CheckResult:
     # Resolve symlinks in the base directory up front
     model_dir = Path(model_dir).resolve()
@@ -204,14 +223,40 @@ def check_sigstore_bundle(
     # Resolve symlinks for the specific signature file path
     signature_path = signature_path.resolve()
 
+    # A bundle that is present but carries no usable signer metadata is red:
+    # --allow-unsigned covers an artifact that was never signed, nothing more.
     identity = manifest.get("sigstore_identity")
     provider = manifest.get("sigstore_identity_provider")
-    if not identity or not provider:
-        status = SKIP if allow_unsigned else FAIL
+    if not all(isinstance(field, str) and field for field in (identity, provider)):
         return CheckResult(
             "sigstore_bundle",
-            status,
-            "signature present, but manifest lacks sigstore_identity/provider",
+            FAIL,
+            "signature present, but manifest lacks a usable sigstore_identity/provider",
+        )
+
+    # A signature from the wrong signer is red even under --allow-unsigned,
+    # which only ever covered a bundle that is absent entirely.
+    expected_identity = expected_identity or os.environ.get("OVLLM_EXPECTED_IDENTITY")
+    expected_provider = (
+        expected_identity_provider
+        or os.environ.get("OVLLM_EXPECTED_IDENTITY_PROVIDER")
+        or EXPECTED_IDENTITY_PROVIDER
+    )
+    if provider != expected_provider:
+        return CheckResult(
+            "sigstore_bundle",
+            FAIL,
+            "manifest names an untrusted Sigstore identity provider",
+            expected=expected_provider,
+            actual=provider,
+        )
+    if not _identity_is_trusted(identity, expected_identity):
+        return CheckResult(
+            "sigstore_bundle",
+            FAIL,
+            "manifest names an untrusted Sigstore signer identity",
+            expected=expected_identity or f"{EXPECTED_IDENTITY_PREFIX}*",
+            actual=identity,
         )
 
     # Verify model_signing is installed in the active python environment
@@ -238,7 +283,7 @@ def check_sigstore_bundle(
         "--identity",
         identity,
         "--identity_provider",
-        provider,
+        expected_provider,
         "--allow_symlinks",
     ]
     try:
@@ -305,6 +350,8 @@ def verify_model_reference(
     cache_dir: Optional[str] = None,
     allow_unsigned: bool = False,
     skip_replay: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_identity_provider: Optional[str] = None,
 ) -> List[CheckResult]:
     model_dir = resolve_model_reference(ref, cache_dir=cache_dir)
     manifest = load_manifest(model_dir)
@@ -314,7 +361,15 @@ def verify_model_reference(
     ]
     results.extend(check_artifact_hashes(model_dir, manifest))
     results.append(check_segment_replay(manifest, skip_replay=skip_replay))
-    results.append(check_sigstore_bundle(model_dir, manifest, allow_unsigned=allow_unsigned))
+    results.append(
+        check_sigstore_bundle(
+            model_dir,
+            manifest,
+            allow_unsigned=allow_unsigned,
+            expected_identity=expected_identity,
+            expected_identity_provider=expected_identity_provider,
+        )
+    )
     return results
 
 

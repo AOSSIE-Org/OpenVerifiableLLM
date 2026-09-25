@@ -13,6 +13,8 @@ def _verify(args) -> int:
             cache_dir=args.cache_dir,
             allow_unsigned=args.allow_unsigned,
             skip_replay=args.skip_replay,
+            expected_identity=args.identity,
+            expected_identity_provider=args.identity_provider,
         )
     except Exception as exc:
         print(f"[FAIL] verifier_error - {exc}")
@@ -56,6 +58,12 @@ def main(argv=None) -> int:
     verify.add_argument("--allow-unsigned", action="store_true",
                         help="treat a missing Sigstore bundle as SKIP instead of FAIL")
     verify.add_argument("--skip-replay", action="store_true")
+    verify.add_argument("--identity", default=None,
+                        help="required Sigstore signer identity "
+                             "(default: this repository's publish workflow)")
+    verify.add_argument("--identity-provider", dest="identity_provider", default=None,
+                        help="required Sigstore identity provider URL "
+                             "(default: GitHub Actions OIDC)")
     verify.set_defaults(func=_verify)
 
     prep = sub.add_parser("prepare-publish", help="build a publishable model directory")

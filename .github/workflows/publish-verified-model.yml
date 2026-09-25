@@ -70,7 +70,14 @@ jobs:
             --use-ambient-credentials
 
       - name: Verify signed artifact
-        run: ovllm verify dist/gpt10m-shakespeare --skip-replay
+        env:
+          SIGSTORE_IDENTITY: "https://github.com/${{ github.repository }}/.github/workflows/publish-verified-model.yml@${{ github.ref }}"
+          SIGSTORE_IDENTITY_PROVIDER: "https://token.actions.githubusercontent.com"
+        run: |
+          ovllm verify dist/gpt10m-shakespeare \
+            --skip-replay \
+            --identity "$SIGSTORE_IDENTITY" \
+            --identity-provider "$SIGSTORE_IDENTITY_PROVIDER"
 
       - name: Upload signed model directory
         uses: actions/upload-artifact@v4
