@@ -135,6 +135,16 @@ def test_cumulative_billing_is_not_added_twice():
             reconcile_billing(caps, first["by_resource"], bad)
 
 
+@pytest.mark.parametrize('bad', [0.1, 1, True, None, 'NaN', 'sNaN', 'Infinity', '-0.1', 'invalid'])
+@pytest.mark.parametrize('position', ['ceiling', 'previous', 'row'])
+def test_billing_requires_finite_nonnegative_decimal_strings(bad, position):
+    caps = [{'id': 'synthetic', 'ceiling': bad if position == 'ceiling' else '1.20'}]
+    previous = {'synthetic': bad} if position == 'previous' else {}
+    rows = [{'id': 'synthetic', 'cumulative': bad}] if position == 'row' else []
+    with pytest.raises(EvidenceError, match='billing'):
+        reconcile_billing(caps, previous, rows)
+
+
 def launch(script, *args):
     # CI uses its native project interpreter. Local callers may supply the
     # installed numeric scheduler as an argv prefix, preserving this interpreter.

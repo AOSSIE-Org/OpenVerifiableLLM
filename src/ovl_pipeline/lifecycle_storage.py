@@ -6,18 +6,54 @@ transport never supplies publisher trust, signing or scientific acceptance.
 """
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from contextlib import ExitStack
 import hashlib
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import tempfile
 
 from .canonical import EvidenceError, confined, digest, require_digest, verify_inventory
-from .lifecycle import Observation
+from .lifecycle import Observation, RetryableRead
 from .lifecycle_artifacts import check_snapshot, durable_tree
+
+
+def read_provider(call, *args, **kwargs):
+    """Retry only identified read failures; authentication/TLS remain failures."""
+    transient = (TimeoutError, ConnectionError)
+    tls = (ssl.SSLError,)
+    try:
+        import requests
+        transient += (requests.exceptions.Timeout, requests.exceptions.ConnectionError)
+        tls += (requests.exceptions.SSLError,)
+    except ImportError:
+        pass
+    try:
+        import httpx
+        transient += (httpx.TimeoutException, httpx.NetworkError)
+    except ImportError:
+        pass
+    try:
+        return call(*args, **kwargs)
+    except Exception as exc:
+        causes, current = set(), exc
+        while current is not None and id(current) not in causes:
+            causes.add(id(current))
+            if isinstance(current, tls):
+                raise EvidenceError('publication TLS validation failed') from None
+            current = current.__cause__ or current.__context__
+        response = getattr(exc, 'response', None)
+        status = getattr(response, 'status_code', None)
+        if status in (401, 403):
+            raise EvidenceError('publication authentication or authorization rejected') from None
+        if status == 429 or (type(status) is int and 500 <= status <= 599):
+            raise RetryableRead('publication provider temporarily unavailable') from None
+        if isinstance(exc, transient):
+            raise RetryableRead('publication read transport unavailable') from None
+        raise
 
 
 def verify_git_parent(request, revision, cache):
@@ -28,9 +64,21 @@ def verify_git_parent(request, revision, cache):
         env = {k: os.environ[k] for k in ('PATH', 'SYSTEMROOT') if k in os.environ}
         env.update(HOME=temporary, GIT_CONFIG_NOSYSTEM='1', GIT_TERMINAL_PROMPT='0', GIT_LFS_SKIP_SMUDGE='1')
         def git(*args):
-            result = subprocess.run(['git', *args], cwd=root, env=env, stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE, timeout=60, check=False)
+            try:
+                result = subprocess.run(['git', *args], cwd=root, env=env, stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE, timeout=60, check=False)
+            except subprocess.TimeoutExpired:
+                if args[0] == 'fetch':
+                    raise RetryableRead('anonymous publication ancestry read timed out') from None
+                raise EvidenceError('local publication ancestry command timed out') from None
             if result.returncode:
+                reason = result.stderr.lower()
+                known = (b'connection timed out', b'operation timed out', b'connection reset',
+                         b'temporary failure in name resolution', b'could not resolve host',
+                         b'requested url returned error: 429')
+                if args[0] == 'fetch' and (any(x in reason for x in known)
+                        or re.search(rb'requested url returned error: 5[0-9]{2}', reason)):
+                    raise RetryableRead('anonymous publication ancestry read unavailable')
                 raise EvidenceError('anonymous publication ancestry fetch failed')
             return result.stdout
         git('init', '--bare', '--quiet')
@@ -59,7 +107,12 @@ def validate_request(request):
         if set(e) != {"path", "bytes", "sha256"} or type(e["bytes"]) is not int or e["bytes"] < 0:
             raise EvidenceError("invalid publication inventory entry")
         require_digest(e["sha256"])
-        confined(Path.cwd(), e["path"])
+        name = e['path']
+        if type(name) is not str or '\\' in name or '\x00' in name:
+            raise EvidenceError('invalid inventory path')
+        path = PurePosixPath(name)
+        if path.is_absolute() or not path.parts or any(x in ('.', '..') for x in name.split('/')) or str(path) != name:
+            raise EvidenceError('noncanonical or escaping inventory path')
 
 
 def download_files(request, revision, prefix, output, cache, *, download=None):
@@ -77,7 +130,7 @@ def download_files(request, revision, prefix, output, cache, *, download=None):
         download = hf_hub_download
     output.mkdir(parents=True)
     for entry in request["files"]:
-        fetched = Path(download(repo_id=request["repo_id"], repo_type=request["repo_type"], revision=revision,
+        fetched = Path(read_provider(download, repo_id=request["repo_id"], repo_type=request["repo_type"], revision=revision,
                                filename=prefix+"/"+entry["path"], cache_dir=str(cache), token=False,
                                force_download=True))
         target = confined(output, entry["path"])
@@ -110,12 +163,12 @@ class PublishObjects:
     def observe(self, operation, request):
         validate_request(request)
         require_digest(operation)
-        info = self.api.repo_info(request["repo_id"], repo_type=request["repo_type"], token=False)
+        info = read_provider(self.api.repo_info, request["repo_id"], repo_type=request["repo_type"], token=False)
         head = info.sha
         if not re.fullmatch("[0-9a-f]{40}", head):
             raise EvidenceError("provider omitted immutable revision")
         prefix = "objects/"+operation
-        commits = self.api.list_repo_commits(request["repo_id"], repo_type=request["repo_type"], revision=head, token=False)
+        commits = read_provider(self.api.list_repo_commits, request["repo_id"], repo_type=request["repo_type"], revision=head, token=False)
         matched = [c.commit_id for c in commits if c.title == "Publish content "+operation]
         if len(matched) > 1:
             raise EvidenceError("multiple commits claim the same publication operation")
@@ -124,7 +177,7 @@ class PublishObjects:
             raise EvidenceError("invalid publication commit identity")
         # A complete listing is required. An absent prefix never proves that an
         # uncertain commit was not accepted; the Journal retains sent status.
-        names = self.api.list_repo_files(request["repo_id"], repo_type=request["repo_type"], revision=revision, token=False)
+        names = read_provider(self.api.list_repo_files, request["repo_id"], repo_type=request["repo_type"], revision=revision, token=False)
         found = sorted(n for n in names if n.startswith(prefix+"/"))
         if not found:
             if matched:
@@ -178,7 +231,7 @@ class PublishObjects:
         if not re.fullmatch('[0-9a-f]{40}', revision):
             raise EvidenceError('invalid recorded publication revision')
         self.parent_check(request, revision, self.cache)
-        names = self.api.list_repo_files(request['repo_id'], repo_type=request['repo_type'], revision=revision, token=False)
+        names = read_provider(self.api.list_repo_files, request['repo_id'], repo_type=request['repo_type'], revision=revision, token=False)
         prefix = 'objects/'+operation+'/'
         if sorted(n for n in names if n.startswith(prefix)) != sorted(prefix+e['path'] for e in request['files']):
             raise EvidenceError('immutable publication inventory differs')

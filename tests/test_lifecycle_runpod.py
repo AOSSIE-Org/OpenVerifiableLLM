@@ -138,3 +138,37 @@ def test_pagination_shares_one_total_deadline(monkeypatch):
     with pytest.raises(RetryableRead,match='total deadline'):
         provider.pods()
     assert len(opener.requests)==2
+
+
+@pytest.mark.parametrize('method,error', [('GET', RetryableRead), ('DELETE', RetryableRead), ('POST', Pending)])
+def test_late_inline_response_preserves_mutation_uncertainty(monkeypatch, method, error):
+    import ovl_pipeline.lifecycle_runpod as transport
+    ticks = [100.0]
+    monkeypatch.setattr(transport.time, 'monotonic', lambda: ticks[0])
+    class Late(Opener):
+        def open(self, request, timeout):
+            ticks[0] += 2
+            return super().open(request, timeout)
+    opener = Late([{}])
+    with pytest.raises(error):
+        Runpod('synthetic-value', opener=opener, timeout=1).request(method, '/synthetic')
+    assert len(opener.requests) == 1
+
+
+@pytest.mark.parametrize('missing', ['gpu', 'image', 'disk', 'mounts', 'cloud', 'dataCenterId'])
+def test_malformed_observation_retains_resource_identity_for_cleanup(tmp_path, monkeypatch, missing):
+    import ovl_pipeline.lifecycle_runpod as transport
+    pod = {'id': 'synthetic-id', 'name': 'synthetic-name', 'createdAt': '2026-01-01T00:00:00Z',
+           'gpu': None, 'image': 'synthetic', 'disk': 20, 'mounts': {}, 'cloud': 'SECURE', 'dataCenterId': 'synthetic'}
+    if missing != 'gpu':
+        pod['gpu'] = {'id': 'NVIDIA GeForce RTX 5090', 'count': 1}
+        del pod[missing]
+    accepted = []
+    monkeypatch.setattr(transport, 'creation_update', lambda *args, **kw: accepted.append(kw['accepted']))
+    adapter = object.__new__(CreatePod)
+    adapter.provider = type('Provider', (), {'pods': lambda self: [pod]})()
+    adapter.directory, adapter.expected = tmp_path, 'b'*64
+    adapter.selected = lambda request: {'name': 'synthetic-name'}
+    with pytest.raises(EvidenceError, match='required pod fields'):
+        adapter.observe('a'*64, {})
+    assert accepted == [('a'*64, {}, 'synthetic-id')]

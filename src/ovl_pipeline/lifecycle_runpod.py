@@ -72,7 +72,9 @@ class Runpod:
         if not self._isolated:
             result = self._request_inline(method, path, body)
             if time.monotonic() >= end:
-                raise RetryableRead('provider total deadline expired')
+                if method in ('GET', 'DELETE'):
+                    raise RetryableRead('provider total deadline expired')
+                raise Pending('creation response uncertain; reconcile original identity')
             return result
         context = multiprocessing.get_context('spawn')
         receive, send = context.Pipe(duplex=False)
@@ -264,7 +266,12 @@ class CreatePod:
         if not matches:
             return Observation("absent")  # No proof an uncertain create was rejected.
         x = matches[0]
+        if type(x.get('id')) is not str or not x['id']:
+            raise EvidenceError('provider omitted original resource ID')
         creation_update(self.directory, self.expected, accepted=(operation, request, x['id']))
+        if (not {'createdAt', 'cloud', 'image', 'disk', 'dataCenterId', 'mounts'} <= set(x)
+                or type(x.get('gpu')) is not dict or type(x['createdAt']) is not str):
+            raise EvidenceError('provider omitted required pod fields')
         result = {"operation": operation, "id": x["id"], "name": x["name"],
                   "created_at": x["createdAt"], "gpu": x.get("gpu", {}).get("id"),
                   "gpu_count": x.get("gpu", {}).get("count"), "cloud": x["cloud"],
@@ -282,7 +289,10 @@ class CreatePod:
         expected_mount = {"network": [{"volumeId": p["networkVolumeId"], "path": p["volumeMountPath"]}]}
         if result.get("mounts") != expected_mount:
             raise EvidenceError("created resource storage differs from request")
-        created = datetime.fromisoformat(result["created_at"].replace("Z", "+00:00"))
+        try:
+            created = datetime.fromisoformat(result["created_at"].replace("Z", "+00:00"))
+        except (KeyError, AttributeError, TypeError, ValueError):
+            raise EvidenceError('invalid resource creation timestamp') from None
         if created.tzinfo is None or not self.intent["created_not_before"] <= created.timestamp() < self.intent["terminate_at"]:
             raise EvidenceError("created resource timestamp differs from original operation")
 

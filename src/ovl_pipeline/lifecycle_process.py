@@ -346,10 +346,14 @@ def supervise(directory, operation, lease):
         while child.poll() is None:
             if time.time()>=request['deadline'] or time.monotonic()>=deadline:
                 expired=True
-                os.killpg(child.pid,signal.SIGTERM)
+                try:os.killpg(child.pid,signal.SIGTERM)
+                except ProcessLookupError:pass
                 try:child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid,signal.SIGKILL);child.wait(timeout=5)
+                except subprocess.TimeoutExpired:pass
+                # The group can outlive its direct child after SIGTERM.
+                try:os.killpg(child.pid,signal.SIGKILL)
+                except ProcessLookupError:pass
+                child.wait(timeout=5)
                 break
             time.sleep(min(0.25,max(0.01,deadline-time.monotonic())))
         # A suspended supervisor may first observe an exit after the bound.

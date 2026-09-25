@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import fcntl
 import os
 from pathlib import Path
@@ -210,6 +210,18 @@ class Journal:
         raise Pending("operation deadline reached; independent shutdown guard must reconcile")
 
 
+def billing_amount(value):
+    if type(value) is not str:
+        raise EvidenceError("billing amounts must be decimal strings")
+    try:
+        amount = Decimal(value)
+    except InvalidOperation:
+        raise EvidenceError("invalid billing amount") from None
+    if not amount.is_finite() or amount < 0:
+        raise EvidenceError("invalid billing amount")
+    return amount
+
+
 def reconcile_billing(resources: list[dict], previous: dict, rows: list[dict]):
     """Cumulative snapshots replace prior amounts; each resource retains its cap.
 
@@ -219,17 +231,17 @@ def reconcile_billing(resources: list[dict], previous: dict, rows: list[dict]):
     ceilings = {}
     for item in resources:
         ident = item["id"]
-        upper = Decimal(item["ceiling"])
-        if ident in ceilings or not upper.is_finite() or upper < 0:
+        upper = billing_amount(item["ceiling"])
+        if ident in ceilings:
             raise EvidenceError("invalid or duplicate resource ceiling")
         ceilings[ident] = upper
-    amounts = {k: Decimal(v) for k, v in previous.items()}
+    amounts = {k: billing_amount(v) for k, v in previous.items()}
     if set(amounts) - set(ceilings):
         raise EvidenceError("unattributed billing baseline")
     seen = set()
     for row in rows:
-        ident, value = row["id"], Decimal(row["cumulative"])
-        if ident not in ceilings or ident in seen or not value.is_finite() or value < amounts.get(ident, 0):
+        ident, value = row["id"], billing_amount(row["cumulative"])
+        if ident not in ceilings or ident in seen or value < amounts.get(ident, 0):
             raise EvidenceError("unattributed, duplicate or decreasing bill")
         seen.add(ident)
         amounts[ident] = value

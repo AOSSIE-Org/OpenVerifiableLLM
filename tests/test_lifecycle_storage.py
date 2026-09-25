@@ -148,3 +148,74 @@ def test_matching_payload_with_wrong_parent_is_not_adopted(tmp_path):
     hub.parents['f'*40]=None
     with pytest.raises(EvidenceError,match='parent differs'):
         adapter.observe('a'*64, request)
+
+
+def test_request_validation_is_independent_of_working_directory(tmp_path, monkeypatch):
+    from ovl_pipeline.lifecycle_storage import validate_request
+    payload, request = fixture(tmp_path)
+    cwd = tmp_path/'unrelated'; cwd.mkdir()
+    (cwd/'model.txt').symlink_to(payload/'model.txt')
+    monkeypatch.chdir(cwd)
+    validate_request(request)
+    (payload/'model.txt').unlink()
+    (payload/'model.txt').symlink_to(cwd)
+    with pytest.raises(EvidenceError, match='symlink'):
+        PublishObjects(payload, tmp_path/'downloads', tmp_path/'cache', lambda *_:None, api=Hub()).submit('a'*64, request)
+
+
+def test_transient_publication_observation_recovers_without_duplicate_commit(tmp_path):
+    from ovl_pipeline.lifecycle import RetryableRead
+    from requests import Response
+    from requests.exceptions import HTTPError
+    payload, request = fixture(tmp_path)
+    hub = Hub(); original = hub.repo_info; calls = []
+    def flaky(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            response = Response(); response.status_code = 503
+            raise HTTPError(response=response)
+        return original(*args, **kwargs)
+    hub.repo_info = flaky
+    adapter = PublishObjects(payload,tmp_path/'downloads',tmp_path/'cache',lambda *_:None,
+                             api=hub,download=hub.download,parent_check=hub.parent_check)
+    ticks = [100]
+    def wait(seconds):ticks[0] += seconds
+    with exclusive(tmp_path/'private'):
+        result = Journal(tmp_path/'private',{}).effect('publish',request,adapter,deadline=120,
+                                                      clock=lambda:ticks[0],sleep=wait)
+    assert result['revision'] == '1'*40 and hub.calls == 1 and ticks[0] == 101
+
+
+@pytest.mark.parametrize('kind', ['authentication', 'tls', 'unknown'])
+def test_publication_read_does_not_retry_authentication_tls_or_unknown_errors(kind):
+    from ovl_pipeline.lifecycle import RetryableRead
+    from ovl_pipeline.lifecycle_storage import read_provider
+    from requests import Response
+    from requests.exceptions import HTTPError, SSLError
+    response = Response(); response.status_code = 403
+    error = {'authentication':HTTPError(response=response), 'tls':SSLError('synthetic'),
+             'unknown':ValueError('synthetic')}[kind]
+    def failed():raise error
+    with pytest.raises(Exception) as caught:
+        read_provider(failed)
+    assert not isinstance(caught.value, RetryableRead)
+    assert isinstance(caught.value, ValueError if kind == 'unknown' else EvidenceError)
+
+
+@pytest.mark.parametrize('failure,retryable', [('timeout',True), ('503',True), ('403',False), ('certificate',False)])
+def test_git_parent_fetch_classifies_only_known_transient_reads(tmp_path, monkeypatch, failure, retryable):
+    import subprocess
+    import ovl_pipeline.lifecycle_storage as storage
+    from ovl_pipeline.lifecycle import RetryableRead
+    _, request = fixture(tmp_path)
+    def run(command, **kwargs):
+        if command[1] == 'fetch':
+            if failure == 'timeout':raise subprocess.TimeoutExpired(command,60)
+            reason = {'503':b'fatal: The requested URL returned error: 503',
+                      '403':b'fatal: The requested URL returned error: 403',
+                      'certificate':b'fatal: server certificate verification failed'}[failure]
+            return subprocess.CompletedProcess(command,1,b'',reason)
+        return subprocess.CompletedProcess(command,0,b'',b'')
+    monkeypatch.setattr(storage.subprocess,'run',run)
+    with pytest.raises(RetryableRead if retryable else EvidenceError):
+        storage.verify_git_parent(request,'a'*40,tmp_path/'cache')

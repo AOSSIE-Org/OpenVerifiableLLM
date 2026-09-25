@@ -285,3 +285,41 @@ def test_late_observed_success_is_not_timely_completion(tmp_path,monkeypatch):
     with exclusive(job/'lease') as lease:
         result=m.supervise(job,digest(r),os.dup(lease))
     assert result['status']=='failed' and result['deadline_expired'] is True and result['exit_code']==0
+
+
+def test_deadline_kills_group_member_after_direct_child_exits(tmp_path, monkeypatch):
+    import ovl_pipeline.lifecycle_process as m
+    from ovl_pipeline.lifecycle import exclusive
+    r=request(tmp_path);r['deadline']=int(time.time())+3
+    job=tmp_path/'job';job.mkdir();write_json(job/'request.json',r)
+    write_json(job/'clock.json',{'operation':digest(r),'boot_id':m.process_identity()['boot_id'],
+                               'stop_monotonic_ms':int((time.monotonic()+r['deadline']-time.time())*1000)})
+    helper=tmp_path/'group.py';marker=tmp_path/'grandchild.json'
+    helper.write_text('''import os,signal,time,json
+from pathlib import Path
+child=os.fork()
+if child==0:
+ signal.signal(signal.SIGTERM,signal.SIG_IGN)
+ Path('''+repr(str(marker))+''').write_text(json.dumps({'pid':os.getpid()},separators=(',',':')))
+while True:time.sleep(1)
+''')
+    original=m.subprocess.Popen;children=[]
+    def launch(command, **kwargs):
+        child=original([sys.executable,str(helper)],**kwargs);children.append(child)
+        return child
+    monkeypatch.setattr(m.subprocess,'Popen',launch)
+    try:
+        with exclusive(job/'lease') as lease:
+            result=m.supervise(job,digest(r),os.dup(lease))
+        assert result['deadline_expired'] and result['status']=='failed'
+        pid=read_json(marker)['pid'];limit=time.time()+3
+        while time.time()<limit:
+            stat=Path('/proc')/str(pid)/'stat'
+            if not stat.exists() or stat.read_text().rsplit(')',1)[1].split()[0]=='Z':break
+            time.sleep(.01)
+        else:raise AssertionError('descendant survived original deadline')
+    finally:
+        for child in children:
+            try:os.killpg(child.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            child.wait(timeout=5)
