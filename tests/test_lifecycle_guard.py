@@ -113,6 +113,59 @@ def test_empty_listing_before_creation_keeps_guard_armed(tmp_path):
     assert result["status"] == "CLOSED" and now[0] == 104 and provider.calls == 5
 
 
+@pytest.mark.parametrize('present',[False,True])
+def test_owner_stop_closes_admission_and_cleans_existing_resource_early(tmp_path,present):
+    from ovl_pipeline.lifecycle_creation import update
+    from ovl_pipeline.lifecycle import RetryableRead
+    p=intent(100);now=[100];calls=[]
+    class Provider:
+        resources=[{**p['identity'],'id':'synthetic','created_at':100}] if present else []
+        def list(self,**kwargs):return self.resources
+        def terminate(self,ident,**kwargs):
+            calls.append(ident)
+            if len(calls)==1:raise RetryableRead('synthetic temporary deletion failure')
+            self.resources=[];return True
+    def sleep(seconds):now[0]+=seconds
+    result=supervise(p,digest(p),tmp_path,Provider(),clock=lambda:now[0],monotonic=lambda:now[0],
+                     sleep=sleep,interval=1,stop_when=lambda:now[0]==100)
+    assert result['status']=='CLOSED' and now[0]<p['terminate_at']
+    assert update(tmp_path,digest(p))['admission_closed'] is True
+    assert calls==(['synthetic','synthetic'] if present else [])
+
+
+def test_early_stop_survives_uncertain_creation_and_late_visibility(tmp_path):
+    from ovl_pipeline.lifecycle_creation import update
+    p=intent(100);now=[100];stopped=[]
+    update(tmp_path,digest(p),claim=('a'*64,{}))
+    class Provider:
+        def list(self,**kwargs):
+            return [{**p['identity'],'id':'synthetic','created_at':100}] if now[0]>=101 and not stopped else []
+        def terminate(self,ident,**kwargs):stopped.append(now[0]);return True
+    def sleep(seconds):now[0]+=seconds
+    result=supervise(p,digest(p),tmp_path,Provider(),clock=lambda:now[0],monotonic=lambda:now[0],
+                     sleep=sleep,interval=1,stop_when=lambda:now[0]==100)
+    assert result['status']=='CLOSED' and stopped==[101]
+
+
+def test_early_stop_discovers_unresolved_resource_despite_disk_failure(tmp_path,monkeypatch):
+    import ovl_pipeline.lifecycle_guard as m
+    from ovl_pipeline.lifecycle_creation import update
+    p=intent(100);now=[100];stopped=[];reads=[]
+    update(tmp_path,digest(p),claim=('a'*64,{}))
+    class Provider:
+        def list(self,**kwargs):
+            reads.append(now[0])
+            return [] if stopped else [{**p['identity'],'id':'synthetic','created_at':100}]
+        def terminate(self,ident,**kwargs):stopped.append(ident);return True
+    def fail(*args):raise OSError('synthetic guard journal full')
+    monkeypatch.setattr(m,'write_json',fail)
+    def sleep(seconds):now[0]+=seconds
+    with pytest.raises(EvidenceError,match='absence verified'):
+        supervise(p,digest(p),tmp_path,Provider(),clock=lambda:now[0],monotonic=lambda:now[0],
+                  sleep=sleep,interval=1,stop_when=lambda:True)
+    assert stopped==['synthetic'] and len(reads)>=2 and now[0]<p['terminate_at']
+
+
 @pytest.mark.parametrize("change", [{"prior_upper_usd": "120"}, {"rental_ceiling_usd": "0.001"},
                                     {"grace_seconds": 121}, {"hourly_usd": "NaN"}])
 def test_guard_budget_rejects_invalid_allowance(change):

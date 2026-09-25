@@ -46,6 +46,10 @@ assumed. Local process tests are not evidence of provider automatic termination 
 filesystem behavior under power loss.
 
 `lifecycle_process` runs one selected module under a detached supervisor. Its
+Linux supervisor requires Python 3.11 or later; the audited runtime uses the
+selected Python 3.12 distribution. Other package entrypoints retain their own
+runtime requirements. Unsupported supervisors are rejected before submission.
+Its
 request binds source, input bytes, output location and the original deadline.
 The workload retains the exclusive lease through the audited launcher and its
 numerical child. Linux parent-death signals stop numerical work if an enforcing
@@ -76,12 +80,20 @@ the selected source and minimal verifier site-packages. Python 3.12 does not add
 the virtual environment's site-packages under `-S`. Detached supervisors and
 audit wrappers preserve these paths and create their own fresh cache prefixes.
 The setup commands also propagate a fresh prefix to pip's delegated interpreter.
+Both bootstrap setup commands accept an absolute `--deadline` and apply a shared
+monotonic deadline to interpreter environment creation and package installation.
+The default installation bound is one hour. Timed-out installers and their process
+groups are killed; interrupted installation trees remain available for inspection.
 See the [Python startup options](https://docs.python.org/3.12/using/cmdline.html).
 
 Audited lifecycle receipts bind the original complete process request and source
 digest. Recovery retains an observed deadline failure and the prior recording
 resume selection through interrupted archival. Provider guard restarts retain
 the last authenticated observation time; they cannot renew its recovery window.
+The guard also accepts a trusted `stop_when` callback for execution-owner liveness.
+An early stop closes creation admission permanently and remains selected while an
+uncertain creation is being reconciled. Provider observations and billing remain
+separate from any execution-owner heartbeat.
 
 `lifecycle_runpod` supplies bounded provider inventory, creation and termination
 adapters. REST v2 is used for reads and deletion; the existing GraphQL creation

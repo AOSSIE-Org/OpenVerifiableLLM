@@ -89,6 +89,8 @@ def remaining(directory, request):
 
 
 def validate(request):
+    if sys.version_info<(3,11):
+        raise EvidenceError('detached lifecycle requires Python 3.11+; audited runtime selects Python 3.12')
     if set(request) != {'schema','module','arguments','source_root','source_sha256','deadline','output','inputs'}:
         raise EvidenceError('invalid workload request')
     if request['schema']!='ovl.lifecycle-process.v1' or request['module'] not in MODULES:
@@ -178,9 +180,10 @@ def parent_environment(request):
     prefix=Path(sys.executable).absolute().parent.parent
     # Python 3.12 -S skips venv prefix initialization. Preserve the installation
     # selected by this executable, rather than accidentally using its base site.
-    site=(prefix/'lib'/('python'+str(sys.version_info.major)+'.'+str(sys.version_info.minor))/'site-packages'
-          if (prefix/'pyvenv.cfg').is_file() else Path(sysconfig.get_path('purelib')))
-    env['PYTHONPATH']=os.pathsep.join((str(Path(request['source_root'])/'src'),str(site)))
+    if (prefix/'pyvenv.cfg').is_file():
+        sites=[prefix/'lib'/('python'+str(sys.version_info.major)+'.'+str(sys.version_info.minor))/'site-packages']
+    else:sites=list(dict.fromkeys(Path(sysconfig.get_path(k)) for k in ('purelib','platlib')))
+    env['PYTHONPATH']=os.pathsep.join([str(Path(request['source_root'])/'src'),*map(str,sites)])
     env['PYTHONDONTWRITEBYTECODE']='1'
     env['TOKENIZERS_PARALLELISM']='false'
     return env

@@ -89,3 +89,38 @@ def test_setup_and_delegated_python_exclude_unaudited_bytecode(tmp_path):
     after=subprocess.run([*command[:-2],'-c',delegated],env=env,capture_output=True,text=True,check=True)
     assert after.stdout.strip()=='CLEAN'
     assert not list(Path(env['PYTHONPYCACHEPREFIX']).rglob('*.pyc'))
+
+
+@pytest.mark.parametrize('parent_exits',[False,True])
+def test_install_deadline_reaps_direct_process_and_stops_delegated_group(tmp_path,parent_exits):
+    import os,time,signal
+    marker=tmp_path/'child.pid';helper=tmp_path/'install.py'
+    helper.write_text('''import os,time,signal
+from pathlib import Path
+marker=Path('''+repr(str(marker))+''')
+if os.fork()==0:
+ signal.signal(signal.SIGTERM,signal.SIG_IGN)
+ marker.write_text(str(os.getpid()))
+ while True:time.sleep(1)
+while not marker.exists():time.sleep(.01)
+if '''+repr(parent_exits)+''':raise SystemExit(0)
+while True:time.sleep(1)
+''')
+    started=time.monotonic()
+    try:
+        if parent_exits:
+            assert m.bounded_install([sys.executable,str(helper)],env=os.environ.copy(),deadline=started+2).returncode==0
+        else:
+            with pytest.raises(subprocess.TimeoutExpired):
+                m.bounded_install([sys.executable,str(helper)],env=os.environ.copy(),deadline=started+2)
+        pid=int(marker.read_text());limit=time.monotonic()+3
+        while time.monotonic()<limit:
+            stat=Path('/proc')/str(pid)/'stat'
+            if not stat.exists() or stat.read_text().rsplit(')',1)[1].split()[0]=='Z':break
+            time.sleep(.01)
+        else:raise AssertionError('delegated installation survived cleanup')
+        assert time.monotonic()-started<5
+    finally:
+        if marker.exists():
+            try:os.kill(int(marker.read_text()),signal.SIGKILL)
+            except ProcessLookupError:pass

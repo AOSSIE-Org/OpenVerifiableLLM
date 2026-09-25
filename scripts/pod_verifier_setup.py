@@ -11,12 +11,14 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import time
 
 
-def setup(config,expected,inputs,runtime,verifier,output):
+def setup(config,expected,inputs,runtime,verifier,output,*,deadline=None):
+    limit=time.monotonic()+max(0,(deadline-time.time()) if deadline is not None else 3600)
     # Import this neighboring, separately pinned public bootstrap script only.
     sys.path.insert(0,str(Path(__file__).resolve().parent))
-    from pod_runtime_setup import selected,sha,isolated_install_command
+    from pod_runtime_setup import selected,sha,isolated_install_command,bounded_install
     runtime,verifier,output=(Path(p).absolute() for p in (runtime,verifier,output))
     for path in (runtime,verifier,output):
         if any(p.is_symlink() for p in [path,*path.parents]):raise ValueError('symlink setup path')
@@ -45,10 +47,10 @@ def setup(config,expected,inputs,runtime,verifier,output):
     venv=verifier/'venv'
     env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','HOME':str(verifier),'PIP_CONFIG_FILE':'/dev/null',
          'PIP_NO_INDEX':'1','PIP_DISABLE_PIP_VERSION_CHECK':'1','PYTHONDONTWRITEBYTECODE':'1'}
-    subprocess.run([*isolated_install_command(python,'venv',output,env),'--without-pip',str(venv)],env=env,check=True)
-    subprocess.run([*isolated_install_command(python,'pip',output,env),'--python',str(venv/'bin/python'),'install',
+    bounded_install([*isolated_install_command(python,'venv',output,env),'--without-pip',str(venv)],env=env,check=True,deadline=limit)
+    bounded_install([*isolated_install_command(python,'pip',output,env),'--python',str(venv/'bin/python'),'install',
                     '--no-index','--no-deps','--no-compile','--require-hashes',
-                    '--find-links',str(selected_wheels),'-r',str(parent_lock)],env=env,check=True)
+                    '--find-links',str(selected_wheels),'-r',str(parent_lock)],env=env,check=True,deadline=limit)
     installed=verify_installed(package_manifest,{'site':venv/'lib/python3.12/site-packages',
         'prefix':venv,'scripts':venv/'bin','headers':venv/'include/python3.12'})
     write_json(output/'python-payloads.json',origin);write_json(output/'python-audit.json',checked)
@@ -66,9 +68,10 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     for name in ('config','inputs','runtime','verifier','output'):parser.add_argument('--'+name,type=Path,required=True)
     parser.add_argument('--config-sha256',required=True)
+    parser.add_argument('--deadline',type=int)
     args=parser.parse_args()
     if not(sys.flags.isolated and sys.flags.no_site):parser.error('bootstrap requires -I -S')
-    setup(args.config,args.config_sha256,args.inputs,args.runtime,args.verifier,args.output)
+    setup(args.config,args.config_sha256,args.inputs,args.runtime,args.verifier,args.output,deadline=args.deadline)
 
 
 if __name__=='__main__':main()

@@ -104,6 +104,29 @@ def test_workload_identity_and_original_deadline_are_strict(tmp_path):
     with pytest.raises(EvidenceError,match='source'):submit(tmp_path/'job',r)
 
 
+def test_unsupported_python_fails_before_creating_execution_intent(tmp_path,monkeypatch):
+    import ovl_pipeline.lifecycle_process as m
+    r=request(tmp_path)
+    monkeypatch.setattr(m.sys,'version_info',(3,10,14))
+    with pytest.raises(EvidenceError,match='Python 3.11'):submit(tmp_path/'job',r)
+    assert not (tmp_path/'job').exists()
+
+
+def test_nonvenv_parent_paths_allow_distinct_compiled_package_directory(tmp_path,monkeypatch):
+    import ovl_pipeline.lifecycle_process as m
+    executable=sys.executable
+    pure=tmp_path/'pure';plat=tmp_path/'plat';pure.mkdir();plat.mkdir()
+    (pure/'pure_fixture.py').write_text('value="pure"\n')
+    (plat/'platform_fixture.py').write_text('value="platform"\n')
+    monkeypatch.setattr(m.sys,'executable',str(tmp_path/'system/bin/python'))
+    monkeypatch.setattr(m.sysconfig,'get_path',lambda name:str(pure if name=='purelib' else plat))
+    env=m.parent_environment({'source_root':str(tmp_path/'source')})
+    result=subprocess.run([executable,'-B','-S','-P','-c',
+        'import pure_fixture,platform_fixture;print(pure_fixture.value,platform_fixture.value)'],
+        env=env,capture_output=True,text=True,check=True)
+    assert result.stdout.strip()=='pure platform'
+
+
 def test_supervisor_loss_kills_numerical_child_and_permits_recovery(tmp_path,monkeypatch):
     r=request(tmp_path);job=tmp_path/'job'
     if os.environ.get('OVL_TEST_NUMERIC_RUNNER'):

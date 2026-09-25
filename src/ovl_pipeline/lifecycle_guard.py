@@ -50,13 +50,16 @@ def validate_intent(intent, expected):
 
 
 def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=time.sleep,
-              monotonic=time.monotonic, interval=5, observation_window=120, event=lambda _: None):
+              monotonic=time.monotonic, interval=5, observation_window=120, event=lambda _: None,
+              stop_when=lambda: False):
     """Provider: list(deadline=monotonic_limit); terminate(id, deadline=limit).
 
     Required resource fields are id, name, gpu, gpu_count, cloud, created_at.
     list() must be a complete fresh authenticated inventory, or raise. Permission,
     authentication, malformed evidence and identity failures are never transient.
     Calls must be cancellable at the supplied total deadline, including pages.
+    stop_when is a trusted caller's independent execution-owner liveness check.
+    Once it requests closure, a later healthy reading cannot reopen admission.
     """
     validate_intent(intent, expected)
     if not 0 < interval <= 30 or not 0 < observation_window <= 120:
@@ -97,8 +100,8 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 journal_failed = True
                 # A disk failure blocks creation; it cannot suppress an already
                 # authorized emergency termination of our verified resource.
-                if state["resource_id"] is None:
-                    raise
+                # Discovery remains necessary after an uncertain creation even
+                # when no resource ID could yet be persisted.
         # Supervision restart does not grant a new provider observation window.
         # A reboot already forces immediate cleanup using the frozen clock.
         last_success = (state['last_observed_monotonic_ms']/1000
@@ -128,12 +131,15 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
         while True:
             termination_attempted = False
             now = clock()
+            requested = stop_when()
+            if type(requested) is not bool:
+                raise EvidenceError('invalid external stop observation')
             # A slow inventory cannot postpone termination of an already known
             # identity. Each provider operation has a total monotonic deadline.
             if now >= intent['terminate_at'] and state['resource_id'] is not None and state['status'] != 'TERMINATING':
                 terminate_current()
             try:
-                gate = creation_update(directory, expected, close=now >= intent['terminate_at'])
+                gate = creation_update(directory, expected, close=requested or now >= intent['terminate_at'])
             except (OSError, Pending):
                 journal_failed = True
                 gate = {'admission_closed': True, 'claim': {'status': 'unresolved', 'resource_id': None}}
@@ -144,6 +150,11 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
                 state['resource_id'] = claim['resource_id']
                 if now >= intent['terminate_at'] and state['status'] != 'TERMINATING':
                     terminate_current()
+            if requested or gate['admission_closed']:
+                newly_stopping=state['status']!='TERMINATING'
+                state['status']='TERMINATING'
+                save_safety_state()
+                if newly_stopping and state['resource_id'] is not None:terminate_current()
             if monotonic()>=last_success+observation_window:
                 try:gate=creation_update(directory,expected,close=True)
                 except (OSError,Pending):
@@ -212,7 +223,8 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
             elif claim is not None and claim['status'] != 'not_submitted' and not (state['resource_seen'] or state['deletion_confirmed']):
                 # An in-flight POST can become visible after an empty listing.
                 # Keep responsibility; no expiry or empty read proves rejection.
-                state['status'] = 'RECONCILING' if now >= intent['terminate_at'] else 'ARMED'
+                if state['status']!='TERMINATING':
+                    state['status'] = 'RECONCILING' if now >= intent['terminate_at'] else 'ARMED'
                 save_safety_state()
                 event('creation-unresolved')
             elif state["resource_id"] is not None or gate['admission_closed']:
