@@ -81,11 +81,11 @@ For security-relevant issues (for example, a way to make the verifier report a f
 
 ## Where discussion happens
 
-Project discussion and questions happen in the [AOSSIE community](https://aossie.org) and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
+Project discussion and questions happen in the [AOSSIE community](https://aossie.org), the [AOSSIE Discord server](https://discord.gg/xnmAPS7zqB), and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
 
 ## Code of conduct
 
-Be respectful and constructive. Technical disagreement is welcome and expected; keep it about the work, and assume good faith from others.
+Please review and adhere to our [Code of Conduct](CODE_OF_CONDUCT.md). Be respectful and constructive: technical disagreement is welcome and expected, but keep it focused on the work and assume good faith from others.
 
 ## License
 

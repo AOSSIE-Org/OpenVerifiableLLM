@@ -286,7 +286,9 @@ and expose the exact assumptions under which verification holds.
 
 | Path | Purpose |
 |---|---|
+| `docs/` | Technical specifications, architecture blueprints, and verification contracts (see [docs/README.md](docs/README.md)) |
 | `src/ovllm.py` | Verifier/publish CLI |
+| `src/ovl_pipeline/` | Verifiable Wikipedia training, data preparation, and proof pipeline |
 | `src/verifier.py` | Local/HF model verification checks |
 | `src/publish.py` | Publish directory, Sigstore, HF, and Ollama helpers |
 | `src/artifacts.py` | SHA-256, tensor hashing, safetensors, Merkle helpers |
@@ -298,6 +300,8 @@ and expose the exact assumptions under which verification holds.
 | `demo.py` | Narrative demo |
 | `tests/` | Artifact, verifier, signing, and determinism tests |
 | `RUNBOOK.md` | Demo-day commands and GPU run instructions |
+| `CONTRIBUTING.md` | Contribution guidelines, determinism standards, and development setup |
+| `CODE_OF_CONDUCT.md` | Community standards and Contributor Covenant |
 
 ## Development
 
@@ -338,6 +342,12 @@ ovllm verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
   (EuroS&P 2023)
 - [safetensors](https://huggingface.co/docs/safetensors)
 - [Sigstore model-transparency](https://github.com/sigstore/model-transparency)
+
+## Community & Discussion
+
+- **Discord**: Join the [AOSSIE Discord server](https://discord.gg/xnmAPS7zqB) to discuss features, questions, and ideas with fellow contributors.
+- **Contributing**: Read our [CONTRIBUTING.md](CONTRIBUTING.md) guide before submitting pull requests or opening issues.
+- **Code of Conduct**: This project is governed by the [Contributor Covenant](CODE_OF_CONDUCT.md). Please keep interactions friendly and constructive.
 
 ## License
 
