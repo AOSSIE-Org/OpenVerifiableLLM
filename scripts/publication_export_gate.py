@@ -136,8 +136,12 @@ def frozen_payloads(staging,entries,temporary_directory,check_deadline):
                             raise EvidenceError('upload copy differs from reviewed bytes')
                         copy.flush();os.fsync(copy.fileno());check_deadline()
                     ro_fd=os.open(tmp.name,os.O_RDONLY|os.O_NOFOLLOW)
-                    os.unlink(tmp.name)
-                    handle=stack.enter_context(os.fdopen(ro_fd,'rb'))
+                    try:
+                        os.unlink(tmp.name)
+                        handle=stack.enter_context(os.fdopen(ro_fd,'rb'))
+                    except Exception:
+                        os.close(ro_fd)
+                        raise
                 except Exception:
                     if os.path.exists(tmp.name):
                         try:os.unlink(tmp.name)
