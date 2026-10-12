@@ -17,7 +17,7 @@ Fixes #(issue number)
 - [ ] I have made corresponding changes to the documentation
 - [ ] My changes generate no new warnings or errors
 - [ ] I have joined the [Discord server](https://discord.gg/hjUhu33uAn) and I will share a link to this PR with the project maintainers there
-- [ ] I have read the [Contributing Guidelines](./CONTRIBUTING.md)
+- [ ] I have read the [Contributing Guidelines](../../CONTRIBUTING.md)
 
 ## ⚠️ AI Notice - Important!
 

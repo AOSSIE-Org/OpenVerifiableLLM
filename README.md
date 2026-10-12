@@ -286,6 +286,8 @@ and expose the exact assumptions under which verification holds.
 
 | Path | Purpose |
 |---|---|
+| `docs/` | Technical specifications and verification contracts ([index](docs/README.md)) |
+| `src/ovl_pipeline/` | Verifiable Wikipedia data preparation, pipeline orchestration, training, and verification logic |
 | `src/ovllm.py` | Verifier/publish CLI |
 | `src/verifier.py` | Local/HF model verification checks |
 | `src/publish.py` | Publish directory, Sigstore, HF, and Ollama helpers |

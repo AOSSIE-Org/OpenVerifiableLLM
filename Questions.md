@@ -14,4 +14,4 @@
 
 * Can we make the training of the model incremental and provide several checkpoints, so that a verifier could verify only a sample of the training, instead of retraining the whole model from scratch to convince himself/herself that the model has been trained on the data on which we claim it was trained on?
 
-* Are there training aproaches that are compositional? Moreprecisely, let `T` be a deterministic training approach so that `T(D)` is the model resulting from training on data `D`. Can we have a `T` such that `T(D1 + D2) = T(D1) + T(D2)`, for some suitable notion of addition of data and addition of models?
+* Are there training approaches that are compositional? More precisely, let `T` be a deterministic training approach so that `T(D)` is the model resulting from training on data `D`. Can we have a `T` such that `T(D1 + D2) = T(D1) + T(D2)`, for some suitable notion of addition of data and addition of models?
