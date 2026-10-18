@@ -77,3 +77,6 @@ openverifiable-smoke/
 
 # New operational work stays local; reviewed technical reports have a separate root.
 /project/evidence/
+
+# Publication leases are runtime state
+*.publication.lock

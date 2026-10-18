@@ -17,6 +17,7 @@ import time
 
 from huggingface_hub import CommitOperationAdd,HfApi
 from ovl_pipeline.canonical import EvidenceError,confined,digest,file_hash,read_json,require_digest,verify_inventory,write_json
+from ovl_pipeline.publication_pause import require_publication_open
 from ovl_pipeline.schema import fields,integer
 
 REPO='AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence'
@@ -90,7 +91,6 @@ def existing(api,plan,revision):
 
 
 def upload(plan_path,staging,output,*,api=None,deadline=None,reviewed=None,guard=None):
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     if guard is not None:guard()
     expires=time.monotonic()+max(0,deadline-time.time()) if deadline is not None else None

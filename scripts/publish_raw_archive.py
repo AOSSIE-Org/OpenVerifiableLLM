@@ -21,6 +21,7 @@ from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download, constant
 
 from ovl_pipeline.acquisition import Source, verify_source
 from ovl_pipeline.canonical import EvidenceError, canonical, confined, digest, file_hash, read_json, require_digest, verify_inventory, write_json
+from ovl_pipeline.publication_pause import require_publication_open
 from ovl_pipeline.schema import fields, integer
 
 REPO = "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence"
@@ -60,7 +61,6 @@ def validate_plan(plan):
 
 
 def upload(plan_path, staging, output):
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     plan = read_json(plan_path);validate_plan(plan)
     if output.exists() or staging.is_symlink():
