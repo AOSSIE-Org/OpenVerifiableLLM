@@ -210,11 +210,11 @@ def sign_model_dir(
 
 
 def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) -> int:
-    from ovl_pipeline.publication_pause import require_publication_open
-    require_publication_open()
     if dry_run:
         print(f"Native HF Upload: {model_dir} -> {repo_id}")
         return 0
+    from ovl_pipeline.publication_pause import require_publication_open
+    require_publication_open()
 
     try:
         import importlib
