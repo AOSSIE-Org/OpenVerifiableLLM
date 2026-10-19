@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Whole production loop on one GPU pod. Run from a checkout of this repository:
-#   bash simple/run_full.sh            # bench, train, replay, chat sample
+#   bash simple/run_full.sh            # bench, train, spot-check segments, chat sample
 # Re-running it resumes wherever it stopped. Outputs go to $WORK (default /workspace).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -33,19 +33,23 @@ EOF
 fi
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | tee "$WORK/gpu.txt"
 
-# 2. Throughput (10 minutes), logged for FEASIBILITY.md.
+# 2. Throughput (10 minutes): ms/update, projected hours, minutes per segment.
 [ -f "$WORK/bench.json" ] || python simple/ovl.py bench --data "$PREP" --seconds 600 | tee "$WORK/bench.json"
 
-# 3. Full training: one Wikipedia pass, then conversation. Resumes automatically.
+# 3. Full training: one Wikipedia pass, then the conversation epochs. Resumes automatically.
+#    Every boundary checkpoint is kept; each one starts an independently checkable segment.
 [ -f "$RUN/conversation-model.pt" ] || python simple/ovl.py train --data "$PREP" --out "$RUN" 2>&1 | tee -a "$WORK/train.log"
 
-# 4. Exact replay from fresh initialization; must match every boundary.
-[ -f "$RUN/replay.json" ] && grep -q '"PASS"' "$RUN/replay.json" || \
-  python simple/ovl.py replay --data "$PREP" --run "$RUN" 2>&1 | tee -a "$WORK/replay.log"
+# 4. Quick checks on this pod: seeded init, final weights, every conversation segment
+#    (minutes) and one random Wikipedia segment. Others verify more segments in parallel
+#    with simple/verify_segment.sh; nobody has to replay the whole run.
+CONV=$(python -c "import json,sys; c=[json.loads(l) for l in open(sys.argv[1])]; b=[e['index'] for e in c if e['kind']=='base'][0]; print(*range(b, len(c)-1))" "$RUN/chain.jsonl")
+python simple/ovl.py verify --data "$PREP" --run "$RUN" --weights "$RUN/conversation-model.pt" \
+  --segment $CONV --random 1 2>&1 | tee -a "$WORK/verify.log"
 
 # 5. Does it talk?
 for q in "What is Wikipedia?" "Who was Albert Einstein?" "Explain photosynthesis."; do
   echo "Q: $q"; python simple/ovl.py chat --run "$RUN" --tokenizer "$PREP/tokenizer/tokenizer.json" "$q"; echo
 done | tee "$WORK/samples.txt"
-sha256sum "$RUN"/*-model.pt "$RUN"/chain.jsonl "$RUN"/replay.json | tee "$WORK/release-hashes.txt"
-echo "done: $RUN"
+sha256sum "$RUN"/*-model.pt "$RUN"/chain.jsonl "$RUN"/recipe.json "$RUN"/ckpt-*.pt | tee "$WORK/release-hashes.txt"
+echo "done: $RUN (publish chain.jsonl, recipe.json, models and every ckpt-*.pt)"

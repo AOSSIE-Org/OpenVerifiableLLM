@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Check part of a published OpenVerifiableLLM training run on your own GPU (same GPU type
+# and software as recorded in chain.jsonl entry 0). Each run picks fresh random segments,
+# so many independent checkers together cover the whole run.
+#   bash simple/verify_segment.sh                 # 1 random segment (~10-20 min)
+#   K=3 bash simple/verify_segment.sh             # 3 random segments
+#   SEGMENTS="7 8" bash simple/verify_segment.sh  # chosen segments
+set -euo pipefail
+cd "$(dirname "$0")/.."
+WORK=${WORK:-/workspace}
+REPO=AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence
+PREP_ID=8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68
+RUN_PATH=${RUN_PATH:-release/simple-run}   # where the run is published in $REPO
+export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false HF_HUB_ENABLE_HF_TRANSFER=1
+pip install -q "huggingface_hub[cli]" hf_transfer tokenizers numpy
+hf download "$REPO" --repo-type dataset --include "prepared/$PREP_ID/*" "$RUN_PATH/chain.jsonl" \
+  "$RUN_PATH/recipe.json" --local-dir "$WORK/hf"
+RUN=$WORK/hf/$RUN_PATH
+if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
+  PICK=$(python -c "import json,secrets,sys; n=sum(1 for _ in open(sys.argv[1]))-1; k=min(int(sys.argv[2]),n); s=list(range(n)); print(*sorted(s.pop(secrets.randbelow(len(s))) for _ in range(k)))" "$RUN/chain.jsonl" "${K:-1}")
+fi
+# Only the checkpoints at the start of the chosen segments are needed.
+hf download "$REPO" --repo-type dataset --local-dir "$WORK/hf" \
+  $(for k in $PICK; do printf "%s/ckpt-%05d.pt " "$RUN_PATH" "$k"; done)
+python simple/ovl.py verify --data "$WORK/hf/prepared/$PREP_ID" --run "$RUN" --segment $PICK
