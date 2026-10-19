@@ -19,6 +19,7 @@ from ovl_pipeline.canonical import EvidenceError,canonical,confined,digest,file_
 from ovl_pipeline.production_anchoring import PACKET_FILES,check_source_parents,verify_packet
 from ovl_pipeline.production_commitment import validate_request,verify_code
 from ovl_pipeline.production_identity import PRODUCTION_WORKFLOW,ProductionPublisherPolicy
+from ovl_pipeline.publication_pause import require_publication_open
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.source_commitment import REF
 from publish_progress_boundary import command,deadline_command,save_once,published,recover_request_commit
@@ -36,7 +37,6 @@ def expected_policy(revision,registration):
 
 def request_commit(request,r,directory,*,execute=command):
     """Dedicated clone only; never stage the owner's working tree or force-push."""
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     validate_request(request);name=f"project/production-commitments/{r['run_id']}-{r['attempt_id']}.json"
     if not directory.exists():directory.mkdir()
@@ -133,7 +133,6 @@ def actions_artifact(revision,output,deadline,*,execute=command,wall=time.time,s
 
 
 def publish(packet,expected_registration,source_policy,source_checkout,output,deadline,*,progress=None,guard=None):
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     if guard is not None:guard()
     integer(deadline,1,2**53-1,'registration publication deadline')

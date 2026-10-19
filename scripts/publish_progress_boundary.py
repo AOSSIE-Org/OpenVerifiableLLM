@@ -25,6 +25,7 @@ from ovl_pipeline.production_commitment import verify_code
 from ovl_pipeline.production_identity import ProductionPublisherPolicy
 from ovl_pipeline.progress_anchoring import PROGRESS_WORKFLOW,ProgressPublisherPolicy,statement,verify_prefix
 from ovl_pipeline.progress_commitment import validate_request
+from ovl_pipeline.publication_pause import require_publication_open
 from ovl_pipeline.schema import fields,integer
 from ovl_pipeline.source_commitment import REF
 from ovl_pipeline.state import read_state,unpack
@@ -131,7 +132,6 @@ def recover_request_commit(request,clone,name,parent,message,*,execute=command):
 
 def request_commit(request,r,directory,*,execute=command):
     """Dedicated clone only; never stage the owner's working tree or force-push."""
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     validate_request(request);name=f"project/progress-commitments/{r['run_id']}-{r['attempt_id']}-boundary-{len(request['envelopes'])-1:05d}.json"
     if not directory.exists():directory.mkdir()
@@ -326,7 +326,6 @@ def _publish(packet,bundle,production_policy,source_policy,source_checkout,confi
 
 def publish(packet,bundle,production_policy,source_policy,source_checkout,config,chain_directory,
             previous_directory,previous_policies,output,deadline,*,guard=None):
-    from ovl_pipeline.publication_pause import require_publication_open
     require_publication_open()
     output.mkdir(parents=True,exist_ok=True)
     fd=transport.lease(output/'.publisher.lock')
