@@ -66,13 +66,16 @@ def print_verdict_table(records, cross_gpu_results=None):
     print(f"{'MODEL':<8}{'CONDITION':<14}{'REPRODUCIBLE':<14}{'CROSS-GPU':<12}{'FIRST-DIVERGENCE':<18}")
     print("-" * 66)
     for r in records:
-        repro = "-" if r["reproducible"] is None else ("PASS" if r["reproducible"] else "FAIL")
+        if r.get("status") == "UNSUPPORTED":
+            repro = "UNSUPPORTED"
+        else:
+            repro = "-" if r["reproducible"] is None else ("PASS" if r["reproducible"] else "FAIL")
         fd = r["first_divergence_step"]
         first_div = "-" if fd is None else f"step {fd}"
         xg = "-"
         key = (r["model"], r.get("condition"))
-        if key in cross:
-            xg = "SAME" if cross[key] == r["param_sha256"] else "DIFF"
+        if r.get("status") != "UNSUPPORTED" and key in cross:
+            xg = "SAME" if cross[key] == r.get("param_sha256") else "DIFF"
         print(f"{r['model']:<8}{r['condition']:<14}{repro:<14}{xg:<12}{first_div:<18}")
     print("-" * 66)
     if not cross:
@@ -84,8 +87,8 @@ def show_debate_hook(records):
     section("THE VERIFICATION BAR  -- bitwise identity, with loss-tolerance as diagnostic only")
     print("verify() compares losses at rel_tol=1e-6 as a diagnostic, but the VERDICT is the")
     print("exact parameter hash: a run can match every loss to 1e-6 and still FAIL --\n")
-    hooks = [r for r in records if r["vs_fp32_bitwise"] is False and r["vs_fp32_losstol"] is True]
-    diffs = [r for r in records if r["vs_fp32_bitwise"] is False]
+    hooks = [r for r in records if r.get("vs_fp32_bitwise") is False and r.get("vs_fp32_losstol") is True and r.get("final_loss") is not None]
+    diffs = [r for r in records if r.get("vs_fp32_bitwise") is False and r.get("final_loss") is not None]
     shown = hooks or diffs
     if not shown:
         print("  (No cell diverged from fp32 on this device. On CPU, TF32 is a no-op and bf16")

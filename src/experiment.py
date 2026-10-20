@@ -62,6 +62,58 @@ def _norm_bool(value):
     return str(value).strip().lower() in ("1", "on", "true", "yes", "y")
 
 
+class UnsupportedKernelError(RuntimeError):
+    """Raised when an op/device/precision combination is not supported by the hardware backend."""
+
+
+def check_kernel_support(model_name, precision, dev):
+    """Check for known unsupported hardware/precision/operator combinations."""
+    if dev.type == "cpu" and model_name == "lstm" and precision == "bf16":
+        try:
+            probe_lstm = torch.nn.LSTM(4, 4, batch_first=True)
+            probe_x = torch.zeros(1, 1, 4)
+            with torch.autocast("cpu", dtype=torch.bfloat16):
+                probe_lstm(probe_x)
+        except RuntimeError as e:
+            err_msg = str(e).lower()
+            if "primitive descriptor" in err_msg:
+                raise UnsupportedKernelError("oneDNN on CPU has no LSTM bf16 forward primitive") from e
+            raise
+
+
+def _unsupported_record(model_name, dataset_name, precision, deterministic, seed, dev, cfg,
+                        reason, quiet=False):
+    record = {
+        "model": model_name,
+        "dataset": dataset_name,
+        "precision": precision,
+        "deterministic": deterministic,
+        "device": dev.type,
+        "device_name": device_name(dev),
+        "status": "UNSUPPORTED",
+        "unsupported_reason": reason,
+        "final_loss": None,
+        "param_sha256": None,
+        "merkle_root": None,
+        "merkle_chunk_count": None,
+        "artifact_size_bytes": None,
+        "first_divergence_step": None,
+        "reproducible": None,
+        "num_params": None,
+        "seed": seed,
+        "total_steps": cfg.get("total_steps", 0),
+        "batch_size": cfg.get("batch_size", 0),
+        "block_size": cfg.get("block_size", 0),
+        "torch": torch.__version__,
+        "precision_flags": precision_flags(),
+        "wall_time_s": 0.0,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    if not quiet:
+        _print_cell(record)
+    return record
+
+
 def prepare_run(seed, precision, deterministic, warn_only=True):
     """Seed everything, then set determinism and precision for one run."""
     os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
@@ -86,23 +138,31 @@ def _single_train(model_name, dataset_name, precision, deterministic, seed, dev,
 
     bs, blk = cfg["batch_size"], cfg["block_size"]
     losses, step_hashes = [], []
-    for _step in range(cfg["total_steps"]):
-        # FIRST statement in the loop: the batch draw consumes the global torch
-        # RNG, so it is captured by torch.get_rng_state() and stays replay- and
-        # run-to-run exact. Moving this out of the loop silently breaks both.
-        x, y = ds.get_batch(bs, blk, device=dev)
-        with autocast:
-            logits = model(x)
-            if vision:
-                loss = F.cross_entropy(logits, y)
-            else:
-                loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        losses.append(loss.item())
-        if track_full:
-            step_hashes.append(model_parameters_sha256(model))
+    try:
+        for _step in range(cfg["total_steps"]):
+            # FIRST statement in the loop: the batch draw consumes the global torch
+            # RNG, so it is captured by torch.get_rng_state() and stays replay- and
+            # run-to-run exact. Moving this out of the loop silently breaks both.
+            x, y = ds.get_batch(bs, blk, device=dev)
+            with autocast:
+                logits = model(x)
+                if vision:
+                    loss = F.cross_entropy(logits, y)
+                else:
+                    loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), y.reshape(-1))
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses.append(loss.item())
+            if track_full:
+                step_hashes.append(model_parameters_sha256(model))
+    except RuntimeError as e:
+        err_msg = str(e).lower()
+        if dev.type == "cpu" and model_name == "lstm" and precision == "bf16" and (
+            "primitive descriptor" in err_msg
+        ):
+            raise UnsupportedKernelError("oneDNN on CPU has no LSTM bf16 forward primitive") from e
+        raise
 
     return model, losses, tensor_mapping_sha256(_stable_cpu_state_dict(model)), step_hashes
 
@@ -150,21 +210,49 @@ def run_one(model_name, dataset_name="shakespeare", precision="fp32",
     if cfg.get("total_steps", 0) < 1:
         raise ValueError(f"total_steps must be at least 1, got {cfg.get('total_steps')}")
 
+    try:
+        check_kernel_support(model_name, precision, dev)
+    except UnsupportedKernelError as err:
+        return _unsupported_record(
+            model_name, dataset_name, precision, deterministic, seed, dev, cfg,
+            reason=str(err), quiet=quiet
+        )
+
     tag = f"{model_name}_{dataset_name}_{precision}_det{'on' if deterministic else 'off'}_s{seed}"
 
     t0 = time.time()
-    modelA, lossesA, hashA, stepA = _single_train(
-        model_name, dataset_name, precision, deterministic, seed, dev, cfg,
-        track_full=track_full)
+    def _handle_run_error(err):
+        err_msg = str(err).lower()
+        if isinstance(err, UnsupportedKernelError) or (
+            dev.type == "cpu" and model_name == "lstm" and precision == "bf16" and (
+                "primitive descriptor" in err_msg
+            )
+        ):
+            reason = "oneDNN on CPU has no LSTM bf16 forward primitive" if isinstance(err, RuntimeError) else str(err)
+            return _unsupported_record(
+                model_name, dataset_name, precision, deterministic, seed, dev, cfg,
+                reason=reason, quiet=quiet
+            )
+        raise err
+
+    try:
+        modelA, lossesA, hashA, stepA = _single_train(
+            model_name, dataset_name, precision, deterministic, seed, dev, cfg,
+            track_full=track_full)
+    except (UnsupportedKernelError, RuntimeError) as err:
+        return _handle_run_error(err)
 
     reproducible, first_div = None, None
     if twin:
         # Twin run: identical settings, same seed, same hardware -> tests (A).
-        _modelB, lossesB, hashB, stepB = _single_train(
-            model_name, dataset_name, precision, deterministic, seed, dev, cfg,
-            track_full=track_full)
-        reproducible = (hashA == hashB) and (lossesA == lossesB)
-        first_div = _first_divergence(lossesA, lossesB, stepA, stepB)
+        try:
+            _modelB, lossesB, hashB, stepB = _single_train(
+                model_name, dataset_name, precision, deterministic, seed, dev, cfg,
+                track_full=track_full)
+            reproducible = (hashA == hashB) and (lossesA == lossesB)
+            first_div = _first_divergence(lossesA, lossesB, stepA, stepB)
+        except (UnsupportedKernelError, RuntimeError) as err:
+            return _handle_run_error(err)
 
     merkle_root, chunk_count, size_bytes = _merkle_from_model(modelA, tag, keep_artifact)
 
@@ -175,6 +263,7 @@ def run_one(model_name, dataset_name="shakespeare", precision="fp32",
         "deterministic": deterministic,
         "device": dev.type,
         "device_name": device_name(dev),
+        "status": "PASS",
         "final_loss": lossesA[-1],
         "param_sha256": hashA,
         "merkle_root": merkle_root,
@@ -202,6 +291,15 @@ def run_one(model_name, dataset_name="shakespeare", precision="fp32",
 
 
 def _print_cell(r):
+    if r.get("status") == "UNSUPPORTED":
+        reason = r.get("unsupported_reason", "unsupported configuration")
+        print(
+            f"  [{r['model']:>6} | {r['dataset']:>11} | {r['precision']:>4} | "
+            f"det {'on ' if r['deterministic'] else 'off'} | {r['device']:>4}]  "
+            f"UNSUPPORTED: {reason}"
+        )
+        return
+
     repro = "PASS" if r["reproducible"] else ("FAIL" if r["reproducible"] is not None else "-")
     fd = r["first_divergence_step"]
     print(

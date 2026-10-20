@@ -24,7 +24,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parents[1] / "src"
+ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(SRC))
 
 import signing  # noqa: E402  (torch-free)
@@ -322,6 +324,81 @@ class DeterminismTests(unittest.TestCase):
         annotate_reference(recs)
         self.assertTrue(any(r["is_reference"] for r in recs))
         self.assertTrue(any(r["vs_fp32_bitwise"] is False for r in recs))
+
+    def test_lstm_cpu_bf16_unsupported_handled_gracefully(self):
+        from unittest.mock import patch
+        from experiment import UnsupportedKernelError, run_one
+        from sweep import annotate_reference, print_grid, _fmt_repro
+        from demo import print_verdict_table
+
+        with patch("experiment.check_kernel_support", side_effect=UnsupportedKernelError("oneDNN on CPU has no LSTM bf16 forward primitive")):
+            rec = run_one("lstm", "shakespeare", "bf16", True, device="cpu", overrides=SMOKE, quiet=True)
+
+        self.assertEqual(rec["status"], "UNSUPPORTED")
+        self.assertIn("oneDNN on CPU has no LSTM bf16", rec["unsupported_reason"])
+        self.assertIsNone(rec["final_loss"])
+        self.assertIsNone(rec["reproducible"])
+        self.assertEqual(_fmt_repro(rec), "UNSUP")
+
+        # Ensure grid and verdict table formatting succeed without exceptions
+        ref = run_one("mlp", "shakespeare", "fp32", True, device="cpu", overrides=SMOKE, quiet=True)
+        ref["condition"] = "fp32 det-on"
+        rec["condition"] = "bf16 det-on"
+        records = [ref, rec]
+
+        annotate_reference(records)
+        self.assertIsNone(rec["vs_fp32_bitwise"])
+        self.assertIsNone(rec["vs_fp32_losstol"])
+
+        # Validate that printing doesn't throw formatting errors on None values
+        # and that UNSUPPORTED records do not evaluate cross-GPU agreement
+        import io
+        from contextlib import redirect_stdout
+        with tempfile.NamedTemporaryFile("w+", suffix=".jsonl") as tmp:
+            tmp.write(json.dumps({"model": "lstm", "condition": "bf16 det-on", "param_sha256": "fakehash"}) + "\n")
+            tmp.flush()
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                print_grid(records)
+                print_verdict_table(records, cross_gpu_results=tmp.name)
+        out = buf.getvalue()
+        self.assertIn("UNSUP", out)
+        self.assertIn("UNSUPPORTED", out)
+        for line in out.splitlines():
+            if line.startswith("lstm") and "bf16 det-on" in line:
+                self.assertIn("-", line)
+                self.assertNotIn("DIFF", line)
+                self.assertNotIn("SAME", line)
+
+    def test_lstm_cpu_bf16_runtime_error_converted_in_single_train(self):
+        from unittest.mock import patch
+        from experiment import run_one
+
+        with patch("experiment.check_kernel_support"):
+            with patch("experiment._single_train", side_effect=RuntimeError("could not create a primitive descriptor for the LSTM forward propagation primitive")):
+                rec = run_one("lstm", "shakespeare", "bf16", True, device="cpu", overrides=SMOKE, quiet=True)
+
+        self.assertEqual(rec["status"], "UNSUPPORTED")
+        self.assertIn("oneDNN on CPU has no LSTM bf16", rec["unsupported_reason"])
+        self.assertIsNone(rec["final_loss"])
+
+    def test_unrelated_lstm_runtime_error_not_caught_as_unsupported(self):
+        from unittest.mock import patch
+        from experiment import run_one
+
+        with patch("experiment.check_kernel_support"):
+            with patch("experiment._single_train", side_effect=RuntimeError("lstm generic internal error")):
+                with self.assertRaises(RuntimeError) as cm:
+                    run_one("lstm", "shakespeare", "bf16", True, device="cpu", overrides=SMOKE, quiet=True)
+                self.assertIn("lstm generic internal error", str(cm.exception))
+
+    def test_check_kernel_support_non_cpu_or_non_lstm(self):
+        from experiment import check_kernel_support
+        # Non-LSTM on CPU + bf16 is supported
+        check_kernel_support("mlp", "bf16", torch.device("cpu"))
+        # LSTM on CPU + fp32 is supported
+        check_kernel_support("lstm", "fp32", torch.device("cpu"))
+
 
 
 # --------------------------------------------------------------------------- #

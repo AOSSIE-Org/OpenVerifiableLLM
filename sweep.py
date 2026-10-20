@@ -46,12 +46,12 @@ def annotate_reference(records):
     """Tag each cell with agreement vs the per-(model,dataset) fp32+det reference."""
     refs = {}
     for r in records:
-        if r["precision"] == "fp32" and r["deterministic"]:
+        if r["precision"] == "fp32" and r["deterministic"] and r.get("status") != "UNSUPPORTED":
             refs[(r["model"], r["dataset"])] = r
     for r in records:
         ref = refs.get((r["model"], r["dataset"]))
         r["is_reference"] = ref is not None and r is ref
-        if not ref:
+        if not ref or r.get("status") == "UNSUPPORTED" or r.get("final_loss") is None:
             r["vs_fp32_bitwise"] = None
             r["vs_fp32_losstol"] = None
             continue
@@ -63,14 +63,18 @@ def annotate_reference(records):
 
 
 def _fmt_repro(r):
+    if r.get("status") == "UNSUPPORTED":
+        return "UNSUP"
     if r["reproducible"] is None:
         return "  -  "
     return "PASS " if r["reproducible"] else "FAIL "
 
 
-def _fmt_vs(bitwise, losstol):
-    if bitwise is None:
+def _fmt_vs(bitwise, losstol, is_ref=False):
+    if is_ref:
         return "ref "
+    if bitwise is None:
+        return " -  "
     if bitwise:
         return "SAME"
     return "DIFF"
@@ -95,23 +99,34 @@ def print_grid(records):
         for r in cells:
             bitwise, losstol = r["vs_fp32_bitwise"], r["vs_fp32_losstol"]
             fd = r["first_divergence_step"]
-            loss_tol_str = "ref " if losstol is None else ("SAME" if losstol else "DIFF")
+            if r.get("is_reference"):
+                loss_tol_str = "ref "
+            elif losstol is None:
+                loss_tol_str = " -  "
+            else:
+                loss_tol_str = "SAME" if losstol else "DIFF"
             star = ""
             if bitwise is False and losstol is True:
                 star = "  <-- loss agrees, bits differ (DEBATE)"
                 debate_cells.append(r)
+            loss_val = r.get("final_loss")
+            loss_str = f"{loss_val:<14.6f}" if loss_val is not None else f"{'-':<14}"
+            chunk_cnt = r.get("merkle_chunk_count")
+            chunk_str = f"{chunk_cnt} chunks" if chunk_cnt is not None else "-"
             print(f"{model:<8}{r['condition']:<14}{_fmt_repro(r):<7}"
                   f"{('-' if fd is None else str(fd)):<11}"
-                  f"{_fmt_vs(bitwise, losstol):<14}{loss_tol_str:<11}"
-                  f"{r['final_loss']:<14.6f}"
-                  f"{str(r['merkle_chunk_count']) + ' chunks':<10}{star}")
+                  f"{_fmt_vs(bitwise, losstol, r.get('is_reference')):<14}{loss_tol_str:<11}"
+                  f"{loss_str}"
+                  f"{chunk_str:<10}{star}")
 
     print("\n" + "=" * 100)
-    n_pass = sum(1 for r in records if r["reproducible"] is True)
-    n_fail = sum(1 for r in records if r["reproducible"] is False)
-    n_diff = sum(1 for r in records if r["vs_fp32_bitwise"] is False)
+    n_pass = sum(1 for r in records if r.get("reproducible") is True)
+    n_fail = sum(1 for r in records if r.get("reproducible") is False)
+    n_unsup = sum(1 for r in records if r.get("status") == "UNSUPPORTED")
+    n_diff = sum(1 for r in records if r.get("vs_fp32_bitwise") is False)
+    unsup_info = f" | unsupported: {n_unsup}" if n_unsup else ""
     print(f"Cells: {len(records)} | run-to-run reproducible: {n_pass} | "
-          f"run-to-run broken: {n_fail} | bit-differ from fp32 reference: {n_diff}")
+          f"run-to-run broken: {n_fail}{unsup_info} | bit-differ from fp32 reference: {n_diff}")
     if debate_cells:
         print(f"Debate-hook cells (loss within 1e-6 of fp32 but NOT bitwise equal): "
               f"{len(debate_cells)} -> "
