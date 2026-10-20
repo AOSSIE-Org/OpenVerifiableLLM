@@ -6,13 +6,12 @@ from pathlib import Path
 import re
 import time
 
-from ovl_pipeline.canonical import EvidenceError,digest,read_json,write_json
+from ovl_pipeline.canonical import EvidenceError,digest,host_boot_id,host_boottime_ms,read_json,write_json
 from ovl_pipeline.supervision import ControllerBusy
 
 
 def boot_clock():
-    return {'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
-            'boottime_ms':time.clock_gettime_ns(time.CLOCK_BOOTTIME)//1_000_000}
+    return {'boot_id':host_boot_id(),'boottime_ms':host_boottime_ms()}
 
 
 class Lifetime:

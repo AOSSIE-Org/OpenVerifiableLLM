@@ -7,7 +7,9 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import struct
+import sys
 import tempfile
+import time
 
 import rfc8785
 
@@ -199,3 +201,47 @@ class Merkle:
         if node is None:
             node = hashlib.sha256(b"").digest()
         return sha256(b"ovl.merkle.v1\x00" + struct.pack(">Q", self.count) + node)
+
+
+def host_boot_id() -> str:
+    """Return the host kernel boot UUID in lowercase RFC4122 format."""
+    proc_boot = Path("/proc/sys/kernel/random/boot_id")
+    if proc_boot.is_file():
+        return proc_boot.read_text().strip()
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            import ctypes.util
+
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            buf = ctypes.create_string_buffer(64)
+            size = ctypes.c_size_t(64)
+            if libc.sysctlbyname(b"kern.bootsessionuuid", buf, ctypes.byref(size), None, 0) == 0:
+                raw = buf.value.decode("ascii").strip().lower()
+                if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", raw):
+                    return raw
+        except Exception:
+            pass
+        try:
+            import subprocess
+
+            raw = (
+                subprocess.check_output(
+                    ["/usr/sbin/sysctl", "-n", "kern.bootsessionuuid"],
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode("ascii")
+                .strip()
+                .lower()
+            )
+            if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", raw):
+                return raw
+        except Exception:
+            pass
+    raise EvidenceError("host boot identity unavailable")
+
+
+def host_boottime_ms() -> int:
+    """Return monotonic milliseconds elapsed since system boot."""
+    clock_id = getattr(time, "CLOCK_BOOTTIME", getattr(time, "CLOCK_MONOTONIC_RAW", time.CLOCK_MONOTONIC))
+    return time.clock_gettime_ns(clock_id) // 1_000_000

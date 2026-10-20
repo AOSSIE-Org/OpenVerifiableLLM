@@ -10,7 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 import time
 
-from .canonical import EvidenceError, digest, read_json, write_json
+from .canonical import EvidenceError, digest, host_boot_id, read_json, write_json
 from .lifecycle import Pending, RetryableRead, exclusive
 from .lifecycle_creation import update as creation_update
 
@@ -74,7 +74,7 @@ def supervise(intent, expected, directory, provider, *, clock=time.time, sleep=t
         state = {"intent_sha256": expected, "resource_id": None, "status": "ARMED", "last_observed": None,
                  "last_observed_monotonic_ms": None,
                  "provisioning_match": None, "resource_seen": False, "deletion_confirmed": False,
-                 "boot_id": Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                 "boot_id": host_boot_id(),
                  "stop_monotonic_ms": int((monotonic_start+intent['terminate_at']-wall_start)*1000)}
         current_boot = state['boot_id']
         if path.exists():

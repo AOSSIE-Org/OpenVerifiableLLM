@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from ovl_pipeline.canonical import EvidenceError, digest, read_json, write_json
+from ovl_pipeline.canonical import EvidenceError, digest, host_boot_id, read_json, write_json
 from ovl_pipeline.lifecycle_guard import supervise, validate_intent
 
 
@@ -20,6 +20,8 @@ def intent(now):
 
 
 def test_independent_process_guard_survives_coordinator_death(tmp_path):
+    if not Path("/proc").is_dir():
+        pytest.skip("Linux procfs required for local process fixture")
     now = int(time.time())
     plan = intent(now)
     write_json(tmp_path / "intent.json", plan)
@@ -367,7 +369,7 @@ def test_restart_does_not_renew_expired_provider_observation_window(tmp_path):
     p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'}
     state={'intent_sha256':digest(p),'resource_id':'synthetic','status':'ARMED','last_observed':100,
            'provisioning_match':True,'resource_seen':True,'deletion_confirmed':False,
-           'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
+           'boot_id':host_boot_id(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
     write_json(tmp_path/'guard.json',state)
     class Provider:
         calls=[]
@@ -388,7 +390,7 @@ def test_explicit_stop_terminates_known_resource_before_failed_inventory(tmp_pat
     p={**intent(100),'terminate_at':1000,'rental_ceiling_usd':'1'}
     state={'intent_sha256':digest(p),'resource_id':'synthetic','status':'ARMED','last_observed':100,
            'provisioning_match':True,'resource_seen':True,'deletion_confirmed':False,
-           'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
+           'boot_id':host_boot_id(),'stop_monotonic_ms':1000000,'last_observed_monotonic_ms':100000}
     write_json(tmp_path/'guard.json',state)
     write_json(tmp_path/'stop.json',{'intent_sha256':digest(p),'resource_id':'synthetic'})
     class Provider:
