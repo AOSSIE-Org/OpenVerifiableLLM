@@ -1,0 +1,136 @@
+{
+  "schemaVersion": "ovllm.frontend.snapshot.v1",
+  "generatedAt": "2026-09-19T12:00:00Z",
+  "mode": "fixture",
+  "source": {
+    "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+    "revision": "fixture",
+    "path": "frontend/src/data/fixtures/superseded.json",
+    "sha256": null
+  },
+  "summary": {
+    "headline": "Test record: an old failed check stays listed after a later pass.",
+    "mayClaim": ["this is a synthetic fixture"],
+    "mayNotClaim": ["production status"],
+    "workflow": "History is not rewritten. Not project status."
+  },
+  "pipeline": [
+    {
+      "id": "recon",
+      "title": "Data reconstruction",
+      "phase": "prepare",
+      "result": "PASS",
+      "scope": "fixture",
+      "checkId": "chk-recon-2"
+    }
+  ],
+  "releases": [
+    {
+      "id": "base",
+      "role": "base",
+      "availability": "not-released",
+      "title": "Base",
+      "parentReleaseId": null,
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "Fixture. Not a release."
+    },
+    {
+      "id": "chat",
+      "role": "chat",
+      "availability": "not-released",
+      "title": "Chat",
+      "parentReleaseId": "base",
+      "repository": null,
+      "revision": null,
+      "releaseRoot": null,
+      "notes": "Fixture. Not a release."
+    }
+  ],
+  "checks": [
+    {
+      "id": "chk-recon-1",
+      "profile": "data-reconstruction",
+      "phase": "prepare",
+      "scope": "fixture",
+      "result": "FAIL",
+      "explanation": "First reconstruction attempt did not match the committed root.",
+      "performedBy": "fixture",
+      "attestedBy": "fixture",
+      "locallyRecomputed": false,
+      "evidence": [
+        {
+          "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+          "revision": "fixture",
+          "path": "report-1",
+          "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      ]
+    },
+    {
+      "id": "chk-recon-2",
+      "profile": "data-reconstruction",
+      "phase": "prepare",
+      "scope": "fixture",
+      "result": "PASS",
+      "explanation": "Later reconstruction matched the committed root. This does not erase the earlier FAIL.",
+      "performedBy": "fixture",
+      "attestedBy": "fixture",
+      "locallyRecomputed": false,
+      "evidence": [
+        {
+          "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+          "revision": "fixture",
+          "path": "report-2",
+          "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        }
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "ev-fail",
+      "title": "Reconstruction report v1",
+      "kind": "report",
+      "phase": "prepare",
+      "scope": "fixture",
+      "result": "FAIL",
+      "checkId": "chk-recon-1",
+      "source": {
+        "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+        "revision": "fixture",
+        "path": "report-1",
+        "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      },
+      "parentIds": [],
+      "childIds": ["ev-pass"],
+      "sizeBytes": 512,
+      "timestamp": "2026-09-10T00:00:00Z",
+      "supersededBy": "ev-pass",
+      "supersedes": null
+    },
+    {
+      "id": "ev-pass",
+      "title": "Reconstruction report v2",
+      "kind": "report",
+      "phase": "prepare",
+      "scope": "fixture",
+      "result": "PASS",
+      "checkId": "chk-recon-2",
+      "source": {
+        "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+        "revision": "fixture",
+        "path": "report-2",
+        "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "parentIds": ["ev-fail"],
+      "childIds": [],
+      "sizeBytes": 640,
+      "timestamp": "2026-09-12T00:00:00Z",
+      "supersededBy": null,
+      "supersedes": "ev-fail"
+    }
+  ],
+  "commands": []
+}

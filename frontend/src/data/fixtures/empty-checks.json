@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "ovllm.frontend.snapshot.v1",
+  "generatedAt": "2026-09-19T12:00:00Z",
+  "mode": "fixture",
+  "source": {
+    "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+    "revision": "fixture",
+    "path": "frontend/src/data/fixtures/empty-checks.json",
+    "sha256": null
+  },
+  "summary": {
+    "headline": "Test record with no checks.",
+    "mayClaim": [],
+    "mayNotClaim": ["anything"],
+    "workflow": "Must not render as success."
+  },
+  "pipeline": [],
+  "releases": [],
+  "checks": [],
+  "evidence": [],
+  "commands": []
+}
