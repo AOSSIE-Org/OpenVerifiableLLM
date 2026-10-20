@@ -184,9 +184,37 @@ def validate_job(v,*,resolve_executable=True):
     return v
 
 
+def darwin_process_stat(pid):
+    import ctypes, struct
+    libc = ctypes.CDLL(None, use_errno=True)
+    mib = (ctypes.c_int * 4)(1, 14, 1, pid)
+    buf = ctypes.create_string_buffer(648)
+    size = ctypes.c_size_t(648)
+    ret = libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0)
+    if ret != 0:
+        err = ctypes.get_errno()
+        if err == 3:
+            raise FileNotFoundError(f'/proc/{pid}/stat')
+        raise OSError(err, f'sysctl failed for pid {pid}')
+    if size.value < 648:
+        raise FileNotFoundError(f'/proc/{pid}/stat')
+    tv_sec, tv_usec = struct.unpack_from('qq', buf.raw, 0)
+    p_stat = struct.unpack_from('b', buf.raw, 36)[0]
+    e_pgid = struct.unpack_from('i', buf.raw, 564)[0]
+    state = 'Z' if p_stat == 5 else ('R' if p_stat == 2 else 'S')
+    ticks = tv_sec * 100 + tv_usec // 10000
+    return state, ticks, int(e_pgid)
+
+
 def process_identity(pid):
-    text=Path(f'/proc/{pid}/stat').read_text();tail=text[text.rfind(')')+2:].split()
-    return {'pid':pid,'start_ticks':int(tail[19]),'process_group':int(tail[2])}
+    proc_stat = Path(f'/proc/{pid}/stat')
+    if proc_stat.is_file():
+        text=proc_stat.read_text();tail=text[text.rfind(')')+2:].split()
+        return {'pid':pid,'start_ticks':int(tail[19]),'process_group':int(tail[2])}
+    if sys.platform == 'darwin':
+        _, ticks, pgid = darwin_process_stat(pid)
+        return {'pid':pid,'start_ticks':ticks,'process_group':pgid}
+    raise FileNotFoundError(f'/proc/{pid}/stat')
 
 
 def signal_owned(identity,sig):
@@ -195,6 +223,12 @@ def signal_owned(identity,sig):
     if current!=identity or current['process_group']!=current['pid']:raise Refusal('process identity changed; refusing signal')
     try:os.killpg(current['pid'],sig)
     except ProcessLookupError:return False
+    except PermissionError:
+        if sys.platform == 'darwin':
+            try:os.kill(current['pid'],0);return True
+            except ProcessLookupError:return False
+            except PermissionError:raise
+        raise
     return True
 
 
@@ -202,15 +236,37 @@ def exit_ready(pid):
     # WNOWAIT retains the leader's identity until descendants in its process
     # group have received termination, avoiding a reap/PID-reuse signal race.
     # https://docs.python.org/3.12/library/os.html#os.waitid
-    return os.waitid(os.P_PID,pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None
+    if hasattr(os, 'waitid'):
+        return os.waitid(os.P_PID,pid,os.WEXITED|os.WNOHANG|os.WNOWAIT) is not None
+    if sys.platform == 'darwin':
+        try:
+            import ctypes, struct
+            libc = ctypes.CDLL(None)
+            siginfo = ctypes.create_string_buffer(128)
+            if libc.waitid(1, ctypes.c_int(pid), siginfo, 4 | 1 | 0x20) == 0:
+                si_pid = struct.unpack_from('i', siginfo.raw, 12)[0]
+                return si_pid == pid
+        except Exception:
+            pass
+    try:
+        wpid, _ = os.waitpid(pid, os.WNOHANG)
+        return wpid == pid
+    except ChildProcessError:
+        return True
 
 
 def alive(identity):
     if identity is None:return False
     try:
         if process_identity(identity['pid'])!=identity:return False
-        text=Path(f'/proc/{identity["pid"]}/stat').read_text()
-        return text[text.rfind(')')+2:].split()[0] not in ('Z','X')
+        proc_stat = Path(f'/proc/{identity["pid"]}/stat')
+        if proc_stat.is_file():
+            text=proc_stat.read_text()
+            return text[text.rfind(')')+2:].split()[0] not in ('Z','X')
+        if sys.platform == 'darwin':
+            state, _, _ = darwin_process_stat(identity['pid'])
+            return state not in ('Z', 'X')
+        return False
     # A task may disappear after /proc was opened but before read(). Linux
     # then returns ESRCH rather than ENOENT. Both observations mean absent;
     # permission, malformed metadata and signaling identity failures stay strict.
@@ -221,12 +277,38 @@ def group_alive(group):
     # Read-only check after an identity-checked group signal. A missing leader
     # alone is not evidence that its descendants have stopped. This does not
     # contain a hostile workload that deliberately escapes its selected group.
-    for path in Path('/proc').iterdir():
-        if not path.name.isdecimal():continue
-        try:text=(path/'stat').read_text()
-        except (FileNotFoundError,ProcessLookupError):continue
-        tail=text[text.rfind(')')+2:].split()
-        if int(tail[2])==group and tail[0] not in ('Z','X'):return True
+    p = Path('/proc')
+    if p.is_dir():
+        for path in p.iterdir():
+            if not path.name.isdecimal():continue
+            try:text=(path/'stat').read_text()
+            except (FileNotFoundError,ProcessLookupError):continue
+            tail=text[text.rfind(')')+2:].split()
+            if int(tail[2])==group and tail[0] not in ('Z','X'):return True
+        return False
+    if sys.platform == 'darwin':
+        try:
+            import ctypes, struct
+            libc = ctypes.CDLL(None)
+            mib = (ctypes.c_int * 4)(1, 14, 2, group)
+            size = ctypes.c_size_t(0)
+            if libc.sysctl(mib, 4, None, ctypes.byref(size), None, 0) == 0 and size.value >= 648:
+                buf = ctypes.create_string_buffer(size.value)
+                if libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0) == 0:
+                    count = size.value // 648
+                    for i in range(count):
+                        stat = struct.unpack_from('b', buf.raw, i * 648 + 36)[0]
+                        if stat != 5:
+                            return True
+                    return False
+        except Exception:
+            pass
+        try:
+            import subprocess
+            res = subprocess.run(['pgrep', '-g', str(group)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return res.returncode == 0
+        except Exception:
+            return False
     return False
 
 

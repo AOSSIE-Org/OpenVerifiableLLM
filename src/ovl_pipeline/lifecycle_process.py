@@ -16,7 +16,7 @@ import sysconfig
 import tempfile
 import time
 
-from .canonical import EvidenceError, canonical, digest, file_hash, read_json, require_digest, write_json
+from .canonical import EvidenceError, canonical, digest, file_hash, host_boot_id, host_process_stat, read_json, require_digest, write_json
 from .lifecycle import Pending, durable_mkdir, exclusive, sync_directory
 from .lifecycle_artifacts import snapshot, check_snapshot, durable_tree
 
@@ -61,10 +61,10 @@ def target(request):
 
 def process_identity(pid=None):
     pid = os.getpid() if pid is None else pid
-    stat = Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()
-    return {'pid':pid, 'start_ticks':stat[19],
-            'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
-            'state':stat[0]}
+    state, ticks, _ = host_process_stat(pid)
+    return {'pid':pid, 'start_ticks':ticks,
+            'boot_id':host_boot_id(),
+            'state':state}
 
 
 def live(selected):

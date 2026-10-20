@@ -9,15 +9,15 @@ import os
 from pathlib import Path
 
 from . import gpu_pilot,schema
-from .canonical import EvidenceError,canonical,confined,digest,read_json,require_digest,write_json
+from .canonical import EvidenceError,canonical,confined,digest,host_boot_id,host_process_stat,read_json,require_digest,write_json
 from .production_observation import validate_stream
 from .state import capture,read_state,save_state,state_root
 from .training import code_root
 
 
 def process_identity():
-    return {'pid':os.getpid(),'boot_id':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
-            'start_ticks':Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[19]}
+    _,ticks,_=host_process_stat(os.getpid())
+    return {'pid':os.getpid(),'boot_id':host_boot_id(),'start_ticks':ticks}
 
 
 def fresh(directory,recipe,kernel,warmup_updates):

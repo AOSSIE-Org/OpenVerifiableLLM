@@ -188,6 +188,7 @@ def test_closed_worker_terminal_schemas_match_publisher_canonical_encoding():
         assert m.encoded(value)==canonical(value)
 
 
+@pytest.mark.skipif(sys.platform == 'darwin', reason='Linux /proc specific open race')
 def test_readonly_liveness_observes_process_reaped_after_proc_open_as_absent(monkeypatch):
     """Linux returns ESRCH on an already-open /proc stat after task removal."""
     child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(.2)'],start_new_session=True)
@@ -273,7 +274,7 @@ def test_abandonment_with_exited_leader_never_acknowledges_live_descendant(tmp_p
         # The test itself owns this Popen group, including the reaped-leader
         # case. Production must not infer such ownership from absent metadata.
         try:os.killpg(leader.pid,signal.SIGKILL)
-        except ProcessLookupError:pass
+        except (ProcessLookupError, PermissionError):pass
         leader.wait(timeout=5)
 
 
@@ -299,5 +300,5 @@ def test_live_group_blocks_exit_receipt_on_normal_and_exception_cleanup(tmp_path
     finally:
         for child in children:
             try:os.killpg(child.pid,signal.SIGKILL)
-            except ProcessLookupError:pass
+            except (ProcessLookupError, PermissionError):pass
             child.wait(timeout=5)

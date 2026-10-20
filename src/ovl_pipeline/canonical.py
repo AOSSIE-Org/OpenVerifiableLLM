@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import struct
+import sys
 import tempfile
 
 import rfc8785
@@ -199,3 +200,79 @@ class Merkle:
         if node is None:
             node = hashlib.sha256(b"").digest()
         return sha256(b"ovl.merkle.v1\x00" + struct.pack(">Q", self.count) + node)
+
+
+def host_boot_id() -> str:
+    """Return the host kernel boot UUID in lowercase RFC4122 format."""
+    proc_boot = Path("/proc/sys/kernel/random/boot_id")
+    if proc_boot.is_file():
+        return proc_boot.read_text().strip()
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            import ctypes.util
+
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            buf = ctypes.create_string_buffer(64)
+            size = ctypes.c_size_t(64)
+            if libc.sysctlbyname(b"kern.bootsessionuuid", buf, ctypes.byref(size), None, 0) == 0:
+                raw = buf.value.decode("ascii").strip().lower()
+                if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", raw):
+                    return raw
+        except Exception:
+            pass
+        try:
+            import subprocess
+
+            raw = (
+                subprocess.check_output(
+                    ["/usr/sbin/sysctl", "-n", "kern.bootsessionuuid"],
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode("ascii")
+                .strip()
+                .lower()
+            )
+            if re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", raw):
+                return raw
+        except Exception:
+            pass
+    raise EvidenceError("host boot identity unavailable")
+
+
+def host_process_stat(pid: int | None = None) -> tuple[str, str, int]:
+    """Return (state, start_ticks, process_group) for target PID with cross-platform support."""
+    target = os.getpid() if pid is None else pid
+    proc_stat = Path(f"/proc/{target}/stat")
+    if proc_stat.is_file():
+        text = proc_stat.read_text()
+        tail = text.rsplit(")", 1)[1].split()
+        return tail[0], tail[19], int(tail[2])
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            import struct
+
+            libc = ctypes.CDLL(None, use_errno=True)
+            mib = (ctypes.c_int * 4)(1, 14, 1, target)
+            buf = ctypes.create_string_buffer(648)
+            size = ctypes.c_size_t(648)
+            ret = libc.sysctl(mib, 4, buf, ctypes.byref(size), None, 0)
+            if ret != 0:
+                err = ctypes.get_errno()
+                if err == 3:
+                    raise FileNotFoundError(f"/proc/{target}/stat")
+                raise OSError(err, f"sysctl failed for pid {target}")
+            if size.value < 648:
+                raise FileNotFoundError(f"/proc/{target}/stat")
+            tv_sec, tv_usec = struct.unpack_from("qq", buf.raw, 0)
+            p_stat = struct.unpack_from("b", buf.raw, 36)[0]
+            e_pgid = struct.unpack_from("i", buf.raw, 564)[0]
+            state = "Z" if p_stat == 5 else ("R" if p_stat == 2 else "S")
+            ticks = str(tv_sec * 100 + tv_usec // 10000)
+            return state, ticks, int(e_pgid)
+        except FileNotFoundError:
+            raise
+        except Exception:
+            pass
+    raise FileNotFoundError(f"/proc/{target}/stat")

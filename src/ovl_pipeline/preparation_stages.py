@@ -12,7 +12,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 
-from .canonical import EvidenceError, digest, inventory, read_json, verify_inventory, write_json
+from .canonical import EvidenceError, digest, host_boot_id, host_process_stat, inventory, read_json, verify_inventory, write_json
 from .schema import fields
 
 MAX_PRESERVED_STAGES = 8
@@ -82,11 +82,12 @@ class Stages:
                 raise EvidenceError("unexpected preparation output object")
             observation_dir=self.progress/"observations"
             durable_mkdir(observation_dir)
+            _,ticks,_=host_process_stat(os.getpid())
             self.observation={"schema":"ovl.preparation-execution.v1","invocation_id":uuid.uuid4().hex,
                 "source_commitment_sha256":self.context["source_commitment_sha256"],
                 "resume_requested":resume,"started_at":datetime.now(timezone.utc).isoformat(),
-                "pid":os.getpid(),"boot_id":Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
-                "process_start_ticks":Path("/proc/self/stat").read_text().rsplit(")",1)[1].split()[19],
+                "pid":os.getpid(),"boot_id":host_boot_id(),
+                "process_start_ticks":ticks,
                 "admission":admission,"status":"STARTED"}
             write_json(observation_dir/(digest(self.observation)+".json"),self.observation)
             self.active=True
