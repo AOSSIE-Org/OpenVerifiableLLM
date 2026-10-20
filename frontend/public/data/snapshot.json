@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-30T09:00:00Z",
+  "mode": "fixture",
+  "approval": null,
+  "sources": [
+    {
+      "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM",
+      "revision": null,
+      "path": null,
+      "sha256": null
+    }
+  ],
+  "workflow": {
+    "state": "pending",
+    "summary": "Synthetic scenario: limited pilot replay reported; production workflow remains pending. Actual project progress is unavailable."
+  },
+  "releases": [
+    {
+      "id": "base-unreleased",
+      "role": "base",
+      "availability": "not-released",
+      "identity": null,
+      "parentReleaseId": null,
+      "checkIds": []
+    },
+    {
+      "id": "chat-unreleased",
+      "role": "chat",
+      "availability": "not-released",
+      "identity": null,
+      "parentReleaseId": null,
+      "checkIds": []
+    }
+  ],
+  "checks": [
+    {
+      "id": "check-synthetic-pilot-replay",
+      "title": "Sampled replay report",
+      "profile": "sampled-replay",
+      "phase": "Training / replay",
+      "scope": "pilot",
+      "result": "PASS",
+      "explanation": "A limited synthetic pilot sample was reported as replayed. Production computation was not checked.",
+      "performedBy": "Synthetic project operator",
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "project-operated-replay",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-pilot-replay"
+      ],
+      "timestamp": null
+    },
+    {
+      "id": "check-synthetic-production-replay",
+      "title": "Complete end-to-end replay",
+      "profile": "complete-replay",
+      "phase": "Training / replay",
+      "scope": "production",
+      "result": "NOT_RUN",
+      "explanation": "No production replay has been performed in this synthetic scenario.",
+      "performedBy": null,
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "unknown",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-production-replay"
+      ],
+      "timestamp": null
+    },
+    {
+      "id": "check-synthetic-integrity",
+      "title": "Artifact integrity check",
+      "profile": "artifact-identity",
+      "phase": "Publication",
+      "scope": "fixture",
+      "result": "FAIL",
+      "explanation": "A deliberately altered synthetic artifact does not match its expected digest.",
+      "performedBy": "Synthetic operator",
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "publisher-report",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-integrity"
+      ],
+      "timestamp": null
+    },
+    {
+      "id": "check-synthetic-data",
+      "title": "Data reconstruction report",
+      "profile": "data-reconstruction",
+      "phase": "Data preparation",
+      "scope": "fixture",
+      "result": "UNAVAILABLE",
+      "explanation": "The required synthetic reconstruction report is unavailable.",
+      "performedBy": null,
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "unknown",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-data"
+      ],
+      "timestamp": null
+    },
+    {
+      "id": "check-synthetic-replay-old",
+      "title": "Earlier sampled replay report",
+      "profile": "sampled-replay",
+      "phase": "Training / replay",
+      "scope": "fixture",
+      "result": "FAIL",
+      "explanation": "An earlier synthetic replay attempt failed. It is preserved and superseded by a later report.",
+      "performedBy": "Synthetic operator",
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "publisher-report",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-replay-old"
+      ],
+      "timestamp": null
+    },
+    {
+      "id": "check-synthetic-tokenizer",
+      "title": "Tokenizer preparation record",
+      "profile": "data-reconstruction",
+      "phase": "Tokenizer",
+      "scope": "fixture",
+      "result": "UNSUPPORTED",
+      "explanation": "This synthetic tokenizer format is unsupported by the example reconstruction environment.",
+      "performedBy": "Synthetic operator",
+      "attestedBy": null,
+      "locallyRecomputed": false,
+      "attribution": "publisher-report",
+      "independenceEvidence": null,
+      "evidenceIds": [
+        "synthetic-tokenizer"
+      ],
+      "timestamp": null
+    }
+  ],
+  "evidence": [
+    {
+      "id": "synthetic-pilot-replay",
+      "title": "Sampled replay report",
+      "kind": "report",
+      "phase": "Training / replay",
+      "scope": "pilot",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "parents": [
+        "synthetic-data",
+        "synthetic-parent-missing"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": "synthetic-replay-old",
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-production-replay",
+      "title": "Complete end-to-end replay",
+      "kind": "report",
+      "phase": "Training / replay",
+      "scope": "production",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [
+        "synthetic-pilot-replay"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-integrity",
+      "title": "Artifact integrity check",
+      "kind": "report",
+      "phase": "Publication",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [
+        "synthetic-init"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-data",
+      "title": "Data reconstruction report",
+      "kind": "report",
+      "phase": "Data preparation",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [
+        "synthetic-wikipedia",
+        "synthetic-conversations"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-replay-old",
+      "title": "Earlier sampled replay report",
+      "kind": "report",
+      "phase": "Training / replay",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": "synthetic-pilot-replay",
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-tokenizer",
+      "title": "Tokenizer preparation record",
+      "kind": "manifest",
+      "phase": "Tokenizer",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [
+        "synthetic-data"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-init",
+      "title": "Frozen configuration",
+      "kind": "manifest",
+      "phase": "Initialization",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [
+        "synthetic-tokenizer"
+      ],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-conversations",
+      "title": "Conversation source inventory",
+      "kind": "manifest",
+      "phase": "Conversation selection",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    },
+    {
+      "id": "synthetic-wikipedia",
+      "title": "Wikipedia source inventory",
+      "kind": "manifest",
+      "phase": "Source acquisition",
+      "scope": "fixture",
+      "synthetic": true,
+      "source": {
+        "url": null,
+        "revision": null,
+        "path": null,
+        "sha256": null
+      },
+      "parents": [],
+      "sizeBytes": null,
+      "timestamp": null,
+      "supersedes": null,
+      "supersededBy": null,
+      "metadata": {
+        "fixtureIdentity": true,
+        "note": "Synthetic display example; no project artifact is represented."
+      }
+    }
+  ],
+  "commands": []
+}
