@@ -232,7 +232,8 @@ def verify_preprocessing(
     VerificationReport
         Structured report with per-check pass/fail results.
     """
-    input_dump = Path(input_dump).resolve()
+    original_input_dump = str(input_dump)
+    resolved_input_dump = Path(input_dump).resolve()
     root = project_root or Path.cwd()
 
     if manifest_path is None:
@@ -240,13 +241,17 @@ def verify_preprocessing(
     else:
         manifest_path = Path(manifest_path)
 
-    if previous_manifest_path is not None:
-        previous_manifest_path = Path(previous_manifest_path).resolve()
+    original_previous_manifest_path = (
+        str(previous_manifest_path) if previous_manifest_path is not None else None
+    )
+    resolved_previous_manifest_path = (
+        Path(previous_manifest_path).resolve() if previous_manifest_path is not None else None
+    )
 
     report = VerificationReport(
-        input_dump=str(input_dump),
+        input_dump=original_input_dump,
         manifest_path=str(manifest_path),
-        previous_manifest_path=str(previous_manifest_path) if previous_manifest_path else None,
+        previous_manifest_path=original_previous_manifest_path,
     )
 
     # 1. Load existing manifest
@@ -280,24 +285,24 @@ def verify_preprocessing(
     )
 
     # ===== Verify manifest chain if previous manifest is provided =====
-    if previous_manifest_path is not None:
-        if not previous_manifest_path.exists():
+    if resolved_previous_manifest_path is not None:
+        if not resolved_previous_manifest_path.exists():
             report.add(
                 CheckResult(
                     name="manifest_chain_link",
                     status=CheckStatus.FAIL,
-                    detail=f"Previous manifest not found: {previous_manifest_path}",
+                    detail=f"Previous manifest not found: {resolved_previous_manifest_path}",
                 )
             )
         else:
             try:
-                chain_valid = verify_manifest_chain_link(previous_manifest_path, manifest)
+                chain_valid = verify_manifest_chain_link(resolved_previous_manifest_path, manifest)
                 status = CheckStatus.PASS if chain_valid else CheckStatus.FAIL
                 report.add(
                     CheckResult(
                         name="manifest_chain_link",
                         status=status,
-                        expected=previous_manifest_path.name,
+                        expected=resolved_previous_manifest_path.name,
                         actual="✓ linked" if chain_valid else "✗ broken",
                         detail="Verifies parent_manifest_hash matches previous manifest hash",
                     )
@@ -333,12 +338,12 @@ def verify_preprocessing(
     # ========================================================================
 
     # 2. Validate raw file integrity BEFORE re-processing
-    if not input_dump.exists():
+    if not resolved_input_dump.exists():
         report.add(
             CheckResult(
                 name="raw_file_exists",
                 status=CheckStatus.FAIL,
-                detail=f"Input dump not found: {input_dump}",
+                detail=f"Input dump not found: {resolved_input_dump}",
             )
         )
         return report
@@ -346,7 +351,7 @@ def verify_preprocessing(
     report.add(CheckResult(name="raw_file_exists", status=CheckStatus.PASS))
 
     # SHA256 of raw file
-    raw_sha256_actual = utils.compute_sha256(file_path=input_dump)
+    raw_sha256_actual = utils.compute_sha256(file_path=resolved_input_dump)
     _check_field(
         report,
         "raw_sha256",
@@ -373,7 +378,7 @@ def verify_preprocessing(
 
     # Merkle root of raw file
     if "raw_merkle_root" in manifest:
-        raw_merkle_actual = utils.compute_merkle_root(input_dump, chunk_size=chunk_size)
+        raw_merkle_actual = utils.compute_merkle_root(resolved_input_dump, chunk_size=chunk_size)
         _check_field(
             report,
             "raw_merkle_root",
@@ -406,7 +411,7 @@ def verify_preprocessing(
         report,
         "dump_date",
         expected=manifest.get("dump_date"),
-        actual=utils.extract_dump_date(input_dump.name),
+        actual=utils.extract_dump_date(resolved_input_dump.name),
         detail="Dump date parsed from filename",
     )
 
@@ -414,7 +419,7 @@ def verify_preprocessing(
         report,
         "wikipedia_dump_name",
         expected=manifest.get("wikipedia_dump"),
-        actual=input_dump.name,
+        actual=resolved_input_dump.name,
         detail="Raw filename recorded in manifest",
     )
 
@@ -488,7 +493,7 @@ def verify_preprocessing(
                 [
                     sys.executable,
                     str(script_path),
-                    str(input_dump),
+                    str(resolved_input_dump),
                 ],
                 cwd=tmp_dir,
                 check=True,

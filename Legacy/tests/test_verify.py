@@ -258,6 +258,23 @@ class TestHappyPath(TmpMixin):
         r = verify_preprocessing(self.dump, project_root=self.tmp)
         self.assertEqual(r.input_dump, str(self.dump))
 
+    def test_report_stores_relative_input_dump_path(self):
+        original = os.getcwd()
+        os.chdir(self.tmp)
+        try:
+            rel_path = "simplewiki-20260201-pages-articles.xml.bz2"
+            r = verify_preprocessing(rel_path, project_root=self.tmp)
+            self.assertEqual(r.input_dump, rel_path)
+        finally:
+            os.chdir(original)
+
+    def test_report_stores_previous_manifest_path(self):
+        prev_manifest = self.tmp / "prev_manifest.json"
+        prev_manifest.write_text(json.dumps({"manifest_hash": "abc"}))
+        r = verify_preprocessing(self.dump, previous_manifest_path=prev_manifest, project_root=self.tmp)
+        self.assertEqual(r.previous_manifest_path, str(prev_manifest))
+
+
 
 # Integration: failure scenarios
 
