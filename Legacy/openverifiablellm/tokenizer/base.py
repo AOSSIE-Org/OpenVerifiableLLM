@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import List, Optional, Union
 
 
 class BaseTokenizer(ABC):
@@ -23,9 +24,24 @@ class BaseTokenizer(ABC):
         pass
 
     @abstractmethod
+    def load(self, tokenizer_dir: Path):
+        """Load trained tokenizer model from directory."""
+        pass
+
+    @abstractmethod
+    def encode(self, text: str) -> List[int]:
+        """Encode text into a list of token IDs."""
+        pass
+
+    @abstractmethod
+    def decode(self, token_ids: List[int]) -> str:
+        """Decode a list of token IDs back into text."""
+        pass
+
+    @abstractmethod
     def get_vocab_path(self, tokenizer_dir: Path) -> Path:
         pass
 
     @abstractmethod
-    def get_merges_path(self, tokenizer_dir: Path):
+    def get_merges_path(self, tokenizer_dir: Path) -> Optional[Path]:
         pass
