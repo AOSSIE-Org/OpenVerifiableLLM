@@ -14,6 +14,25 @@ import sys
 import time
 
 
+def executable_path() -> Path:
+    proc_exe = Path('/proc/self/exe')
+    if proc_exe.exists():
+        return proc_exe
+    if sys.platform == 'darwin':
+        try:
+            import ctypes, ctypes.util
+            libc = ctypes.CDLL(ctypes.util.find_library('c'))
+            buf = ctypes.create_string_buffer(4096)
+            size = ctypes.c_uint32(4096)
+            if libc._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
+                p = Path(os.fsdecode(buf.value)).resolve()
+                if p.is_file():
+                    return p
+        except Exception:
+            pass
+    return Path(sys.executable).resolve()
+
+
 def setup(config,expected,inputs,runtime,verifier,output,*,deadline=None):
     limit=time.monotonic()+max(0,(deadline-time.time()) if deadline is not None else 3600)
     # Import this neighboring, separately pinned public bootstrap script only.
@@ -58,7 +77,7 @@ def setup(config,expected,inputs,runtime,verifier,output,*,deadline=None):
     result={'schema':'ovl.minimal-verifier-setup.v1','result':'PASS','config_sha256':expected,
        'interpreter_archive_sha256':value['interpreter_sha256'],
        'wheel_manifest_sha256':digest(package_manifest),'installed_audit_sha256':digest(installed),
-       'bootstrap_executable_sha256':sha(Path('/proc/self/exe')),
+       'bootstrap_executable_sha256':sha(executable_path()),
        'scope':'separate minimal external verifier; target numerical execution and production acceptance NOT_RUN'}
     write_json(output/'setup.json',result)
     return result

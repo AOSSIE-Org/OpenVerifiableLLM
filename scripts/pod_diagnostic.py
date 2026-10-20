@@ -7,7 +7,28 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import time
+
+
+def executable_path() -> Path:
+    proc_exe = Path('/proc/self/exe')
+    if proc_exe.exists():
+        return proc_exe
+    if sys.platform == 'darwin':
+        try:
+            import ctypes, ctypes.util
+            libc = ctypes.CDLL(ctypes.util.find_library('c'))
+            buf = ctypes.create_string_buffer(4096)
+            size = ctypes.c_uint32(4096)
+            if libc._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
+                p = Path(os.fsdecode(buf.value)).resolve()
+                if p.is_file():
+                    return p
+        except Exception:
+            pass
+    return Path(sys.executable).resolve()
+
 
 
 def run(source,output,expected_gpu,*,payload_bytes=8*1024**2,execute=subprocess.run):
@@ -42,7 +63,7 @@ def run(source,output,expected_gpu,*,payload_bytes=8*1024**2,execute=subprocess.
             'payload_bytes':destination.stat().st_size,'payload_sha256':roots[0],'copy_fsync_nanoseconds':copy_ns,
             'hash_read_bytes':passes*destination.stat().st_size,'hash_nanoseconds':hash_ns,
             'free_bytes':shutil.disk_usage(output).free,'started_epoch':started,'finished_epoch':int(time.time()),
-            'bootstrap_executable_sha256':hashlib.sha256(Path('/proc/self/exe').read_bytes()).hexdigest(),
+            'bootstrap_executable_sha256':hashlib.sha256(executable_path().read_bytes()).hexdigest(),
             'scope':'operator-observed device and local file timings; cached hash reads, not cold disk, CUDA computation, hardware attestation or full workload timing',
             'production_admission':'NOT_RUN'}
     (output/'diagnostic.json').write_text(json.dumps(report,sort_keys=True,separators=(',',':'))+'\n')

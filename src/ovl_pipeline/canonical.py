@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import struct
+import sys
 import tempfile
 
 import rfc8785
@@ -199,3 +200,59 @@ class Merkle:
         if node is None:
             node = hashlib.sha256(b"").digest()
         return sha256(b"ovl.merkle.v1\x00" + struct.pack(">Q", self.count) + node)
+
+
+def host_executable_path() -> Path:
+    """Return the filesystem path to the currently executing binary with cross-platform support."""
+    proc_exe = Path("/proc/self/exe")
+    if proc_exe.exists():
+        return proc_exe
+    if sys.platform == "darwin":
+        try:
+            import ctypes
+            import ctypes.util
+
+            libc = ctypes.CDLL(ctypes.util.find_library("c"))
+            buf = ctypes.create_string_buffer(4096)
+            size = ctypes.c_uint32(4096)
+            if libc._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
+                p = Path(os.fsdecode(buf.value)).resolve()
+                if p.is_file():
+                    return p
+        except Exception:
+            pass
+    return Path(sys.executable).resolve()
+
+
+def host_cpu_model() -> str | None:
+    """Return the CPU model description with cross-platform support."""
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.is_file():
+        try:
+            return next(
+                (
+                    line.split(":", 1)[1].strip()
+                    for line in cpuinfo.read_text().splitlines()
+                    if line.startswith("model name")
+                ),
+                None,
+            )
+        except Exception:
+            pass
+    if sys.platform == "darwin":
+        try:
+            import subprocess
+
+            return (
+                subprocess.check_output(
+                    ["/usr/sbin/sysctl", "-n", "machdep.cpu.brand_string"],
+                    text=True,
+                    stderr=subprocess.DEVNULL,
+                ).strip()
+                or None
+            )
+        except Exception:
+            pass
+    import platform
+
+    return platform.processor() or None

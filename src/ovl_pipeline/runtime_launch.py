@@ -12,7 +12,7 @@ import sys
 import sysconfig
 import tempfile
 
-from .canonical import EvidenceError,digest,file_hash,read_json,write_json
+from .canonical import EvidenceError,digest,file_hash,host_executable_path,read_json,write_json
 from .runtime_audit import wheel_manifest,verify_installed
 
 MODULES={'ovl_pipeline','ovl_pipeline.lifecycle_fixture','ovl_pipeline.gpu_pilot','ovl_pipeline.initialization',
@@ -40,7 +40,7 @@ def current_launch():
         raise EvidenceError('audited target import/startup settings changed')
     if sys.pycache_prefix!=record['pycache_prefix'] or not Path(sys.pycache_prefix).is_dir():
         raise EvidenceError('audited target bytecode cache changed')
-    if file_hash(Path('/proc/self/exe'))!=record['python_executable_sha256']:
+    if file_hash(host_executable_path())!=record['python_executable_sha256']:
         raise EvidenceError('target interpreter differs from audited launch')
     origin=None
     if record.get('interpreter_origin') is not None:

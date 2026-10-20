@@ -70,6 +70,26 @@ def sha(path):
     return h.hexdigest()
 
 
+def executable_path() -> Path:
+    proc_exe = Path('/proc/self/exe')
+    if proc_exe.exists():
+        return proc_exe
+    if sys.platform == 'darwin':
+        try:
+            import ctypes, ctypes.util
+            libc = ctypes.CDLL(ctypes.util.find_library('c'))
+            buf = ctypes.create_string_buffer(4096)
+            size = ctypes.c_uint32(4096)
+            if libc._NSGetExecutablePath(buf, ctypes.byref(size)) == 0:
+                p = Path(os.fsdecode(buf.value)).resolve()
+                if p.is_file():
+                    return p
+        except Exception:
+            pass
+    return Path(sys.executable).resolve()
+
+
+
 def confined(root,name):
     if type(name) is not str or not re.fullmatch(r'[A-Za-z0-9_.+-]+(?:/[A-Za-z0-9_.+-]+)*',name) or any(p in ('.','..') for p in name.split('/')):
         raise ValueError('invalid input path')
@@ -252,7 +272,7 @@ def setup(config_file,expected,inputs,runtime,output,*,execute=bounded_install,d
                      interpreter_archive=archive,interpreter_sha256=value['interpreter_sha256'],interpreter_root=python_root,progress=progress,bytecode_root=runtime/'bytecode')
     progress('inspection')
     result={'schema':'ovl.offline-runtime-setup-result.v1','result':'PASS','config_sha256':expected,
-            'bootstrap_executable_sha256':sha(Path('/proc/self/exe')),'wheel_manifest_sha256':digest(manifest),
+            'bootstrap_executable_sha256':sha(executable_path()),'wheel_manifest_sha256':digest(manifest),
             'python_manifest_sha256':digest(payloads),'installed_audit_sha256':digest(installed),'inspection':inspected,
             'scope':'complete public binary/package identity and constrained CPU startup; CUDA admission NOT_RUN',
             'target_executable_sha256':sha(python),'network_installation':'DISABLED','production_acceptance':'NOT_RUN'}

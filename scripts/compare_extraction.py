@@ -14,7 +14,7 @@ import threading
 import time
 import types
 
-from ovl_pipeline.canonical import EvidenceError,file_hash,write_json,sha256
+from ovl_pipeline.canonical import EvidenceError,file_hash,host_cpu_model,write_json,sha256
 from ovl_pipeline.data import extract_wikipedia
 from ovl_pipeline.preparation import preparation_code,preparation_environment
 
@@ -77,7 +77,7 @@ def main():
         harness_sha256=file_hash(Path(__file__)),runs=results,
         worker_defaults=dict(workers=8,pending_limit=32,pending_raw_bytes_limit=64*1024*1024),
         host=dict(platform=platform.platform(),logical_cpus=os.cpu_count(),
-            cpu_model=next((line.split(':',1)[1].strip() for line in Path('/proc/cpuinfo').read_text().splitlines() if line.startswith('model name')),None)),
+            cpu_model=host_cpu_model()),
         memory_scope='100ms sampled sum of parent/descendant RSS; shared pages double-counted; not guaranteed peak; includes dependencies and IPC',
         exact_file_and_manifest_equality=True)
     write_json(a.output/'comparison.json',value)
