@@ -61,10 +61,28 @@ Given a local model directory or Hugging Face model reference, the verifier:
 5. Rebuilds the Merkle tree over weight chunks.
 6. Recomputes the tensor-level safetensors hash.
 7. Optionally runs a structured segment-replay audit if the manifest includes one.
-8. Verifies the Sigstore/model-transparency bundle as a red/green provenance check.
+8. Verifies the Sigstore/model-transparency bundle against the expected signer
+   as a red/green provenance check.
 
 Missing Sigstore provenance is **red by default**. For local development only,
 use `--allow-unsigned` to turn that check into a skip.
+
+The expected signer is pinned by the verifier rather than read from the
+manifest, which ships inside the artifact and so cannot be trusted to name its
+own signer. By default the verifier requires the identity this repository's
+**Publish Verified Model** workflow signs with. To check a model published from
+a fork or another workflow, pass the identity you expect:
+
+```bash
+ovllm verify <model-ref> \
+  --identity "https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@refs/heads/main"
+```
+
+`--identity-provider` overrides the OIDC issuer, which defaults to
+`https://token.actions.githubusercontent.com`. Both can be set through
+`OVLLM_EXPECTED_IDENTITY` and `OVLLM_EXPECTED_IDENTITY_PROVIDER` instead. A
+signature from an unexpected signer is red even under `--allow-unsigned`, which
+only covers an artifact that was never signed.
 
 ## Quickstart
 
@@ -88,11 +106,17 @@ Remote Hugging Face references download into `.ovllm-cache/huggingface` by
 default to avoid permission issues in the global Hugging Face cache. Override
 with `--cache-dir <path>` or `OVLLM_HF_CACHE_DIR`.
 
-If remote verification reports `signature present, but manifest lacks
+If remote verification reports `signature present, but manifest lacks a usable
 sigstore_identity/provider`, the uploaded directory was not the GitHub
 Actions-signed artifact. Re-run the **Publish Verified Model** workflow and
 publish that signed output so the manifest includes the expected Sigstore
 identity metadata.
+
+If it reports `manifest names an untrusted Sigstore signer identity`, the bundle
+itself is fine but it was produced by someone other than this repository's
+publish workflow. The report prints the identity it expected alongside the one
+it found. Pass `--identity` if the artifact is a legitimate publication from a
+fork.
 
 For local unsigned smoke tests (skipping local retraining):
 

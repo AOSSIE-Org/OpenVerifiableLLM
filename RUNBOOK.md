@@ -143,10 +143,20 @@ machine has cache permission issues or you want a disposable cache, use:
 ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay --cache-dir C:\tmp\ovllm-hf-cache
 ```
 
-If hashes pass but `sigstore_bundle` fails with `manifest lacks
+If hashes pass but `sigstore_bundle` fails with `manifest lacks a usable
 sigstore_identity/provider`, the uploaded repo was not the GitHub Actions-signed
 artifact. Re-run **Publish Verified Model** with `publish_to_hf: true` and verify
 the newly uploaded output.
+
+If it fails with `manifest names an untrusted Sigstore signer identity`, the
+bundle is valid but was signed by a different identity than this repository's
+workflow. The report prints both. Verifying a fork's publication needs that
+fork's workflow identity passed explicitly:
+
+```bash
+ovllm verify <user-or-org>/gpt10m-shakespeare --skip-replay \
+  --identity "https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@refs/heads/main"
+```
 
 Clean-machine smoke:
 
