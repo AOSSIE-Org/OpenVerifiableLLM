@@ -75,18 +75,27 @@ def _merkle_parent(left: bytes, right: bytes) -> bytes:
     return compute_sha256_bytes(data=b"\x01" + left + right)
 
 
+def _next_merkle_level(level: List[bytes]) -> List[bytes]:
+    """Compute the next level of the Merkle tree from the current level.
+
+    Odd-count levels duplicate the final node when computing the parent hash,
+    without mutating the input level list.
+    """
+    next_level = []
+    for i in range(0, len(level), 2):
+        left = level[i]
+        right = level[i + 1] if i + 1 < len(level) else left
+        next_level.append(_merkle_parent(left, right))
+    return next_level
+
+
 def merkle_root_from_leaf_hashes(leaf_hashes: List[str]) -> str:
     if not leaf_hashes:
         return compute_sha256(data=b"")
 
     level = [_merkle_leaf(bytes.fromhex(leaf)) for leaf in leaf_hashes]
     while len(level) > 1:
-        next_level = []
-        for i in range(0, len(level), 2):
-            left = level[i]
-            right = level[i + 1] if i + 1 < len(level) else left
-            next_level.append(_merkle_parent(left, right))
-        level = next_level
+        level = _next_merkle_level(level)
     return level[0].hex()
 
 
@@ -157,10 +166,10 @@ def generate_merkle_proof(
     proof = []
     index = chunk_index
     while len(level) > 1:
-        if len(level) % 2 == 1:
-            level.append(level[-1])
+        sibling_index = index - 1 if index % 2 == 1 else index + 1
+        if sibling_index >= len(level):
+            sibling_index = index
 
-        sibling_index = index ^ 1
         proof.append(
             {
                 "sibling_sha256": level[sibling_index].hex(),
@@ -168,11 +177,8 @@ def generate_merkle_proof(
             }
         )
 
-        next_level = []
-        for i in range(0, len(level), 2):
-            next_level.append(_merkle_parent(level[i], level[i + 1]))
+        level = _next_merkle_level(level)
         index //= 2
-        level = next_level
     return proof
 
 
