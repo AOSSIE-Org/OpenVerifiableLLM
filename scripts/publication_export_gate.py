@@ -124,17 +124,28 @@ def frozen_payloads(staging,entries,temporary_directory,check_deadline):
                 st=os.fstat(inp.fileno())
                 if not stat.S_ISREG(st.st_mode) or st.st_nlink!=1 or st.st_size!=entry['bytes']:
                     raise EvidenceError('reviewed source changed before immutable upload copy')
-                with tempfile.TemporaryFile(dir=temporary_directory) as copy:
-                    hashed=hashlib.sha256();size=0
-                    while block:=inp.read(4*1024**2):
-                        check_deadline();size+=len(block)
-                        if size>entry['bytes']:raise EvidenceError('upload copy exceeded reviewed size')
-                        hashed.update(block);copy.write(block)
-                    if size!=entry['bytes'] or hashed.hexdigest()!=entry['sha256']:
-                        raise EvidenceError('upload copy differs from reviewed bytes')
-                    copy.flush();os.fsync(copy.fileno());check_deadline()
-                    # Reopen read-only before the sole writable handle closes.
-                    # The temporary inode has no directory name for a later edit.
-                    handle=stack.enter_context(os.fdopen(os.open('/proc/self/fd/'+str(copy.fileno()),os.O_RDONLY),'rb'))
+                tmp=tempfile.NamedTemporaryFile(dir=temporary_directory,delete=False)
+                try:
+                    with tmp as copy:
+                        hashed=hashlib.sha256();size=0
+                        while block:=inp.read(4*1024**2):
+                            check_deadline();size+=len(block)
+                            if size>entry['bytes']:raise EvidenceError('upload copy exceeded reviewed size')
+                            hashed.update(block);copy.write(block)
+                        if size!=entry['bytes'] or hashed.hexdigest()!=entry['sha256']:
+                            raise EvidenceError('upload copy differs from reviewed bytes')
+                        copy.flush();os.fsync(copy.fileno());check_deadline()
+                    ro_fd=os.open(tmp.name,os.O_RDONLY|os.O_NOFOLLOW)
+                    try:
+                        os.unlink(tmp.name)
+                        handle=stack.enter_context(os.fdopen(ro_fd,'rb'))
+                    except Exception:
+                        os.close(ro_fd)
+                        raise
+                except Exception:
+                    if os.path.exists(tmp.name):
+                        try:os.unlink(tmp.name)
+                        except OSError:pass
+                    raise
                 frozen.append((entry,handle))
         yield frozen

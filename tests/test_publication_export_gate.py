@@ -299,3 +299,13 @@ def test_real_sdk_repeated_and_threaded_stream_reads(tmp_path):
             return results
         with ThreadPoolExecutor(max_workers=2) as executor:results=list(executor.map(consume,operations))
         assert results==[[e['sha256']]*2 for e in p['files']]
+
+
+def test_frozen_payloads_produces_unlinked_readonly_handles(tmp_path):
+    pp,stage,p=fixture(tmp_path)
+    with gate.frozen_payloads(stage,p['files'],tmp_path,lambda:None) as files:
+        assert len(files)==len(p['files'])
+        for entry,handle in files:
+            assert os.fstat(handle.fileno()).st_nlink==0
+            with pytest.raises(OSError):os.write(handle.fileno(),b'forbidden')
+            assert len(handle.read())==entry['bytes']
