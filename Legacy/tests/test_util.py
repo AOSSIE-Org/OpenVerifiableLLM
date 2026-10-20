@@ -318,6 +318,33 @@ def test_export_and_load_merkle_proof(tmp_path):
     )
 
 
+def test_load_merkle_proof_valid_file(tmp_path):
+    proof_data = {
+        "chunk_index": 0,
+        "chunk_size": 1024,
+        "proof": [["00" * 32, False]],
+    }
+    proof_file = tmp_path / "valid_proof.json"
+    proof_file.write_text(json.dumps(proof_data), encoding="utf-8")
+
+    loaded = utils.load_merkle_proof(proof_file)
+    assert loaded == proof_data
+
+
+def test_load_merkle_proof_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        utils.load_merkle_proof(tmp_path / "non_existent_proof.json")
+
+
+def test_load_merkle_proof_invalid_json(tmp_path):
+    invalid_file = tmp_path / "invalid_proof.json"
+    invalid_file.write_text("not a valid json", encoding="utf-8")
+
+    with pytest.raises(json.JSONDecodeError):
+        utils.load_merkle_proof(invalid_file)
+
+
+
 def test_extract_text_from_xml_malformed_xml(tmp_path, monkeypatch):
     import defusedxml.ElementTree as ET
 
