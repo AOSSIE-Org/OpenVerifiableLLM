@@ -20,12 +20,21 @@ small bundled public-domain sample so the audit still runs.
 """
 
 import hashlib
+import http.client
 import sys
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
 
 import torch
+
+_NETWORK_ERRORS = (
+    urllib.error.URLError,
+    TimeoutError,
+    ConnectionError,
+    http.client.HTTPException,
+)
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
@@ -76,7 +85,7 @@ def load_corpus(name):
                 print(" ~> downloading tinyshakespeare ...", file=sys.stderr)
                 _download(_SOURCES["shakespeare"]["url"], local,
                          expected_hash=_SOURCES["shakespeare"]["sha256"])
-            except Exception as exc:  # offline / blocked -> bundled sample
+            except _NETWORK_ERRORS as exc:  # offline / blocked -> bundled sample
                 sample = DATA_DIR / "shakespeare_sample.txt"
                 if sample.exists():
                     print(
@@ -170,52 +179,77 @@ class CIFARDataset:
 
     URL = "https://www.cs.toronto.edu/~kriz/cifar-10-python.tar.gz"
 
-    def __init__(self, image_size=32):
+    def __init__(self, image_size=32, data_dir=None):
         self.name = "cifar"
         self.vocab_size = 10  # num classes; named vocab_size for a uniform API
         self.num_classes = 10
         self.image_size = image_size
+        self.data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
         self._images, self._labels = self._load()
         self.encoded = self._labels  # for manifest hashing
 
-    def _load(self):
-        local_dir = DATA_DIR / "cifar-10-batches-py"
-        try:
-            if not local_dir.exists():
-                import tarfile
+    @staticmethod
+    def _synthetic_dataset(num_samples=2048):
+        """Fixed synthetic image dataset for offline / sandbox environments.
 
-                tgz = DATA_DIR / "cifar-10-python.tar.gz"
-                if not tgz.exists():
+        Uses a dedicated generator so global torch RNG state is preserved.
+        """
+        g = torch.Generator().manual_seed(0)  # dedicated -> global RNG untouched
+        x = torch.randn(num_samples, 3, 32, 32, generator=g)
+        y = torch.randint(0, 10, (num_samples,), generator=g)
+        return x, y
+
+    def _load(self):
+        local_dir = self.data_dir / "cifar-10-batches-py"
+        tgz = self.data_dir / "cifar-10-python.tar.gz"
+
+        if not local_dir.exists():
+            if not tgz.exists():
+                try:
                     print(" ~> downloading CIFAR-10 (~170 MB) ...", file=sys.stderr)
                     _download(self.URL, tgz)
-                with tarfile.open(tgz) as tf:
-                    # Validate all members to prevent path traversal attacks
-                    for member in tf.getmembers():
-                        target_path = (DATA_DIR / member.name).resolve()
-                        if not target_path.is_relative_to(DATA_DIR.resolve()):
-                            raise ValueError(f"Unsafe path in archive: {member.name}")
-                    tf.extractall(DATA_DIR)
-            import pickle
+                except _NETWORK_ERRORS as exc:
+                    if tgz.exists():
+                        try:
+                            tgz.unlink()
+                        except OSError:
+                            pass
+                    print(
+                        f" ~> CIFAR download failed ({type(exc).__name__}); using a fixed "
+                        f"synthetic image set (conv path only).",
+                        file=sys.stderr,
+                    )
+                    return self._synthetic_dataset()
 
-            xs, ys = [], []
-            for i in range(1, 6):
-                with open(local_dir / f"data_batch_{i}", "rb") as f:
-                    d = pickle.load(f, encoding="bytes")
-                xs.append(torch.tensor(d[b"data"], dtype=torch.float32))
-                ys.extend(d[b"labels"])
-            x = torch.cat(xs).view(-1, 3, 32, 32) / 255.0
-            y = torch.tensor(ys, dtype=torch.long)
-            return x, y
-        except Exception as exc:
-            print(
-                f" ~> CIFAR download/parse failed ({type(exc).__name__}); using a fixed "
-                f"synthetic image set (conv path only).",
-                file=sys.stderr,
-            )
-            g = torch.Generator().manual_seed(0)  # dedicated -> global RNG untouched
-            x = torch.randn(2048, 3, 32, 32, generator=g)
-            y = torch.randint(0, 10, (2048,), generator=g)
-            return x, y
+            import tarfile
+
+            with tarfile.open(tgz) as tf:
+                # Validate all members to prevent path traversal attacks
+                for member in tf.getmembers():
+                    target_path = (self.data_dir / member.name).resolve()
+                    if not target_path.is_relative_to(self.data_dir.resolve()):
+                        raise ValueError(f"Unsafe path in archive: {member.name}")
+                if hasattr(tarfile, "data_filter"):
+                    tf.extractall(self.data_dir, filter="data")
+                else:
+                    tf.extractall(self.data_dir)
+
+        import pickle
+
+        xs, ys = [], []
+        for i in range(1, 6):
+            batch_path = local_dir / f"data_batch_{i}"
+            with open(batch_path, "rb") as f:
+                d = pickle.load(f, encoding="bytes")
+            if not isinstance(d, dict) or b"data" not in d or b"labels" not in d:
+                raise ValueError(
+                    f"Corrupted or invalid CIFAR batch format in {batch_path.name}"
+                )
+            xs.append(torch.tensor(d[b"data"], dtype=torch.float32))
+            ys.extend(d[b"labels"])
+        x = torch.cat(xs).view(-1, 3, 32, 32) / 255.0
+        y = torch.tensor(ys, dtype=torch.long)
+        return x, y
 
     def get_batch(self, batch_size=64, block_size=None, device="cpu"):
         n = self._images.size(0)
@@ -223,11 +257,12 @@ class CIFARDataset:
         return self._images[ix].to(device), self._labels[ix].to(device)
 
 
-def get_dataset(name, block_size=128):
+def get_dataset(name, block_size=128, data_dir=None):
     """Factory: text corpora -> CharDataset, 'cifar' -> CIFARDataset."""
     if name.lower() == "cifar":
-        return CIFARDataset()
+        return CIFARDataset(data_dir=data_dir)
     return CharDataset(name=name, block_size=block_size)
+
 
 
 # get_batch draws from the GLOBAL torch RNG -> replay-exact when called first in-loop

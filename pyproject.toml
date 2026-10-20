@@ -7,7 +7,7 @@ name = "openverifiablellm"
 version = "0.1.0"
 description = "One-command verification for small open model artifacts."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10.12"
 dependencies = [
   "torch>=2.10.0,<3.0",
   "numpy>=2.4,<3.0",
