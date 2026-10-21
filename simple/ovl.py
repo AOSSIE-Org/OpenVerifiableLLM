@@ -18,6 +18,9 @@ Usage (on a pod):
   python simple/ovl.py verify --run RUN --weights RUN/conversation-model.pt
   python simple/ovl.py chat   --run RUN --tokenizer PREP/tokenizer/tokenizer.json "What is Wikipedia?"
   python simple/ovl.py bench  --data PREP --seconds 600
+
+Each new chain entry is also timestamped by two RFC 3161 authorities while training runs
+(simple/stamp.py; OVL_TIMESTAMP=0 turns it off), so the record shows when each boundary existed.
 """
 import os
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
@@ -43,6 +46,7 @@ import torch.nn.functional as F
 from ovl_pipeline.data import PAD, BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays
 from ovl_pipeline import training
 from model import TinyGPT
+import stamp
 
 RECIPE = {"batch_size": 32, "boundary_every": 18080, "context": 512, "init": "normal-0.02-tied-v1",
           "seed": 1234, "weight_decay": "0.01", "conversation_epochs": 3,
@@ -57,6 +61,7 @@ if os.environ.get("OVL_BOUNDARY_EVERY"):  # smoke tests only
     RECIPE["boundary_every"] = int(os.environ["OVL_BOUNDARY_EVERY"])
     RECIPE["schedule"].update(warmup=2, wikipedia_updates=4)
 STOP = "stop"
+TIMESTAMP = os.environ.get("OVL_TIMESTAMP", "1") != "0"
 
 
 def stages():
@@ -405,6 +410,7 @@ def cmd_train(a):
         print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
     else:
         (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1))
+    stamping = []
 
     def boundary(kind, ctl, o):
         entry = {"index": len(chain), "kind": kind, "control": ctl, "state": state_digest(model, o),
@@ -429,8 +435,12 @@ def cmd_train(a):
             f.flush()
             os.fsync(f.fileno())
         print(f"boundary {entry['index']} {kind} step {ctl['global_step']} state {entry['state'][:16]}", flush=True)
+        if TIMESTAMP:
+            stamping.append(stamp.stamp_async(out, entry))
 
     run_phases(a.data, model, opt, boundary, start)
+    for t in stamping:
+        t.join(timeout=120)
     print("training complete", flush=True)
 
 
@@ -468,6 +478,8 @@ def cmd_fork(a):
              "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
     (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n")
     read_chain(out)
+    if TIMESTAMP:
+        stamp.stamp_entry(out, entry)
     print(f"fork at boundary {k}: {len(docs)} document(s), {sum(n for _, n in ranges)} targets removed", flush=True)
 
 
