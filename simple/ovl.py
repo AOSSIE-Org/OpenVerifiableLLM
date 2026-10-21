@@ -156,7 +156,7 @@ def state_digest(model, opt):
     return _digest(tensors)
 
 
-def stream_batches(directory, pos):
+def stream_batches(directory, pos, skip=frozenset()):
     """ovl_pipeline.data.batches, but able to start at a recorded position.
 
     pos = [byte offset of a documents.jsonl row, first window start in that row]. Each
@@ -177,6 +177,9 @@ def stream_batches(directory, pos):
             if not line:
                 break
             d = json.loads(line)
+            if d["target_start"] in skip:  # removed by a recorded fork
+                first = 0
+                continue
             target = d["target_start"]
             for start in range(0, d["tokens"], context):
                 n = min(context, d["tokens"] - start)
@@ -204,7 +207,7 @@ def stream_batches(directory, pos):
         yield _collate(pending, context), [end, 0]
 
 
-def fast_batches(directory, pos):
+def fast_batches(directory, pos, skip=frozenset()):
     """stream_batches with the per-window work vectorized: one mask read and reduceat per
     document, one gather per batch, pinned host memory. Same batches, same positions; the
     running batch hash in the chain and segment verification catch any difference."""
@@ -241,7 +244,7 @@ def fast_batches(directory, pos):
                 break
             d = json.loads(line)
             n_tok, offset = d["tokens"], d["offset"]
-            if not n_tok:
+            if not n_tok or d["target_start"] in skip:  # empty, or removed by a recorded fork
                 first = 0
                 continue
             starts = np.arange(0, n_tok, context)
@@ -262,14 +265,14 @@ def fast_batches(directory, pos):
         yield collate(pending), [end, 0]
 
 
-def prefetch(data, phase, pos):
+def prefetch(data, phase, pos, skip=frozenset()):
     """Batches on a background thread (vectorized loader; OVL_LOADER=reference for the original)."""
     q = queue.Queue(maxsize=64)
     load = stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
 
     def work():
         try:
-            for item in load(Path(data) / phase, pos):
+            for item in load(Path(data) / phase, pos, skip):
                 q.put(item)
         except BaseException as e:  # surface loader errors in the main thread
             q.put(e)
@@ -281,11 +284,29 @@ def prefetch(data, phase, pos):
         yield item
 
 
+def excluded(ctl):
+    """Target-id ranges [start, count] that a recorded fork removed from this phase."""
+    return sorted(tuple(r) for r in ctl.get("exclude", {}).get(ctl["phase"], []))
+
+
+def next_target(cursor, ranges):
+    """The first target id at or after cursor that is not in an excluded range."""
+    for s, n in ranges:
+        if s <= cursor < s + n:
+            cursor = s + n
+    return cursor
+
+
 def step(model, opt, b, ctl):
     ids = b["target_ids"][b["mask"]]
-    cursor = ctl["cursor"]
-    if ids.numel() == 0 or ids[0].item() != cursor or ids[-1].item() != cursor + ids.numel() - 1:
-        raise SystemExit(f"coverage error at cursor {cursor}")  # gap, repeat or reorder
+    ranges = excluded(ctl)
+    first = next_target(ctl["cursor"], ranges)
+    last = first + ids.numel() - 1
+    for s, n in ranges:  # an excluded document inside the batch's span widens it by exactly its size
+        if first < s <= last:
+            last += n
+    if ids.numel() == 0 or ids[0].item() != first or ids[-1].item() != last:
+        raise SystemExit(f"coverage error at cursor {ctl['cursor']}")  # gap, repeat or reorder
     for g in opt.param_groups:
         g["lr"] = learning_rate(ctl)
     x, y, m = (b[k].to(DEV, non_blocking=True) for k in ("inputs", "targets", "mask"))
@@ -297,7 +318,7 @@ def step(model, opt, b, ctl):
     loss.backward()
     opt.step()
     opt.zero_grad(set_to_none=True)
-    return loss, cursor + ids.numel(), hashlib.sha256(b["inputs"].numpy().tobytes()).digest()
+    return loss, last + 1, hashlib.sha256(b["inputs"].numpy().tobytes()).digest()
 
 
 def targets(data, phase):
@@ -324,7 +345,8 @@ def run_phases(data, model, opt, on_boundary, start=None):
             if on_boundary("transition", ctl, opt) == STOP:
                 return ctl
         total, t0, loss = targets(data, phase), time.time(), None
-        for b, after in prefetch(data, phase, ctl["pos"]):
+        ranges = excluded(ctl)
+        for b, after in prefetch(data, phase, ctl["pos"], frozenset(s for s, _ in ranges)):
             loss, cursor, bh = step(model, opt, b, ctl)
             ctl = {**ctl, "global_step": ctl["global_step"] + 1, "phase_step": ctl["phase_step"] + 1,
                    "cursor": cursor, "pos": after,
@@ -335,13 +357,13 @@ def run_phases(data, model, opt, on_boundary, start=None):
                     raise SystemExit(f"nonfinite loss at step {ctl['global_step']}")
                 rate = ctl["phase_step"] / (time.time() - t0)
                 print(f"{phase} step {ctl['phase_step']} loss {lv:.4f} {1000 / rate:.1f} ms/update", flush=True)
-            end = ctl["cursor"] == total
+            end = next_target(ctl["cursor"], ranges) == total
             if end or ctl["phase_step"] % RECIPE["boundary_every"] == 0:
                 kind = ("final" if (phase, epoch) == plan[-1] else "base" if phase == "wikipedia" else "epoch") \
                     if end else "progress"
                 if on_boundary(kind, ctl, opt) == STOP:
                     return ctl
-        if ctl["cursor"] != total:
+        if next_target(ctl["cursor"], ranges) != total:
             raise SystemExit(f"{phase}: covered {ctl['cursor']} of {total} targets")
     return ctl
 
@@ -412,8 +434,55 @@ def cmd_train(a):
     print("training complete", flush=True)
 
 
+def cmd_fork(a):
+    """Fork a published run at boundary K without some Wikipedia documents it had not reached.
+
+    Entries 0..K are copied unchanged, so the fork provably shares that history. Entry K+1
+    (kind "fork") keeps the same state and records the removed documents' target ranges in
+    the control; `train --out FORK` then continues, skipping exactly those documents."""
+    src, out, k = Path(a.run), Path(a.out), a.at
+    chain = read_chain(src)
+    start = chain[k]["control"]
+    if start["phase"] != "wikipedia" or "exclude" in start:
+        sys.exit("fork from an unforked Wikipedia boundary")
+    pages, ranges, docs = set(a.exclude_page), [], []
+    with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
+        for line in f:
+            d = json.loads(line)
+            if str(d["identity"][1]) in pages:
+                if d["target_start"] < start["cursor"]:
+                    sys.exit(f"page {d['identity'][1]} was already trained before boundary {k}")
+                ranges.append([d["target_start"], d["targets"]])
+                docs.append(d["identity"])
+    if len(docs) != len(pages):
+        sys.exit("not every requested page is in the Wikipedia stream")
+    out.mkdir(parents=True, exist_ok=False)
+    (out / "recipe.json").write_bytes((src / "recipe.json").read_bytes())
+    lines = (src / "chain.jsonl").read_text().splitlines()[:k + 1]
+    ck = torch.load(src / f"ckpt-{k:05d}.pt", map_location="cpu", weights_only=True)
+    torch.save(ck, out / f"ckpt-{k:05d}.pt")
+    ctl = {**start, "exclude": {"wikipedia": sorted(ranges)}}
+    torch.save({**ck, "control": ctl}, out / f"ckpt-{k + 1:05d}.pt")
+    entry = {"index": k + 1, "kind": "fork", "control": ctl, "state": chain[k]["state"], "model": chain[k]["model"],
+             "previous": hashlib.sha256(json.dumps(chain[k], sort_keys=True).encode()).hexdigest(),
+             "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
+    (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n")
+    read_chain(out)
+    print(f"fork at boundary {k}: {len(docs)} document(s), {sum(n for _, n in ranges)} targets removed", flush=True)
+
+
 def verify_segment(data, run, chain, k):
     """Recompute boundary k -> k+1 from checkpoint k; True if it matches bit for bit."""
+    want = chain[k + 1]
+    if want["kind"] == "fork":  # same state; the control only adds the recorded exclusion
+        model, _ = fresh()
+        load_checkpoint(run, want, model)
+        added = {key: v for key, v in want["control"].items() if key != "exclude"}
+        ok = (want["state"] == chain[k]["state"] and want["model"] == chain[k]["model"] and
+              added == chain[k]["control"] and "exclude" not in chain[k]["control"] and
+              all(s >= chain[k]["control"]["cursor"] for s, _ in excluded(want["control"])))
+        print(f"segment {k}->{k + 1} (fork): {'MATCH' if ok else 'MISMATCH'}", flush=True)
+        return ok
     model, _ = fresh()
     opt = load_checkpoint(run, chain[k], model)
     seen = {}
@@ -516,13 +585,16 @@ def main():
     v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
     v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
     v.add_argument("--all", action="store_true"); v.add_argument("--weights")
+    fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
+    fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
+    fk.add_argument("--out", required=True)
     b = s.add_parser("bench"); b.add_argument("--data", required=True); b.add_argument("--seconds", type=int, default=600)
     c = s.add_parser("chat"); c.add_argument("--run", required=True); c.add_argument("--tokenizer", required=True)
     c.add_argument("prompt"); c.add_argument("--model", default="conversation", choices=["base", "conversation"])
     c.add_argument("--tokens", type=int, default=200); c.add_argument("--temperature", type=float, default=0.8)
     c.add_argument("--seed", type=int, default=0)
     a = p.parse_args()
-    {"train": cmd_train, "verify": cmd_verify, "bench": cmd_bench, "chat": cmd_chat}[a.cmd](a)
+    {"train": cmd_train, "fork": cmd_fork, "verify": cmd_verify, "bench": cmd_bench, "chat": cmd_chat}[a.cmd](a)
 
 
 if __name__ == "__main__":

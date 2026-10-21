@@ -57,7 +57,11 @@ def review(path, entry, model_keys):
     if set(ck) != {"control", "model", "opt"}:
         problems.append(f"top-level keys {sorted(ck)}")
     ctl = ck.get("control", {})
-    if set(ctl) != set(CONTROL) or any(not isinstance(ctl[k], t) for k, t in CONTROL.items()):
+    excl = ctl.get("exclude")  # recorded by a fork: {phase: [[target_start, count], ...]}
+    if excl is not None and not (isinstance(excl, dict) and set(excl) <= {"wikipedia", "conversation"} and all(
+            isinstance(r, list) and len(r) == 2 and all(isinstance(v, int) for v in r) for rs in excl.values() for r in rs)):
+        problems.append("exclude field")
+    if set(ctl) - {"exclude"} != set(CONTROL) or any(not isinstance(ctl[k], t) for k, t in CONTROL.items()):
         problems.append("control fields")
     elif ctl["phase"] not in ("wikipedia", "conversation") or not HEX64.match(ctl["batches"]) \
             or len(ctl["pos"]) != 2 or not all(isinstance(v, int) for v in ctl["pos"]):
@@ -142,7 +146,7 @@ def main():
     model_keys = list(probe.state_dict())
     MODULES.update(name for name, _ in probe.named_modules())
     allowed_fields.update(set(CONTROL) | ADAM_STATE | ADAM_GROUP | {"control", "model", "opt", "state", "param_groups",
-                                                                   "wikipedia", "conversation"})
+                                                                   "wikipedia", "conversation", "exclude"})
     failed = False
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
