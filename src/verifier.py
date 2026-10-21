@@ -188,6 +188,8 @@ def check_sigstore_bundle(
     manifest: Dict[str, Any],
     *,
     allow_unsigned: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_identity_provider: Optional[str] = None,
 ) -> CheckResult:
     # Resolve symlinks in the base directory up front
     model_dir = Path(model_dir).resolve()
@@ -204,14 +206,26 @@ def check_sigstore_bundle(
     # Resolve symlinks for the specific signature file path
     signature_path = signature_path.resolve()
 
-    identity = manifest.get("sigstore_identity")
-    provider = manifest.get("sigstore_identity_provider")
+    if (expected_identity is None) != (expected_identity_provider is None):
+        return CheckResult(
+            "sigstore_bundle",
+            FAIL,
+            "expected identity and identity provider must be supplied together",
+        )
+
+    if expected_identity is not None:
+        identity = expected_identity
+        provider = expected_identity_provider
+    else:
+        identity = manifest.get("sigstore_identity")
+        provider = manifest.get("sigstore_identity_provider")
+
     if not identity or not provider:
         status = SKIP if allow_unsigned else FAIL
         return CheckResult(
             "sigstore_bundle",
             status,
-            "signature present, but manifest lacks sigstore_identity/provider",
+            "signature present, but no complete trusted identity/provider pair is available",
         )
 
     # Verify model_signing is installed in the active python environment
@@ -305,6 +319,8 @@ def verify_model_reference(
     cache_dir: Optional[str] = None,
     allow_unsigned: bool = False,
     skip_replay: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_identity_provider: Optional[str] = None,
 ) -> List[CheckResult]:
     model_dir = resolve_model_reference(ref, cache_dir=cache_dir)
     manifest = load_manifest(model_dir)
@@ -314,7 +330,15 @@ def verify_model_reference(
     ]
     results.extend(check_artifact_hashes(model_dir, manifest))
     results.append(check_segment_replay(manifest, skip_replay=skip_replay))
-    results.append(check_sigstore_bundle(model_dir, manifest, allow_unsigned=allow_unsigned))
+    results.append(
+        check_sigstore_bundle(
+            model_dir,
+            manifest,
+            allow_unsigned=allow_unsigned,
+            expected_identity=expected_identity,
+            expected_identity_provider=expected_identity_provider,
+        )
+    )
     return results
 
 
