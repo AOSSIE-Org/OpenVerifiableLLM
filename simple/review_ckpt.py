@@ -106,6 +106,35 @@ def review(path, entry, model_keys):
             "global_step": ctl.get("global_step"), "result": "PASS" if not problems else "FAIL", "problems": problems}
 
 
+def review_model(path, entry, model_keys):
+    """base-model.pt / conversation-model.pt: a bare state_dict equal to the committed model."""
+    problems = []
+    data = path.read_bytes()
+    with zipfile.ZipFile(path) as z:
+        names = z.namelist()
+        bad = [n for n in names if not MEMBER.match(n)]
+        pkl = z.read(next(n for n in names if n.endswith("/data.pkl")))
+    if bad:
+        problems.append(f"unexpected zip members {bad[:5]}")
+    sd = torch.load(path, map_location="cpu", weights_only=True)
+    if sorted(sd) != sorted(model_keys) or not all(torch.is_tensor(v) for v in sd.values()):
+        problems.append("state names/types")
+    raw_ok = set(model_keys) | MODULES | {"_metadata", "version", "storage", "cpu", "cuda:0"}
+    for op, arg, _ in pickletools.genops(pkl):
+        if op.name == "GLOBAL" and arg not in GLOBALS:
+            problems.append(f"pickle global {arg}")
+        elif isinstance(arg, str) and op.name != "GLOBAL" and arg not in raw_ok and not arg.isdigit():
+            problems.append(f"raw pickle string {arg[:40]!r}")
+            break
+    if ovl.model_digest(sd) != entry["model"]:
+        problems.append("weights differ from the committed chain entry")
+    return {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+            "zip_prefixes": sorted({n.split("/", 1)[0] for n in names}), "zip_members": len(names),
+            "tensors": len(sd), "chain_entry": entry["index"], "chain_kind": entry["kind"],
+            "global_step": entry["control"]["global_step"], "strings_outside_allowlist": [],
+            "result": "PASS" if not problems else "FAIL", "problems": problems}
+
+
 def main():
     run = Path(sys.argv[1])
     chain = ovl.read_chain(run)
@@ -122,6 +151,12 @@ def main():
         r = review(path, entry, model_keys)
         failed |= r["result"] != "PASS"
         print(json.dumps(r, sort_keys=True), flush=True)
+    for name, kind in (("base-model.pt", "base"), ("conversation-model.pt", "final")):
+        entry = next((e for e in chain if e["kind"] == kind), None)
+        if entry and (run / name).exists():
+            r = review_model(run / name, entry, model_keys)
+            failed |= r["result"] != "PASS"
+            print(json.dumps(r, sort_keys=True), flush=True)
     sys.exit(1 if failed else 0)
 
 
