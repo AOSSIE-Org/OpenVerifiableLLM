@@ -37,7 +37,7 @@ VIRTUAL_ENV=$WORK/prep-venv uv pip sync -q --index-strategy unsafe-best-match "$
 
 # Fresh output, full comparison. The policy file documents the operator's choice; a reader
 # should check it against the published signing workflow before trusting it.
-rm -rf "$WORK/prep-out"
+rm -rf "$WORK/prep-out" "$WORK/prep-out-progress"   # the pinned code requires both fresh
 cd "$SRC"
 TOKENIZERS_PARALLELISM=false PYTHONPATH=src "$WORK/prep-venv/bin/python" -m ovl_pipeline.preparation \
   --statement "$WORK/hf/$S/statement.json" --bundle "$WORK/hf/$S/statement.sigstore.json" \
