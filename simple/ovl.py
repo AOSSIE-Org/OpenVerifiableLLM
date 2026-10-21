@@ -40,7 +40,7 @@ sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
 import torch
 import torch.nn.functional as F
 
-from ovl_pipeline.data import BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays
+from ovl_pipeline.data import PAD, BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays
 from ovl_pipeline import training
 from model import TinyGPT
 
@@ -71,6 +71,23 @@ def deterministic():
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
     torch.use_deterministic_algorithms(True)
+
+
+def cpu_threads():
+    """CPU threads for the loader after the single-threaded init. GPU pods are CPU-quota
+    limited (cgroup cpu.max) but see every host core; a pool sized to all of them gets the
+    whole container throttled and starves the GPU. Only integer/indexing work and byte
+    copies run on the CPU after init, so this never changes a computed bit."""
+    if os.environ.get("OVL_THREADS"):
+        return int(os.environ["OVL_THREADS"])
+    n = os.cpu_count() or 1
+    try:
+        quota, period = open("/sys/fs/cgroup/cpu.max").read().split()
+        if quota != "max":
+            n = min(n, int(int(quota) / int(period)))
+    except (OSError, ValueError):
+        pass
+    return max(1, min(n, 4))
 
 
 def environment():
@@ -112,7 +129,7 @@ def fresh():
         else:
             torch.nn.init.zeros_(p)
     model.train()
-    torch.set_num_threads(os.cpu_count())
+    torch.set_num_threads(cpu_threads())
     model.to(DEV)
     model.lm_head.weight = model.transformer["wte"].weight
     return model, optimizer(model)
@@ -187,13 +204,72 @@ def stream_batches(directory, pos):
         yield _collate(pending, context), [end, 0]
 
 
+def fast_batches(directory, pos):
+    """stream_batches with the per-window work vectorized: one mask read and reduceat per
+    document, one gather per batch, pinned host memory. Same batches, same positions; the
+    running batch hash in the chain and segment verification catch any difference."""
+    import numpy as np
+    context, batch_size = RECIPE["context"], RECIPE["batch_size"]
+    tok, mask = stream_arrays(directory)
+    path = directory / "documents.jsonl"
+    end = path.stat().st_size
+    cols = np.arange(context)
+    pending = []  # (absolute, length, first target id, previous token)
+
+    def collate(w):
+        a, n, base, prev = (np.array(c, dtype=np.int64) for c in zip(*w))
+        inside = cols < n[:, None]
+        idx = np.where(inside, a[:, None] + cols, a[:, None])
+        y = np.where(inside, tok[idx].astype(np.int64), PAD)
+        valid = inside & (mask[idx] != 0)
+        x = np.empty_like(y)
+        x[:, 0] = prev
+        x[:, 1:] = y[:, :-1]
+        x = np.where(inside, x, PAD)
+        ids = np.where(valid, base[:, None] + np.cumsum(valid, axis=1) - 1, -1)
+        out = {"inputs": x, "targets": y, "mask": valid, "target_ids": ids}
+        out = {k: torch.from_numpy(np.ascontiguousarray(v)) for k, v in out.items()}
+        return {k: v.pin_memory() for k, v in out.items()} if DEV == "cuda" else out
+
+    with path.open("rb") as f:
+        f.seek(pos[0])
+        first = pos[1]
+        while True:
+            row = f.tell()
+            line = f.readline()
+            if not line:
+                break
+            d = json.loads(line)
+            n_tok, offset = d["tokens"], d["offset"]
+            if not n_tok:
+                first = 0
+                continue
+            starts = np.arange(0, n_tok, context)
+            counts = np.add.reduceat(mask[offset:offset + n_tok] != 0, starts, dtype=np.int64)
+            bases = d["target_start"] + np.concatenate(([0], np.cumsum(counts)[:-1]))
+            for start, count, base in zip(starts.tolist(), counts.tolist(), bases.tolist()):
+                if start < first or not count:  # consumed before the recorded position, or no targets
+                    continue
+                absolute = offset + start
+                previous = BOS if start == 0 else int(tok[absolute - 1])
+                pending.append((absolute, min(context, n_tok - start), base, previous))
+                if len(pending) == batch_size:
+                    after = [row, start + context] if start + context < n_tok else [f.tell(), 0]
+                    yield collate(pending), after
+                    pending = []
+            first = 0
+    if pending:
+        yield collate(pending), [end, 0]
+
+
 def prefetch(data, phase, pos):
-    """stream_batches on a background thread."""
+    """Batches on a background thread (vectorized loader; OVL_LOADER=reference for the original)."""
     q = queue.Queue(maxsize=64)
+    load = stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
 
     def work():
         try:
-            for item in stream_batches(Path(data) / phase, pos):
+            for item in load(Path(data) / phase, pos):
                 q.put(item)
         except BaseException as e:  # surface loader errors in the main thread
             q.put(e)
