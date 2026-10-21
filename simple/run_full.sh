@@ -11,7 +11,7 @@ RUN=$WORK/run
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 
-pip install --break-system-packages -q tokenizers numpy
+pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0"
 
 # 1. Public prepared inputs (G01/G02), checked against the hashes in each stream.json.
 if [ ! -f "$PREP/.verified" ]; then
