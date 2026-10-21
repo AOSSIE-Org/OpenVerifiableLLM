@@ -14,6 +14,7 @@ export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0"
 fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json"
+check_prep "$WORK/hf/prepared/$PREP_ID"
 RUN=$WORK/hf/$RUN_PATH
 if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
   PICK=$(python -c "import json,secrets,sys; n=sum(1 for _ in open(sys.argv[1]))-1; k=min(int(sys.argv[2]),n); s=list(range(n)); print(*sorted(s.pop(secrets.randbelow(len(s))) for _ in range(k)))" "$RUN/chain.jsonl" "${K:-1}")

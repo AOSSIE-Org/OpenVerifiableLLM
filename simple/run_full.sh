@@ -16,25 +16,12 @@ pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 m
 # 1. Public prepared inputs (G01/G02), checked against the hashes in each stream.json.
 if [ ! -f "$PREP/.verified" ]; then
   fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done)
-  python - "$PREP" <<'EOF'
-import hashlib, json, sys
-from pathlib import Path
-prep = Path(sys.argv[1])
-for phase in ("wikipedia", "conversation"):
-    for f in json.loads((prep / phase / "stream.json").read_text())["files"]:
-        h = hashlib.sha256()
-        with open(prep / phase / f["path"], "rb") as fh:
-            while chunk := fh.read(1 << 24):
-                h.update(chunk)
-        assert h.hexdigest() == f["sha256"], f"hash mismatch: {phase}/{f['path']}"
-        print("ok", phase, f["path"])
-EOF
-  touch "$PREP/.verified"
 fi
+check_prep "$PREP"
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | tee "$WORK/gpu.txt"
 
 # 2. Throughput (10 minutes): ms/update, projected hours, minutes per segment.
-[ -f "$WORK/bench.json" ] || python simple/ovl.py bench --data "$PREP" --seconds 600 | tee "$WORK/bench.json"
+[ -s "$WORK/bench.json" ] || { python simple/ovl.py bench --data "$PREP" --seconds 600 > "$WORK/bench.tmp" && mv "$WORK/bench.tmp" "$WORK/bench.json"; cat "$WORK/bench.json"; }
 
 # 3. Full training: one Wikipedia pass, then the conversation epochs. Resumes automatically.
 #    Every boundary checkpoint is kept; each one starts an independently checkable segment.

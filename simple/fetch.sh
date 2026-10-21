@@ -16,3 +16,21 @@ PREP_FILES="preparation.json tokenizer/tokenizer.json tokenizer/tokenizer-manife
 for phase in wikipedia conversation; do
   PREP_FILES="$PREP_FILES $phase/stream.json $phase/documents.jsonl $phase/tokens.u16 $phase/mask.u8"
 done
+# check_prep DIR: every prepared stream file matches the sha256 in its stream.json.
+check_prep() {
+  [ -f "$1/.verified" ] && return
+  python3 - "$1" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+prep = Path(sys.argv[1])
+for phase in ("wikipedia", "conversation"):
+    for f in json.loads((prep / phase / "stream.json").read_text())["files"]:
+        h = hashlib.sha256()
+        with open(prep / phase / f["path"], "rb") as fh:
+            while chunk := fh.read(1 << 24):
+                h.update(chunk)
+        assert h.hexdigest() == f["sha256"], f"hash mismatch: {phase}/{f['path']}"
+        print("ok", phase, f["path"], flush=True)
+PY
+  touch "$1/.verified"
+}
