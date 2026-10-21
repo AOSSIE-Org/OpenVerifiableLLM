@@ -11,7 +11,7 @@ PREP=$WORK/hf/prepared/$PREP_ID
 RUN=$WORK/run
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false HF_HUB_ENABLE_HF_TRANSFER=1
 
-pip install -q "huggingface_hub[cli]" hf_transfer tokenizers numpy pynacl
+pip install --break-system-packages -q "huggingface_hub[cli]" hf_transfer tokenizers numpy pynacl
 
 # 1. Public prepared inputs (G01/G02), checked against the hashes in each stream.json.
 if [ ! -f "$PREP/.verified" ]; then
