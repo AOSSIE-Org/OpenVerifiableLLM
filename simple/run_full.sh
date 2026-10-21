@@ -5,17 +5,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK=${WORK:-/workspace}
-REPO=AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence
 PREP_ID=8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68
 PREP=$WORK/hf/prepared/$PREP_ID
 RUN=$WORK/run
-export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false HF_HUB_ENABLE_HF_TRANSFER=1
+export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
+source simple/fetch.sh
 
-pip install --break-system-packages -q "huggingface_hub[cli]" hf_transfer tokenizers numpy pynacl
+pip install --break-system-packages -q tokenizers numpy
 
 # 1. Public prepared inputs (G01/G02), checked against the hashes in each stream.json.
 if [ ! -f "$PREP/.verified" ]; then
-  hf download "$REPO" --repo-type dataset --include "prepared/$PREP_ID/*" --local-dir "$WORK/hf"
+  fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done)
   python - "$PREP" <<'EOF'
 import hashlib, json, sys
 from pathlib import Path
