@@ -107,6 +107,83 @@ class VerifierTests(unittest.TestCase):
             self.assertIn("--ignore-paths", command)
             self.assertIn(str(signature.resolve()), command)
 
+    def test_sigstore_verify_uses_explicit_trusted_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            (model_dir / "model.sig").write_bytes(b"fake-bundle")
+            manifest = json.loads(
+                (model_dir / "ovllm_manifest.json").read_text()
+            )
+            manifest["sigstore_identity"] = "attacker@example.com"
+            manifest["sigstore_identity_provider"] = "https://attacker.example.com"
+
+            with patch("verifier.subprocess.run") as mock_run:
+                mock_run.return_value.returncode = 0
+                mock_run.return_value.stdout = "ok"
+                mock_run.return_value.stderr = ""
+
+                result = check_sigstore_bundle(
+                    model_dir,
+                    manifest,
+                    expected_identity="trusted@example.com",
+                    expected_identity_provider="https://accounts.example.com",
+                )
+
+            self.assertEqual(result.status, PASS)
+            command = mock_run.call_args.args[0]
+            self.assertIn("trusted@example.com", command)
+            self.assertIn("https://accounts.example.com", command)
+            self.assertNotIn("attacker@example.com", command)
+            self.assertNotIn("https://attacker.example.com", command)
+
+    def test_sigstore_verify_rejects_incomplete_trusted_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            (model_dir / "model.sig").write_bytes(b"fake-bundle")
+            manifest = json.loads(
+                (model_dir / "ovllm_manifest.json").read_text()
+            )
+            manifest["sigstore_identity"] = "attacker@example.com"
+            manifest["sigstore_identity_provider"] = (
+                "https://attacker.example.com"
+            )
+
+            result = check_sigstore_bundle(
+                model_dir,
+                manifest,
+                expected_identity="trusted@example.com",
+            )
+
+            self.assertEqual(result.status, FAIL)
+            self.assertIn(
+                "must be supplied together",
+                result.detail,
+            )
+
+    def test_verify_cli_accepts_trusted_identity_options(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("ovllm.verify_model_reference") as mock_verify:
+                mock_verify.return_value = []
+                with patch("ovllm.print_report", return_value=True):
+                    code = ovllm_main([
+                        "verify",
+                        tmp,
+                        "--expected-identity",
+                        "trusted@example.com",
+                        "--expected-identity-provider",
+                        "https://accounts.example.com",
+                    ])
+
+            self.assertEqual(code, 0)
+            self.assertEqual(
+                mock_verify.call_args.kwargs["expected_identity"],
+                "trusted@example.com",
+            )
+            self.assertEqual(
+                mock_verify.call_args.kwargs["expected_identity_provider"],
+                "https://accounts.example.com",
+            )
+
     def test_sign_rejects_signature_path_outside_model_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             model_dir = self._prepared_model_dir(tmp)
