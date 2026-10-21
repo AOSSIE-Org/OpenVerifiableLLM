@@ -15,7 +15,7 @@ REMOTE_RUN=${REMOTE_RUN:-/workspace/run}
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 command -v rsync >/dev/null || { apt-get update -qq && apt-get install -y -qq rsync; } >/dev/null
-pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0"
+pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done)
 check_prep "$PREP"
 nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | tee "$WORK/follower-gpu.txt"
@@ -47,10 +47,14 @@ PY
   for ((k = 0; k < n - 1; k++)); do
     grep -q "^$k " "$WORK/segments.txt" && continue
     [ -f "$MIRROR/$(printf 'ckpt-%05d.pt' "$k")" ] || continue
-    if python simple/ovl.py verify --data "$PREP" --run "$MIRROR" --segment "$k" 2>&1 | tee -a "$WORK/follow.log"; then
+    # Record only the verifier's verdict; a crash (missing package, OOM) is retried next round.
+    out=$(python simple/ovl.py verify --data "$PREP" --run "$MIRROR" --segment "$k" 2>&1 | tee -a "$WORK/follow.log" || true)
+    if grep -q "^segment $k->$((k + 1)) .*: MATCH" <<<"$out"; then
       echo "$k MATCH" >> "$WORK/segments.txt"
-    else
+    elif grep -q "^segment $k->$((k + 1)) .*: MISMATCH" <<<"$out"; then
       echo "$k MISMATCH" >> "$WORK/segments.txt"
+    else
+      echo "segment $k: verifier error, retrying later" | tee -a "$WORK/follow.log"
     fi
   done
   if tail -n 1 "$MIRROR/chain.jsonl" | grep -q '"kind": "final"' && [ "$(wc -l < "$WORK/segments.txt")" -ge $((n - 1)) ]; then
