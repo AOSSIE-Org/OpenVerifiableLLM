@@ -4,7 +4,7 @@
 # boundary exists, so by the end of training every segment has been checked on a different
 # machine. Use the same GPU type and image as training.
 #   TRAIN=root@HOST TRAIN_PORT=PORT bash simple/follow.sh
-# Needs SSH access to the training pod (key in ~/.ssh/id_ed25519). Re-running resumes.
+# Needs SSH access to the training pod with the default SSH key. Re-running resumes.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK=${WORK:-/workspace}
