@@ -34,7 +34,7 @@ except (OSError, IndexError):
 segs = [c for c in r["checks"] if "segment" in c]
 print("\n===== paste this line =====")
 print(f"OVL check {r['result']}: " + ", ".join(f"segment {c['segment'][0]} {'MATCH' if c['match'] else 'MISMATCH'}" for c in segs)
-      + f" | {gpu} | torch {r['environment']['torch']} | chain head {r['chain_head'][:12]} | release {rev[:8]}"
+      + f" | {gpu} | torch {r['environment']['torch']} | final state {r['chain_head'][:12]} | release {rev[:8]}"
       + f" | {time.strftime('%Y-%m-%d', time.gmtime())}")
 print("============================\nDone. Terminate this pod now so it stops billing.")
 PY
