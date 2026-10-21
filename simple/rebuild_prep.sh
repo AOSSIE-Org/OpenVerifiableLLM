@@ -30,10 +30,10 @@ fetch $W/dumpstatus-receipt.json $W/dumpstatus.headers.txt $W/dumpstatus.json \
 SRC=$WORK/prep-src
 [ -d "$SRC" ] || git clone -q https://github.com/AOSSIE-Org/OpenVerifiableLLM "$SRC"
 git -C "$SRC" checkout -q "$PREP_REV"
-command -v uv >/dev/null || pip install --break-system-packages -q uv
+pip install --break-system-packages -q -U uv   # 0.9 cannot fetch Python 3.12.14
 uv python install 3.12.14
 [ -d "$WORK/prep-venv" ] || uv venv -q -p 3.12.14 "$WORK/prep-venv"
-VIRTUAL_ENV=$WORK/prep-venv uv pip sync -q "$SRC/requirements/preparation.lock"
+VIRTUAL_ENV=$WORK/prep-venv uv pip sync -q --index-strategy unsafe-best-match "$SRC/requirements/preparation.lock"
 
 # Fresh output, full comparison. The policy file documents the operator's choice; a reader
 # should check it against the published signing workflow before trusting it.
