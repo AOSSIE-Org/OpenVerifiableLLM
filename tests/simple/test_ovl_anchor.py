@@ -1,7 +1,9 @@
 """CPU-only checks that simple/ovl.py verify compares the chain head to anchor.json."""
 import argparse
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -49,9 +51,20 @@ class AnchorHead(unittest.TestCase):
     def write(self, chain):
         (self.run / "chain.jsonl").write_text("".join(json.dumps(e) + "\n" for e in chain))
 
+    def verify_ok(self, a):
+        # The fake run has no weights or segments, so verify may FAIL on zero checks
+        # (see #206/#207). Only the anchor check is under test here.
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            try:
+                ovl.cmd_verify(a)
+            except SystemExit as e:
+                self.assertNotIn("chain head differs", str(e.code))
+        return out.getvalue()
+
     def test_full_chain_matches_anchor(self):
         self.write(self.chain)
-        ovl.cmd_verify(args(self.run))  # no SystemExit
+        self.assertIn("chain head MATCH (5 entries)", self.verify_ok(args(self.run)))
 
     def test_truncated_chain_fails(self):
         self.write(self.chain[:3])  # links are intact, only the tail is missing
@@ -62,7 +75,7 @@ class AnchorHead(unittest.TestCase):
         self.write(self.chain[:4])
         anchor = self.run / "anchor.json"
         os.rename(anchor, self.run / "release-anchor.json")
-        ovl.cmd_verify(args(self.run))  # no anchor next to the chain: not checked
+        self.assertNotIn("anchor", self.verify_ok(args(self.run)))  # no anchor next to the chain: not checked
         with self.assertRaisesRegex(SystemExit, "chain head differs"):
             ovl.cmd_verify(args(self.run, str(self.run / "release-anchor.json")))
 
