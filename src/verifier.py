@@ -180,6 +180,15 @@ def check_artifact_hashes(model_dir: Path, manifest: Dict[str, Any]) -> List[Che
     except Exception as exc:
         results.append(CheckResult("tensor_sha256", FAIL, f"could not read safetensors: {exc}"))
 
+    if not (manifest_sha or expected_root or expected_tensor):
+        results.append(
+            CheckResult(
+                "artifact_integrity",
+                FAIL,
+                "manifest provides no expected hashes (sha256, merkle_root, or param_sha256) to verify",
+            )
+        )
+
     return results
 
 

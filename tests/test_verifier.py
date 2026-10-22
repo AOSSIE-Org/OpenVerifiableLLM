@@ -67,6 +67,21 @@ class VerifierTests(unittest.TestCase):
             self.assertEqual(by_name["artifact_sha256"].status, FAIL)
             self.assertEqual(by_name["merkle_root"].status, FAIL)
 
+    def test_missing_manifest_hashes_fails_verification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            weights = Path(tmp) / "model.safetensors"
+            save_file({"layer.weight": torch.zeros(2, 2)}, str(weights))
+            manifest_path = Path(tmp) / "ovllm_manifest.json"
+            manifest_path.write_text(json.dumps({"weights": "model.safetensors"}))
+
+            results = verify_model_reference(str(tmp), allow_unsigned=True, skip_replay=True)
+            by_name = {r.name: r for r in results}
+
+            self.assertIn("artifact_integrity", by_name)
+            self.assertEqual(by_name["artifact_integrity"].status, FAIL)
+            from verifier import print_report
+            self.assertFalse(print_report(results))
+
     def test_sign_dry_run_is_read_only_and_ignores_signature_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             model_dir = self._prepared_model_dir(tmp)
