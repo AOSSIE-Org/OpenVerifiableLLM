@@ -514,6 +514,15 @@ def verify_segment(data, run, chain, k):
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
+    anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
+    if anchor.exists():
+        want = json.loads(anchor.read_text())
+        head = hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest()
+        if (len(chain), head) != (want["chain_entries"], want["chain_head_sha256"]):
+            sys.exit(f"chain head differs from {anchor}: {len(chain)} entries, head {head}")
+        print(f"anchor {anchor}: chain head MATCH ({len(chain)} entries)", flush=True)
+    elif a.anchor:
+        sys.exit(f"anchor {anchor} not found")
     report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": []}
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
@@ -596,7 +605,7 @@ def main():
     t = s.add_parser("train"); t.add_argument("--data", required=True); t.add_argument("--out", required=True)
     v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
     v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
-    v.add_argument("--all", action="store_true"); v.add_argument("--weights")
+    v.add_argument("--all", action="store_true"); v.add_argument("--weights"); v.add_argument("--anchor")
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
     fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
     fk.add_argument("--out", required=True)
