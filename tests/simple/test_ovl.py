@@ -172,7 +172,7 @@ class WeightsMatchTests(unittest.TestCase):
     def verify(self, sd):
         path = self.run / "weights.pt"
         torch.save(sd, path)
-        a = argparse.Namespace(run=str(self.run), data=None, weights=str(path), segment=None, random=0, all=False)
+        a = argparse.Namespace(run=str(self.run), data=None, weights=str(path), segment=None, random=0, all=False, anchor=None)
         ovl.cmd_verify(a)
         return json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
 
