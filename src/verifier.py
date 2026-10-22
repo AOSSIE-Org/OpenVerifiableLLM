@@ -13,6 +13,7 @@ from artifacts import build_merkle_manifest, compute_sha256, tensor_mapping_sha2
 PASS = "PASS"
 FAIL = "FAIL"
 SKIP = "SKIP"
+YELLOW = "YELLOW"
 
 
 @dataclass
@@ -25,7 +26,7 @@ class CheckResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in {PASS, SKIP}
+        return self.status in {PASS, SKIP, YELLOW}
 
 
 def resolve_model_reference(ref: str, cache_dir: Optional[str] = None) -> Path:
@@ -188,6 +189,8 @@ def check_sigstore_bundle(
     manifest: Dict[str, Any],
     *,
     allow_unsigned: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_issuer: Optional[str] = None,
 ) -> CheckResult:
     # Resolve symlinks in the base directory up front
     model_dir = Path(model_dir).resolve()
@@ -204,14 +207,14 @@ def check_sigstore_bundle(
     # Resolve symlinks for the specific signature file path
     signature_path = signature_path.resolve()
 
-    identity = manifest.get("sigstore_identity")
-    provider = manifest.get("sigstore_identity_provider")
+    identity = expected_identity or manifest.get("sigstore_identity")
+    provider = expected_issuer or manifest.get("sigstore_identity_provider")
     if not identity or not provider:
         status = SKIP if allow_unsigned else FAIL
         return CheckResult(
             "sigstore_bundle",
             status,
-            "signature present, but manifest lacks sigstore_identity/provider",
+            "signature present, but lacks expected/manifest sigstore_identity or provider",
         )
 
     # Verify model_signing is installed in the active python environment
@@ -249,10 +252,22 @@ def check_sigstore_bundle(
         return CheckResult("sigstore_bundle", FAIL, f"could not launch model_signing: {exc}")
 
     detail = (completed.stdout or completed.stderr).strip()
+    if completed.returncode != 0:
+        return CheckResult("sigstore_bundle", FAIL, detail or "model_signing verify failed")
+
+    if expected_identity:
+        msg = f"verified for expected identity {expected_identity}"
+        return CheckResult(
+            "sigstore_bundle",
+            PASS,
+            f"{detail} ({msg})" if detail else msg,
+        )
+
+    msg = f"signature valid for {identity}, but identity was unpinned (pass --expected-identity to pin)"
     return CheckResult(
         "sigstore_bundle",
-        PASS if completed.returncode == 0 else FAIL,
-        detail or "model_signing verify completed",
+        YELLOW,
+        f"{detail} ({msg})" if detail else msg,
     )
 
 
@@ -305,6 +320,8 @@ def verify_model_reference(
     cache_dir: Optional[str] = None,
     allow_unsigned: bool = False,
     skip_replay: bool = False,
+    expected_identity: Optional[str] = None,
+    expected_issuer: Optional[str] = None,
 ) -> List[CheckResult]:
     model_dir = resolve_model_reference(ref, cache_dir=cache_dir)
     manifest = load_manifest(model_dir)
@@ -314,17 +331,35 @@ def verify_model_reference(
     ]
     results.extend(check_artifact_hashes(model_dir, manifest))
     results.append(check_segment_replay(manifest, skip_replay=skip_replay))
-    results.append(check_sigstore_bundle(model_dir, manifest, allow_unsigned=allow_unsigned))
+    results.append(
+        check_sigstore_bundle(
+            model_dir,
+            manifest,
+            allow_unsigned=allow_unsigned,
+            expected_identity=expected_identity,
+            expected_issuer=expected_issuer,
+        )
+    )
     return results
 
 
 def print_report(results: List[CheckResult]) -> bool:
+    has_fail = any(r.status == FAIL for r in results)
+    has_yellow = any(r.status == YELLOW for r in results)
+
     for result in results:
         suffix = f" - {result.detail}" if result.detail else ""
-        print(f"[{result.status:<4}] {result.name}{suffix}")
+        print(f"[{result.status:<6}] {result.name}{suffix}")
         if result.expected is not None or result.actual is not None:
             print(f"       expected: {result.expected}")
             print(f"       actual  : {result.actual}")
-    ok = all(result.ok for result in results)
-    print("\nVERDICT:", "GREEN" if ok else "RED")
-    return ok
+
+    if has_fail:
+        print("\nVERDICT: RED")
+        return False
+    elif has_yellow:
+        print("\nVERDICT: YELLOW")
+        return True
+    else:
+        print("\nVERDICT: GREEN")
+        return True

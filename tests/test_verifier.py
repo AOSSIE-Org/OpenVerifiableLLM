@@ -23,7 +23,9 @@ from verifier import (  # noqa: E402
     FAIL,
     PASS,
     SKIP,
+    YELLOW,
     check_sigstore_bundle,
+    print_report,
     resolve_model_reference,
     verify_model_reference,
 )
@@ -96,16 +98,114 @@ class VerifierTests(unittest.TestCase):
             manifest["sigstore_identity"] = "person@example.com"
             manifest["sigstore_identity_provider"] = "https://accounts.example.com"
 
-            with patch("verifier.subprocess.run") as mock_run:
-                mock_run.return_value.returncode = 0
-                mock_run.return_value.stdout = "ok"
-                mock_run.return_value.stderr = ""
-                result = check_sigstore_bundle(model_dir, manifest)
+            with patch("verifier.importlib.util.find_spec", return_value=True):
+                with patch("verifier.subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 0
+                    mock_run.return_value.stdout = "ok"
+                    mock_run.return_value.stderr = ""
+                    result = check_sigstore_bundle(model_dir, manifest, expected_identity="person@example.com")
 
             self.assertEqual(result.status, PASS)
             command = mock_run.call_args.args[0]
             self.assertIn("--ignore-paths", command)
             self.assertIn(str(signature.resolve()), command)
+
+    def test_sigstore_verify_unpinned_identity_returns_yellow(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            signature = model_dir / "model.sig"
+            signature.write_bytes(b"fake-bundle")
+            manifest = json.loads((model_dir / "ovllm_manifest.json").read_text())
+            manifest["sigstore_identity"] = "untrusted-author@example.com"
+            manifest["sigstore_identity_provider"] = "https://accounts.example.com"
+
+            with patch("verifier.importlib.util.find_spec", return_value=True):
+                with patch("verifier.subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 0
+                    mock_run.return_value.stdout = "ok"
+                    mock_run.return_value.stderr = ""
+                    result = check_sigstore_bundle(model_dir, manifest)
+
+            self.assertEqual(result.status, YELLOW)
+            self.assertIn("unpinned", result.detail)
+
+    def test_verify_model_reference_unpinned_yields_yellow_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            signature = model_dir / "model.sig"
+            signature.write_bytes(b"fake-bundle")
+            manifest = json.loads((model_dir / "ovllm_manifest.json").read_text())
+            manifest["sigstore_identity"] = "untrusted-author@example.com"
+            manifest["sigstore_identity_provider"] = "https://accounts.example.com"
+            (model_dir / "ovllm_manifest.json").write_text(json.dumps(manifest))
+
+            with patch("verifier.importlib.util.find_spec", return_value=True):
+                with patch("verifier.subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 0
+                    results = verify_model_reference(str(model_dir), skip_replay=True)
+
+            with patch("builtins.print") as mock_print:
+                ok = print_report(results)
+
+            self.assertTrue(ok)
+            printed = " ".join(call.args[0] for call in mock_print.call_args_list if call.args)
+            self.assertIn("VERDICT: YELLOW", printed)
+            self.assertNotIn("VERDICT: GREEN", printed)
+
+    def test_verify_model_reference_pinned_matching_yields_green_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            signature = model_dir / "model.sig"
+            signature.write_bytes(b"fake-bundle")
+            manifest = json.loads((model_dir / "ovllm_manifest.json").read_text())
+            manifest["sigstore_identity"] = "trusted-ci@example.com"
+            manifest["sigstore_identity_provider"] = "https://accounts.example.com"
+            (model_dir / "ovllm_manifest.json").write_text(json.dumps(manifest))
+
+            with patch("verifier.importlib.util.find_spec", return_value=True):
+                with patch("verifier.subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 0
+                    results = verify_model_reference(
+                        str(model_dir),
+                        skip_replay=True,
+                        expected_identity="trusted-ci@example.com",
+                        expected_issuer="https://accounts.example.com",
+                    )
+
+            with patch("builtins.print") as mock_print:
+                ok = print_report(results)
+
+            self.assertTrue(ok)
+            printed = " ".join(call.args[0] for call in mock_print.call_args_list if call.args)
+            self.assertIn("VERDICT: GREEN", printed)
+
+    def test_verify_model_reference_pinned_mismatch_yields_red_verdict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            model_dir = self._prepared_model_dir(tmp)
+            signature = model_dir / "model.sig"
+            signature.write_bytes(b"fake-bundle")
+            manifest = json.loads((model_dir / "ovllm_manifest.json").read_text())
+            manifest["sigstore_identity"] = "untrusted@example.com"
+            manifest["sigstore_identity_provider"] = "https://accounts.example.com"
+            (model_dir / "ovllm_manifest.json").write_text(json.dumps(manifest))
+
+            with patch("verifier.importlib.util.find_spec", return_value=True):
+                with patch("verifier.subprocess.run") as mock_run:
+                    mock_run.return_value.returncode = 1
+                    mock_run.return_value.stderr = "identity mismatch"
+                    mock_run.return_value.stdout = ""
+                    results = verify_model_reference(
+                        str(model_dir),
+                        skip_replay=True,
+                        expected_identity="trusted-ci@example.com",
+                    )
+
+            with patch("builtins.print") as mock_print:
+                ok = print_report(results)
+
+            self.assertFalse(ok)
+            printed = " ".join(call.args[0] for call in mock_print.call_args_list if call.args)
+            self.assertIn("VERDICT: RED", printed)
 
     def test_sign_rejects_signature_path_outside_model_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -138,6 +238,28 @@ class CliErrorHandlingTests(unittest.TestCase):
             with patch("builtins.print"):
                 code = ovllm_main(["verify", tmp])
         self.assertEqual(code, 1)
+
+    def test_cli_verify_passes_expected_identity_and_issuer(self):
+        with patch("ovllm.verify_model_reference") as mock_verify:
+            with patch("ovllm.print_report", return_value=True):
+                code = ovllm_main([
+                    "verify",
+                    "dummy_path",
+                    "--expected-identity",
+                    "ci@example.com",
+                    "--expected-issuer",
+                    "https://accounts.example.com",
+                ])
+
+        self.assertEqual(code, 0)
+        mock_verify.assert_called_once_with(
+            "dummy_path",
+            cache_dir=None,
+            allow_unsigned=False,
+            skip_replay=False,
+            expected_identity="ci@example.com",
+            expected_issuer="https://accounts.example.com",
+        )
 
 
 class PublishTests(unittest.TestCase):
