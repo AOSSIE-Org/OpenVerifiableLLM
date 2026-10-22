@@ -511,6 +511,15 @@ def verify_segment(data, run, chain, k):
     return ok
 
 
+def weights_verdict(chain, hit, ok):
+    """Console message for a weights check: a match on a non-released entry is not 'not in the chain'."""
+    if ok:
+        return f"MATCH chain entry {hit[-1]}"
+    if hit:
+        return f"chain entry {hit[-1]} ({chain[hit[-1]]['kind']}), not a released model (expected base or final)"
+    return "NOT in the chain"
+
+
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
@@ -525,7 +534,7 @@ def cmd_verify(a):
         sd = torch.load(a.weights, map_location="cpu", weights_only=True)
         hit = [e["index"] for e in chain if e["model"] == model_digest(sd)]
         ok = bool(hit) and chain[hit[-1]]["kind"] in ("base", "final")
-        print(f"weights {a.weights}: {'MATCH chain entry ' + str(hit[-1]) if ok else 'NOT in the chain'}", flush=True)
+        print(f"weights {a.weights}: {weights_verdict(chain, hit, ok)}", flush=True)
         report["checks"].append({"weights": str(a.weights), "chain_entry": hit[-1] if hit else None, "match": ok})
     if a.data:
         model, opt = fresh()  # regenerate the seeded initialization
