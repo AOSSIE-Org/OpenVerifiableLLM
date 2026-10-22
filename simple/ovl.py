@@ -538,7 +538,7 @@ def cmd_verify(a):
             segments = list(segments) + [pool.pop(secrets.randbelow(len(pool))) for _ in range(min(a.random, len(pool)))]
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
-    report["result"] = "PASS" if all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
+    report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
     with (run / "verifications.jsonl").open("a") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
