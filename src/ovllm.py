@@ -13,6 +13,8 @@ def _verify(args) -> int:
             cache_dir=args.cache_dir,
             allow_unsigned=args.allow_unsigned,
             skip_replay=args.skip_replay,
+            expected_identity=args.expected_identity,
+            expected_issuer=args.expected_issuer,
         )
     except Exception as exc:
         print(f"[FAIL] verifier_error - {exc}")
@@ -56,6 +58,18 @@ def main(argv=None) -> int:
     verify.add_argument("--allow-unsigned", action="store_true",
                         help="treat a missing Sigstore bundle as SKIP instead of FAIL")
     verify.add_argument("--skip-replay", action="store_true")
+    verify.add_argument(
+        "--expected-identity",
+        dest="expected_identity",
+        default=None,
+        help="expected Sigstore signer identity (required for VERDICT: GREEN)",
+    )
+    verify.add_argument(
+        "--expected-issuer",
+        dest="expected_issuer",
+        default=None,
+        help="expected Sigstore identity provider URL",
+    )
     verify.set_defaults(func=_verify)
 
     prep = sub.add_parser("prepare-publish", help="build a publishable model directory")
