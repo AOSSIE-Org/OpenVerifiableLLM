@@ -26,7 +26,12 @@ class CheckResult:
 
     @property
     def ok(self) -> bool:
-        return self.status in {PASS, SKIP, YELLOW}
+        """Indicates whether this check passed successfully.
+        
+        Note that YELLOW indicates an unpinned/provisional result that is
+        not considered a full pass under fail-closed verification.
+        """
+        return self.status in {PASS, SKIP}
 
 
 def resolve_model_reference(ref: str, cache_dir: Optional[str] = None) -> Path:
@@ -255,15 +260,25 @@ def check_sigstore_bundle(
     if completed.returncode != 0:
         return CheckResult("sigstore_bundle", FAIL, detail or "model_signing verify failed")
 
-    if expected_identity:
-        msg = f"verified for expected identity {expected_identity}"
+    # A GREEN / PASS result strictly requires both identity and issuer to be independently pinned.
+    # If expected_issuer was not provided, taking the provider from the manifest is reported as YELLOW.
+    if expected_identity and expected_issuer:
+        msg = f"verified for expected identity {expected_identity} and issuer {expected_issuer}"
         return CheckResult(
             "sigstore_bundle",
             PASS,
             f"{detail} ({msg})" if detail else msg,
         )
 
-    msg = f"signature valid for {identity}, but identity was unpinned (pass --expected-identity to pin)"
+    if expected_identity and not expected_issuer:
+        msg = f"signature valid for {expected_identity}, but issuer was taken from manifest (pass --expected-issuer to pin)"
+        return CheckResult(
+            "sigstore_bundle",
+            YELLOW,
+            f"{detail} ({msg})" if detail else msg,
+        )
+
+    msg = f"signature valid for {identity}, but identity was unpinned (pass --expected-identity and --expected-issuer to pin)"
     return CheckResult(
         "sigstore_bundle",
         YELLOW,
@@ -359,7 +374,7 @@ def print_report(results: List[CheckResult]) -> bool:
         return False
     elif has_yellow:
         print("\nVERDICT: YELLOW")
-        return True
+        return False
     else:
         print("\nVERDICT: GREEN")
         return True
