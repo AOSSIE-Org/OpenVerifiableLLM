@@ -66,29 +66,69 @@ def train_tokenizer(
 def hash_tokenizer_config(tokenizer_path: Union[str, Path]) -> dict:
     """
     Compute SHA256 hashes of tokenizer configuration files.
+
+    Supports both tokenizer layouts produced by this package, detected from
+    the artifacts present on disk:
+    - BPE: ``vocab.json`` + ``merges.txt``
+    - SentencePiece: ``spm.model`` + ``spm.vocab`` (SentencePiece has no
+      merges artifact)
+
+    The return shape is stable across layouts. BPE results are unchanged.
+    For SentencePiece, ``tokenizer_vocab_hash`` covers ``spm.vocab``,
+    ``tokenizer_merges_hash`` is ``None``, and ``tokenizer_vocab_size``
+    counts the entries in ``spm.vocab``.
     """
 
     tokenizer_path = Path(tokenizer_path)
 
     vocab_path = tokenizer_path / "vocab.json"
     merges_path = tokenizer_path / "merges.txt"
+    spm_model_path = tokenizer_path / "spm.model"
+    spm_vocab_path = tokenizer_path / "spm.vocab"
 
-    if not vocab_path.is_file():
-        raise FileNotFoundError(f"vocab.json not found at {vocab_path}")
+    if vocab_path.is_file() or merges_path.is_file():
+        if not vocab_path.is_file():
+            raise FileNotFoundError(f"vocab.json not found at {vocab_path}")
 
-    if not merges_path.is_file():
-        raise FileNotFoundError(f"merges.txt not found at {merges_path}")
+        if not merges_path.is_file():
+            raise FileNotFoundError(f"merges.txt not found at {merges_path}")
 
-    vocab_bytes = vocab_path.read_bytes()
-    vocab_hash = compute_sha256(data=vocab_bytes)
-    actual_vocab_size = len(json.loads(vocab_bytes.decode("utf-8")))
+        vocab_bytes = vocab_path.read_bytes()
+        vocab_hash = compute_sha256(data=vocab_bytes)
+        actual_vocab_size = len(json.loads(vocab_bytes.decode("utf-8")))
 
-    merges_hash = compute_sha256(file_path=merges_path)
+        merges_hash = compute_sha256(file_path=merges_path)
 
-    logger.info("Tokenizer config hashed successfully")
+        logger.info("Tokenizer config hashed successfully")
 
-    return {
-        "tokenizer_vocab_hash": vocab_hash,
-        "tokenizer_merges_hash": merges_hash,
-        "tokenizer_vocab_size": actual_vocab_size,
-    }
+        return {
+            "tokenizer_vocab_hash": vocab_hash,
+            "tokenizer_merges_hash": merges_hash,
+            "tokenizer_vocab_size": actual_vocab_size,
+        }
+
+    if spm_model_path.is_file() or spm_vocab_path.is_file():
+        if not spm_model_path.is_file():
+            raise FileNotFoundError(f"spm.model not found at {spm_model_path}")
+
+        if not spm_vocab_path.is_file():
+            raise FileNotFoundError(f"spm.vocab not found at {spm_vocab_path}")
+
+        vocab_bytes = spm_vocab_path.read_bytes()
+        vocab_hash = compute_sha256(data=vocab_bytes)
+        actual_vocab_size = len(
+            [line for line in vocab_bytes.decode("utf-8").splitlines() if line.strip()]
+        )
+
+        logger.info("Tokenizer config hashed successfully")
+
+        return {
+            "tokenizer_vocab_hash": vocab_hash,
+            "tokenizer_merges_hash": None,
+            "tokenizer_vocab_size": actual_vocab_size,
+        }
+
+    raise FileNotFoundError(
+        f"No supported tokenizer artifacts in {tokenizer_path}: "
+        "expected vocab.json + merges.txt (BPE) or spm.model + spm.vocab (SentencePiece)"
+    )

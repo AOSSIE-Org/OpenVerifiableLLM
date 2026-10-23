@@ -166,3 +166,76 @@ def test_hash_tokenizer_missing_merges(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         hash_tokenizer_config(tokenizer_path)
+
+
+# ---------------------------------------------------------------------
+# SentencePiece layout (issue #69)
+# ---------------------------------------------------------------------
+
+SPM_VOCAB_LINES = [
+    "<unk>\t0\n",
+    "<s>\t0\n",
+    "</s>\t0\n",
+    "▁the\t-3.2\n",
+    "▁Wikipedia\t-4.1\n",
+]
+
+
+@pytest.fixture
+def sentencepiece_tokenizer(tmp_path):
+    """Create a synthetic SentencePiece artifact dir (spm.model + spm.vocab)."""
+    tokenizer_path = tmp_path / "sp_tokenizer"
+    tokenizer_path.mkdir()
+
+    (tokenizer_path / "spm.model").write_bytes(b"\x00SPM-MODEL-BYTES\xff")
+    (tokenizer_path / "spm.vocab").write_text("".join(SPM_VOCAB_LINES), encoding="utf-8")
+
+    return tokenizer_path
+
+
+def test_hash_sentencepiece_returns_hashes(sentencepiece_tokenizer):
+    """Hashing a SentencePiece dir should return the stable key shape."""
+    hashes = hash_tokenizer_config(sentencepiece_tokenizer)
+
+    assert "tokenizer_vocab_hash" in hashes
+    assert "tokenizer_merges_hash" in hashes
+    assert "tokenizer_vocab_size" in hashes
+
+    assert hashes["tokenizer_merges_hash"] is None
+    assert hashes["tokenizer_vocab_size"] == len(SPM_VOCAB_LINES)
+
+
+def test_hash_sentencepiece_changes_when_vocab_changes(sentencepiece_tokenizer):
+    """Modifying spm.vocab should change its hash."""
+    hashes_before = hash_tokenizer_config(sentencepiece_tokenizer)
+
+    vocab_path = sentencepiece_tokenizer / "spm.vocab"
+    with vocab_path.open("a", encoding="utf-8") as handle:
+        handle.write("▁encyclopedia\t-5.0\n")
+
+    hashes_after = hash_tokenizer_config(sentencepiece_tokenizer)
+
+    assert hashes_before["tokenizer_vocab_hash"] != hashes_after["tokenizer_vocab_hash"]
+    assert hashes_after["tokenizer_vocab_size"] == len(SPM_VOCAB_LINES) + 1
+
+
+def test_hash_sentencepiece_missing_model(tmp_path):
+    """spm.vocab without spm.model should fail deliberately, not by accident."""
+    tokenizer_path = tmp_path / "tok"
+    tokenizer_path.mkdir()
+
+    (tokenizer_path / "spm.vocab").write_text("".join(SPM_VOCAB_LINES), encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="spm.model"):
+        hash_tokenizer_config(tokenizer_path)
+
+
+def test_hash_tokenizer_unsupported_layout(tmp_path):
+    """A dir with no supported artifacts should name the expected layouts."""
+    tokenizer_path = tmp_path / "tok"
+    tokenizer_path.mkdir()
+
+    (tokenizer_path / "notes.txt").write_text("not a tokenizer", encoding="utf-8")
+
+    with pytest.raises(FileNotFoundError, match="No supported tokenizer artifacts"):
+        hash_tokenizer_config(tokenizer_path)
