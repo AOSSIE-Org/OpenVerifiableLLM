@@ -28,27 +28,42 @@ into a usable artifact.
 
 ## Current Status
 
-The project now has two connected layers:
+The repository contains three related components with different scopes:
 
 - **Reproducibility experiments:** deterministic training, hardware/precision
   sweeps, safetensors artifacts, tensor hashes, Merkle chunking, and segmented
   replay audits.
-- **Verifier and publish loop:** `ovllm verify` checks a local or Hugging Face
-  model directory, recomputes hashes, validates Merkle metadata, optionally runs
-  replay, and verifies Sigstore/model-transparency provenance.
+- **Existing verifier and publish loop:** `ovllm verify` checks a local or Hugging
+  Face model directory, recomputes hashes, validates Merkle metadata, optionally
+  runs replay when the manifest includes it, and verifies Sigstore/model-transparency
+  provenance.
+- **Development pipeline fixture:** `ovllm-pipeline fixture` and
+  `ovllm-pipeline verify-fixture` exercise data preparation, training, checkpointing,
+  continuous replay, and export/inference using synthetic inputs.
 
-The intended midterm story is:
+The development fixture is intended for local development and testing. A passing
+fixture does not establish production readiness, authenticated AOSSIE publisher
+identity, Wikipedia training coverage, GPU portability, or public transparency-log
+inclusion. Production training and public trust gates remain pending. The existing
+artifact verifier and sampled replay do not yet satisfy the full reconstruction
+and continuous replay requirements.
+
+The intended command for the existing artifact-verification workflow is:
 
 ```bash
 ovllm verify <publisher>/<model>
 ```
 
-If the artifact is intact and properly signed, the verifier prints green checks
-and ends with:
+For an artifact that passes the required checks, the intended success output is:
 
 ```text
 VERDICT: GREEN
 ```
+
+This describes the intended verifier workflow; it is not evidence that a
+production-verified Wikipedia model or a complete public trust graph is available.
+See [Pipeline Format](docs/PIPELINE_FORMAT.md) for the development fixture's
+commands and limitations.
 
 ## What `ovllm verify` Checks
 
