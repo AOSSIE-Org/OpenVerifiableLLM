@@ -15,6 +15,15 @@ You don't have to write code to be useful:
 
 If you're new to the project, issues labeled `good first issue` are a good place to start.
 
+## Where the work is
+
+Active development is in `simple/` (the verifiable training loop behind the released model) and in
+the `ovllm verify` artifact verifier under `src/`. The earlier production pipeline
+(`src/ovl_pipeline/` and the legacy pages listed in [docs/README.md](docs/README.md)) is frozen, so
+pull requests that only change it are on hold. Open pull requests against `main`. The
+[roadmap](docs/project/roadmap.md) lists what's most useful right now. Checking a training segment
+on an RTX 5090 ([guide](docs/guides/check_a_segment.md)) is a valuable contribution too.
+
 ## Before writing code
 
 For a small fix (a typo, a doc clarification, an obvious bug), feel free to open a pull request directly.
