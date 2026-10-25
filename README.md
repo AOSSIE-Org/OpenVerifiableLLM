@@ -1,332 +1,182 @@
-# OpenVerifiableLLM
+# OpenVerifiableLLM: <br/> Language models you can check yourself
 
-**Released:** a 23M-parameter language model trained on one exact pass over all of English
-Wikipedia, where every one of its 37 training segments has been recomputed bit for bit.
-Anyone with an RTX 5090 can check any segment. See [The simple run](docs/SIMPLE_RUN.md) for the
-method, results, cost, timeline and lessons, and the
-[release on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run)
-for the files and a step-by-step check.
+<p align="center">
+  <img src="docs/images/openverifiablellm_logo.png" width="160" alt="OpenVerifiableLLM logo: a speech bubble with a check mark">
+</p>
 
-**One-command verification for small open model artifacts.**
+<p align="center">
+  <a href="#why-openverifiablellm">Why?</a> |
+  <a href="#goals">Goals</a> |
+  <a href="#project-status">Status</a> |
+  <a href="#how-it-works">How it works</a> |
+  <a href="#getting-started">Getting started</a> |
+  <a href="#join-us">Join us</a>
+</p>
 
-OpenVerifiableLLM is an AOSSIE project for making model releases independently
-checkable. The goal is simple: a stranger should be able to pull a published
-model, run one verifier command, and see whether the weights, manifest, replay
-claim, and publisher provenance all check out.
+**First release:** a 23M-parameter model trained on one exact pass over all of English Wikipedia,
+with every one of its 37 training segments recomputed bit for bit.
+[Get it on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run).
 
-This repository contains both the research harness that tests training
-reproducibility and the Phase B verifier/publish path that turns those proofs
-into a usable artifact.
+<a href="docs/guides/check_a_segment.md">
+<img src="docs/images/check_snippet.svg" align="right" width="440"
+     alt="Terminal session: the published weights match chain entry 37, and a recomputed training segment matches. Follow the link to check one yourself.">
+</a>
 
-## Current Status
+**Checkable, not just published**
 
-The repository has three parts:
+-   Every training checkpoint is published and hash-linked
+-   Anyone can recompute any segment and get the same bits
+-   The training data rebuilds byte for byte from the raw Wikipedia dump
 
-- **The simple run (`simple/`)**: the production training and verification loop. One script,
-  `simple/ovl.py`, trains with a hash-linked record of every checkpoint, verifies any segment bit
-  for bit, and chats with the result. Start here. See [docs/SIMPLE_RUN.md](docs/SIMPLE_RUN.md).
-- **Reproducibility experiments**: deterministic training, hardware and precision sweeps, tensor
-  hashes, Merkle chunking and segmented replay audits (the July 2026 study).
-- **Verifier and publish loop (`ovllm verify`)**: checks a local or Hugging Face model directory:
-  hashes, Merkle metadata, optional replay and Sigstore/model-transparency provenance. It ends with
-  `VERDICT: GREEN` when every check passes.
+**Cheap to check, in parallel**
 
-The earlier production pipeline (`src/ovl_pipeline/` and most pages in `docs/`) is frozen and kept
-for reference. The simple run uses its data preparation and some library files.
-[History maintenance notes](project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md) record
-where older public source and evidence moved.
+-   One segment takes about 20 minutes on one GPU, about a dollar rented
+-   Segments are independent: many people, any order, at the same time
+-   A one-click checker on RunPod prints one line to share
 
-## What `ovllm verify` Checks
+**Small and readable**
 
-Given a local model directory or Hugging Face model reference, the verifier:
+-   One file trains, verifies, forks and chats: `simple/ovl.py`
+-   Timestamped by two independent authorities
+-   Open data, open code, open results, GPL-3.0
 
-1. Resolves the model reference.
-2. Loads `ovllm_manifest.json`.
-3. Finds the `.safetensors` weights.
-4. Recomputes the raw artifact SHA-256.
-5. Rebuilds the Merkle tree over weight chunks.
-6. Recomputes the tensor-level safetensors hash.
-7. Optionally runs a structured segment-replay audit if the manifest includes one.
-8. Verifies the Sigstore/model-transparency bundle as a red/green provenance check.
+<br clear="right"/>
 
-Missing Sigstore provenance is **red by default**. For local development only,
-use `--allow-unsigned` to turn that check into a skip.
+## Why OpenVerifiableLLM?
 
-## Quickstart
+Most model releases ask you to trust a list of datasets and a training description. You can't
+check either: training is expensive, nondeterministic, and happens on someone else's machines.
+That matters more as models are used for decisions, and as questions about what a model was
+trained on (copyright, privacy, contamination of benchmarks) become legal and scientific
+questions rather than marketing ones.
 
-Install dependencies:
+OpenVerifiableLLM makes the training itself the evidence. The run is cut into segments. Each
+segment boundary commits to the full model and optimizer state, the exact position in the data,
+and the previous boundary. Training is made deterministic, so recomputing a segment from its
+published starting checkpoint gives exactly the same bits. Anyone with the same GPU type can
+therefore check any part of the run without trusting the publisher, and checking all parts
+verifies the whole computation.
 
-```bash
-pip install -r requirements.txt
-pip install -e .
-ovllm --help
-```
+Because the record pins the exact data position, it also allows things that are normally
+impossible to show. For example, a model can be proven never to have trained on a given article:
+the run is forked, the article removed, and the removal recorded in the chain.
 
-The editable install exposes the `ovllm` command used throughout this README.
+## Goals
 
-Run the verifier against a prepared local directory:
+We are building OpenVerifiableLLM to support:
 
-```bash
-ovllm verify path/to/model-dir
-```
+-   Training runs where every step can be recomputed and compared bit for bit
+-   Training data traceable to its raw public source
+-   Exact coverage: which data was seen, in which order, exactly once
+-   Checks that are cheap, independent and parallel
+-   Records that can't be quietly rewritten
+-   Code simple enough to review in an afternoon
 
-Remote Hugging Face references download into `.ovllm-cache/huggingface` by
-default to avoid permission issues in the global Hugging Face cache. Override
-with `--cache-dir <path>` or `OVLLM_HF_CACHE_DIR`.
+We also have explicit _non-goals_:
 
-If remote verification reports `signature present, but manifest lacks
-sigstore_identity/provider`, the uploaded directory was not the GitHub
-Actions-signed artifact. Re-run the **Publish Verified Model** workflow and
-publish that signed output so the manifest includes the expected Sigstore
-identity metadata.
+-   Proving a model's answers are correct. We verify the computation, not the content
+-   Bit-exact results across different GPU architectures
+-   Large models before the method is shown on small ones
 
-For local unsigned smoke tests (skipping local retraining):
+See [goals](docs/project/goals.md) for the full list and the principles behind it.
 
-```bash
-ovllm verify path/to/model-dir --allow-unsigned --skip-replay
-```
+## Project status
 
-For full end-to-end training verification (including local retraining and parameter hash matching):
+The first verified model is **released**. It is small (23M parameters): it writes fluent,
+encyclopedia-style text, often gets facts wrong, and holds a basic conversation. The method is
+the point, and it carries over unchanged to bigger models.
 
-```bash
-ovllm verify path/to/model-dir --allow-unsigned
-```
+What has been shown:
 
-This will automatically execute the local CPU retraining pipeline defined in the manifest's `segment_replay` block, then verify that your locally trained model matches the uploaded model's parameter hash bit-for-bit.
+-   **37 of 37 segments** recomputed bit for bit on a second RTX 5090. Also from public files
+    only, on fresh machines: segments 8 and 21
+-   **Data provenance**: the training data rebuilt from the raw 2026-09-01 Wikipedia dump is
+    byte-identical
+-   **Robustness**: a host failure, a mid-run code change and a driver change all happened during
+    training, and every affected segment still matched
+-   **Verifiable unlearning**: a fork that provably never saw one article, with the exact effect of
+    that article measured
+-   **Hardware scope**: RTX 5090 reproduces the bits; RTX 4090, H100 and CPU do not
 
-Run tests:
+Open limitations:
 
-```bash
-python -m unittest discover -s tests
-```
+-   Checkers need the training GPU's architecture (RTX 5090)
+-   All checks so far were run by the project, on separate machines. **We need independent
+    checkers**: see [Join us](#join-us)
 
-Run the CPU demo arc:
+For the full results, cost, timeline and lessons learned, see
+[the simple run](docs/design/simple_run.md). For what's next, see the
+[roadmap](docs/project/roadmap.md).
 
-```bash
-python demo.py
-```
-
-Run the segmented replay/falsifiability smoke test:
-
-```bash
-cd src
-python reproducibility.py
-cd ..
-```
-
-For GPU demo commands and the full matrix, see [RUNBOOK.md](RUNBOOK.md).
-
-## Publish Loop
-
-Prepare a publishable model directory from the real trained safetensors checkpoint:
-
-```bash
-ovllm prepare-publish \
-  --weights artifacts/gpt10m_shakespeare_fp32_deton_s99.safetensors \
-  --out dist/gpt10m-shakespeare \
-  --name gpt10m-shakespeare
-```
-
-This writes:
-
-- `model.safetensors` or the original safetensors filename
-- `ovllm_manifest.json`
-- `README.md` model card
-- `Modelfile` for an Ollama build path
-
-Rerun `prepare-publish` whenever the model-card or manifest template changes so
-the publish directory contains the current generated metadata.
-
-Signing for published artifacts is performed by the **Publish Verified Model**
-GitHub Actions workflow, not by a local terminal. The workflow signs with GitHub
-OIDC so the Sigstore identity is tied to this repository/workflow instead of a
-personal local browser session.
-
-Local signing is disabled by default to prevent developers from accidentally signing
-with their personal accounts. If you need to test signing locally, set the environment
-variable `OVLLM_ALLOW_LOCAL_SIGNING=true` (or `$env:OVLLM_ALLOW_LOCAL_SIGNING="true"` in PowerShell).
-
-Run the workflow with:
+## How it works
 
 ```text
-model_name: gpt10m-shakespeare
-hf_repo_id: <user-or-org>/gpt10m-shakespeare
-publish_to_hf: true
+ raw Wikipedia dump ──rebuild──▶ prepared tokens ──┐
+                                                    ▼
+ entry 0 ─▶ entry 1 ─▶ entry 2 ─▶ … ─▶ entry 37     chain.jsonl: each entry hashes the full
+   │          │          │                │          model + optimizer state, the data
+ ckpt 0     ckpt 1     ckpt 2    …     ckpt 37       position and the previous entry
+
+ check segment k:  load ckpt k ─▶ train to boundary k+1 ─▶ compare with entry k+1, bit for bit
 ```
 
-It signs with this expected identity shape:
+-   **Determinism**: BF16 autocast with FP32 master weights, deterministic CUDA kernels, no TF32,
+    a fixed cuBLAS workspace, and a learning rate that is a pure function of the step
+-   **Exact coverage**: every step checks that its data continues exactly where the last one
+    stopped, and each phase must end with every item covered once
+-   **Timestamps**: every chain entry is stamped by two RFC 3161 authorities as it is written
 
-```text
-https://github.com/<owner>/<repo>/.github/workflows/publish-verified-model.yml@<git-ref>
-```
+Details: [the simple run](docs/design/simple_run.md#how-it-works).
 
-and this provider:
+## Getting started
 
-```text
-https://token.actions.githubusercontent.com
-```
-
-The workflow verifies the signed directory without `--allow-unsigned`, uploads it
-as a GitHub Actions artifact, and can optionally upload it to Hugging Face when
-`HF_TOKEN` is configured as a repository secret.
-
-Manual Hugging Face upload is still available if you already have a signed
-directory. `ovllm publish-hf` reads `HF_TOKEN` directly and disables Hugging
-Face Xet transfers by default for these small artifacts, which avoids local
-token-cache and Xet-cache permission issues:
+Check the released model without a GPU:
 
 ```bash
-# bash/zsh
-export HF_TOKEN=<your-huggingface-write-token>
-export HF_HUB_DISABLE_XET=1
-ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
+pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
+  "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
+  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+cd ovl/release/simple-run
+sha256sum -c --ignore-missing release-hashes.txt
+OVL_DEVICE=cpu python code/simple/ovl.py verify --run . --weights conversation-model.pt
+# weights conversation-model.pt: MATCH chain entry 37
 ```
 
-```powershell
-# PowerShell
-$env:HF_TOKEN = "<your-huggingface-write-token>"
-$env:HF_HUB_DISABLE_XET = "1"
-ovllm publish-hf <user-or-org>/gpt10m-shakespeare dist/gpt10m-shakespeare
-```
+Recompute a training segment on an RTX 5090, in one click:
+[deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait about an
+hour, and read the result line in the logs. Step by step:
+[check a training segment](docs/guides/check_a_segment.md).
 
-Build an Ollama artifact from the generated `Modelfile`:
+Learn more:
 
-```bash
-ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare
-```
+-   [The simple run](docs/design/simple_run.md): method, results, cost, timeline, lessons
+-   [Goals](docs/project/goals.md), [roadmap](docs/project/roadmap.md) and
+    [FAQ](docs/project/faq.md)
+-   [The `ovllm verify` artifact verifier](docs/guides/ovllm_verify.md) and the reproducibility
+    study
+-   [All docs](docs/README.md)
 
-Dry-run wrappers are available for non-signing publish/build command-shape checks:
+### Repository layout
 
-```bash
-ovllm publish-hf <repo-id> dist/gpt10m-shakespeare --dry-run
-ovllm ollama-build gpt10m-shakespeare dist/gpt10m-shakespeare --dry-run
-```
-
-Signing is intentionally performed by the GitHub Actions workflow, because the
-published Sigstore identity should be the repository workflow identity.
-
-## Reproducibility Matrix
-
-The experiment harness tests when "same code + same seed" really means "same
-model." It separates two ideas that are often conflated:
-
-- **Run-to-run reproducibility:** train the same config twice on the same
-  hardware. Do the final bits match?
-- **Agreement with fp32 reference:** does a lower-precision run match fp32, or
-  only produce a similar loss?
-
-Example commands:
-
-```bash
-python run_experiment.py --model gpt10m --precision fp32 --deterministic on --device cuda
-python run_experiment.py --model gpt10m --precision tf32 --deterministic on --device cuda
-python run_experiment.py --model gpt10m --precision fp32 --deterministic off --device cuda --track-divergence
-python sweep.py --device cuda --track-divergence
-```
-
-The matrix records:
-
-- final loss
-- tensor hash
-- Merkle root
-- first divergence step
-- reproducible true/false
-- hardware and precision metadata
-
-## Artifact Integrity
-
-OpenVerifiableLLM uses:
-
-- **safetensors** for stable weight bytes.
-- **tensor SHA-256** for semantic model equality.
-- **raw artifact SHA-256** for file integrity.
-- **Merkle chunking** for scalable partial verification.
-- **Sigstore/model-transparency** for publisher identity and transparency-log
-  provenance.
-
-The Merkle manifest is computed in one read pass so file size, file hash, and
-chunk hashes describe the same artifact version.
-
-The verifier depends on the current `model-signing` CLI surface and a modern
-PyYAML wheel, so those versions are pinned in both `requirements.txt` and
-`pyproject.toml` for clean-machine installs.
-
-## Threat Model
-
-OpenVerifiableLLM catches:
-
-- accidental corruption
-- modified weights
-- manifest/weight mismatch
-- dataset or config drift when encoded in the manifest
-- unsigned or wrongly signed published artifacts
-- replay-window divergence when segment replay metadata is present
-
-It does **not** prove that every training step was honest. A determined publisher
-could construct a fraudulent but internally consistent checkpoint chain. This is
-a known limitation of proof-of-learning style systems. The practical goal here is
-falsifiability: make tampering and drift easy to detect, make claims reproducible,
-and expose the exact assumptions under which verification holds.
-
-## Repository Map
-
-| Path | Purpose |
+| Path | What it is |
 |---|---|
-| `simple/` | The simple run: `ovl.py` (train, verify, chat), segment checker, timestamps, rebuild and helper scripts |
-| `docs/SIMPLE_RUN.md` | Method, results, cost, timeline and lessons of the released run |
-| `src/ovllm.py` | Verifier/publish CLI |
-| `src/verifier.py` | Local/HF model verification checks |
-| `src/publish.py` | Publish directory, Sigstore, HF, and Ollama helpers |
-| `src/artifacts.py` | SHA-256, tensor hashing, safetensors, Merkle helpers |
-| `src/experiment.py` | Shared experiment runner |
-| `src/reproducibility.py` | Segmented replay and falsifiability scenarios |
-| `src/signing.py` | Legacy/local Ed25519 verify-before-load helper |
-| `run_experiment.py` | Run one matrix cell |
-| `sweep.py` | Run the reproducibility matrix |
-| `demo.py` | Narrative demo |
-| `tests/` | Artifact, verifier, signing, and determinism tests |
-| `RUNBOOK.md` | Demo-day commands and GPU run instructions |
+| `simple/` | The verifiable training loop: `ovl.py` (train, verify, fork, chat), the segment checker, timestamps, the data rebuild |
+| `docs/` | Design, project and guide docs ([index](docs/README.md)) |
+| `src/`, `run_experiment.py`, `sweep.py` | The `ovllm verify` artifact verifier and the reproducibility study |
+| `src/ovl_pipeline/` | The earlier production pipeline. Frozen; the simple run uses its data preparation |
+| `tests/` | Tests; `tests/simple/` covers `simple/ovl.py` |
 
-## Development
+## Join us
 
-Run the test suite:
+-   **Check a segment.** Have access to an RTX 5090, or a dollar for an hour of one? Run the
+    [one-click check](docs/guides/check_a_segment.md#one-segment-one-click) and post the result
+    line. Every independent check makes the release more credible
+-   **Contribute.** Read [CONTRIBUTING.md](CONTRIBUTING.md). New work targets `simple/` on `main`
+-   **Talk to us** on the [AOSSIE Discord](https://discord.gg/hjUhu33uAn) or in
+    [GitHub issues](https://github.com/AOSSIE-Org/OpenVerifiableLLM/issues)
 
-```bash
-python -m unittest discover -s tests
-```
-
-CUDA-only tests (TF32 divergence, determinism-OFF, DDP) self-skip on CPU
-machines. Sigstore signing tests are mocked, so the full suite passes locally
-without GitHub Actions OIDC credentials. The `--allow-unsigned` flag skips the
-live Sigstore bundle check for local development only.
-
-Compile-check touched modules:
-
-```bash
-python -m py_compile src/artifacts.py src/verifier.py src/publish.py src/ovllm.py
-```
-
-Check the verifier locally:
-
-```bash
-ovllm prepare-publish --weights mid_checkpoint.safetensors --out C:\tmp\ovllm-smoke
-ovllm verify C:\tmp\ovllm-smoke --allow-unsigned --skip-replay
-```
-
-- Bit-exact reproducibility is scoped to a fixed hardware/software stack.
-- Cross-GPU reproducibility is measured, not assumed.
-- Single-GPU deterministic training is the primary supported baseline.
-- Multi-GPU determinism remains experimental.
-- Sigstore signing requires a real OIDC/auth environment for the deployed path.
-
-## References
-
-- Jia et al., *Proof-of-Learning: Definitions and Practice* (2021)
-- Fang et al., *"Proof-of-Learning" Is Currently More Broken Than You Think*
-  (EuroS&P 2023)
-- [safetensors](https://huggingface.co/docs/safetensors)
-- [Sigstore model-transparency](https://github.com/sigstore/model-transparency)
-
-## License
-
-See [LICENSE](LICENSE).
+OpenVerifiableLLM is an [AOSSIE](https://aossie.org) project, licensed under
+[GPL-3.0](LICENSE). Community standards follow AOSSIE's
+[code of conduct](https://github.com/AOSSIE-Org/.github/blob/master/CODE_OF_CONDUCT.md) and
+[security policy](https://github.com/AOSSIE-Org/.github/blob/master/SECURITY.md).
