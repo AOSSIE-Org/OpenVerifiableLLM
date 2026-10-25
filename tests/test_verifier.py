@@ -196,7 +196,7 @@ class RemoteResolutionTests(unittest.TestCase):
 
             self.assertEqual(
                 resolved,
-                Path(tmp) / ".ovllm-cache" / "huggingface" / "snapshot",
+                (Path(tmp) / ".ovllm-cache" / "huggingface" / "snapshot").resolve(),
             )
 
     def test_remote_refs_honor_explicit_cache_dir(self):
@@ -215,7 +215,7 @@ class RemoteResolutionTests(unittest.TestCase):
 
             self.assertEqual(
                 resolved,
-                Path(tmp) / "custom-cache" / "snapshot",
+                (Path(tmp) / "custom-cache" / "snapshot").resolve(),
             )
 
 

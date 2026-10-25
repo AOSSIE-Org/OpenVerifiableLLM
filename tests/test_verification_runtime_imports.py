@@ -10,6 +10,8 @@ from ovl_pipeline.canonical import EvidenceError
 
 
 def test_pilot_initialization_and_production_imports_keep_complete_library_closure():
+    if not Path('/proc/self/maps').exists():
+        pytest.skip('Linux /proc/self/maps required for ELF library closure test')
     code='''import json
 from ovl_pipeline import gpu_pilot,gpu
 before=gpu.mapped_libraries()
