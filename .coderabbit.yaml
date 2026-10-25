@@ -1,0 +1,82 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit configuration for OpenVerifiableLLM (Python, PyTorch, shell).
+language: en
+early_access: false
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  sequence_diagrams: false
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  auto_review:
+    enabled: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+    base_branches:
+      - main
+  pre_merge_checks:
+    description:
+      mode: warning
+    docstrings:
+      mode: off
+
+  # Evidence and frozen code are pinned by hash or kept for history; don't review them.
+  path_filters:
+    - "!project/**"
+    - "!proofs/**"
+    - "!keys/**"
+    - "!artifacts/**"
+    - "!data/**"
+    - "!Legacy/**"
+    - "!notebooks/**"
+    - "!requirements/*.lock"
+
+  path_instructions:
+    - path: "simple/**"
+      instructions: >-
+        This is the bit-exact training loop behind the released model. Flag any change to seeds,
+        data order, dtype, kernel or determinism settings, RNG or optimizer state handling, or the
+        serialization of chain.jsonl and checkpoints, because it changes hashes and breaks
+        verification of the published run. Weights must load with torch.load(weights_only=True)
+        or safetensors. Shell scripts must stay safe under `set -euo pipefail`.
+    - path: "src/{verifier,ovllm,signing}.py"
+      instructions: >-
+        This is the artifact verifier. It must fail closed: a missing hash, signature or field must
+        produce FAIL, never a silent SKIP that ends in a GREEN verdict. Check that every new check has
+        a test where honest input passes and tampered input fails.
+    - path: "src/ovl_pipeline/**"
+      instructions: >-
+        Frozen earlier pipeline. Point out if a PR changes it without a linked issue.
+    - path: "tests/**"
+      instructions: >-
+        Tests must run on a CPU with no network. Verification tests need both a passing and a
+        tampered (failing) case.
+    - path: "**/*.md"
+      instructions: >-
+        Check that commands are runnable as written, links resolve, and numbers (segments, costs,
+        hashes) match docs/design/simple_run.md.
+
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+      timeout_ms: 90000
+
+chat:
+  auto_reply: true
