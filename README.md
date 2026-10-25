@@ -1,19 +1,11 @@
 # OpenVerifiableLLM
 
-Repository history maintenance changed public source and evidence locations.
-See the [current provenance status and pinned inventories](project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md).
-Affected historical verification claims remain suspended until the repaired public
-trust graph verifies. No production-verified Wikipedia model is available yet.
-
-The Wikipedia pipeline is described in the
-[end-to-end verification plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md).
-Private operator instructions and working progress records are kept locally.
-The [synthetic pipeline fixture](docs/PIPELINE_FORMAT.md) now exercises raw-data
-reconstruction, safe checkpoints, continuous two-phase replay and export/inference.
-Production training and public trust gates remain pending. The existing
-artifact verifier and sampled replay do not yet satisfy its full reconstruction and
-continuous replay requirements. The goal requires a public trail from source data
-through the published base and conversational models, within a US$130 RunPod cap.
+**Released:** a 23M-parameter language model trained on one exact pass over all of English
+Wikipedia, where every one of its 37 training segments has been recomputed bit for bit.
+Anyone with an RTX 5090 can check any segment. See [The simple run](docs/SIMPLE_RUN.md) for the
+method, results, cost, timeline and lessons, and the
+[release on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run)
+for the files and a step-by-step check.
 
 **One-command verification for small open model artifacts.**
 
@@ -28,27 +20,21 @@ into a usable artifact.
 
 ## Current Status
 
-The project now has two connected layers:
+The repository has three parts:
 
-- **Reproducibility experiments:** deterministic training, hardware/precision
-  sweeps, safetensors artifacts, tensor hashes, Merkle chunking, and segmented
-  replay audits.
-- **Verifier and publish loop:** `ovllm verify` checks a local or Hugging Face
-  model directory, recomputes hashes, validates Merkle metadata, optionally runs
-  replay, and verifies Sigstore/model-transparency provenance.
+- **The simple run (`simple/`)**: the production training and verification loop. One script,
+  `simple/ovl.py`, trains with a hash-linked record of every checkpoint, verifies any segment bit
+  for bit, and chats with the result. Start here. See [docs/SIMPLE_RUN.md](docs/SIMPLE_RUN.md).
+- **Reproducibility experiments**: deterministic training, hardware and precision sweeps, tensor
+  hashes, Merkle chunking and segmented replay audits (the July 2026 study).
+- **Verifier and publish loop (`ovllm verify`)**: checks a local or Hugging Face model directory:
+  hashes, Merkle metadata, optional replay and Sigstore/model-transparency provenance. It ends with
+  `VERDICT: GREEN` when every check passes.
 
-The intended midterm story is:
-
-```bash
-ovllm verify <publisher>/<model>
-```
-
-If the artifact is intact and properly signed, the verifier prints green checks
-and ends with:
-
-```text
-VERDICT: GREEN
-```
+The earlier production pipeline (`src/ovl_pipeline/` and most pages in `docs/`) is frozen and kept
+for reference. The simple run uses its data preparation and some library files.
+[History maintenance notes](project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md) record
+where older public source and evidence moved.
 
 ## What `ovllm verify` Checks
 
@@ -286,6 +272,8 @@ and expose the exact assumptions under which verification holds.
 
 | Path | Purpose |
 |---|---|
+| `simple/` | The simple run: `ovl.py` (train, verify, chat), segment checker, timestamps, rebuild and helper scripts |
+| `docs/SIMPLE_RUN.md` | Method, results, cost, timeline and lessons of the released run |
 | `src/ovllm.py` | Verifier/publish CLI |
 | `src/verifier.py` | Local/HF model verification checks |
 | `src/publish.py` | Publish directory, Sigstore, HF, and Ollama helpers |
