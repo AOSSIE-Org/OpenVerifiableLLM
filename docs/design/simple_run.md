@@ -103,7 +103,9 @@ All times UTC.
 | 20 Oct | All 37 segments MATCH on the second GPU. Release uploaded and hash-checked; anchor timestamped at 14:38:43 |
 | 20–21 Oct | Full rebuild of the training data from the raw dump: byte-identical. Hardware map, unlearning fork, fresh-machine checks |
 | 21 Oct | Per-boundary timestamps (`simple/stamp.py`) and the one-click checker (`simple/checker_pod.sh` plus a RunPod template); first check: segment 8 MATCH |
-| 22–25 Oct | Contributor fixes to `verify` (#213, with #207, #208 and #210 approved); this branch merged into `main` |
+| 22–26 Oct | Contributor fixes to `verify`: clearer weights message (#213), fail when no checks ran (#207), 17 CPU tests for `simple/ovl.py` (#208); a chain-head check against `anchor.json` (#210) is in review |
+| 25 Oct | `simple-production-loop` merged into `main` (#217); 32 pull requests against the frozen pipeline closed |
+| 26 Oct | Docs reorganized (design, project, guides), project logo added (#219) |
 
 ## Cost
 

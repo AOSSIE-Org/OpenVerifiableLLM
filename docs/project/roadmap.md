@@ -16,9 +16,13 @@
   - a one-click segment check on RunPod.
 
   See [the simple run](../design/simple_run.md).
+- **Late October 2026: hardening `verify`.** Contributor fixes: `verify` fails when it ran no
+  checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`.
 
 ## Next
 
+- **Anchor check in `verify`.** Compare the chain head with the timestamped `anchor.json`, so
+  a record with entries cut off the end fails (#210, in review).
 - **Independent checks.** Get segments checked by people outside the project, using the
   [one-click check](../guides/check_a_segment.md#one-segment-one-click). This is the single most
   valuable next step for the release's credibility.
