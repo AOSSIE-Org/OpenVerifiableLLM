@@ -99,7 +99,12 @@ def _first_existing(model_dir: Path, names: Iterable[str]) -> Optional[Path]:
 def find_weights(model_dir: Path, manifest: Dict[str, Any]) -> Path:
     declared = manifest.get("weights") or manifest.get("model_checkpoint_artifact")
     if declared:
-        path = model_dir / declared
+        root = model_dir.resolve()
+        path = (model_dir / declared).resolve()
+        if not path.is_relative_to(root):
+            raise ValueError(
+                f"Manifest weights artifact {declared!r} resolves outside model directory {root}"
+            )
         if path.exists():
             return path
         raise FileNotFoundError(f"Manifest declares missing weights artifact: {path}")
