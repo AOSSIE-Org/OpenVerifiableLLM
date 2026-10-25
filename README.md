@@ -159,13 +159,19 @@ Learn more:
 
 ### Repository layout
 
-| Path | What it is |
-|---|---|
-| `simple/` | The verifiable training loop: `ovl.py` (train, verify, fork, chat), the segment checker, timestamps, the data rebuild |
-| `docs/` | Design, project and guide docs ([index](docs/README.md)) |
-| `src/`, `run_experiment.py`, `sweep.py` | The `ovllm verify` artifact verifier and the reproducibility study |
-| `src/ovl_pipeline/` | The earlier production pipeline. Frozen; the simple run uses its data preparation |
-| `tests/` | Tests; `tests/simple/` covers `simple/ovl.py` |
+| Path | What it is | Status |
+|---|---|---|
+| [`simple/`](simple/README.md) | The verifiable training loop: `ovl.py` (train, verify, fork, chat), segment checks, timestamps, the data rebuild. Start here | active |
+| [`docs/`](docs/README.md) | Design, project and guide docs | active |
+| `tests/` | Tests. `tests/simple/` covers `simple/ovl.py` and runs on a CPU | active |
+| `src/ovllm.py`, `src/verifier.py`, `src/publish.py` | The [`ovllm verify` artifact verifier](docs/guides/ovllm_verify.md) | active |
+| `src/` (other modules), `run_experiment.py`, `sweep.py`, `demo.py`, [`RUNBOOK.md`](RUNBOOK.md) | The July 2026 reproducibility study and its runbook | reference |
+| `notebooks/`, `experiments/`, `paper/`, `data/` | Study notebooks, the paper draft, a small sample dataset | reference |
+| `proofs/`, `keys/` | Recorded audit results and the study's public signing key | evidence |
+| `project/` | Published evidence, source commitments and technical reports. Pinned by hash: don't edit | evidence |
+| `src/ovl_pipeline/`, `scripts/`, `requirements/*.lock` | The earlier production pipeline and its locked environments. The simple run uses its data preparation | frozen |
+| `Legacy/` | The pre-GSoC codebase | frozen |
+| [`docs/legacy/`](docs/legacy/) | Superseded planning notes | frozen |
 
 ## Join us
 
