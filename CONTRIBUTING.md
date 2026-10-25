@@ -49,13 +49,24 @@ Dependencies are pinned and hash-locked. This is deliberate: it's both a reprodu
 git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
 
-# install dependencies and the editable CLI
+# the same environment CI uses (CPU PyTorch, hash-locked)
+pip install --require-hashes -r requirements/preparation.lock
 pip install -r requirements.txt
-pip install -e .
+pip install -e ".[pipeline]" pytest
 
 # confirm things work
-python -m unittest discover -s tests
+python -m pytest -q tests
 ```
+
+Which install you need depends on what you work on:
+
+| Working on | Install | Quick test |
+|---|---|---|
+| `simple/` (the training loop) | the CI environment above, or just PyTorch plus the pinned packages listed in [`simple/README.md`](simple/README.md#requirements) | `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests/simple` |
+| `ovllm verify` (`src/ovllm.py`, `src/verifier.py`) | `pip install -r requirements.txt && pip install -e .` | `python -m pytest tests/test_verifier.py` |
+| Anything else | the CI environment above | `python -m pytest -q tests` |
+
+Training and segment checks need an RTX 5090. Everything in `tests/` runs on a CPU; GPU-only tests skip themselves.
 
 If you need to add a dependency, add it through the lockfile so the hash-locked set stays authoritative. An unpinned dependency undermines both reproducibility and the project's supply-chain posture.
 
@@ -67,7 +78,7 @@ If you need to add a dependency, add it through the lockfile so the hash-locked 
 
 **Tests.**
 
-- Run the test suite (`python -m unittest discover -s tests`) locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
+- Run the test suite (`python -m pytest -q tests`) locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
 - Code that changes verification behavior, serialization, RNG/optimizer state handling, or the manifest should include tests for both the success case and the failure case. For verification-affecting changes, extend the test suite so a clean run passes and the relevant tampered run fails.
 - A change must not silently weaken the bit-exact reproducibility guarantee on the supported single-GPU stack. If a change trades determinism for performance, make that tradeoff explicit and document it.
 

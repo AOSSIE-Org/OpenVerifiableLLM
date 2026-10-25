@@ -6,7 +6,7 @@ initialization, one full English Wikipedia pass, conversation training, reproduc
 verification, and publication of downloadable model files.
 
 **Use [PROJECT_GOAL.md](PROJECT_GOAL.md) and the
-[end-to-end trust plan](docs/VERIFIABLE_WIKIPEDIA_PLAN.md) for execution.** The user now
+[end-to-end trust plan](../VERIFIABLE_WIKIPEDIA_PLAN.md) for execution.** The user now
 requires public provenance and full data reconstruction plus complete training replay
 before final verified publication, and explicitly permits exceeding 24 hours within
 $100. The older provisional-release option, timing estimates and deadline gate below

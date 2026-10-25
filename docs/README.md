@@ -21,6 +21,10 @@ The [`guides/` directory](guides/README.md) has step-by-step instructions:
 [check a training segment](guides/check_a_segment.md) and
 [the `ovllm verify` artifact verifier](guides/ovllm_verify.md).
 
+## Code
+
+The training loop and its scripts are indexed in [`simple/README.md`](../simple/README.md).
+
 ## Images
 
 Logo and figures, with their sources: [`images/`](images/snippets.md).
@@ -29,7 +33,8 @@ Logo and figures, with their sources: [`images/`](images/snippets.md).
 
 These pages describe the earlier production pipeline (`src/ovl_pipeline/`). It is frozen: kept for
 reference, not used by the simple run apart from data preparation and a few library files. Some
-published evidence links to these exact paths, so they stay where they are.
+published evidence links to these exact paths, so they stay where they are. Older planning notes
+are in [`legacy/`](legacy/README.md).
 
 - [Publisher identity and public anchoring](ANCHORING.md)
 - [Bounded immutable checkpoint transfers](BOUNDED_CHECKPOINT_TRANSFERS.md)
