@@ -15,8 +15,8 @@ The mark is a speech bubble (the model talks) holding a check mark (you can chec
 </p>
 
 Keep clear space around the logo of at least a quarter of its width. Don't recolour, stretch, rotate or
-add effects. On dark backgrounds the logo works as is; the colours below have enough contrast on both
-white and near-black.
+add effects. The logo works as is on white and on dark backgrounds. As text, the green has enough contrast on
+white and the yellow only on dark backgrounds.
 
 The name is written **OpenVerifiableLLM**, one word, with that capitalisation. Short form: **OVL**.
 

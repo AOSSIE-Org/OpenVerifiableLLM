@@ -20,7 +20,7 @@
 
 ## Score Summary
 
-<!-- Auto-updated by checklist-score.yml workflow — do not edit manually -->
+<!-- Updated by hand: when you change a checkbox, update this table and checklist-status.json to match -->
 | Category           | Met | Total | Status |
 |--------------------|-----|-------|--------|
 | Basics             | 8   | 8     | ✅     |

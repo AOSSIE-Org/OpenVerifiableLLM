@@ -1,8 +1,7 @@
-# Maintainers, Mentors and Ideators
+# Maintainers and Mentors
 
-This document lists the people in the roles of [Maintainer](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Maintainer.md),
-[Mentor](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Mentors.md) and
-[Ideator](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Ideator.md) for this repository, following
+This document lists the people in the roles of [Maintainer](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Maintainer.md)
+and [Mentor](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Mentors.md) for this repository, following
 [AOSSIE's role definitions](https://github.com/AOSSIE-Org/Info/tree/main/Roles).
 
 ## Mentors
