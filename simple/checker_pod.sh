@@ -31,6 +31,8 @@ sed -i "s|/resolve/main/|/resolve/$REV/|" "$CODE/code/simple/fetch.sh"
 grep -q "/resolve/$REV/" "$CODE/code/simple/fetch.sh" || { echo "OVL check FAIL: could not pin downloads to $REV"; exit 1; }
 cd "$CODE"
 RUN_PATH=$RUN_PATH bash code/simple/verify_segment.sh 2>&1 | tee "$WORK/verify.log"
+# The anchor's timestamp check needs openssl and the system CA certificates.
+command -v openssl >/dev/null && [ -f /etc/ssl/certs/ca-certificates.crt ] || { apt-get update -qq && apt-get install -y -qq openssl ca-certificates; } >/dev/null
 python3 - "$WORK/hf/$RUN_PATH" "$WORK/pub/$RUN_PATH" "$GPU" "$REV" <<'PY'
 import hashlib, json, os, shutil, subprocess, sys, time
 run, pub, gpu, rev = sys.argv[1:]
@@ -58,7 +60,7 @@ if shutil.which("openssl") and ca and os.path.exists(tsr):
     stamped = "Verification: OK" in v.stdout
     stamp = "timestamp OK" if stamped else "timestamp FAILED"
 else:
-    stamped, stamp = True, "timestamp not checked (no openssl or CA bundle)"
+    stamped, stamp = False, "timestamp NOT CHECKED (no openssl, CA bundle or .tsr)"
 print(f"anchor: DigiCert {stamp}")
 
 segs = [c for c in r["checks"] if "segment" in c]
