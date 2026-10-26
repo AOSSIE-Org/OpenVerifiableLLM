@@ -24,12 +24,12 @@
 | Category           | Met | Total | Status |
 |--------------------|-----|-------|--------|
 | Basics             | 8   | 8     | ✅     |
-| Change Control     | 3   | 6     | 🟡     |
+| Change Control     | 6   | 6     | ✅     |
 | Reporting          | 8   | 8     | ✅     |
 | Quality            | 7   | 11     | 🟡     |
 | Security           | 9   | 9     | ✅     |
 | Analysis           | 4   | 7     | 🟡     |
-| **Total**          | **39** | **49** | **80%** |
+| **Total**          | **42** | **49** | **86%** |
 ---
 
 ## 🏗️ Basics
@@ -73,19 +73,19 @@
 
 ### Version Numbering
 
-- [ ] 🔴 **version_unique** — Each release has a unique version identifier (e.g., v1.0.0).
-  - *Evidence URL:* Not met yet: no published GitHub release (only a draft `v0.1.0`). The model release is pinned by Hugging Face revision; a tagged `v1.0.0` release is planned.
+- [x] 🔴 **version_unique** — Each release has a unique version identifier (e.g., v1.0.0).
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.0
 
 - [x] 🔵 **version_semver** — Project uses [SemVer](https://semver.org) or [CalVer](https://calver.org/) format. *(SUGGESTED)*
   - *Note:* SemVer (`version` in https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/pyproject.toml).
 
-- [ ] 🔵 **version_tags** — Releases are tagged in the VCS (e.g., `git tag v1.0.0`). *(SUGGESTED)*
-  - *Evidence URL:* Not met yet: no release tags. Will be met with the `v1.0.0` release.
+- [x] 🔵 **version_tags** — Releases are tagged in the VCS (e.g., `git tag v1.0.0`). *(SUGGESTED)*
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/v1.0.0 (git tag `v1.0.0`)
 
 ### Release Notes
 
-- [ ] 🔴 **release_notes** — Each release includes human-readable release notes summarizing major changes. Raw `git log` output is NOT acceptable.
-  - *Evidence URL:* Not met yet: will come with the `v1.0.0` release. Changes are described in merged PRs and in docs/design/simple_run.md.
+- [x] 🔴 **release_notes** — Each release includes human-readable release notes summarizing major changes. Raw `git log` output is NOT acceptable.
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.0
 
 - [~] 🔴 **release_notes_vulns** — Release notes identify every publicly known vulnerability (with CVE) fixed in that release.
   - *Evidence URL:* N/A — *Justification:* no publicly known vulnerabilities (no CVEs) have been reported.
