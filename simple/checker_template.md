@@ -16,7 +16,10 @@ chosen ones.
 What runs: `simple/checker_pod.sh` from the OpenVerifiableLLM repository at a fixed commit. It
 downloads the release's own code from Hugging Face
 (`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence`) at a fixed revision, then runs
-its `verify_segment.sh`, which hash-checks the data and the checkpoint against the record. Nothing is uploaded, and no account or token is needed.
+its `verify_segment.sh`, which hash-checks the data and the checkpoint against the record. The
+record, checkpoints and data all come from that same revision, and the result is PASS only if the
+record matches the release's timestamped `anchor.json` (DigiCert timestamp checked with `openssl`).
+Nothing is uploaded, and no account or token is needed.
 
 First real run (21 Oct 2026, fresh RTX 5090, driver 595.91.07): segment 8 MATCH in 1139 s.
 

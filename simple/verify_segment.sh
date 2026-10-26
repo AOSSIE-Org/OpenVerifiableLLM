@@ -5,6 +5,7 @@
 #   bash simple/verify_segment.sh                 # 1 random segment (~10-20 min)
 #   K=3 bash simple/verify_segment.sh             # 3 random segments
 #   SEGMENTS="7 8" bash simple/verify_segment.sh  # chosen segments
+#   REV=<dataset commit> bash simple/verify_segment.sh   # check a fixed release, not `main`
 set -euo pipefail
 cd "$(dirname "$0")/.."
 WORK=${WORK:-/workspace}
@@ -13,7 +14,7 @@ RUN_PATH=${RUN_PATH:-release/simple-run}   # where the run is published in $REPO
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
-fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json"
+fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json" "$RUN_PATH/anchor.json"
 check_prep "$WORK/hf/prepared/$PREP_ID"
 RUN=$WORK/hf/$RUN_PATH
 if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
@@ -21,4 +22,5 @@ if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
 fi
 # Only the checkpoints at the start of the chosen segments are needed.
 fetch $(for k in $PICK; do printf "%s/ckpt-%05d.pt " "$RUN_PATH" "$k"; done)
-python simple/ovl.py verify --data "$WORK/hf/prepared/$PREP_ID" --run "$RUN" --segment $PICK
+# --anchor makes a missing or different anchor.json fail instead of being skipped.
+python simple/ovl.py verify --data "$WORK/hf/prepared/$PREP_ID" --run "$RUN" --anchor "$RUN/anchor.json" --segment $PICK
