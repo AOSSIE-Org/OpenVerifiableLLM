@@ -225,8 +225,8 @@ def publish_huggingface(repo_id: str, model_dir: str, *, dry_run: bool = False) 
         os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
         hf_hub = importlib.import_module("huggingface_hub")
-        HfApi = getattr(hf_hub, "HfApi")
-    except ImportError as e:
+        HfApi = hf_hub.HfApi
+    except ImportError:
         print("huggingface_hub is not installed. Install it to publish to Hugging Face.", file=sys.stderr)
         return 1
     except Exception as e:

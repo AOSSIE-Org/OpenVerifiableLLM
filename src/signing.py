@@ -135,7 +135,8 @@ def verified_torch_load(path, *, map_location=None, expect_signature=True):
 
     warnings.warn(
         f"Loading {path} WITHOUT signature verification; refusing weights_only=False. "
-        "Sign your checkpoints with signing.sign_file to enable safe full loads."
+        "Sign your checkpoints with signing.sign_file to enable safe full loads.",
+        stacklevel=2,
     )
     return torch.load(path, map_location=map_location, weights_only=True)
 

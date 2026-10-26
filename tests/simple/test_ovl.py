@@ -164,7 +164,7 @@ class WeightsMatchTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.run = Path(self.tmp.name)
         self.states = [tiny_state(i) for i in range(4)]
-        write_chain(self.run, fake_chain(list(zip(("initial", "progress", "base", "final"), self.states))))
+        write_chain(self.run, fake_chain(list(zip(("initial", "progress", "base", "final"), self.states, strict=True))))
 
     def tearDown(self):
         self.tmp.cleanup()

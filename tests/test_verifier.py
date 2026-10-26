@@ -273,7 +273,7 @@ class VerifierTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             model_dir = self._prepared_model_dir(tmp)
             with patch.dict("os.environ", {}, clear=True):
-                with patch("sys.stderr") as mock_stderr:
+                with patch("sys.stderr"):
                     code = sign_model_dir(str(model_dir), dry_run=False)
                     self.assertEqual(code, 1)
 
