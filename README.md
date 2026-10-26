@@ -162,7 +162,7 @@ Learn more:
     [FAQ](docs/project/faq.md)
 -   [The `ovllm verify` artifact verifier](docs/guides/ovllm_verify.md) and the reproducibility
     study
--   [Run the model in Ollama](docs/guides/ollama.md)
+-   [Run the model in Ollama](docs/guides/ollama.md): `ollama run ryoari/openverifiablellm`
 -   [All docs](docs/README.md)
 
 ### Repository layout
