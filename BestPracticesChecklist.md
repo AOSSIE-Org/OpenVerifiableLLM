@@ -28,8 +28,8 @@
 | Reporting          | 8   | 8     | ✅     |
 | Quality            | 9   | 11     | 🟡     |
 | Security           | 9   | 9     | ✅     |
-| Analysis           | 4   | 7     | 🟡     |
-| **Total**          | **44** | **49** | **90%** |
+| Analysis           | 6   | 7     | 🟡     |
+| **Total**          | **46** | **49** | **94%** |
 ---
 
 ## 🏗️ Basics
@@ -211,11 +211,11 @@
 - [ ] 🔴 **static_analysis_fixed** — All medium+ severity vulnerabilities found by static analysis are fixed in a timely manner after confirmation.
   - *Note:* Not met yet: no static security analysis runs; to be added with the AI security review.
 
-- [ ] 🔵 **static_analysis_common_vulnerabilities** — The static analysis tool includes checks for common vulnerabilities in the language/environment (e.g., eslint-plugin-security, bandit, Slither). *(SUGGESTED)*
-  - *Tool + ruleset:* Not met yet (planned: bandit or CodeQL).
+- [x] 🔵 **static_analysis_common_vulnerabilities** — The static analysis tool includes checks for common vulnerabilities in the language/environment (e.g., eslint-plugin-security, bandit, Slither). *(SUGGESTED)*
+  - *Tool + ruleset:* CodeQL for Python, `security-extended` queries (`.github/workflows/codeql.yml`).
 
-- [ ] 🔵 **static_analysis_often** — Static analysis runs on every commit or at least daily (CI integration). *(SUGGESTED)*
-  - *Evidence URL:* Not met yet.
+- [x] 🔵 **static_analysis_often** — Static analysis runs on every commit or at least daily (CI integration). *(SUGGESTED)*
+  - *Evidence URL:* CodeQL runs on every push to `main`, every pull request, and daily (`.github/workflows/codeql.yml`).
 
 ### Dynamic Code Analysis
 

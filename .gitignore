@@ -83,3 +83,6 @@ openverifiable-smoke/
 
 # Publication leases are runtime state
 *.publication.lock
+
+# Security review reports with open findings stay local until remediated
+unremediated-security-reviews/
