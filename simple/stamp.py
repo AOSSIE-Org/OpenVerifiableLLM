@@ -77,7 +77,7 @@ def stamp_async(run, entry):
 def check(run, chain):
     with tempfile.TemporaryDirectory() as d:
         ca, tsa = (Path(d) / "cacert.pem", Path(d) / "tsa.crt")
-        for url, path in zip(FREETSA_CERTS, (ca, tsa)):
+        for url, path in zip(FREETSA_CERTS, (ca, tsa), strict=True):
             path.write_bytes(urllib.request.urlopen(url, timeout=30).read())
         system = "/etc/ssl/certs/ca-certificates.crt"
         ok = True

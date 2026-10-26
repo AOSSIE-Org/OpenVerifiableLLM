@@ -26,10 +26,10 @@
 | Basics             | 8   | 8     | ✅     |
 | Change Control     | 6   | 6     | ✅     |
 | Reporting          | 8   | 8     | ✅     |
-| Quality            | 7   | 11     | 🟡     |
+| Quality            | 9   | 11     | 🟡     |
 | Security           | 9   | 9     | ✅     |
 | Analysis           | 4   | 7     | 🟡     |
-| **Total**          | **42** | **49** | **86%** |
+| **Total**          | **44** | **49** | **90%** |
 ---
 
 ## 🏗️ Basics
@@ -143,7 +143,7 @@
   - *Evidence URL:* `python -m pytest -q tests` (https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#development-setup)
 
 - [ ] 🔵 **test_most** — The test suite covers most code branches, input fields, and functionality. *(SUGGESTED)*
-  - *Estimated coverage %:* Not measured yet. About 3,250 tests; `simple/` and the verifier are covered by targeted tests, the frozen pipeline less so.
+  - *Estimated coverage %:* Measured in CI (job summary). Verifier: 78–88% per module; `simple/ovl.py`: about 30% (GPU training paths have no CPU tests yet).
 
 ### New Functionality Testing Policy
 
@@ -158,11 +158,11 @@
 
 ### Linting / Warning Flags
 
-- [ ] 🔴 **warnings** — At least one linter or compiler warning flag is enabled (ESLint, Pylint, clippy, golangci-lint, Slither for Solidity, etc.).
-  - *Tool used:* Not met yet: Ruff runs on PRs through CodeRabbit (.coderabbit.yaml), but no linter runs in CI.
+- [x] 🔴 **warnings** — At least one linter or compiler warning flag is enabled (ESLint, Pylint, clippy, golangci-lint, Slither for Solidity, etc.).
+  - *Tool used:* Ruff (pyflakes, pycodestyle errors, flake8-bugbear) in CI on `simple/` and the verifier; config in `pyproject.toml`.
 
-- [ ] 🔴 **warnings_fixed** — Warnings from the linter are addressed (not suppressed without reason).
-  - *Note:* Not met yet: depends on adding a linter to CI.
+- [x] 🔴 **warnings_fixed** — Warnings from the linter are addressed (not suppressed without reason).
+  - *Note:* All findings on the linted code are fixed. Ignored rules are style-only (one-line statements) and are documented in `pyproject.toml`.
 
 - [ ] 🔵 **warnings_strict** — Project uses maximum strictness in linter config where practical. *(SUGGESTED)*
   - *Note:* Not met yet.

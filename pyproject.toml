@@ -27,6 +27,19 @@ pipeline = ["sigstore==4.5.0", "rfc8785==0.1.4", "tokenizers==0.23.2", "mwparser
 ovllm = "ovllm:main"
 ovllm-pipeline = "ovl_pipeline.__main__:main"
 
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B"]
+# The training loop uses a compact style: short statements joined on one line, `l` for lines.
+ignore = ["E701", "E702", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# ovl.py puts the repository on sys.path before importing project modules. Its zips run on the
+# training data path, which stays byte-for-byte as released.
+"simple/ovl.py" = ["E402", "B905"]
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 packages = ["ovl_pipeline"]
