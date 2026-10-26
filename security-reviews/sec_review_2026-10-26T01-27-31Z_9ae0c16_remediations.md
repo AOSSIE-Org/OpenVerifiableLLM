@@ -35,7 +35,9 @@ produced `resolve/96dc282a…` URLs. Every file the checker downloads was confir
 anchor missing it stopped with an error. A complete one-click run on an RTX 5090 with the new script hasn't
 been done yet.
 
-The public RunPod template must point to this commit for one-click checkers to get the fix.
+Deployed: on 2026-10-26 the public RunPod template `mai1ozh35g` was updated to fetch `simple/checker_pod.sh` at
+`5e480c33544cba5c21aa1cbd1e6396f2e7c0b74d`, so one-click checks use the fixed checker. Before that it fetched
+`69a38d12c454ed6d51a04f989814a2fcc32784de`.
 
 ## Non-remediated findings
 
