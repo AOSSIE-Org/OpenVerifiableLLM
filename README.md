@@ -13,6 +13,13 @@
   <a href="#join-us">Join us</a>
 </p>
 
+<p align="center">
+  <a href="https://scorecard.dev/viewer/?uri=github.com/AOSSIE-Org/OpenVerifiableLLM"><img src="https://api.scorecard.dev/projects/github.com/AOSSIE-Org/OpenVerifiableLLM/badge" alt="OpenSSF Scorecard"></a>
+  <a href="BestPracticesChecklist.md"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FAOSSIE-Org%2FOpenVerifiableLLM%2Fmain%2Fchecklist-status.json&query=%24.percent&suffix=%25&label=Best%20Practices&logo=openssf" alt="Best Practices"></a>
+  <a href="https://discord.gg/hjUhu33uAn"><img src="https://img.shields.io/discord/1022871757289422898?logo=discord&logoColor=white&label=Discord&labelColor=5865F2&color=57F287" alt="Discord"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
+</p>
+
 **First release:** a 23M-parameter model trained on one exact pass over all of English Wikipedia,
 with every one of its 37 training segments recomputed bit for bit.
 [Get it on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run).
@@ -172,6 +179,8 @@ Learn more:
 | `src/ovl_pipeline/`, `scripts/`, `requirements/*.lock` | The earlier production pipeline and its locked environments. The simple run uses its data preparation | frozen |
 | `Legacy/` | The pre-GSoC codebase | frozen |
 | [`docs/legacy/`](docs/legacy/) | Superseded planning notes | frozen |
+| [`brand/`](brand/Brand.md) | Logo, colours and typography | active |
+| [`MAINTAINERS.md`](MAINTAINERS.md), [`BestPracticesChecklist.md`](BestPracticesChecklist.md) | Who maintains the project, AOSSIE best-practices status | active |
 
 ## Join us
 
