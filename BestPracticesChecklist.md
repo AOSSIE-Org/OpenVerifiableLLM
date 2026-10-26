@@ -143,7 +143,7 @@
   - *Evidence URL:* `python -m pytest -q tests` (https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#development-setup)
 
 - [ ] 🔵 **test_most** — The test suite covers most code branches, input fields, and functionality. *(SUGGESTED)*
-  - *Estimated coverage %:* Measured in CI (job summary). Verifier: 78–88% per module; `simple/ovl.py`: about 30% (GPU training paths have no CPU tests yet).
+  - *Estimated coverage %:* Measured in CI (job summary): 74% of `simple/` and `src/` overall. Verifier: 78–88% per module; `simple/ovl.py`: about 30% (GPU training paths have no CPU tests yet).
 
 ### New Functionality Testing Policy
 
