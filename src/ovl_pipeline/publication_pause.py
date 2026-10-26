@@ -6,7 +6,7 @@ from .canonical import EvidenceError
 def require_publication_open():
     try:
         marker = Path.home() / ".local/state/openverifiablellm/publication-paused.json"
-    except RuntimeError:
-        return
+    except RuntimeError as exc:
+        raise EvidenceError("Could not determine home directory for publication pause check") from exc
     if marker.exists() or marker.is_symlink():
         raise EvidenceError("Publication paused for coordinated privacy maintenance")

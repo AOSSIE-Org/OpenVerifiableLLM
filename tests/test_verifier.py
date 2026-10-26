@@ -171,11 +171,20 @@ class PublishTests(unittest.TestCase):
             HfApi = FakeApi
 
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.dict("os.environ", {}, clear=True):
+            env = {k: os.environ[k] for k in ("HOME", "USERPROFILE") if k in os.environ}
+            with patch.dict("os.environ", env, clear=True):
                 with patch("importlib.import_module", return_value=FakeHub):
                     code = publish_huggingface("Ryoari/openverifiable-smoke", tmp)
                     self.assertEqual(code, 0)
                     self.assertEqual(os.environ["HF_HUB_DISABLE_XET"], "1")
+
+    def test_require_publication_open_fails_closed_without_home(self):
+        from ovl_pipeline.canonical import EvidenceError
+        from ovl_pipeline.publication_pause import require_publication_open
+
+        with patch.object(Path, "home", side_effect=RuntimeError("no home directory")):
+            with self.assertRaises(EvidenceError):
+                require_publication_open()
 
 
 class RemoteResolutionTests(unittest.TestCase):
