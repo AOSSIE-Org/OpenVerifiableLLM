@@ -103,6 +103,16 @@ def test_separate_publication_identity_preserves_training_and_selects_new_destin
     with pytest.raises(EvidenceError):m.build(r,report,archive,other,publication='unknown')
 
 
+@pytest.mark.parametrize('text',['','GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n\n... (Full GPLv3 text continues) ...\n',
+                                  'MIT License\n\nEND OF TERMS AND CONDITIONS\n'])
+def test_payload_requires_the_complete_gpl3_license(cpu_runtime,inputs,prepared,tmp_path,monkeypatch,text):
+    r,report,archive,_=setup(inputs,prepared,tmp_path,monkeypatch)
+    checkout=tmp_path/'checkout';checkout.mkdir()
+    if text:(checkout/'LICENSE').write_text(text)
+    with pytest.raises(EvidenceError,match='GPL-3.0'):
+        m.prepare_payloads(r,report,tmp_path/'export',checkout,tmp_path/'other-payload',source_statement=inputs[0],evidence_archive=archive)
+
+
 def test_model_cards_pin_sources_evidence_and_demonstration_scope(cpu_runtime,inputs,prepared,tmp_path,monkeypatch):
     r,report,archive,payload=setup(inputs,prepared,tmp_path,monkeypatch)
     for phase in ('base','chat'):
