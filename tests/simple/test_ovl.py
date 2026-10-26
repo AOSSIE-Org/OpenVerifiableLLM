@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -299,6 +300,78 @@ class NextTargetAndExclusionTests(unittest.TestCase):
         ranges = [(10, 8), (14, 6)]
         self.assertEqual(ovl.next_target(10, ranges), 20)
         self.assertEqual(ovl.next_target(15, ranges), 20)
+
+
+class BenchTests(unittest.TestCase):
+    def test_empty_stream_fails(self):
+        a = argparse.Namespace(data="dummy", seconds=60, warmup=50)
+        with patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())), \
+             patch.object(ovl, "prefetch", return_value=iter([])), \
+             self.assertRaisesRegex(SystemExit, "bench error: data stream yielded 0 batches"):
+            ovl.cmd_bench(a)
+
+    def test_insufficient_updates_fails(self):
+        batches = [({"inputs": torch.tensor([1])}, None) for _ in range(5)]
+        a = argparse.Namespace(data="dummy", seconds=60, warmup=50)
+        with patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())), \
+             patch.object(ovl, "prefetch", return_value=iter(batches)), \
+             patch.object(ovl, "step", return_value=(torch.tensor(1.0), 0, None)), \
+             self.assertRaisesRegex(SystemExit, "completed 5 updates; at least 51 updates are required"):
+            ovl.cmd_bench(a)
+
+    def test_custom_warmup_and_timing(self):
+        batches = [({"inputs": torch.tensor([1])}, None) for _ in range(3)]
+        a = argparse.Namespace(data="dummy", seconds=60, warmup=2)
+        with patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())), \
+             patch.object(ovl, "prefetch", return_value=iter(batches)), \
+             patch.object(ovl, "step", return_value=(torch.tensor(1.5), 0, None)), \
+             patch.object(ovl, "environment", return_value={}), \
+             patch("builtins.print") as mock_print:
+            ovl.cmd_bench(a)
+            self.assertTrue(mock_print.called)
+            payload = json.loads(mock_print.call_args[0][0])
+            self.assertEqual(payload["updates_timed"], 1)
+            self.assertEqual(payload["loss"], 1.5)
+
+    def test_warmup_zero_timing(self):
+        batches = [({"inputs": torch.tensor([1])}, None) for _ in range(3)]
+        a = argparse.Namespace(data="dummy", seconds=60, warmup=0)
+        with patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())), \
+             patch.object(ovl, "prefetch", return_value=iter(batches)), \
+             patch.object(ovl, "step", return_value=(torch.tensor(1.5), 0, None)), \
+             patch.object(ovl, "environment", return_value={}), \
+             patch("builtins.print") as mock_print:
+            ovl.cmd_bench(a)
+            self.assertTrue(mock_print.called)
+            payload = json.loads(mock_print.call_args[0][0])
+            self.assertEqual(payload["updates_timed"], 3)
+            self.assertEqual(payload["loss"], 1.5)
+
+    def test_negative_warmup_fails_bench(self):
+        a = argparse.Namespace(data="dummy", seconds=60, warmup=-1)
+        with self.assertRaisesRegex(SystemExit, "bench error: --warmup cannot be negative"):
+            ovl.cmd_bench(a)
+
+    def test_cli_negative_warmup_rejected(self):
+        with patch.object(sys, "argv", ["ovl.py", "bench", "--data", "dummy", "--warmup", "-5"]), \
+             patch("sys.stderr"):
+            with self.assertRaises(SystemExit) as cm:
+                ovl.main()
+            self.assertEqual(cm.exception.code, 2)
+
+    def test_cli_warmup_flag(self):
+        with patch.object(sys, "argv", ["ovl.py", "bench", "--data", "dummy", "--warmup", "5"]), \
+             patch.object(ovl, "cmd_bench") as mock_bench:
+            ovl.main()
+            mock_bench.assert_called_once()
+            self.assertEqual(mock_bench.call_args[0][0].warmup, 5)
+
+    def test_cli_default_warmup(self):
+        with patch.object(sys, "argv", ["ovl.py", "bench", "--data", "dummy"]), \
+             patch.object(ovl, "cmd_bench") as mock_bench:
+            ovl.main()
+            mock_bench.assert_called_once()
+            self.assertEqual(mock_bench.call_args[0][0].warmup, 50)
 
 
 if __name__ == "__main__":

@@ -642,20 +642,30 @@ def cmd_verify(a):
 
 
 def cmd_bench(a):
+    if a.warmup < 0:
+        sys.exit("bench error: --warmup cannot be negative")
     model, opt = fresh()
-    ctl, n, t0 = initial_control(), 0, None
+    ctl, n, t0, loss = initial_control(), 0, None, None
+    if a.warmup == 0:
+        if DEV == "cuda": torch.cuda.synchronize()
+        t0 = time.time()
     for b, _ in prefetch(a.data, "wikipedia", [0, 0]):
         loss, ctl["cursor"], _ = step(model, opt, b, ctl)
         n += 1
-        if n == 50:
+        if a.warmup > 0 and n == a.warmup:
             if DEV == "cuda": torch.cuda.synchronize()
             t0 = time.time()
         if t0 and time.time() - t0 >= a.seconds:
             break
+    if loss is None or n == 0:
+        sys.exit("bench error: data stream yielded 0 batches")
+    if t0 is None or n <= a.warmup:
+        sys.exit(f"bench error: completed {n} updates; at least {a.warmup + 1} updates are required to measure throughput after warm-up")
     if DEV == "cuda": torch.cuda.synchronize()
-    ms = 1000 * (time.time() - t0) / (n - 50)
+    timed_updates = n - a.warmup
+    ms = 1000 * (time.time() - t0) / timed_updates
     total = RECIPE["schedule"]["wikipedia_updates"]
-    print(json.dumps({"ms_per_update": round(ms, 2), "updates_timed": n - 50, "loss": loss.item(),
+    print(json.dumps({"ms_per_update": round(ms, 2), "updates_timed": timed_updates, "loss": loss.item(),
                       **environment(), "projected_train_hours": round(total * ms / 3.6e6, 2),
                       "segments": math.ceil(total / RECIPE["boundary_every"]),
                       "minutes_per_segment": round(RECIPE["boundary_every"] * ms / 6e4, 1)}))
@@ -684,6 +694,13 @@ def cmd_chat(a):
     print(tok.decode([i - OFFSET for i in out if i >= OFFSET]))
 
 
+def non_negative_int(val):
+    n = int(val)
+    if n < 0:
+        raise argparse.ArgumentTypeError(f"warmup cannot be negative: {val}")
+    return n
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest="cmd", required=True)
@@ -697,7 +714,7 @@ def main():
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
     fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
     fk.add_argument("--out", required=True)
-    b = s.add_parser("bench"); b.add_argument("--data", required=True); b.add_argument("--seconds", type=int, default=600)
+    b = s.add_parser("bench"); b.add_argument("--data", required=True); b.add_argument("--seconds", type=int, default=600); b.add_argument("--warmup", type=non_negative_int, default=50)
     c = s.add_parser("chat"); c.add_argument("--run", required=True); c.add_argument("--tokenizer", required=True)
     c.add_argument("prompt"); c.add_argument("--model", default="conversation", choices=["base", "conversation"])
     c.add_argument("--tokens", type=int, default=200); c.add_argument("--temperature", type=float, default=0.8)
