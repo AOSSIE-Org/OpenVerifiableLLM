@@ -197,10 +197,8 @@ class CIFARDataset:
                         # links and devices could redirect later writes outside DATA_DIR
                         if not (member.isfile() or member.isdir()):
                             raise ValueError(f"Unsafe member type in archive: {member.name}")
-                    if hasattr(tarfile, "data_filter"):
-                        tf.extractall(DATA_DIR, filter="data")
-                    else:
-                        tf.extractall(DATA_DIR)
+                    # filter="data" needs Python 3.10.12+; older versions raise and use the fallback below
+                    tf.extractall(DATA_DIR, filter="data")
             import pickle
 
             xs, ys = [], []
