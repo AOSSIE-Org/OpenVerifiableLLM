@@ -26,7 +26,7 @@ jobs:
           # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
           pip install --require-hashes -r requirements/preparation.lock
           pip install -r requirements.txt
-          pip install -e ".[pipeline]" pytest pytest-cov ruff
+          pip install -e ".[pipeline]" pytest pytest-cov ruff gguf
 
       # Lint the active code: the training loop and the artifact verifier.
       - name: Ruff

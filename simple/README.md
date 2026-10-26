@@ -19,6 +19,7 @@ pods. For the method and results, see [the simple run](../docs/design/simple_run
 | Test whether another GPU reproduces the bits | `bash simple/hwmap_check.sh` | any GPU |
 | Remove documents from a run and retrain | `python simple/ovl.py fork ...`, then `loo_eval.py` | RTX 5090 |
 | Estimate the cost of a bigger model | `python simple/bench_sizes.py --data PREP` | RTX 5090 |
+| Run the model in Ollama | `python simple/export_gguf.py ...`, then `ollama create -f simple/Modelfile` ([guide](../docs/guides/ollama.md)) | any CPU |
 
 `RUN` is a run directory (`chain.jsonl`, `recipe.json`, models, `ckpt-*.pt`). `PREP` is the prepared
 data directory, `prepared/8de1d600…` in the
@@ -42,6 +43,7 @@ On a CPU, set `OVL_DEVICE=cpu`.
 | [`loo_eval.py`](loo_eval.py) | Compares an original run with a fork that removed documents: loss on the removed text against control articles |
 | [`bench_sizes.py`](bench_sizes.py) | Times the deterministic training step for several model sizes and prints the cost of training plus a full check |
 | [`review_ckpt.py`](review_ckpt.py) | Inspects checkpoints before publication: exact hashes, zip members, restricted load, allowed strings |
+| [`export_gguf.py`](export_gguf.py), [`Modelfile`](Modelfile) | Export a released model to GGUF for llama.cpp and Ollama, and the Ollama build file with the training chat format |
 
 ## Requirements
 
