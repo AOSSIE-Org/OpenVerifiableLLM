@@ -86,6 +86,25 @@ class ChainLinkTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "chain link broken at entry 1"):
             ovl.read_chain(self.run)
 
+    def test_empty_chain_file_is_reported(self):
+        (self.run / "chain.jsonl").write_text("")
+        with self.assertRaisesRegex(SystemExit, "chain.jsonl has no chain entries"):
+            ovl.read_chain(self.run)
+
+    def test_cut_off_last_line_is_reported_with_its_line_number(self):
+        write_chain(self.run, self.chain[:2])
+        with (self.run / "chain.jsonl").open("a") as f:
+            f.write('{"index": 2, "kind": "ba')
+        with self.assertRaisesRegex(SystemExit, r"chain\.jsonl: line 3 is not valid JSON"):
+            ovl.read_chain(self.run)
+
+    def test_blank_line_is_reported_with_its_line_number(self):
+        write_chain(self.run, self.chain[:2])
+        with (self.run / "chain.jsonl").open("a") as f:
+            f.write("\n")
+        with self.assertRaisesRegex(SystemExit, r"chain\.jsonl: line 3 is not valid JSON"):
+            ovl.read_chain(self.run)
+
 
 class LearningRateTests(unittest.TestCase):
     def test_depends_only_on_step_and_phase(self):
