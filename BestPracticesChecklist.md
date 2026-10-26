@@ -215,7 +215,7 @@
   - *Tool + ruleset:* CodeQL for Python, `security-extended` queries (`.github/workflows/codeql.yml`).
 
 - [x] 🔵 **static_analysis_often** — Static analysis runs on every commit or at least daily (CI integration). *(SUGGESTED)*
-  - *Evidence URL:* CodeQL runs on every push to `main`, every pull request and weekly (`.github/workflows/codeql.yml`).
+  - *Evidence URL:* CodeQL runs on every push to `main`, every pull request, and daily (`.github/workflows/codeql.yml`).
 
 ### Dynamic Code Analysis
 

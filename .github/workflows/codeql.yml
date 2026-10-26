@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: "20 2 * * 1" # weekly
+    - cron: "20 2 * * *" # daily, so branches without a PR are covered within a day
   workflow_dispatch:
 
 permissions:
