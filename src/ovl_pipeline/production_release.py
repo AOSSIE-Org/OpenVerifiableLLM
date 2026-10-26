@@ -239,7 +239,8 @@ def prepare_payloads(r,report_directory,exports,source_checkout,output,*,source_
     if output.exists():raise EvidenceError('release payload preparation requires fresh output')
     if read_json(exports/'export.json')!=values['exports']:raise EvidenceError('export report differs from selected verification evidence')
     license=confined(source_checkout,'LICENSE')
-    if not license.is_file() or not license.read_text().startswith('GNU GENERAL PUBLIC LICENSE\nVersion 3,'):
+    words=' '.join(license.read_text().split()) if license.is_file() else ''
+    if not words.startswith('GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007') or 'END OF TERMS AND CONDITIONS' not in words:
         raise EvidenceError('preserved GPL-3.0 project license required')
     output.mkdir(parents=True,exist_ok=False)
     for phase in ('base','chat'):
