@@ -1,0 +1,35 @@
+# Dependabot version updates.
+# The hash-locked environments in requirements/*.lock are pinned evidence for the published
+# run and the frozen pipeline, so they are updated by hand, never automatically.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    ignore:
+      # Bit-exact recomputation of the released run depends on the exact PyTorch build.
+      - dependency-name: "torch"
