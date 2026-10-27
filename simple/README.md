@@ -30,7 +30,7 @@ On a CPU, set `OVL_DEVICE=cpu`.
 
 | File | What it does |
 |---|---|
-| [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`), `fork`, `chat`, `bench` |
+| [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`; it needs the run's `anchor.json` or `--anchor FILE`, and `--no-anchor` is only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
 | [`stamp.py`](stamp.py) | RFC 3161 timestamps (FreeTSA and DigiCert) for each chain entry while training runs; `--check` verifies them. `OVL_TIMESTAMP=0` turns stamping off |
 | [`verify_segment.sh`](verify_segment.sh) | Downloads the release's data, record and the needed checkpoints, then checks `K` random segments (or `SEGMENTS="7 8"`) |
 | [`checker_pod.sh`](checker_pod.sh) | One-click check for a fresh RTX 5090 pod: fetches the release code at a pinned revision, runs `verify_segment.sh`, prints one result line to share |

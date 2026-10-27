@@ -530,8 +530,11 @@ def cmd_verify(a):
         if (len(chain), head) != (want["chain_entries"], want["chain_head_sha256"]):
             sys.exit(f"chain head differs from {anchor}: {len(chain)} entries, head {head}")
         print(f"anchor {anchor}: chain head MATCH ({len(chain)} entries)", flush=True)
-    elif a.anchor:
-        sys.exit(f"anchor {anchor} not found")
+    elif a.anchor or not a.no_anchor:
+        sys.exit(f"anchor {anchor} not found" + ("" if a.anchor else
+                 "; pass --no-anchor only to check a run that has no anchor yet"))
+    else:
+        print("WARNING: --no-anchor: the chain is not compared with a timestamped anchor", flush=True)
     report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": []}
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
@@ -614,7 +617,9 @@ def main():
     t = s.add_parser("train"); t.add_argument("--data", required=True); t.add_argument("--out", required=True)
     v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
     v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
-    v.add_argument("--all", action="store_true"); v.add_argument("--weights"); v.add_argument("--anchor")
+    v.add_argument("--all", action="store_true"); v.add_argument("--weights")
+    anchored = v.add_mutually_exclusive_group()
+    anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
     fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
     fk.add_argument("--out", required=True)
