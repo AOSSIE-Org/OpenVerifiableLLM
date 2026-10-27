@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="https://scorecard.dev/viewer/?uri=github.com/AOSSIE-Org/OpenVerifiableLLM"><img src="https://api.scorecard.dev/projects/github.com/AOSSIE-Org/OpenVerifiableLLM/badge" alt="OpenSSF Scorecard"></a>
+  <a href="https://www.bestpractices.dev/projects/15952"><img src="https://www.bestpractices.dev/projects/15952/badge" alt="OpenSSF Best Practices"></a>
   <a href="BestPracticesChecklist.md"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FAOSSIE-Org%2FOpenVerifiableLLM%2Fmain%2Fchecklist-status.json&query=%24.percent&suffix=%25&label=Best%20Practices&logo=openssf" alt="Best Practices"></a>
   <a href="https://discord.gg/hjUhu33uAn"><img src="https://img.shields.io/discord/1022871757289422898?logo=discord&logoColor=white&label=Discord&labelColor=5865F2&color=57F287" alt="Discord"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="License: GPL-3.0"></a>
