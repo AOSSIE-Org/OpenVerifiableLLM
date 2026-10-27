@@ -147,9 +147,14 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
-OVL_DEVICE=cpu python code/simple/ovl.py verify --run . --weights conversation-model.pt
+git clone -q --depth 1 --branch v1.0.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# anchor anchor.json: chain head MATCH (38 entries)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
+
+Use `ovl.py` from the v1.0.0 tag, as above. The copy in the download's `code/` folder predates the
+anchor check, so it doesn't compare the record with its timestamped anchor.
 
 Recompute a training segment on an RTX 5090, in one click:
 [deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait about an
