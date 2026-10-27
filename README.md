@@ -44,7 +44,8 @@ with every one of its 37 training segments recomputed bit for bit.
 
 **Small and readable**
 
--   One file trains, verifies, forks and chats: `simple/ovl.py`
+-   One 631-line file trains, verifies, forks and chats: `simple/ovl.py`, plus about 1,000 lines of
+    model and data code it imports from `src/`
 -   Timestamped by two independent authorities
 -   Open data, open code, open results, GPL-3.0
 
@@ -67,7 +68,8 @@ verifies the whole computation.
 
 Because the record pins the exact data position, it also allows things that are normally
 impossible to show. For example, a model can be proven never to have trained on a given article:
-the run is forked, the article removed, and the removal recorded in the chain.
+the run is forked before it reaches the article, the article is removed, and the removal is recorded in
+the chain.
 
 ## Goals
 
@@ -78,7 +80,7 @@ We are building OpenVerifiableLLM to support:
 -   Exact coverage: which data was seen, in which order, exactly once
 -   Checks that are cheap, independent and parallel
 -   Records that can't be quietly rewritten
--   Code simple enough to review in an afternoon
+-   A training loop simple enough to review in an afternoon
 
 We also have explicit _non-goals_:
 
@@ -92,7 +94,9 @@ See [goals](docs/project/goals.md) for the full list and the principles behind i
 
 The first verified model is **released**. It is small (23M parameters): it writes fluent,
 encyclopedia-style text, often gets facts wrong, and holds a basic conversation. The method is
-the point, and it carries over unchanged to bigger models.
+the point. It works the same way for bigger models, but a full check costs as much compute as the
+training, so checking a large model in practice means many people each recomputing a random sample
+of segments.
 
 What has been shown:
 
@@ -102,15 +106,21 @@ What has been shown:
     byte-identical
 -   **Robustness**: a host failure, a mid-run code change and a driver change all happened during
     training, and every affected segment still matched
--   **Verifiable unlearning**: a fork that provably never saw one article, with the exact effect of
-    that article measured
+-   **Verifiable exclusion**: a fork that provably never trained on one article the run hadn't
+    reached yet, with the article's effect measured (one run, no variance estimate). This is exact
+    retraining without the article, not unlearning of something already learned
 -   **Hardware scope**: RTX 5090 reproduces the bits; RTX 4090, H100 and CPU do not
 
-Open limitations:
+Open limitations (details in [what "verified" means](docs/design/simple_run.md#what-verified-means)):
 
--   Checkers need the training GPU's architecture (RTX 5090)
+-   Checkers need the training GPU's architecture (RTX 5090), and they trust the same PyTorch/CUDA
+    toolchain. A deterministic error in that toolchain would match on every machine
 -   All checks so far were run by the project, on separate machines. **We need independent
-    checkers**: see [Join us](#join-us)
+    checkers**: see [Join us](#join-us). Catching one forged segment out of 37 with 95% probability
+    takes about 110 independent random checks
+-   Check results are self-reported text lines. They aren't signed, and nothing proves a checker
+    picked its segment at random
+-   The timestamp proves the record existed by 20 Oct 2026, not how the training was done
 
 For the full results, cost, timeline and lessons learned, see
 [the simple run](docs/design/simple_run.md). For what's next, see the
@@ -138,7 +148,9 @@ Details: [the simple run](docs/design/simple_run.md#how-it-works).
 
 ## Getting started
 
-Check the released model without a GPU:
+Check that the released model matches its timestamped record, without a GPU. This is a
+consistency check: it recomputes no training. The real verification is the segment recomputation
+below.
 
 ```bash
 pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
@@ -147,6 +159,8 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
+# Verification: OK   (DigiCert stamped anchor.json on 2026-10-20)
 git clone -q --depth 1 --branch v1.0.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)

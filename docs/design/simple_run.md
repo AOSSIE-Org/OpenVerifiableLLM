@@ -10,7 +10,9 @@ produces.
   [`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence`](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence),
   folders `release/simple-run/` (the model) and `release/unlearning-3i-atlas/` (the unlearning fork).
   The release README there is the user guide; this page is the project record.
-- Code: `simple/` in this repository. `simple/ovl.py` trains, verifies and chats in one file.
+- Code: `simple/` in this repository. `simple/ovl.py` (631 lines) trains, verifies and chats. It imports
+  the model (`src/model.py`) and the data and initialization helpers (`src/ovl_pipeline/data.py`,
+  `training.py`), about 1,000 lines in all. The training data was prepared by the earlier pipeline.
   The exact code used for the run is also published in `release/simple-run/code/`.
 
 ## How it works
@@ -66,12 +68,14 @@ produces.
 Bit-exactness holds within one GPU architecture, regardless of driver. Checkers therefore need the
 training GPU's architecture. This is the method's main trust assumption.
 
-**Verifiable unlearning.** A fork at boundary 30 removed one article that the run had not yet
+**Verifiable exclusion** (the release folder is named `unlearning-3i-atlas`). A fork at boundary 30 removed one article that the run had not yet
 reached ("3I/ATLAS", 10,395 targets). The fork shares checkpoints 0–30 byte for byte, records the
 removed range in its chain, and its coverage check accepts a gap only at that range. Every fork
 segment matched. Loss on the article's text went from 3.3604 to 3.3860 (+0.0256). Mean loss on 50
 control articles from the same segment, which both models saw, went from 2.8710 to 2.8712
-(+0.0002). One run, no variance estimate.
+(+0.0002). One run, no variance estimate. This proves the fork never trained on the article. It
+is exact retraining without a range the run hadn't reached, not unlearning in the research sense of
+removing something a model already learned.
 
 ## Check it yourself
 
@@ -176,6 +180,32 @@ segment with probability 1 − ((N−1)/N)^M.
 - **Be explicit about what "verified" means.** The model is small and often wrong about facts.
   Verification proves the computation, not the answers.
 
+## What "verified" means
+
+A **consistency check** (CPU, `ovl.py verify --weights` plus the timestamp check) shows that the
+released files match the timestamped record: the model is the record's final state, and the record
+hasn't changed since 2026-10-20. It recomputes no training, and the record comes from the publisher.
+
+A **segment check** recomputes one segment from its published starting checkpoint and compares the
+result bit for bit. Checking every segment verifies the whole computation. What it relies on:
+
+- **Same architecture.** Bits match on RTX 5090. RTX 4090, H100 and CPU give a mismatch (the
+  hardware map). A checker needs a 5090, and the release can be checked only while 5090s are
+  available.
+- **The toolchain.** Checkers run the same PyTorch, CUDA and container image. A deterministic error
+  there would give a match everywhere. That doesn't help a forger, but "verified" means
+  "this code on this stack produced these weights".
+- **Enough independent checkers.** With N segments, M checkers who each pick one random segment
+  catch one forged segment with probability 1 − ((N−1)/N)^M. For N = 37 that's about 110 checks for
+  95% and 169 for 99%. Longer runs with more segments need more checks.
+- **Honest reporting.** A check result is a self-reported line, not signed, and nothing proves the
+  checker picked the segment at random. Signed results and public randomness for picking segments
+  are on the [roadmap](../project/roadmap.md).
+- **Cost.** A full check costs as much compute as the training (the table above), and each
+  boundary stores the model and optimizer state (284 MB here, about 12 bytes per parameter).
+  For large models, full checks are only realistic for well-funded parties, so assurance comes from
+  sampling.
+
 ## Limitations
 
 - A small model: fluent encyclopedic text, frequent factual errors, basic conversation.
@@ -183,7 +213,11 @@ segment with probability 1 − ((N−1)/N)^M.
 - So far all segment checks were run by the project, on separate machines. None has been run by an
   independent third party yet.
 - The release timestamp proves the record existed no later than 2026-10-20 14:38:43 UTC, not when
-  training happened. Runs started after 21 Oct stamp every boundary as it is written.
+  or how training happened. Runs started after 21 Oct stamp every boundary as it is written.
+- The repository's Git history was rewritten once, in September 2026 during repository maintenance,
+  before this run. It changed the public locations of the earlier pipeline's evidence (see
+  [the provenance note](../../project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md)). This
+  run's record is anchored by its own timestamps, not by Git history.
 - Removal works cheaply only for documents the run had not reached at the fork point. Removing an
   earlier document means retraining from before its first appearance.
 

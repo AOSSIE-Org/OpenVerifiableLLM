@@ -40,10 +40,12 @@ can't be changed after it was published.
 
 ## Can a model "forget" a document?
 
-For documents the run had not reached yet, yes, and provably. The project forked the run at
+Not in the usual sense of removing something it already learned. What the method can show is that a
+model never trained on a document. For documents the run had not reached yet, that's provable. The project forked the run at
 checkpoint 30, removed one Wikipedia article, and retrained from there, with the removal recorded
 in the chain. The fork shares everything before the fork byte for byte, and every fork segment
-checks out. See [Verifiable unlearning](../design/simple_run.md#results).
+checks out. See [Verifiable exclusion](../design/simple_run.md#results). A document the run had already seen can
+only be excluded by retraining from a checkpoint before its first appearance.
 
 ## Is the model any good?
 
