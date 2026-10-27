@@ -12,6 +12,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import torch
+
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
 
@@ -89,11 +91,31 @@ class AnchorHead(unittest.TestCase):
             ovl.cmd_verify(args(self.run))
 
     def test_no_anchor_opt_out_warns_and_continues(self):
-        self.write(self.chain[:3])  # would fail the anchor check if one were read
+        weights = {"w": torch.arange(4.0)}
+        chain = fake_chain(3)  # shorter than the anchor, so it would fail the anchor check if one were read
+        chain[-1]["model"] = ovl.model_digest(weights)
+        self.write(chain)
+        torch.save(weights, self.run / "final-model.pt")
         os.remove(self.run / "anchor.json")
-        out = self.verify_ok(args(self.run, no_anchor=True))
-        self.assertIn("WARNING: --no-anchor", out)
-        self.assertNotIn("chain head MATCH", out)
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "final-model.pt")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ovl.cmd_verify(a)  # a passing check must not exit
+        self.assertIn("WARNING: --no-anchor", out.getvalue())
+        self.assertNotIn("chain head MATCH", out.getvalue())
+        self.assertIn("verify PASS", out.getvalue())
+        record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(record["result"], "PASS")
+
+    def test_no_anchor_opt_out_still_fails_bad_weights(self):
+        self.write(fake_chain(3))
+        torch.save({"w": torch.arange(4.0)}, self.run / "other.pt")
+        os.remove(self.run / "anchor.json")
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "other.pt")
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            ovl.cmd_verify(a)
 
     def test_anchor_and_no_anchor_are_exclusive(self):
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / p) for p in ("simple", "src", ".")))
