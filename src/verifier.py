@@ -207,19 +207,31 @@ def check_sigstore_bundle(
     expected_issuer: Optional[str] = None,
 ) -> CheckResult:
     # Resolve symlinks in the base directory up front
-    model_dir = Path(model_dir).resolve()
+    root = Path(model_dir).resolve()
 
     signature = manifest.get("signature") or manifest.get("sigstore_bundle")
-    signature_path = model_dir / signature if signature else _first_existing(
-        model_dir, ["model.sig", "model.bundle", "sigstore.bundle"]
-    )
-    
+    if signature:
+        signature_path = (root / signature).resolve()
+        if not signature_path.is_relative_to(root):
+            raise ValueError(
+                f"Manifest signature artifact {signature!r} resolves outside model directory {root}"
+            )
+    else:
+        signature_path = _first_existing(
+            root, ["model.sig", "model.bundle", "sigstore.bundle"]
+        )
+        if signature_path is not None:
+            signature_path = signature_path.resolve()
+            if not signature_path.is_relative_to(root):
+                raise ValueError(
+                    f"Signature artifact {signature_path!r} resolves outside model directory {root}"
+                )
+
     if signature_path is None or not signature_path.exists():
         status = SKIP if allow_unsigned else FAIL
         return CheckResult("sigstore_bundle", status, "missing Sigstore/model-signing bundle")
 
-    # Resolve symlinks for the specific signature file path
-    signature_path = signature_path.resolve()
+    model_dir = root
 
     identity = expected_identity or manifest.get("sigstore_identity")
     provider = expected_issuer or manifest.get("sigstore_identity_provider")
