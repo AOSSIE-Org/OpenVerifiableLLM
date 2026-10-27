@@ -23,12 +23,16 @@ Download `release/simple-run/` without the `ckpt-*.pt` files, then from that fol
 pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
   "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
-OVL_DEVICE=cpu python code/simple/ovl.py verify --run . --weights conversation-model.pt
+git clone -q --depth 1 --branch v1.0.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# anchor anchor.json: chain head MATCH (38 entries)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
 
-This checks the hash links of `chain.jsonl` and that the published model is exactly the state
-committed at the end of training. With the prepared data (`--data`), `verify` also regenerates the
+This checks that `chain.jsonl` ends at the timestamped head in `anchor.json`, and that the published
+model is exactly the state committed at the end of training. Use `ovl.py` from the v1.0.0 tag, as
+above. The copy in the download's `code/` folder predates the anchor check, so an edited record
+would still pass with it. With the prepared data (`--data`), `verify` also regenerates the
 seeded starting weights and compares them with entry 0. That part works on any device, including a
 CPU.
 
