@@ -17,12 +17,11 @@
 
   See [the simple run](../design/simple_run.md).
 - **Late October 2026: hardening `verify`.** Contributor fixes: `verify` fails when it ran no
-  checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`.
+  checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`. Since v1.0.1,
+  a missing `anchor.json` is a failure unless `--no-anchor` is given explicitly.
 
 ## Next
 
-- **Anchor required in `verify`.** A missing `anchor.json` is a failure unless `--no-anchor` is given
-  explicitly (#210 added the check, and it now fails closed).
 - **Independent checks.** Get segments checked by people outside the project, using the
   [one-click check](../guides/check_a_segment.md#one-segment-one-click). This is the single most
   valuable next step for the release's credibility.
