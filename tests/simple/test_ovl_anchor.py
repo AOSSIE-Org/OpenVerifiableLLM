@@ -6,10 +6,13 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+import torch
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -33,8 +36,9 @@ def fake_chain(n):
     return chain
 
 
-def args(run, anchor=None):
-    return argparse.Namespace(run=str(run), data=None, segment=None, random=0, all=False, weights=None, anchor=anchor)
+def args(run, anchor=None, no_anchor=False):
+    return argparse.Namespace(run=str(run), data=None, segment=None, random=0, all=False, weights=None, anchor=anchor,
+                              no_anchor=no_anchor)
 
 
 class AnchorHead(unittest.TestCase):
@@ -75,9 +79,50 @@ class AnchorHead(unittest.TestCase):
         self.write(self.chain[:4])
         anchor = self.run / "anchor.json"
         os.rename(anchor, self.run / "release-anchor.json")
-        self.assertNotIn("anchor", self.verify_ok(args(self.run)))  # no anchor next to the chain: not checked
+        with self.assertRaisesRegex(SystemExit, "not found"):  # no anchor next to the chain
+            ovl.cmd_verify(args(self.run))
         with self.assertRaisesRegex(SystemExit, "chain head differs"):
             ovl.cmd_verify(args(self.run, str(self.run / "release-anchor.json")))
+
+    def test_missing_anchor_fails_by_default(self):
+        self.write(self.chain)
+        os.remove(self.run / "anchor.json")
+        with self.assertRaisesRegex(SystemExit, "not found.*--no-anchor"):
+            ovl.cmd_verify(args(self.run))
+
+    def test_no_anchor_opt_out_warns_and_continues(self):
+        weights = {"w": torch.arange(4.0)}
+        chain = fake_chain(3)  # shorter than the anchor, so it would fail the anchor check if one were read
+        chain[-1]["model"] = ovl.model_digest(weights)
+        self.write(chain)
+        torch.save(weights, self.run / "final-model.pt")
+        os.remove(self.run / "anchor.json")
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "final-model.pt")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ovl.cmd_verify(a)  # a passing check must not exit
+        self.assertIn("WARNING: --no-anchor", out.getvalue())
+        self.assertNotIn("chain head MATCH", out.getvalue())
+        self.assertIn("verify PASS", out.getvalue())
+        record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(record["result"], "PASS")
+
+    def test_no_anchor_opt_out_still_fails_bad_weights(self):
+        self.write(fake_chain(3))
+        torch.save({"w": torch.arange(4.0)}, self.run / "other.pt")
+        os.remove(self.run / "anchor.json")
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "other.pt")
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            ovl.cmd_verify(a)
+
+    def test_anchor_and_no_anchor_are_exclusive(self):
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / p) for p in ("simple", "src", ".")))
+        r = subprocess.run([sys.executable, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(self.run),
+                            "--anchor", "a.json", "--no-anchor"], capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not allowed with", r.stderr)
 
     def test_missing_explicit_anchor_fails(self):
         self.write(self.chain)
