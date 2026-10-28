@@ -83,10 +83,11 @@ def test_live_loop_uses_actual_checkpoint_hook_and_selected_publisher(prepared,t
 
 def test_controller_stop_goes_to_numerical_record_before_hard_worker_stop(prepared,tmp_path,monkeypatch):
     data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    w=intent()  # the plan clock must not be later than the stop's observed_epoch
     write_json(tmp_path/'stop.json',{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
         'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['test stop']})
     with Journal(tmp_path/'health').lease() as j:
-        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
+        h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
         execute(tmp_path,data,h,cp,pub)
         assert read_json(tmp_path/'record/remote/request-stop')['reasons']==['test stop']
         assert not(tmp_path/'control/remote/jobs'/root/'request-stop').exists()
@@ -160,10 +161,11 @@ def test_full_replay_retains_all_outputs_and_stops_worker_without_publication(pr
     assert exited(tmp_path/'control/remote/jobs'/root)['exit_code']==0
     bindings={root:{'job_file':job,'worker_sha256':worker,'control':control,'transports':[t]}}
     data=(control,t,job,root,worker,r,bindings,replay_out)
+    w=intent()  # the plan clock must not be later than the stop's observed_epoch
     write_json(tmp_path/'stop.json',{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
         'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['replay stop test']})
     with Journal(tmp_path/'health').lease() as j:
-        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings)
+        h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings)
         cp=CheckpointRetention(r,root,h,tmp_path/'health.json',t,tmp_path/'objects',tmp_path/'replay-live',
             {'schema':'ovl.production-checkpoint-copy-policy.v1','export_seconds':60,'maximum_checkpoint_bytes':1024**2},
             envelopes=read_json(tmp_path/'record/remote/chain.json')['boundaries'])
@@ -217,6 +219,7 @@ def test_production_stop_during_uploads_prevents_new_start(prepared,tmp_path,sto
 
 def test_pending_production_stop_precedes_failing_adoption(prepared,tmp_path,monkeypatch):
     data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    w=intent()  # the plan clock must not be later than the stop's observed_epoch
     stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
         'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic pending stop']})
     def blocked(*args):
@@ -224,13 +227,14 @@ def test_pending_production_stop_precedes_failing_adoption(prepared,tmp_path,mon
         raise EvidenceError('synthetic adoption unavailable')
     monkeypatch.setattr(m,'reconcile_launch',blocked)
     with Journal(tmp_path/'health').lease() as j:
-        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
+        h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
         with pytest.raises(EvidenceError,match='adoption unavailable'):execute(tmp_path,data,h,cp,pub)
         assert not h.complete and (out/'stop-delivery.json').exists()
 
 
 def test_missing_early_controller_stop_cannot_resume_publication(prepared,tmp_path,monkeypatch):
     data=configured(prepared,tmp_path);control,t,job,root,worker,r,bindings,out=data
+    w=intent()  # the plan clock must not be later than the stop's observed_epoch
     stop=tmp_path/'stop.json';write_json(stop,{'schema':'ovl.rental-stop-request.v1','intent_sha256':'d'*64,
         'pod_id':control.profile['pod_id'],'observed_epoch':int(time.time()),'reasons':['synthetic early stop']})
     original=m.reconcile_launch
@@ -238,7 +242,7 @@ def test_missing_early_controller_stop_cannot_resume_publication(prepared,tmp_pa
         result=original(*args);stop.unlink();return result
     monkeypatch.setattr(m,'reconcile_launch',remove)
     with Journal(tmp_path/'health').lease() as j:
-        h=ProductionHealth(j,intent(),control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
+        h=ProductionHealth(j,w,control.profile['pod_id'],r,bindings);cp,pub=hooks(tmp_path,t,root,r,h)
         pub.poll=lambda:pytest.fail('publication resumed after missing stop')
         with pytest.raises(EvidenceError,match='disappeared'):execute(tmp_path,data,h,cp,pub)
         assert not h.complete and not(out/'stage-result.json').exists()
