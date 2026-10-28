@@ -11,7 +11,7 @@
   Wikipedia, and all 37 segments were recomputed bit for bit. The data rebuild from the raw dump
   gives byte-identical files. It also includes:
   - a hardware reproducibility map;
-  - a verifiable unlearning fork;
+  - a verifiable exclusion fork (one article the run hadn't reached, retrained without it);
   - RFC 3161 timestamps, per boundary since 21 Oct;
   - a one-click segment check on RunPod.
 
@@ -21,8 +21,8 @@
 
 ## Next
 
-- **Anchor check in `verify`.** Compare the chain head with the timestamped `anchor.json`, so
-  a record with entries cut off the end fails (#210, in review).
+- **Anchor required in `verify`.** A missing `anchor.json` is a failure unless `--no-anchor` is given
+  explicitly (#210 added the check, and it now fails closed).
 - **Independent checks.** Get segments checked by people outside the project, using the
   [one-click check](../guides/check_a_segment.md#one-segment-one-click). This is the single most
   valuable next step for the release's credibility.
@@ -30,6 +30,17 @@
   the full 22 GB of prepared data.
 - **Per-article membership proofs.** For any Wikipedia article, show which segment trained on it,
   with a proof against the chain.
+- **Signed check results and random segment choice.** Today a check result is a self-reported line.
+  Checkers would sign their result, and the segment would be picked from public randomness (for
+  example a drand beacon round), so results can't be faked in bulk or aimed at honest segments.
+
+## Open research questions
+
+- **Checking across GPU architectures.** Bits currently match only on the training architecture.
+  Integer or fixed-point training, or a reference path with defined rounding, could let other
+  hardware check the same run.
+- **Checking for less than the cost of training.** A full check costs as much as training. Proofs
+  for some steps, or a checker protocol with attested random sampling, could lower that.
 
 ## Planned, pending funding
 

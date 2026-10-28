@@ -24,7 +24,8 @@ In priority order:
 5. **The record cannot be quietly rewritten.** Commitments are hash-linked and timestamped by
    independent authorities.
 6. **Simple enough to read.** The training and verification loop fits in one file that a reviewer
-   can read in an afternoon.
+   can read in an afternoon. The model and data code it imports, and the data preparation, add to
+   what a full review covers.
 
 ## Non-goals
 
