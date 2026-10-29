@@ -44,11 +44,11 @@
   "developer": "simple/ovl.py ~630 lines + ~1,000 lines in src/model.py, src/ovl_pipeline/data.py, training.py."
  },
  "OV-12": {
-  "plain": "Limit noted by the project: checks need the same GPU type as training, an RTX 5090.",
+  "plain": "The project notes: checks need the same GPU type as training, an RTX 5090.",
   "developer": "Bit-exact checking needs the same GPU architecture and software stack (PyTorch 2.8.0, CUDA 12.8)."
  },
  "OV-13": {
-  "plain": "Limit: every check so far was run by the project. Independent checks: none yet.",
+  "plain": "Every check so far was run by the project. Independent checks: none yet.",
   "developer": "0 rows with a checker outside 'project …' in either verifications.jsonl."
  },
  "CK-01": {
@@ -208,15 +208,15 @@
   "developer": "control_loss_mean 2.871 → 2.8712 (+0.0002), 50 controls."
  },
  "EX-08": {
-  "plain": "Limit noted by the project: this proves a model was trained without the article, not that learned content was removed.",
+  "plain": "The project notes: this proves a model was trained without the article, not that learned content was removed.",
   "developer": "Exact retraining without an unreached range; does not remove content a model already learned."
  },
  "EX-09": {
-  "plain": "Limit noted by the project: excluding text the run already saw means retraining from an earlier save point.",
+  "plain": "The project notes: excluding text the run already saw means retraining from an earlier save point.",
   "developer": "Brief wording."
  },
  "EX-10": {
-  "plain": "Limit noted by the project: one run, no variance estimate.",
+  "plain": "The project notes: one run, no variance estimate.",
   "developer": "n=1."
  },
  "DL-conversation-model.pt": {
@@ -260,19 +260,19 @@
   "developer": "ollama.com/ryoari/openverifiablellm"
  },
  "LI-01": {
-  "plain": "Limit noted by the project: a small model that is often wrong about facts.",
+  "plain": "The project notes: a small model that is often wrong about facts.",
   "developer": "see OV-07"
  },
  "LI-02": {
-  "plain": "Limit noted by the project: checks need an RTX 5090 and the same software.",
+  "plain": "The project notes: checks need an RTX 5090 and the same software.",
   "developer": "see OV-12"
  },
  "LI-03": {
-  "plain": "Limit: every check so far was by the project. Independent checks: none yet.",
+  "plain": "Every check so far was by the project. Independent checks: none yet.",
   "developer": "see VE-09"
  },
  "LI-04": {
-  "plain": "Limit: check results, including the project's, are self-reported and unsigned.",
+  "plain": "Check results, including the project's, are self-reported and unsigned.",
   "developer": "see VE-10"
  },
  "LI-05": {
@@ -280,7 +280,7 @@
   "developer": "README.md:123"
  },
  "LI-06": {
-  "plain": "Limit noted by the project: a full check costs as much compute as the training itself.",
+  "plain": "The project notes: a full check costs as much compute as the training itself.",
   "developer": "simple_run.md:204"
  }
 }

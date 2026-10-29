@@ -70,7 +70,7 @@
  "tile.hint": "Select a segment to see every check recorded for it.",
  "tile.checks": "Checks for segment",
  "legend.project": "Outlined square: checked by the project",
- "legend.independent": "Solid square: checked independently",
+ "legend.independent": "Solid square: checked independently (none yet)",
  "legend.restart": "Flag: host restart",
  "legend.code": "Bar: code change",
  "event.restart": "host restart",
