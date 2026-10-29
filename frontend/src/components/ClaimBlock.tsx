@@ -5,12 +5,14 @@ import { useData } from '../data/context';
 import { CommandBlock } from './CommandBlock';
 import { SourceChip } from './SourceChip';
 import { L, V, Who } from './text';
+import { useHydrated } from './hydrated';
 
 /** Evidence block, in the brief's order: claim → evidence → who checked → limit → source chip.
  *  Plain sentence first, developer line underneath. */
 export function ClaimBlock({ id, children, heading, hideLimit = false, asLimit = false }: { id: string; children?: ReactNode; heading?: string; hideLimit?: boolean; asLimit?: boolean }) {
   const c = claim(id);
   const [all, setAll] = useState(false);
+  const hydrated = useHydrated();
   const { data } = useData();
   const sources = data.claimSources[id] ?? [];
   return (
@@ -39,20 +41,20 @@ export function ClaimBlock({ id, children, heading, hideLimit = false, asLimit =
           <SourceChip s={sources[0]!} />
           {sources.length > 1 ? (
             <>
-              <button type="button" className="more" aria-expanded={all} aria-controls={`${id}-src`} onClick={() => setAll(!all)}>
-                {all ? (
-                  <L k="sources.fewer" />
-                ) : (
-                  <>
+              {/* Native disclosure: opens with or without JavaScript. */}
+              <details className="more-src" onToggle={(e) => setAll(e.currentTarget.open)}>
+                <summary className="more" aria-controls={`${id}-src`} {...(hydrated ? { 'aria-expanded': all } : {})}>
+                  <span className="more-closed">
                     <span aria-hidden="true" className="plus" /><V path={`claimExtraSources.${id}`} /> <L k={sources.length === 2 ? 'sources.one' : 'sources.more'} />
-                  </>
-                )}
-              </button>
-              <div id={`${id}-src`} className="chips-more" hidden={!all}>
-                {sources.slice(1).map((s, i) => (
-                  <SourceChip key={i} s={s} />
-                ))}
-              </div>
+                  </span>
+                  <span className="more-open"><L k="sources.fewer" /></span>
+                </summary>
+                <div id={`${id}-src`} className="chips-more">
+                  {sources.slice(1).map((s, i) => (
+                    <SourceChip key={i} s={s} />
+                  ))}
+                </div>
+              </details>
             </>
           ) : null}
         </div>

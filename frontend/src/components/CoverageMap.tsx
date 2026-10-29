@@ -3,6 +3,8 @@ import { useData } from '../data/context';
 import { hasLabel } from '../content/ui';
 import { SourceChip } from './SourceChip';
 import { L, ResultChip, V, Who } from './text';
+import { useHydrated } from './hydrated';
+import { BASE } from '../routes';
 
 const p = 'verifications';
 /** Glyph from the tile's data status: ✓ only for MATCH, ✗ for MISMATCH, … for anything else. */
@@ -24,11 +26,12 @@ function Legend() {
   );
 }
 
-/** 37 tiles. Interactive: real <button>s that reveal every check for a segment. Compact: a static list. */
+/** 37 tiles. Interactive: links to each segment's rows before hydration, then real <button>s that reveal every check for a segment. Compact: a static list. */
 export function CoverageMap({ interactive, strip = false }: { interactive: boolean; strip?: boolean }) {
   const { data } = useData();
   const tiles = data.verifications.tiles;
   const [sel, setSel] = useState<number | null>(null);
+  const hydrated = useHydrated();
   const selected = sel === null ? null : tiles[sel];
   return (
     <div className="map">
@@ -55,10 +58,13 @@ export function CoverageMap({ interactive, strip = false }: { interactive: boole
           };
           return (
             <li key={t.segment}>
-              {interactive ? (
+              {interactive && hydrated ? (
                 <button type="button" {...attrs} aria-pressed={sel === k} onClick={() => setSel(sel === k ? null : k)}>
                   {inner}
                 </button>
+              ) : interactive ? (
+                // Before JavaScript runs, each tile links to its segment's rows in the table below.
+                <a {...attrs} href={`${BASE}verification/#seg-${t.segment}`}>{inner}</a>
               ) : (
                 <span {...attrs}>{inner}</span>
               )}

@@ -229,22 +229,46 @@ describe('overview and limits layout', () => {
 });
 
 describe('source toggle', () => {
-  it('shows one chip and hides the rest behind an aria-expanded button', () => {
+  it('shows one chip and keeps the rest in a native <details> whose summary reports aria-expanded', () => {
     const d = fresh();
     mount(Overview, d);
     const ev = document.querySelector('[data-claim="OV-04"]')!;
     const id = (ev as HTMLElement).dataset.claim!;
     const n = d.claimSources[id]!.length;
     expect(n).toBeGreaterThan(1);
-    const btn = ev.querySelector<HTMLButtonElement>('button.more')!;
-    expect(btn.getAttribute('aria-expanded')).toBe('false');
-    expect(btn.textContent).toContain(String(n - 1));
-    const more = document.getElementById(btn.getAttribute('aria-controls')!)!;
-    expect(more.hidden).toBe(true);
-    fireEvent.click(btn);
-    expect(btn.getAttribute('aria-expanded')).toBe('true');
-    expect(more.hidden).toBe(false);
+    const det = ev.querySelector<HTMLDetailsElement>('details.more-src')!;
+    const sum = det.querySelector('summary.more')!;
+    expect(sum.getAttribute('aria-expanded')).toBe('false');
+    expect(sum.textContent).toContain(String(n - 1));
+    const more = document.getElementById(sum.getAttribute('aria-controls')!)!;
+    expect(det.contains(more)).toBe(true);
+    expect(det.open).toBe(false);
+    act(() => {
+      det.open = true;
+      det.dispatchEvent(new Event('toggle'));
+    });
+    expect(sum.getAttribute('aria-expanded')).toBe('true');
+    expect(more.querySelectorAll('details.chip')).toHaveLength(n - 1);
     expect(ev.querySelectorAll('details.chip')).toHaveLength(n);
+  });
+});
+
+describe('without JavaScript (prerendered HTML)', () => {
+  it.each(PAGES)('%s: no <button> at all, extra sources in <details>, tiles link to seg-N rows', async (key, Page) => {
+    const { renderToString } = await import('react-dom/server');
+    const d = fresh();
+    const html = renderToString(
+      <DataContext.Provider value={{ data: d, errors: {} }}>
+        <Page />
+      </DataContext.Provider>,
+    );
+    expect(html).not.toContain('<button');
+    expect(html).not.toContain('hidden=""');
+    if (key === 'verification') {
+      const links = [...html.matchAll(/<a class="tile"[^>]*href="\/verification\/#seg-(\d+)"/g)].map((m) => Number(m[1]));
+      expect(links).toHaveLength(37);
+      for (const k of links) expect(html).toContain(`id="seg-${k}"`);
+    }
   });
 });
 
