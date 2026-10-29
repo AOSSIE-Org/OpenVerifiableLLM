@@ -1,0 +1,86 @@
+{
+ "repo": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+ "revision": "96dc282a9803616c6b30bb31bfc3a0b91a7191e6",
+ "files": {
+  "release/simple-run/chain.jsonl": {
+   "sha256": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+   "bytes": 19686,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/chain.jsonl"
+  },
+  "release/simple-run/verifications.jsonl": {
+   "sha256": "ec73fe8fdce56eb075783c37383dbb5afaa23fac168fbd6619c01240de41b770",
+   "bytes": 7355,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/verifications.jsonl"
+  },
+  "release/simple-run/hardware-map.jsonl": {
+   "sha256": "5116f365398795a5e79513a3709d48995cc72a059ae9c69c653e324e723884e4",
+   "bytes": 956,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/hardware-map.jsonl"
+  },
+  "release/simple-run/release-hashes.txt": {
+   "sha256": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
+   "bytes": 3364,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/release-hashes.txt"
+  },
+  "release/simple-run/anchor.json": {
+   "sha256": "2adaea4cae25439199ec2396c0e6e94d1d14188c070f217ed7e360ce10c1c18d",
+   "bytes": 689,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/anchor.json"
+  },
+  "release/simple-run/anchor.digicert.tsr": {
+   "sha256": "26a643321802ec92eb67f842d770c1d0b69aee66d3e9c3b58f84380a65d08564",
+   "bytes": 6007,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/anchor.digicert.tsr"
+  },
+  "release/simple-run/anchor.freetsa.tsr": {
+   "sha256": "4c1cc74f8596fff22125f285899d50b3ab50b69a6a1023baf3d68139f32cba6f",
+   "bytes": 4644,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/anchor.freetsa.tsr"
+  },
+  "release/simple-run/README.md": {
+   "sha256": "d3a4a5b221d9d1bd9318e8e414b44adc75f66155d03cd356b489165243e932e9",
+   "bytes": 8250,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/README.md"
+  },
+  "release/simple-run/recipe.json": {
+   "sha256": "28a2fb407a5582ae95c9e9b0bba2c14df946e87bba037800399c6059256b6e6d",
+   "bytes": 458,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/simple-run/recipe.json"
+  },
+  "release/unlearning-3i-atlas/chain.jsonl": {
+   "sha256": "98ffe339f9a0e20458b2615597fdb9ca23b0b12a5bac3873c9327893e724e6c1",
+   "bytes": 20725,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/chain.jsonl"
+  },
+  "release/unlearning-3i-atlas/verifications.jsonl": {
+   "sha256": "6f23946c7bcb7413a7f8b7fa322f5fa6b3240caa93c6d4d63c5a7133cbc9e7ec",
+   "bytes": 1788,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/verifications.jsonl"
+  },
+  "release/unlearning-3i-atlas/loo-results.json": {
+   "sha256": "c926c965d1e040ab23c591c9dcdd007e5ece75a57ecfa100fd69515d190ead69",
+   "bytes": 2158,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/loo-results.json"
+  },
+  "release/unlearning-3i-atlas/release-hashes.txt": {
+   "sha256": "8b5800df8a3f88622d9cd91beb72949b37762e3e0b5f42253cd78c99c54ea508",
+   "bytes": 1044,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/release-hashes.txt"
+  },
+  "release/unlearning-3i-atlas/README.md": {
+   "sha256": "499eb00a91699fa785c94fcbf3d8e96f0ad71d390752ee4523d2b019a010f560",
+   "bytes": 3744,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/README.md"
+  },
+  "release/unlearning-3i-atlas/recipe.json": {
+   "sha256": "28a2fb407a5582ae95c9e9b0bba2c14df946e87bba037800399c6059256b6e6d",
+   "bytes": 458,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/recipe.json"
+  },
+  "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json": {
+   "sha256": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68",
+   "bytes": 7985,
+   "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/resolve/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json"
+  }
+ }
+}

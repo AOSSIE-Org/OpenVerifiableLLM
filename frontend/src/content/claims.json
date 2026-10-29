@@ -1,0 +1,2074 @@
+{
+ "schema": "ovllm.claims.v1",
+ "generated": "2026-10-29",
+ "pins": {
+  "hf_dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+  "hf_revision": "96dc282a",
+  "hf_revision_full": "96dc282a9803…",
+  "github": "AOSSIE-Org/OpenVerifiableLLM",
+  "github_commit": "1049d2a782b8f63103abfa0cca8deab0d2037290",
+  "brief": "v3 2026-10-29"
+ },
+ "source_roots": {
+  "hf:96dc282a": "/workspace/ovllm-frontend/data/raw",
+  "gh:1049d2a7": "/workspace/ovllm-claims/repo",
+  "brief:v3-2026-10-29": "/home/box/agent-data/agents/4b8da334-09b0-45df-aea6-057a85a7e4f4/attachments/564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md"
+ },
+ "derived": {
+  "odds": {
+   "N": 37,
+   "m95": 110,
+   "p95": 0.9508995539986606,
+   "m99": 169,
+   "p99": 0.9902494017588821,
+   "formula": "1-((N-1)/N)^M"
+  },
+  "independent_checks": 0,
+  "coverage": {
+   "total": 37,
+   "match": 37,
+   "checker": "project"
+  },
+  "events": [
+   {
+    "type": "host_restart",
+    "segment": 10
+   },
+   {
+    "type": "code_change",
+    "from_segment": 19
+   }
+  ]
+ },
+ "claims": [
+  {
+   "id": "OV-01",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "The model is small: about 23 million parameters.",
+   "developer": "23M-parameter GPT (23.1M per design doc).",
+   "value": 23000000,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "3",
+     "quote": "A 23-million-parameter GPT"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "3",
+     "quote": "23.1M-parameter GPT"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Small model; often wrong about facts",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-02",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "It read English Wikipedia exactly once, from the 1 September 2026 dump.",
+   "developer": "One exact pass over English Wikipedia, 2026-09-01 dump; each target seen exactly once.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "3-4",
+     "quote": "one exact pass over English Wikipedia (2026-09-01 dump)"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "106-107",
+     "quote": "each seen exactly once"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Proves what data was used, not that the model learned it well",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-03",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "After Wikipedia, it had a short conversation phase: three passes over 3,481 chosen conversations.",
+   "developer": "Conversation phase: 3 passes over pinned OpenAssistant oasst1 selection, 3,481 conversations, 1,278,137 targets, LR 1e-4.",
+   "value": {
+    "conversations": 3481,
+    "passes": 3,
+    "targets": 1278137
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "4-5",
+     "quote": "then three passes over a pinned OpenAssistant conversation"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "107-108",
+     "quote": "Conversation: 3,481 conversations, 1,278,137 targets"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "126",
+     "quote": "Conversation: 3 passes at 1e-4."
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json",
+     "lines": "1",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Only basic conversation ability",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-04",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "37 of 37 training segments were recomputed bit for bit by the project on a second machine. All matched.",
+   "developer": "37/37 segments MATCH, checker 'project second pod', RTX 5090, driver 595.91.07 (verifications.jsonl rows 1-37).",
+   "value": {
+    "matched": 37,
+    "total": 37
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "1-37",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "39",
+     "quote": "all 37 of 37 segments recomputed by the project, all MATCH"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75); Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent; Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-05",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "Exact data provenance: the project rebuilt the training data from the raw Wikipedia dump, and it came out byte for byte the same.",
+   "developer": "Rebuild from raw dump PASS (2026-10-21): rebuilt preparation.json byte-identical, sha256 8de1d600…ba68.",
+   "value": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "111-117",
+     "quote": "Rebuild from the raw dump: PASS (2026-10-21)."
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78) (checked by the project)",
+   "limit": "Rebuild done by the project; needs ~150 GB disk and about a day to repeat",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-06",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "There is a timestamped release record. Two timestamp services stamped it on 20 October 2026.",
+   "developer": "anchor.json timestamped by FreeTSA and DigiCert (RFC 3161) at 2026-10-20 14:38:43 UTC (20:08:43 IST).",
+   "value": "2026-10-20T14:38:43Z",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "87-90",
+     "quote": "at 2026-10-20 14:38:43 UTC"
+    }
+   ],
+   "rule": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79)",
+   "limit": "Shows the record existed by 20 Oct 2026; says nothing about how training was done",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-07",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "It is a small model. It writes fluent, encyclopedia-style text but often gets facts wrong.",
+   "developer": "Small model; fluent encyclopedia-style fragments; often states wrong facts; basic conversation only.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "138-139",
+     "quote": "It often states wrong facts and has only basic conversation ability."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "95-96",
+     "quote": "often gets facts wrong"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-08",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "'Verified' means the published model is exactly what this training on these inputs produces. It does not mean the answers are true.",
+   "developer": "Verified = bit-exact recomputation of the committed state; not correctness of outputs.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "140-141",
+     "quote": "It does not mean the model's answers are true."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "87",
+     "quote": "We verify the computation, not the content"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-09",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "Data counts: 7,232,582 articles and 7,118,121,139 Wikipedia training targets.",
+   "developer": "preparation.json: wikipedia included 7,232,582 docs; targets 7,118,121,139; also final chain cursor at entry 31 (base) = 7,118,121,139.",
+   "value": {
+    "articles": 7232582,
+    "targets": 7118121139
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "106-107",
+     "quote": "Wikipedia: 7,232,582 articles, 7,118,121,139 training targets"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json",
+     "lines": "1",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "32",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-10",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "Training ran on one RTX 5090 graphics card and took 15.7 hours in total.",
+   "developer": "Trained on one RTX 5090, 15.7 h incl. a 19-minute outage (simple_run.md timeline).",
+   "value": 15.7,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "106",
+     "quote": "(15.7 hours in total)"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "121",
+     "quote": "15.7 h, including a 19-minute outage"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Timing is from the project's notes, not from the timestamp",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-11",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "The training loop is about 630 lines in simple/ovl.py, plus about 1,000 lines of model, data and setup helpers.",
+   "developer": "simple/ovl.py about 630 lines + about 1,000 lines in src/model.py, src/ovl_pipeline/data.py, training.py.",
+   "value": {
+    "ovl_py_lines_approx": 630
+   },
+   "sources": [
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "81-82",
+     "quote": "The training loop is about 630 lines in `simple/ovl.py`, plus about 1,000 lines"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "13-15",
+     "quote": "about 1,000 lines in all"
+    }
+   ],
+   "rule": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)",
+   "limit": "Approximate; don't print an exact count",
+   "note": "CONFLICT: README.md:47 and simple_run.md:13 say 631 lines; `wc -l simple/ovl.py` at 1049d2a7 = 636. Use 'about 630'. README.md:47 also says 'One 631-line file' — forbidden wording.",
+   "verbatim": null
+  },
+  {
+   "id": "OV-12",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "Limit: checks need the same GPU type as training (RTX 5090).",
+   "developer": "Bit-exact checking needs the same GPU architecture and software stack (PyTorch 2.8.0, CUDA 12.8).",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "142",
+     "quote": "Bit-exact checking needs the same GPU type and software stack as training."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "116-117",
+     "quote": "they trust the same PyTorch/CUDA"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "OV-13",
+   "page": "overview",
+   "status": "ALLOWED",
+   "plain": "Limit: no independent checks yet. Every check so far was run by the project.",
+   "developer": "0 rows with a checker outside 'project …' in either verifications.jsonl.",
+   "value": 0,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "1-46",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/verifications.jsonl",
+     "lines": "1-10",
+     "quote": null
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "118",
+     "quote": "All checks so far were run by the project, on separate machines."
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "CK-01",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "2 minutes, try it: run the model in Ollama. This checks nothing. It is only a demo.",
+   "developer": "`ollama run ryoari/openverifiablellm` — GGUF via llama.cpp; outputs close to PyTorch but not bit-identical; not a verification.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "186",
+     "quote": "`ollama run ryoari/openverifiablellm`"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/guides/ollama.md",
+     "lines": "6-7",
+     "quote": "This is for trying the model. It isn't how the model is verified."
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77); must say it checks nothing (brief:41)",
+   "limit": "Checks nothing",
+   "note": null,
+   "verbatim": "ollama run ryoari/openverifiablellm"
+  },
+  {
+   "id": "CK-02",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "10 minutes, consistency check, no GPU. It shows the release matches its timestamped record. It does not recompute any training.",
+   "developer": "README Getting started block (lines 156-167, verbatim): pip install, hf download, sha256sum -c, openssl ts -verify, clone --branch v1.0.1, ovl.py verify.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "151-153",
+     "quote": "This is a consistency check: it recomputes no training."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "156-167",
+     "quote": null
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77); copy verbatim (brief:44-45)",
+   "limit": "Recomputes no training; the code/ copy in the download predates the anchor check",
+   "note": "Copy from main@1049d2a7. The v1.0.1 tag's README:164 still says --branch v1.0.0 (AUDIT 4b).",
+   "verbatim": "pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \\\n  \"safetensors>=0.4.5,<1.0\" \"pynacl>=1.5,<2.0\"\nhf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \\\n  --repo-type dataset --include \"release/simple-run/*\" --exclude \"*/ckpt-*\" --local-dir ovl\ncd ovl/release/simple-run\nsha256sum -c --ignore-missing release-hashes.txt\nopenssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt\n# Verification: OK   (DigiCert stamped anchor.json on 2026-10-20)\ngit clone -q --depth 1 --branch v1.0.1 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code\nOVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt\n# anchor anchor.json: chain head MATCH (38 entries)\n# weights conversation-model.pt: MATCH chain entry 37"
+  },
+  {
+   "id": "CK-03",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "Use ovl.py from the v1.0.1 tag. It fails if anchor.json is missing.",
+   "developer": "Use ovl.py from tag v1.0.1; the download's code/ copy predates the anchor check.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "170-172",
+     "quote": "Use `ovl.py` from the v1.0.1 tag, as above. It fails if `anchor.json` is missing."
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "CK-04",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "Expected output: the chain head matches (38 entries) and the weights match chain entry 37.",
+   "developer": "Expected lines '# anchor anchor.json: chain head MATCH (38 entries)' and '# weights conversation-model.pt: MATCH chain entry 37'.",
+   "value": {
+    "chain_entries": 38,
+    "head": 37
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "166-167",
+     "quote": "chain head MATCH (38 entries)"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/anchor.json",
+     "lines": "2-3",
+     "quote": null
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)",
+   "limit": "Consistency only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "CK-05",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "1 hour, the actual verification: a one-click RunPod template recomputes one segment on an RTX 5090 and compares it bit for bit.",
+   "developer": "RunPod template mai1ozh35g runs simple/checker_pod.sh; ~22 GB download + ~20 min training; prints one result line.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "174-176",
+     "quote": "[deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait about an"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/guides/check_a_segment.md",
+     "lines": "46",
+     "quote": "Wait about an hour: a 22 GB download, then about 20 minutes of training."
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77); 'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack; Check results are self-reported and unsigned; segment choice not proven random",
+   "note": null,
+   "verbatim": "https://console.runpod.io/deploy?template=mai1ozh35g"
+  },
+  {
+   "id": "CK-06",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "It costs about US$1 to 1.50 to rent the GPU for the hour.",
+   "developer": "about US$1–1.50 (RTX 5090 list price US$1.19/h at the time).",
+   "value": {
+    "min_usd": 1.0,
+    "max_usd": 1.5
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "85",
+     "quote": "about an hour, about US$1–1.50 rented"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/guides/check_a_segment.md",
+     "lines": "53",
+     "quote": "It costs about US$1–1.50."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "116",
+     "quote": "US$1.19/h for an RTX 5090"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Rental prices change",
+   "note": "CONFLICT: brief:46 says 'about US$1.50'; README.md:41 says 'about a dollar'; README.md:209 'a dollar for an hour'. Use 'about US$1–1.50' (AUDIT 4c).",
+   "verbatim": null
+  },
+  {
+   "id": "CK-07",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "Run by hand: verify_segment.sh checks one random segment (about 20 minutes), three random ones, or ones you choose.",
+   "developer": "HF README verbatim commands.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "57-60",
+     "quote": null
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": "# download code/ from this folder, then:\nbash code/simple/verify_segment.sh                 # one random segment (~20 min)\nK=3 bash code/simple/verify_segment.sh             # three random segments\nSEGMENTS=\"7 8\" bash code/simple/verify_segment.sh  # chosen segments"
+  },
+  {
+   "id": "CK-08",
+   "page": "check",
+   "status": "ALLOWED",
+   "plain": "You can check both timestamps yourself with openssl.",
+   "developer": "Verbatim openssl ts -verify commands for DigiCert and FreeTSA.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "93-95",
+     "quote": null
+    }
+   ],
+   "rule": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79); Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)",
+   "limit": "Shows existence by a time only",
+   "note": null,
+   "verbatim": "openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt\ncurl -sO https://freetsa.org/files/cacert.pem; curl -sO https://freetsa.org/files/tsa.crt\nopenssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt"
+  },
+  {
+   "id": "VE-01",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Coverage map: 37 tiles, one per segment. All 37 matched. All 37 were checked by the project. None yet by independent checkers.",
+   "developer": "Tiles = verifications.jsonl rows 1-37 (project second pod), segments 0-36; label 'project'; reserve 'independent'.",
+   "value": {
+    "tiles": 37,
+    "project": 37,
+    "independent": 0
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "1-37",
+     "quote": null
+    },
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "49",
+     "quote": "Today all 37 are \"project\"."
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78); 'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-02",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Segment k means training from boundary k to boundary k+1.",
+   "developer": "segment k = boundary k → k+1; passes only if recomputed state is identical to entry k+1.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "26-28",
+     "quote": "A segment passes only if the recomputed state is identical, bit for bit, to the committed entry k+1."
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-03",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "There are 46 check results in total, all MATCH and all by the project: 37 from the second machine, 8 from the training machine, and 1 from a fresh machine using only public files.",
+   "developer": "verifications.jsonl: 46 rows = 37 'project second pod' + 8 'project training pod' (22,31-36, 5 fast loader) + 1 'project fresh machine public files only' (21).",
+   "value": {
+    "rows": 46,
+    "second_pod": 37,
+    "training_pod": 8,
+    "fresh_machine": 1
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "1-46",
+     "quote": null
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-04",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Segment 21 was also recomputed by the project on a fresh machine using only the public files. It matched.",
+   "developer": "verifications.jsonl row 46: segment 21, 'project fresh machine public files only', verify_segment.sh from the release.",
+   "value": 21,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "46",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "41-42",
+     "quote": "Segment 21 was"
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-05",
+   "page": "verification",
+   "status": "CONFLICT",
+   "plain": "The project also says segment 8 matched on a fresh machine, but that result is not in the pinned data. Don't show it.",
+   "developer": "GitHub README:103-104 'segments 8 and 21'; simple_run.md:47 and :109. Not in verifications.jsonl @96dc282a.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "103-104",
+     "quote": "segments 8 and 21"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "109",
+     "quote": "first check: segment 8 MATCH"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": "Not in verifications.jsonl at 96dc282a (or HF main 2fbebaa3). Do not render; ask Rajat to add the row.",
+   "verbatim": null
+  },
+  {
+   "id": "VE-06",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "How likely is a single forged segment to be caught? With N segments and M independent random checks, the chance is 1 − ((N−1)/N)^M.",
+   "developer": "P(detect) = 1 − ((N−1)/N)^M; one checker doing k distinct segments: k/N.",
+   "value": {
+    "N": 37
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "45-47",
+     "quote": "1 − ((N−1)/N)^M"
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78) (only independent checks count)",
+   "limit": "Assumes random segment choice; nothing proves it today",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-07",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "With 37 segments, 110 independent random checks give a 95% chance of catching one forged segment.",
+   "developer": "Smallest M with p≥0.95 at N=37 is 110 (p=0.95090).",
+   "value": {
+    "M": 110,
+    "p": 0.9509
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "199-200",
+     "quote": "For N = 37 that's about 110 checks for 95% and 169 for 99%."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "119-120",
+     "quote": "takes about 110 independent random checks"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29) (recompute, don't type)",
+   "limit": "Independent random checks only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-08",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "169 independent random checks give a 99% chance.",
+   "developer": "Smallest M with p≥0.99 at N=37 is 169 (p=0.99025).",
+   "value": {
+    "M": 169,
+    "p": 0.99025
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "199-200",
+     "quote": "169 for 99%"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Independent random checks only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-09",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Independent checks so far: 0.",
+   "developer": "count(checker not starting 'project') = 0 across both verifications.jsonl files.",
+   "value": 0,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "1-46",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/verifications.jsonl",
+     "lines": "1-10",
+     "quote": null
+    },
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "52",
+     "quote": "Show the current count of independent checks, which is 0."
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-10",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Check results are self-reported text lines. They are not signed, and nothing proves a checker picked the segment at random.",
+   "developer": "Results unsigned; random selection unproven.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "121-122",
+     "quote": "They aren't signed, and nothing proves a checker"
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "Check results are self-reported and unsigned; segment choice not proven random",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-11",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Signed results and picking segments from public randomness are on the roadmap.",
+   "developer": "Roadmap: signed check results + segment choice from public randomness.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/project/roadmap.md",
+     "lines": "32-33",
+     "quote": "Signed check results and random segment choice."
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "202-203",
+     "quote": "Signed results and public randomness for picking segments"
+    }
+   ],
+   "rule": "Roadmap, not done; don't present as shipped",
+   "limit": "Not implemented",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-1",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Hardware map: RTX 5090 — reproduces the bits.",
+   "developer": "hardware-map.jsonl row 1: segment 32, NVIDIA GeForce RTX 5090 (Blackwell), torch 2.8.0+cu128, MATCH.",
+   "value": {
+    "hardware": "NVIDIA GeForce RTX 5090 (Blackwell)",
+    "result": "MATCH",
+    "segment": 32
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/hardware-map.jsonl",
+     "lines": "1",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-2",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Hardware map: RTX 4090 — does not reproduce the bits.",
+   "developer": "hardware-map.jsonl row 2: segment 32, NVIDIA GeForce RTX 4090 (Ada), torch 2.8.0+cu128, MISMATCH.",
+   "value": {
+    "hardware": "NVIDIA GeForce RTX 4090 (Ada)",
+    "result": "MISMATCH",
+    "segment": 32
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/hardware-map.jsonl",
+     "lines": "2",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-3",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Hardware map: H100 — does not reproduce the bits.",
+   "developer": "hardware-map.jsonl row 3: segment 32, NVIDIA H100 80GB HBM3 (Hopper), torch 2.8.0+cu128, MISMATCH.",
+   "value": {
+    "hardware": "NVIDIA H100 80GB HBM3 (Hopper)",
+    "result": "MISMATCH",
+    "segment": 32
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/hardware-map.jsonl",
+     "lines": "3",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-4",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Hardware map: x86 CPU — does not reproduce the bits.",
+   "developer": "hardware-map.jsonl row 4: segment 32, x86_64 CPU, torch 2.14.0+cpu, MISMATCH.",
+   "value": {
+    "hardware": "x86_64 CPU",
+    "result": "MISMATCH",
+    "segment": 32
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/hardware-map.jsonl",
+     "lines": "4",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-5",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "All four hardware tests recomputed the same segment, 32 (boundary 32 to 33).",
+   "developer": "Probe segment 32→33 with torch 2.8.0+cu128 (CPU: torch 2.14).",
+   "value": 32,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "68",
+     "quote": "The same published segment (32→33)"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-HW-6",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "Bits matched across two different NVIDIA drivers (570.195.03 and 595.91.07) on the same GPU type.",
+   "developer": "Training driver 570.195.03 (segs 0-9), checker 595.91.07.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "79-80",
+     "quote": "two different NVIDIA drivers (570.195.03 and"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "VE-12",
+   "page": "verification",
+   "status": "ALLOWED",
+   "plain": "A deterministic error in PyTorch or CUDA itself would match on every machine. Checkers trust that toolchain.",
+   "developer": "Toolchain trust assumption.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "116-117",
+     "quote": "A deterministic error in that toolchain would match on every machine"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "Toolchain is trusted",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-01",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "The training record has 38 boundaries, which makes 37 segments.",
+   "developer": "chain.jsonl 38 entries (index 0-37); kinds: initial [0], progress [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], base [31], transition [32, 34, 36], epoch [33, 35], final [37]",
+   "value": {
+    "entries": 38,
+    "segments": 37,
+    "kinds": {
+     "initial": [
+      0
+     ],
+     "progress": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+     ],
+     "base": [
+      31
+     ],
+     "transition": [
+      32,
+      34,
+      36
+     ],
+     "epoch": [
+      33,
+      35
+     ],
+     "final": [
+      37
+     ]
+    }
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "1-38",
+     "quote": null
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "29",
+     "quote": "38 entries"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-02",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "A boundary every 18,080 updates, plus the phase boundaries.",
+   "developer": "global_step multiples of 18,080 for entries 1-30; base at 560,177; final at 560,618.",
+   "value": {
+    "interval": 18080,
+    "wiki_updates": 560177,
+    "final_step": 560618
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "29",
+     "quote": "A boundary every 18,080 updates"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "32",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "38",
+     "quote": null
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-03",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "Wikipedia: 560,177 updates. Conversation phase: 441 updates.",
+   "developer": "560,177 Wikipedia + 441 conversation updates, batch 32×512.",
+   "value": {
+    "wiki": 560177,
+    "conv": 441
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "45",
+     "quote": "560,177 Wikipedia + 441 conversation updates"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-04",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "The training machine restarted once, at boundary 10. Training resumed from checkpoint 10. Segment 10 spans the restart and still matched.",
+   "developer": "README.md:133-134; chain gap 10→11 = 3297 s vs median gap 1968 s (median of the 30 boundary gaps 0→1 … 29→30, the regular Wikipedia segments; includes the restart gap); verifications row 11 seg 10 MATCH.",
+   "value": {
+    "segment": 10,
+    "gap_s": 3297
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "133-134",
+     "quote": "The training host restarted once, at boundary 10."
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "11",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "12",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "11",
+     "quote": null
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75); Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "Checked by the project",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-05",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "From segment 19, a newer code version was used. It only changed how the computer prepared batches and how many processor threads it used. Segments 19 onward still matched when recomputed with the original batch loader, and segment 5 matched with the newer code.",
+   "developer": "ovl.py 202ac6ce for segs 0-18, c4a942c0 for 19+; segs 19-36 recomputed with reference loader (rows 20-37) MATCH; seg 5 with new code (row 45) MATCH.",
+   "value": {
+    "from_segment": 19,
+    "old": "202ac6ce",
+    "new": "c4a942c0"
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "127-132",
+     "quote": "Segments 19 onward used `c4a942c0…`"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "20-37",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/verifications.jsonl",
+     "lines": "45",
+     "quote": null
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75); Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "Checked by the project",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-06",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "Training started 19 October 15:04 UTC and the run finished 20 October 06:46 UTC.",
+   "developer": "simple_run.md timeline (UTC); chain time entry0=1792422250, entry37=1792478807 (unix).",
+   "value": {
+    "start": "2026-10-19T15:04Z",
+    "end": "2026-10-20T06:46Z"
+   },
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "103",
+     "quote": "19 Oct 15:04"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "106",
+     "quote": "20 Oct 06:46"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "1",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "38",
+     "quote": null
+    }
+   ],
+   "rule": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79) (chain 'time' is self-reported, not the RFC 3161 stamp)",
+   "limit": "Times are the project's own record",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "TL-07",
+   "page": "timeline",
+   "status": "ALLOWED",
+   "plain": "A driver change also happened during training: segments 0–9 were trained with driver 570.195.03.",
+   "developer": "570.195.03 for segments 0-9 vs 595.91.07 checker.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "40-41",
+     "quote": "(595.91.07 vs 570.195.03 for segments 0-9)"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-01",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "What was removed: one article, 3I/ATLAS (the interstellar comet). Training had not reached it yet.",
+   "developer": "Fork from checkpoint 30 without page 80340464 rev 1371028825 (10,395 targets); first target 6,915,731,634 > cursor@30 6,901,668,826.",
+   "value": {
+    "targets": 10395,
+    "first_target": 6915731634,
+    "cursor30": 6901668826
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "4-5",
+     "quote": "page 80340464, revision 1371028825, 10,395 training targets"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "11-12",
+     "quote": "(6,915,731,634)"
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/chain.jsonl",
+     "lines": "31",
+     "quote": null
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "Only works for text the run had not seen yet",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-02",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Checkpoints 0 to 30 are shared byte for byte with the main run.",
+   "developer": "Fork chain entries 0-30 identical to simple-run entries 0-30.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "10-11",
+     "quote": "Entries 0–30 of this `chain.jsonl` are identical to entries"
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-03",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "The removal is written into the training record.",
+   "developer": "Entry 31 kind 'fork': same state as 30; control.exclude = wikipedia [[6915731634, 10395]].",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "14-16",
+     "quote": "Entry 31 (kind `fork`) has exactly the state of entry 30."
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-04",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Any other gap in the data is refused. Training would stop.",
+   "developer": "Coverage check accepts a gap only at the recorded range.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "19-21",
+     "quote": "accepts a gap in target ids **only** at the recorded range"
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-05",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Every fork segment matched. All were checked by the project.",
+   "developer": "Fork verifications.jsonl: 10 rows, 8 'project fork pod' (30-37) + 2 'project fresh machine public files only' (30,31), all MATCH.",
+   "value": {
+    "rows": 10,
+    "fork_pod": 8,
+    "fresh_machine": 2
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/verifications.jsonl",
+     "lines": "1-10",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "22-27",
+     "quote": "Every fork segment (30→31 through 37→38)"
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80); Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-06",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Loss on the removed article's own text went from 3.3604 to 3.3860.",
+   "developer": "loo-results.json original_base.removed_loss 3.3604 → fork_base.removed_loss 3.386 (+0.0256).",
+   "value": {
+    "before": 3.3604,
+    "after": 3.386
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "33",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/loo-results.json",
+     "lines": "12-14",
+     "quote": null
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "One run, no variance estimate",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-07",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Mean loss on 50 control articles barely moved: 2.8710 to 2.8712.",
+   "developer": "control_loss_mean 2.871 → 2.8712 (+0.0002), 50 controls.",
+   "value": {
+    "before": 2.871,
+    "after": 2.8712,
+    "controls": 50
+   },
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/README.md",
+     "lines": "34",
+     "quote": null
+    },
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/loo-results.json",
+     "lines": "9",
+     "quote": "\"control_documents\": 50"
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "One run, no variance estimate",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-08",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Limit: this proves a model was trained without the article. It does not remove content a model already learned.",
+   "developer": "Exact retraining without an unreached range; does not remove content a model already learned.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "76-78",
+     "quote": "It is exact retraining without a range the run hadn't reached"
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "Not erasure",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "EX-09",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Limit: removing text the run had already seen means retraining from an earlier save point.",
+   "developer": "Brief wording.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "66",
+     "quote": "Text the run had already seen means retraining from an earlier save point."
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": "Source is the brief only; docs imply it (fork must precede the range) but do not state it literally.",
+   "verbatim": null
+  },
+  {
+   "id": "EX-10",
+   "page": "exclusion",
+   "status": "ALLOWED",
+   "plain": "Limit: one run, no variance estimate.",
+   "developer": "n=1.",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "76",
+     "quote": "One run, no variance estimate."
+    }
+   ],
+   "rule": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-conversation-model.pt",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "conversation-model.pt — SHA-256 shown next to the download.",
+   "developer": "release-hashes.txt line 41",
+   "value": "149cfae13c4523a1010c52161e13babf76c9ddc01f34fa1a8b580677b733a64c",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/release-hashes.txt",
+     "lines": "41",
+     "quote": "149cfae13c4523a1010c52161e13babf76c9ddc01f34fa1a8b580677b733a64c"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Hash proves file identity only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-base-model.pt",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "base-model.pt — SHA-256 shown next to the download.",
+   "developer": "release-hashes.txt line 1",
+   "value": "976c62e8b28db786c38dc2ff969339603d0ee917d830f2815d9e858d2a3c0ce3",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/release-hashes.txt",
+     "lines": "1",
+     "quote": "976c62e8b28db786c38dc2ff969339603d0ee917d830f2815d9e858d2a3c0ce3"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Hash proves file identity only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-chain.jsonl",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "chain.jsonl — SHA-256 shown next to the download.",
+   "developer": "release-hashes.txt line 2",
+   "value": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/release-hashes.txt",
+     "lines": "2",
+     "quote": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Hash proves file identity only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-recipe.json",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "recipe.json — SHA-256 shown next to the download.",
+   "developer": "release-hashes.txt line 42",
+   "value": "28a2fb407a5582ae95c9e9b0bba2c14df946e87bba037800399c6059256b6e6d",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/release-hashes.txt",
+     "lines": "42",
+     "quote": "28a2fb407a5582ae95c9e9b0bba2c14df946e87bba037800399c6059256b6e6d"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "Hash proves file identity only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-fork-conversation-model.pt",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "Verifiable exclusion fork conversation-model.pt — SHA-256.",
+   "developer": "unlearning-3i-atlas/release-hashes.txt",
+   "value": "e41be3a27bbcf16ce7a5224eb4766e88b2abe09fe6ddb6aadea399b9db4472d4",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/release-hashes.txt",
+     "lines": "12",
+     "quote": "e41be3a27bbcf16ce7a5224eb4766e88b2abe09fe6ddb6aadea399b9db4472d4"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29); Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-fork-base-model.pt",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "Verifiable exclusion fork base-model.pt — SHA-256.",
+   "developer": "unlearning-3i-atlas/release-hashes.txt",
+   "value": "ff30d7f4bf9ec41f0514d63a4d8bc1a74172481b89e07608383c0c3513f83441",
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/unlearning-3i-atlas/release-hashes.txt",
+     "lines": "1",
+     "quote": "ff30d7f4bf9ec41f0514d63a4d8bc1a74172481b89e07608383c0c3513f83441"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29); Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-gguf",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "GitHub release v1.0.1: ovl-23m-chat.gguf (for Ollama and llama.cpp).",
+   "developer": "Asset sha256 541d49c9…80de, 142,815,808 bytes (GitHub API digest); same hash in ollama.md:23.",
+   "value": "541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de",
+   "sources": [
+    {
+     "rev": "github-release:v1.0.1",
+     "file": "api.github.com/repos/AOSSIE-Org/OpenVerifiableLLM/releases/tags/v1.0.1",
+     "lines": "assets[ovl-23m-chat.gguf].digest",
+     "quote": "sha256:541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de"
+    },
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/guides/ollama.md",
+     "lines": "23",
+     "quote": "541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "GGUF is for trying the model, not for verifying it; not in pinned HF rev 96dc282a",
+   "note": "ollama.md:20 links the v1.0.0 release; v1.0.1 has the same asset digest.",
+   "verbatim": null
+  },
+  {
+   "id": "DL-modelfile",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "GitHub release v1.0.1: Modelfile.",
+   "developer": "Asset sha256 df4dacfc…fc8b, 722 bytes (GitHub API digest).",
+   "value": "df4dacfc3191e56b1dc1195764ea66ca1a7695856be04ecec17d8dde4c66fc8b",
+   "sources": [
+    {
+     "rev": "github-release:v1.0.1",
+     "file": "api.github.com/repos/AOSSIE-Org/OpenVerifiableLLM/releases/tags/v1.0.1",
+     "lines": "assets[Modelfile].digest",
+     "quote": "sha256:df4dacfc3191e56b1dc1195764ea66ca1a7695856be04ecec17d8dde4c66fc8b"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-hf",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "Hugging Face dataset, pinned to revision 96dc282a.",
+   "developer": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence@96dc282a.",
+   "value": "96dc282a",
+   "sources": [
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "15",
+     "quote": "Pin to revision `96dc282a`."
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "DL-ollama",
+   "page": "downloads",
+   "status": "ALLOWED",
+   "plain": "Ollama: ryoari/openverifiablellm.",
+   "developer": "ollama.com/ryoari/openverifiablellm",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/guides/ollama.md",
+     "lines": "12-13",
+     "quote": "ryoari/openverifiablellm"
+    }
+   ],
+   "rule": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)",
+   "limit": "Demo only",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-01",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "A small model that is often wrong about facts.",
+   "developer": "see OV-07",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "138-139",
+     "quote": "It often states"
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-02",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "Checks need an RTX 5090 and the same software.",
+   "developer": "see OV-12",
+   "value": null,
+   "sources": [
+    {
+     "rev": "hf:96dc282a",
+     "file": "release/simple-run/README.md",
+     "lines": "81",
+     "quote": "Checkers therefore need an RTX 5090."
+    }
+   ],
+   "rule": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)",
+   "limit": "Checks need an RTX 5090 and the same PyTorch/CUDA stack",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-03",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "No independent checks yet.",
+   "developer": "see VE-09",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "118-119",
+     "quote": "We need independent"
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "All checks so far were run by the project; 0 independent",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-04",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "Check results are self-reported and unsigned.",
+   "developer": "see VE-10",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "121",
+     "quote": "Check results are self-reported text lines."
+    }
+   ],
+   "rule": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)",
+   "limit": "Check results are self-reported and unsigned; segment choice not proven random",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-05",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "The timestamp proves the record existed by 20 October 2026, not how the training was done.",
+   "developer": "README.md:123",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "123",
+     "quote": "The timestamp proves the record existed by 20 Oct 2026, not how the training was done"
+    }
+   ],
+   "rule": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "LI-06",
+   "page": "limits",
+   "status": "ALLOWED",
+   "plain": "A full check costs as much compute as the training itself.",
+   "developer": "simple_run.md:204",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "docs/design/simple_run.md",
+     "lines": "204",
+     "quote": "A full check costs as much compute as the training"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": null,
+   "verbatim": null
+  },
+  {
+   "id": "UN-01",
+   "page": "check",
+   "status": "UNSOURCED",
+   "plain": "'About US$1.50' as a flat figure.",
+   "developer": "brief:64",
+   "value": null,
+   "sources": [
+    {
+     "rev": "brief:v3-2026-10-29",
+     "file": "564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md",
+     "lines": "46",
+     "quote": "about US$1.50"
+    }
+   ],
+   "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
+   "limit": "—",
+   "note": "No source in pinned data or docs gives a flat US$1.50; docs say US$1–1.50 (use CK-06).",
+   "verbatim": null
+  },
+  {
+   "id": "UN-02",
+   "page": "overview",
+   "status": "FORBIDDEN",
+   "plain": "'One file' / '631-line file' trains everything.",
+   "developer": "README.md:47",
+   "value": null,
+   "sources": [
+    {
+     "rev": "gh:1049d2a7",
+     "file": "README.md",
+     "lines": "47",
+     "quote": "One 631-line file trains"
+    }
+   ],
+   "rule": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)",
+   "limit": "—",
+   "note": "Source exists but brief forbids the wording; use OV-11.",
+   "verbatim": null
+  }
+ ],
+ "forbidden_phrases": [
+  {
+   "phrase": "unlearning",
+   "why": "Say 'verifiable exclusion', not 'unlearning' (brief:80)",
+   "exception": "only inside the URL/path 'unlearning-3i-atlas'"
+  },
+  {
+   "phrase": "unlearn",
+   "why": "Say 'verifiable exclusion', not 'unlearning' (brief:80)"
+  },
+  {
+   "phrase": "verifiable unlearning",
+   "why": "Say 'verifiable exclusion', not 'unlearning' (brief:80); HF README.md:98 heading uses it—don't copy"
+  },
+  {
+   "phrase": "machine unlearning",
+   "why": "Say 'verifiable exclusion', not 'unlearning' (brief:80)"
+  },
+  {
+   "phrase": "erase",
+   "why": "Exclusion does not erase learned content (EX-08)"
+  },
+  {
+   "phrase": "forgets",
+   "why": "EX-08"
+  },
+  {
+   "phrase": "one file",
+   "why": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)"
+  },
+  {
+   "phrase": "single file",
+   "why": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)"
+  },
+  {
+   "phrase": "631-line file",
+   "why": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)"
+  },
+  {
+   "phrase": "one-file",
+   "why": "~630 lines in simple/ovl.py + ~1,000 lines of helpers; never 'one file' (brief:81-82)"
+  },
+  {
+   "phrase": "independently verified",
+   "why": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78); 0 independent checks"
+  },
+  {
+   "phrase": "independently checked",
+   "why": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)"
+  },
+  {
+   "phrase": "third-party verified",
+   "why": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)"
+  },
+  {
+   "phrase": "audited by",
+   "why": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)"
+  },
+  {
+   "phrase": "answers are correct",
+   "why": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)"
+  },
+  {
+   "phrase": "accurate answers",
+   "why": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)"
+  },
+  {
+   "phrase": "verified facts",
+   "why": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)"
+  },
+  {
+   "phrase": "trustworthy answers",
+   "why": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)"
+  },
+  {
+   "phrase": "factually verified",
+   "why": "'Verified' = recomputed bit for bit and matched; never imply answers are correct (brief:75)"
+  },
+  {
+   "phrase": "verify it in 10 minutes",
+   "why": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77) (laptop check is a consistency check)"
+  },
+  {
+   "phrase": "verify on your laptop",
+   "why": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)"
+  },
+  {
+   "phrase": "verify without a GPU",
+   "why": "Laptop check = 'consistency check'; segment recompute = 'actual verification' (brief:76-77)"
+  },
+  {
+   "phrase": "Ollama verifies",
+   "why": "Ollama demo checks nothing (CK-01)"
+  },
+  {
+   "phrase": "trained on 20 October",
+   "why": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79)"
+  },
+  {
+   "phrase": "proves when training happened",
+   "why": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79)"
+  },
+  {
+   "phrase": "proves how the model was trained",
+   "why": "Timestamps show the record existed by 20 October, not when/how training happened (brief:79)"
+  },
+  {
+   "phrase": "signed results",
+   "why": "Roadmap only; results are unsigned (VE-11)",
+   "exception": "allowed only with 'on the roadmap'"
+  },
+  {
+   "phrase": "works on any GPU",
+   "why": "Checks need an RTX 5090 and the same PyTorch/CUDA stack"
+  },
+  {
+   "phrase": "any hardware",
+   "why": "Checks need an RTX 5090 and the same PyTorch/CUDA stack"
+  },
+  {
+   "phrase": "H100 reproduces",
+   "why": "hardware-map row 3 MISMATCH"
+  },
+  {
+   "phrase": "US$1.50",
+   "why": "UN-01: use 'about US$1–1.50'",
+   "exception": "as part of 'US$1–1.50'"
+  },
+  {
+   "phrase": "segments 8 and 21",
+   "why": "VE-05: segment 8 not in pinned data"
+  },
+  {
+   "phrase": "37 of 37 independent",
+   "why": "Always say who checked: 'the project' or 'independent' (none yet) (brief:78)"
+  },
+  {
+   "phrase": "guaranteed",
+   "why": "Odds are probabilistic (VE-06)"
+  }
+ ]
+}

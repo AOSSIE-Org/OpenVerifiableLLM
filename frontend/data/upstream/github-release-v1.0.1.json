@@ -1,0 +1,20 @@
+{
+ "fetched": "2026-10-29",
+ "api": "https://api.github.com/repos/AOSSIE-Org/OpenVerifiableLLM/releases/tags/v1.0.1",
+ "tag_name": "v1.0.1",
+ "html_url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.1",
+ "assets": [
+  {
+   "name": "Modelfile",
+   "size": 722,
+   "digest": "sha256:df4dacfc3191e56b1dc1195764ea66ca1a7695856be04ecec17d8dde4c66fc8b",
+   "browser_download_url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/download/v1.0.1/Modelfile"
+  },
+  {
+   "name": "ovl-23m-chat.gguf",
+   "size": 142815808,
+   "digest": "sha256:541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de",
+   "browser_download_url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/download/v1.0.1/ovl-23m-chat.gguf"
+  }
+ ]
+}
