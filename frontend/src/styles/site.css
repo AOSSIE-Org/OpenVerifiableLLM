@@ -110,6 +110,7 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 .tiles{list-style:none;padding:0;margin:var(--space-3) 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(2.75rem,1fr));gap:var(--space-1)}
 .tile{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;font:600 var(--fs-label) var(--font-mono);color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
 button.tile{cursor:pointer}
+a.tile{text-decoration:none}
 button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px solid var(--ink);outline-offset:1px}
 .tile[data-checker="independent"]{background:var(--independent);color:var(--surface);border-color:var(--independent)}
 .tile[data-checker="pending"]{border-style:dashed;color:var(--pending)}
