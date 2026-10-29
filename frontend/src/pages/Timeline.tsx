@@ -8,7 +8,7 @@ export default function Timeline() {
     <>
       <h1><L k="h1.timeline" /></h1>
       <h2><L k="h2.record" /></h2>
-      <Section needs={['chain', 'events']}>
+      <Section needs={['chain', 'events', 'verifications']}>
         <ClaimBlock id="TL-01">
           <Strip />
         </ClaimBlock>

@@ -1,6 +1,10 @@
 import { useData } from '../data/context';
 import { L, V } from './text';
 
+/** Cell weight from two boundary times; a missing or non-finite time (tiles and boundaries out of step)
+ *  falls back to 1 instead of throwing. */
+export const span = (a?: number, b?: number) => (Number.isFinite(a) && Number.isFinite(b) ? Math.max(1, Math.round(b! - a!)) : 1);
+
 /** One cell per segment, width proportional to its recorded wall time; markings come from data.events. */
 export function Timeline() {
   const { data } = useData();
@@ -15,7 +19,7 @@ export function Timeline() {
             className="seg"
             data-phase={t.phase}
             data-event={t.events.join(' ') || undefined}
-            style={{ flexGrow: Math.max(1, Math.round(B[k + 1]!.time - B[k]!.time)) }}
+            style={{ flexGrow: span(B[k]?.time, B[k + 1]?.time) }}
           >
             <span className="sr">
               <L k="th.segment" /> <V path={`verifications.tiles.${k}.segment`} /> <L k={`phase.${t.phase}`} />
