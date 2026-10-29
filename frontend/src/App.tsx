@@ -44,7 +44,7 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
         {children}
       </main>
       <footer className="foot">
-        <a href="https://aossie.org"><L k="footer" /></a>
+        <a href="https://aossie.org" rel="noopener noreferrer"><L k="footer" /></a>
         {pinned ? (
           <span className="muted">
             <L k="footer.data" /> <code><V path="revShort" /></code>
@@ -77,7 +77,18 @@ export function App({ state, route, Page, navigate }: AppProps) {
     <DataContext.Provider value={state}>
       <Shell route={route} pinned {...(navigate ? { navigate } : {})}>
         <ErrorBoundary>
-          {Page ? <Page /> : <h1><L k="notfound" /></h1>}
+          {Page ? (
+            <Page />
+          ) : (
+            <div className="notfound" data-notfound="">
+              <h1><L k="notfound" /></h1>
+              <p>
+                <a href={hrefOf(ROUTES[0]!)} onClick={(e) => { if (navigate && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); navigate(hrefOf(ROUTES[0]!)); } }}>
+                  <L k="notfound.home" />
+                </a>
+              </p>
+            </div>
+          )}
         </ErrorBoundary>
       </Shell>
     </DataContext.Provider>

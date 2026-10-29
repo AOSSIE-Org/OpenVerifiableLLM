@@ -20,7 +20,10 @@ http
       const body = await readFile(file);
       res.writeHead(200, { 'Content-Type': types[path.extname(file)] ?? 'application/octet-stream' }).end(body);
     } catch {
-      res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
+      // Like GitHub Pages: unknown paths get dist/404.html with status 404.
+      const page = await readFile(path.join(root, '404.html')).catch(() => null);
+      if (page) res.writeHead(404, { 'Content-Type': 'text/html; charset=utf-8' }).end(page);
+      else res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
     }
   })
   .listen(port, '127.0.0.1', () => console.log(`static server http://127.0.0.1:${port}${base}`));

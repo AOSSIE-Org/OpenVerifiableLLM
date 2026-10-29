@@ -109,5 +109,6 @@
  "limit.noted": "The project notes:",
  "tile.MATCH": "✓",
  "tile.MISMATCH": "✗",
- "tile.pending": "…"
+ "tile.pending": "…",
+ "notfound.home": "Go to the overview page"
 }

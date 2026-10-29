@@ -7,14 +7,17 @@ const { renderAll } = await import(pathToFileURL(path.resolve('dist-ssr/entry-se
 const template = readFileSync('dist/index.html', 'utf8');
 if (!template.includes('<div id="root"><!--app--></div>')) throw new Error('prerender: root marker not found');
 const data = JSON.parse(readFileSync('dist/data/site-data.json', 'utf8'));
-const titleOf = (html, key) => (new RegExp(`data-label="nav.${key}">([^<]*)<`).exec(html)?.[1] ?? '');
+const titleOf = (html, key) => (new RegExp(`data-label="${key === 'notfound' ? 'notfound' : `nav.${key}`}">([^<]*)<`).exec(html)?.[1] ?? '');
 for (const r of renderAll(data)) {
   const html = template
     .replace('<div id="root"><!--app--></div>', `<div id="root">${r.html}</div>`)
     .replace('<title>OpenVerifiableLLM</title>', `<title>${titleOf(r.html, r.key)} · OpenVerifiableLLM</title>`);
-  const dir = path.join('dist', r.slug);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, 'index.html'), html);
+  if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html);
+  else {
+    const dir = path.join('dist', r.slug);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'index.html'), html);
+  }
   console.log(`prerender: /${r.slug} (${(html.length / 1024).toFixed(1)} KB)`);
 }
 rmSync('dist-ssr', { recursive: true, force: true });
