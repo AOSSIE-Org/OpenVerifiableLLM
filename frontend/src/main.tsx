@@ -2,7 +2,7 @@ import { createRoot, hydrateRoot, type Root } from 'react-dom/client';
 import type { ComponentType } from 'react';
 import { App, type AppProps } from './App';
 import { loadData } from './data/load';
-import { routeFor } from './routes';
+import { ROUTES, routeFor } from './routes';
 import { label } from './content/ui';
 import './styles/site.css';
 
@@ -68,4 +68,7 @@ void (async () => {
   state = await loadData();
   if (prerendered && 'error' in state) return scopeFailure();
   await render(location.pathname, true);
+  // Warm the other page chunks when idle, so a later click still works on a flaky or lost connection.
+  const idle = window.requestIdleCallback ?? ((f: () => void) => setTimeout(f, 1500));
+  idle(() => ROUTES.forEach((r) => void r.load().catch(() => undefined)));
 })();
