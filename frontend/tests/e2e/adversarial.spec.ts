@@ -204,3 +204,12 @@ test('no page requests anything that 404s (favicon included)', async ({ page }) 
   }
   expect(bad).toEqual([]);
 });
+
+test('phone: every source chip summary is >= 44px tall; source links announce the new tab', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('verification/');
+  await ready(page);
+  for (const h of await page.locator('details.chip > summary').evaluateAll((s) => s.filter((e) => (e as HTMLElement).offsetParent).map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+  await page.locator('details.chip').first().evaluate((d) => ((d as HTMLDetailsElement).open = true));
+  await expect(page.locator('details.chip a[target="_blank"]').first()).toHaveAccessibleName(/opens in a new tab/);
+});

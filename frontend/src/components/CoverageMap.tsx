@@ -77,7 +77,7 @@ export function CoverageMap({ interactive, strip = false }: { interactive: boole
           {selected ? (
             <>
               <h3>
-                <L k="tile.checks" /> <V path={`${p}.tiles.${selected.segment}.segment`} />
+                <L k="tile.checks" /> <V path={`${p}.tiles.${sel}.segment`} />
               </h3>
               <ul className="checks">
                 {selected.checks.map((i) => (

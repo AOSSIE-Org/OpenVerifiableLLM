@@ -110,5 +110,6 @@
  "tile.MATCH": "✓",
  "tile.MISMATCH": "✗",
  "tile.pending": "…",
- "notfound.home": "Go to the overview page"
+ "notfound.home": "Go to the overview page",
+ "newtab": "(opens in a new tab)"
 }

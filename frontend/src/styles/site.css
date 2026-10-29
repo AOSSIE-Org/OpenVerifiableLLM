@@ -116,7 +116,7 @@ tr:target,tr[id^="seg-"]:target{background:var(--stamp-tint);box-shadow:inset 4p
 tr:target>*{background:transparent}
 .notfound a{display:inline-flex;align-items:center;min-height:24px}
 details.more-src>summary{min-height:24px}
-@media (max-width:640px){.notfound a,details.more-src>summary{min-height:44px}}
+@media (max-width:640px){.notfound a,details.more-src>summary{min-height:44px}details.chip>summary{display:inline-flex;align-items:center;min-height:44px}}
 button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px solid var(--ink);outline-offset:1px}
 .tile[data-checker="independent"]{background:var(--independent);color:var(--surface);border-color:var(--independent)}
 .tile[data-checker="pending"]{border-style:dashed;color:var(--pending)}

@@ -17,6 +17,10 @@ export function SourceChip({ s }: { s: ClaimSource | Src }) {
         {s.url ? (
           <a href={s.url} rel="noopener noreferrer" target="_blank">
             <L k="source" />
+            <span className="sr">
+              {' '}
+              <L k="newtab" />
+            </span>
           </a>
         ) : null}
       </div>
