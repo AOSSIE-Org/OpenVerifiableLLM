@@ -194,3 +194,13 @@ test('data is fetched from the content-hashed URL named by the build', async ({ 
   expect(h).toMatch(/^[0-9a-f]{64}$/);
   expect(urls.filter((u) => u.includes('/data/site-data'))).toEqual([expect.stringContaining(`site-data.${h!.slice(0, 16)}.json`)]);
 });
+
+test('no page requests anything that 404s (favicon included)', async ({ page }) => {
+  const bad: string[] = [];
+  page.on('response', (r) => r.status() >= 400 && bad.push(`${r.status()} ${r.url()}`));
+  for (const p of PAGES) {
+    await page.goto(p.slug);
+    await ready(page);
+  }
+  expect(bad).toEqual([]);
+});
