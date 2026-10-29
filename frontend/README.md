@@ -22,14 +22,29 @@ sentence comes from the claim ledger. Nothing runs on a server.
 
 ```bash
 npm ci
+npm run data:fetch      # pinned evidence files into data/raw (needed by 3 unit tests and the build)
 npm run claims:sync     # CLAIMS_DIR=/path/to/ovllm-claims; copies claims.json and COPY.md
 npm run data            # rebuild public/data/site-data.json from data/raw
 npm run lint && npm run typecheck && npm test && npm run contrast
 npm run build           # data drift check → typecheck → client + SSR build → prerender → phone budget
-npx playwright install chromium && npm run test:e2e
+npx playwright install chromium && CI=1 E2E_PORT=4391 npm run test:e2e   # own port; never reuses a running server
 ```
 
 `npm run build` fails if `site-data.json` differs from what the pinned files produce, if any
 section fails validation, if a ledger claim has no source, uses a banned phrase, or shows a
 number found neither in its cited lines nor in `site-data.json`, or if the bundle exceeds the
 phone budget. Set `BASE_PATH=/OpenVerifiableLLM/` to build for a sub-path.
+
+## Counts in copy
+
+Headlines never type a segment or check count. `copy.json` uses placeholders filled from `site-data.json`:
+`{matched}` `{total}` `{independent}` `{rows}` `{second}` `{training}` `{fresh}` (OV-04, VE-01, VE-03). A line
+that says "{matched} of {total}" or "all matched" is withheld (scoped error) when the data disagrees. The
+ledger keeps its literal numbers; `tests/unit/fill.test.tsx` fails if a filled value is not in that claim's
+ledger text. COPY.md must carry the same placeholders, or `npm run claims:sync` reverts them (the test fails).
+
+## Data pinning
+
+Each prerendered page carries `<meta name="ovl-data">` (sha256 of the data it was built from) and loads
+`data/site-data.<sha16>.json`. Data with another hash never hydrates the page: every data section shows
+"Couldn't load this evidence." A CSP meta tag ships on every page (no inline scripts).
