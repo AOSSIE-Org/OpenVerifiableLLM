@@ -268,7 +268,7 @@
   "developer": "see OV-12"
  },
  "LI-03": {
-  "plain": "Every check so far was by the project. Independent checks: none yet.",
+  "plain": "Every check so far was run by the project. Independent checks: none yet.",
   "developer": "see VE-09"
  },
  "LI-04": {
