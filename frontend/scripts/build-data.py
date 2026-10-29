@@ -357,7 +357,19 @@ def banned_hit(text):
     return [b["phrase"] for b in LEDGER["forbidden_phrases"] if b["phrase"].lower() in t]
 
 
+# Agreed wording decision: the site says "segments", never "steps". These cited lines are linked,
+# not quoted (the source link stays). "step by step:" on Check is kept on purpose.
+LINK_ONLY = ["every step can be checked", "per-step coverage check"]
+
+
+def link_only_hit(text):
+    t = " ".join(text.lower().split())
+    return [p for p in LINK_ONLY if p in t]
+
+
 def shown(c):
+    if c["text"] and link_only_hit(c["text"]):
+        return {**c, "text": None, "withheld": link_only_hit(c["text"])}
     # A cited line that itself uses a banned phrase is linked, not quoted on the page. No roadmap
     # exception here: banned phrases never appear on the page, quotes included.
     if c["text"] and banned_hit(c["text"]):

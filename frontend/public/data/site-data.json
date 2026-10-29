@@ -4492,9 +4492,12 @@
     "file": "release/unlearning-3i-atlas/README.md",
     "rev": "96dc282a",
     "lines": "4-5",
-    "text": "except that one Wikipedia article was never trained on: **3I/ATLAS** (the interstellar comet;\npage 80340464, revision 1371028825, 10,395 training targets). Every step can be checked, so the",
+    "text": null,
     "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/blob/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/README.md#L4-L5",
-    "quote": "page 80340464, revision 1371028825, 10,395 training targets"
+    "quote": "page 80340464, revision 1371028825, 10,395 training targets",
+    "withheld": [
+     "every step can be checked"
+    ]
    },
    {
     "origin": "hf",
@@ -4543,9 +4546,12 @@
     "file": "release/unlearning-3i-atlas/README.md",
     "rev": "96dc282a",
     "lines": "19-21",
-    "text": "   never used as inputs or targets, because windows never cross documents. The per-step coverage\n   check accepts a gap in target ids **only** at the recorded range, so any other missing or\n   repeated data would stop training.",
+    "text": null,
     "url": "https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/blob/96dc282a9803616c6b30bb31bfc3a0b91a7191e6/release/unlearning-3i-atlas/README.md#L19-L21",
-    "quote": "accepts a gap in target ids **only** at the recorded range"
+    "quote": "accepts a gap in target ids **only** at the recorded range",
+    "withheld": [
+     "per-step coverage check"
+    ]
    }
   ],
   "EX-05": [
