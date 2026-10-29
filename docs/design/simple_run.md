@@ -75,7 +75,8 @@ segment matched. Loss on the article's text went from 3.3604 to 3.3860 (+0.0256)
 control articles from the same segment, which both models saw, went from 2.8710 to 2.8712
 (+0.0002). One run, no variance estimate. This proves the fork never trained on the article. It
 is exact retraining without a range the run hadn't reached, not unlearning in the research sense of
-removing something a model already learned.
+removing something a model already learned. Exclusion is by document: other articles that
+mention 3I/ATLAS stayed in, and how much of its content they carry hasn't been measured.
 
 ## Check it yourself
 
