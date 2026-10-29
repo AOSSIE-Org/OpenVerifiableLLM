@@ -354,11 +354,12 @@ def cited(s):
 
 def banned_hit(text):
     t = text.lower().replace("unlearning-3i-atlas", "").replace("us$1–1.50", "")
-    return [b["phrase"] for b in LEDGER["forbidden_phrases"] if b["phrase"].lower() in t and not (b["phrase"].lower() == "signed results" and "roadmap" in t)]
+    return [b["phrase"] for b in LEDGER["forbidden_phrases"] if b["phrase"].lower() in t]
 
 
 def shown(c):
-    # A cited line that itself uses a banned phrase is linked, not quoted on the page.
+    # A cited line that itself uses a banned phrase is linked, not quoted on the page. No roadmap
+    # exception here: banned phrases never appear on the page, quotes included.
     if c["text"] and banned_hit(c["text"]):
         c = {**c, "text": None, "withheld": banned_hit(c["text"])}
     return c

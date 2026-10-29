@@ -4225,9 +4225,12 @@
     "file": "docs/design/simple_run.md",
     "rev": "1049d2a7",
     "lines": "202-203",
-    "text": "  checker picked the segment at random. Signed results and public randomness for picking segments\n  are on the [roadmap](../project/roadmap.md).",
+    "text": null,
     "url": "https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/1049d2a782b8f63103abfa0cca8deab0d2037290/docs/design/simple_run.md#L202-L203",
-    "quote": "Signed results and public randomness for picking segments"
+    "quote": "Signed results and public randomness for picking segments",
+    "withheld": [
+     "signed results"
+    ]
    }
   ],
   "VE-HW-1": [
