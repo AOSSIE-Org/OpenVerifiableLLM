@@ -6,6 +6,7 @@ import { CommandBlock } from './CommandBlock';
 import { SourceChip } from './SourceChip';
 import { L, V, Who } from './text';
 import { useHydrated } from './hydrated';
+import { fillCounts } from '../content/fill';
 
 /** Evidence block, in the brief's order: claim → evidence → who checked → limit → source chip.
  *  Plain sentence first, developer line underneath. */
@@ -15,6 +16,9 @@ export function ClaimBlock({ id, children, heading, hideLimit = false, asLimit =
   const hydrated = useHydrated();
   const { data } = useData();
   const sources = data.claimSources[id] ?? [];
+  // Counts come from the data; a line the data does not support is withheld, never shown stale.
+  const plain = fillCounts(id, c.plain, data);
+  const developer = fillCounts(id, c.developer, data);
   return (
     <article className="ev" data-claim={id} id={id.toLowerCase()}>
       {heading ? (
@@ -22,10 +26,14 @@ export function ClaimBlock({ id, children, heading, hideLimit = false, asLimit =
           <L k={heading} />
         </h3>
       ) : null}
-      {asLimit ? <LimitSentence plain={c.plain} /> : <p className="plain" data-claim-part="plain">{c.plain}</p>}
+      {plain === null ? (
+        <p className="fallback" data-fallback="" data-claim-part="withheld">
+          <L k="error.section" />
+        </p>
+      ) : asLimit ? <LimitSentence plain={plain} /> : <p className="plain" data-claim-part="plain">{plain}</p>}
       {c.who ? <Who who={c.who} /> : null}
       {/* A ledger line with a number the pinned data does not support is withheld (see ledger-issues.json). */}
-      {KNOWN_ISSUES.some((i) => i.id === id && i.part === 'developer') ? null : <p className="dev" data-claim-part="developer">{c.developer}</p>}
+      {developer === null || plain === null || KNOWN_ISSUES.some((i) => i.id === id && i.part === 'developer') ? null : <p className="dev" data-claim-part="developer">{developer}</p>}
       {c.verbatim ? <CommandBlock text={c.verbatim} name={c.id} /> : null}
       {children}
       {c.limit && !hideLimit && !KNOWN_ISSUES.some((i) => i.id === id && i.part === 'limit') ? (

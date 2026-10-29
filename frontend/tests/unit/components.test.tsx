@@ -21,6 +21,7 @@ import { distinctLimits, duplicateOf } from '../../src/pages/Verification';
 import { OVERVIEW_FACTS, OVERVIEW_LIMITS } from '../../src/pages/Overview';
 import type { SiteData } from '../../src/data/types';
 import { fresh } from './helpers';
+import { fillCounts } from '../../src/content/fill';
 
 afterEach(cleanup);
 const PAGES: [string, ComponentType][] = [['overview', Overview], ['check', Check], ['verification', Verification], ['timeline', Timeline], ['exclusion', Exclusion], ['downloads', Downloads]];
@@ -50,8 +51,9 @@ describe.each(PAGES)('%s page', (key, Page) => {
       expect(c).toBeTruthy();
       // Inside a Limits list only the "Limit…:" prefix is dropped; the rest is the ledger text.
       const lt = ev.querySelector('[data-claim-part="limit-text"]');
-      if (lt) expect(lt.textContent).toBe(limitParts(c.plain).rest);
-      else expect(ev.querySelector('[data-claim-part="plain"]')!.textContent).toBe(c.plain);
+      const plain = fillCounts(c.id, c.plain, fresh())!;
+      if (lt) expect(lt.textContent).toBe(limitParts(plain).rest);
+      else expect(ev.querySelector('[data-claim-part="plain"]')!.textContent).toBe(plain);
       expect(ev.querySelector('details.chip')).not.toBeNull();
       const order = [...ev.querySelectorAll('.plain, .limit, .chips')].map((n) => n.className);
       expect(order[0]).toBe('plain');

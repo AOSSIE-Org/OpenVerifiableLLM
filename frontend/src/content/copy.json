@@ -12,8 +12,8 @@
   "developer": "Conversation phase: 3 passes over pinned OpenAssistant oasst1 selection, 3,481 conversations, 1,278,137 targets, LR 1e-4."
  },
  "OV-04": {
-  "plain": "The project recomputed 37 of 37 segments on a second machine and all matched. Independent checks: none yet.",
-  "developer": "37/37 segments MATCH, checker 'project second pod', RTX 5090, driver 595.91.07 (verifications.jsonl rows 1-37)."
+  "plain": "The project recomputed {matched} of {total} segments on a second machine and all matched. Independent checks: none yet.",
+  "developer": "{matched}/{total} segments MATCH, checker 'project second pod', RTX 5090, driver 595.91.07 (verifications.jsonl rows 1-37)."
  },
  "OV-05": {
   "plain": "The project rebuilt the training data from the raw Wikipedia dump and got a byte-for-byte identical result.",
@@ -84,7 +84,7 @@
   "developer": "Verbatim openssl ts -verify commands for DigiCert and FreeTSA."
  },
  "VE-01": {
-  "plain": "Coverage map: 37 tiles, one per segment. The project checked all 37 and all matched. Independent checks: none yet.",
+  "plain": "Coverage map: {total} tiles, one per segment. The project checked all {matched} and all matched. Independent checks: none yet.",
   "developer": "Tiles = verifications.jsonl rows 1-37 (project second pod), segments 0-36; label 'project'; reserve 'independent'."
  },
  "VE-02": {
