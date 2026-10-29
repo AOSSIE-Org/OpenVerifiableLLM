@@ -3,7 +3,25 @@ import type { ComponentType } from 'react';
 import { App, type AppProps } from './App';
 import { loadData } from './data/load';
 import { routeFor } from './routes';
+import { label } from './content/ui';
 import './styles/site.css';
+
+/** The data file failed (missing, malformed, wrong shape, aborted). Keep the prerendered page and replace
+ *  only the evidence that depends on that data, so nothing is shown as checked. */
+function scopeFailure() {
+  for (const s of el.querySelectorAll('[data-section]')) {
+    const box = document.createElement('div');
+    box.className = 'fallback';
+    box.setAttribute('role', 'alert');
+    box.setAttribute('data-fallback', '');
+    box.setAttribute('data-fatal', '');
+    box.textContent = label('error.section');
+    s.replaceWith(box);
+  }
+  // Anything left that still shows a result (outside a data section) is removed too.
+  for (const r of el.querySelectorAll('.tile, [data-result]')) r.remove();
+  el.setAttribute('data-failed', '');
+}
 
 const el = document.getElementById('root')!;
 const prerendered = el.firstElementChild !== null;
@@ -22,7 +40,7 @@ function show(props: AppProps) {
 }
 
 let state: AppProps['state'] = 'loading';
-async function render(pathname: string) {
+async function render(pathname: string, initial = false) {
   const route = routeFor(pathname);
   let Page: ComponentType | null = null;
   try {
@@ -31,7 +49,13 @@ async function render(pathname: string) {
     state = { error: 'page failed to load' };
   }
   show({ state, route, Page });
-  window.scrollTo(0, 0);
+  if (!initial) window.scrollTo(0, 0);
+  else if (location.hash.length > 1) {
+    // Keep claim deep links (#ve-04) working after the client render; an unknown or odd hash is ignored.
+    let id = '';
+    try { id = decodeURIComponent(location.hash.slice(1)); } catch { /* malformed escape */ }
+    if (id) document.getElementById(id)?.scrollIntoView();
+  }
 }
 function navigate(href: string) {
   history.pushState(null, '', href);
@@ -42,5 +66,6 @@ window.addEventListener('popstate', () => void render(location.pathname));
 void (async () => {
   if (!prerendered) show({ state: 'loading', route: routeFor(location.pathname), Page: null });
   state = await loadData();
-  await render(location.pathname);
+  if (prerendered && 'error' in state) return scopeFailure();
+  await render(location.pathname, true);
 })();

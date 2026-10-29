@@ -62,19 +62,19 @@ test('overview at 1440: title, independent count and the whole scoreboard are in
   }
 });
 
-test('extra sources sit behind a keyboard-operable "+N more sources" toggle', async ({ page }) => {
+test('extra sources sit behind a keyboard-operable "+N more sources" disclosure', async ({ page }) => {
   await page.goto('verification/');
   await ready(page);
   const ev = page.locator('[data-claim="VE-04"]');
-  const btn = ev.locator('button.more');
+  const sum = ev.locator('summary.more');
   await expect(ev.locator('details.chip:visible')).toHaveCount(1);
-  await expect(btn).toHaveAttribute('aria-expanded', 'false');
-  await btn.focus();
+  await expect(sum).toHaveAttribute('aria-expanded', 'false');
+  await sum.focus();
   await page.keyboard.press('Enter');
-  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  await expect(sum).toHaveAttribute('aria-expanded', 'true');
   await expect(ev.locator('details.chip:visible')).toHaveCount(2);
   await page.keyboard.press('Space');
-  await expect(btn).toHaveAttribute('aria-expanded', 'false');
+  await expect(sum).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('verification: odds 95.09% at 110 and 99.02% at 169; fresh machine only segment 21; 46 rows', async ({ page }) => {
@@ -128,10 +128,12 @@ test('source chip opens the exact cited row', async ({ page }) => {
   await expect(chip.locator('a')).toHaveAttribute('href', d.claimSources['VE-04']![0]!.url!);
 });
 
-test('data that fails to load shows the error page and never a MATCH', async ({ page }) => {
+test('data that fails to load keeps the page and never shows a MATCH', async ({ page }) => {
   await page.route('**/data/site-data.json', (r) => r.fulfill({ status: 500, body: 'x' }));
   await page.goto('verification/');
-  await expect(page.locator('[data-fatal] h1')).toHaveText(label('error.title'));
+  await expect(page.locator('#root[data-failed]')).toHaveCount(1);
+  await expect(page.locator('h1')).toHaveText(label('h1.verification'));
+  await expect(page.locator('[data-fallback]').first()).toHaveText(label('error.section'));
   await expect(page.locator('.result-MATCH, [data-result="MATCH"]')).toHaveCount(0);
 });
 
@@ -140,7 +142,8 @@ test('data with an unpinned revision is rejected', async ({ page }) => {
   d.revision = 'main';
   await page.route('**/data/site-data.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
   await page.goto('');
-  await expect(page.locator('[data-fatal]')).toBeVisible();
+  await expect(page.locator('#root[data-failed]')).toHaveCount(1);
+  await expect(page.locator('[data-fatal]').first()).toBeVisible();
   await expect(page.locator('[data-result="MATCH"]')).toHaveCount(0);
 });
 

@@ -29,6 +29,11 @@ class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
 export function Section({ needs, children }: { needs: SectionId[]; children: ReactNode }) {
   const { errors } = useData();
   if (needs.some((n) => errors[n])) return <Fallback />;
-  return <Boundary>{children}</Boundary>;
+  // data-section marks evidence that depends on site-data.json, so a failed load can swap just these parts.
+  return (
+    <div className="section" data-section={needs.join(' ')}>
+      <Boundary>{children}</Boundary>
+    </div>
+  );
 }
 export { Boundary as ErrorBoundary };
