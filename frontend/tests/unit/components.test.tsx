@@ -187,6 +187,22 @@ describe('loadData', () => {
   });
 });
 
+describe('loadData with a build hash', () => {
+  const raw = JSON.stringify(fresh());
+  const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  it('fetches the content-hashed file and accepts data whose sha256 matches the build', async () => {
+    const h = hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw)));
+    let url = '';
+    const r = await loadData((async (u: string) => ((url = u), new Response(raw))) as unknown as typeof fetch, h);
+    expect(url).toMatch(new RegExp(`data/site-data\\.${h.slice(0, 16)}\\.json$`));
+    expect('error' in r).toBe(false);
+  });
+  it('rejects valid-looking data that is not the data the HTML was built from', async () => {
+    const r = await loadData((async () => new Response(raw)) as typeof fetch, 'a'.repeat(64));
+    expect(r).toEqual({ error: 'data does not match the build' });
+  });
+});
+
 describe('copy buttons', () => {
   it('puts the exact full digest on the clipboard and announces it', async () => {
     const writeText = vi.fn(async () => {});

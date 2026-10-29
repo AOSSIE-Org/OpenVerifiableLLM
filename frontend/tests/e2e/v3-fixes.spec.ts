@@ -95,10 +95,10 @@ test.describe('without JavaScript', () => {
 });
 
 const FAILURES: [string, (p: Page) => Promise<unknown>][] = [
-  ['404', (p) => p.route('**/data/site-data.json', (r) => r.fulfill({ status: 404, body: 'not found' }))],
-  ['corrupt', (p) => p.route('**/data/site-data.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"schema": "ovl-site-data.v2", "revi' }))],
-  ['wrong shape', (p) => p.route('**/data/site-data.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ result: 'MATCH' }]) }))],
-  ['abort', (p) => p.route('**/data/site-data.json', (r) => r.abort())],
+  ['404', (p) => p.route('**/data/site-data*.json', (r) => r.fulfill({ status: 404, body: 'not found' }))],
+  ['corrupt', (p) => p.route('**/data/site-data*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '{"schema": "ovl-site-data.v2", "revi' }))],
+  ['wrong shape', (p) => p.route('**/data/site-data*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{ result: 'MATCH' }]) }))],
+  ['abort', (p) => p.route('**/data/site-data*.json', (r) => r.abort())],
 ];
 test.describe('data failure', () => {
   for (const [name, setup] of FAILURES) {

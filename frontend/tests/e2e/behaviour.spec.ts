@@ -129,7 +129,7 @@ test('source chip opens the exact cited row', async ({ page }) => {
 });
 
 test('data that fails to load keeps the page and never shows a MATCH', async ({ page }) => {
-  await page.route('**/data/site-data.json', (r) => r.fulfill({ status: 500, body: 'x' }));
+  await page.route('**/data/site-data*.json', (r) => r.fulfill({ status: 500, body: 'x' }));
   await page.goto('verification/');
   await expect(page.locator('#root[data-failed]')).toHaveCount(1);
   await expect(page.locator('h1')).toHaveText(label('h1.verification'));
@@ -140,24 +140,40 @@ test('data that fails to load keeps the page and never shows a MATCH', async ({ 
 test('data with an unpinned revision is rejected', async ({ page }) => {
   const d = data();
   d.revision = 'main';
-  await page.route('**/data/site-data.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  await page.route('**/data/site-data*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
   await page.goto('');
   await expect(page.locator('#root[data-failed]')).toHaveCount(1);
   await expect(page.locator('[data-fatal]').first()).toBeVisible();
   await expect(page.locator('[data-result="MATCH"]')).toHaveCount(0);
 });
 
-test('one malformed section shows "couldn\'t load this evidence" and the rest of the page stays', async ({ page }) => {
+test('data that differs from the build (even one malformed section) never hydrates: every data section shows "couldn\'t load this evidence"', async ({ page }) => {
   const d = data() as unknown as Record<string, unknown>;
   d.hardware = [{ result: 'ok' }];
-  await page.route('**/data/site-data.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  await page.route('**/data/site-data*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto('verification/');
-  await ready(page);
-  await expect(page.locator('[data-fallback]')).toHaveCount(1);
-  await expect(page.locator('[data-fallback]')).toHaveText(label('error.section'));
-  await expect(page.locator('.tiles-int button')).toHaveCount(37);
-  await expect(page.locator('.hw-table')).toHaveCount(0);
+  await expect(page.locator('#root[data-failed]')).toHaveCount(1);
+  await expect(page.locator('h1')).toHaveCount(1);
+  expect(await page.locator('[data-fallback]').count()).toBeGreaterThan(0);
+  for (const t of await page.locator('[data-fallback]').allInnerTexts()) expect(t).toBe(label('error.section'));
+  await expect(page.locator('.tile, [data-result]')).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('an injected MISMATCH never shows "37 of 37" and causes no hydration error', async ({ page }) => {
+  const d = data();
+  d.verifications.tiles[5]!.result = 'MISMATCH';
+  await page.route('**/data/site-data*.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(d) }));
+  const errors: string[] = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(String(e)));
+  for (const slug of ['', 'verification/']) {
+    await page.goto(slug);
+    await expect(page.locator('#root[data-failed]')).toHaveCount(1);
+    expect(await page.locator('main').innerText()).not.toMatch(/\b37 of 37\b|all 37 and all matched/);
+  }
+  expect(errors.filter((e) => /418|hydrat/i.test(e))).toEqual([]);
 });
