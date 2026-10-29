@@ -117,7 +117,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("run"); p.add_argument("--check", action="store_true")
     a = p.parse_args()
-    chain = [json.loads(l) for l in (Path(a.run) / "chain.jsonl").read_text().splitlines()]
+    chain = [json.loads(l) for l in (Path(a.run) / "chain.jsonl").read_text(encoding="utf-8").splitlines()]
     if a.check:
         sys.exit(0 if check(a.run, chain) else 1)
     for e in chain:

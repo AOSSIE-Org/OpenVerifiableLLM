@@ -105,6 +105,15 @@ class ChainLinkTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, r"chain\.jsonl: line 3 is not valid JSON"):
             ovl.read_chain(self.run)
 
+    def test_chain_with_utf8_metadata_reads(self):
+        self.chain[0]["comment"] = "Wikipedia: Café / 日本語 / 🚀"
+        for i in range(1, len(self.chain)):
+            self.chain[i]["previous"] = link(self.chain[i - 1])
+        (Path(self.run) / "chain.jsonl").write_bytes(
+            "".join(json.dumps(e, ensure_ascii=False, sort_keys=True) + "\n" for e in self.chain).encode("utf-8")
+        )
+        self.assertEqual(ovl.read_chain(self.run), self.chain)
+
 
 class LearningRateTests(unittest.TestCase):
     def test_depends_only_on_step_and_phase(self):
