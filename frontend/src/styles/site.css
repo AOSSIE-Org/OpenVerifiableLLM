@@ -172,11 +172,12 @@ details.more-src[open] .more-open{display:inline}
 .section{display:contents}
 .top a,.foot a{display:inline-flex;align-items:center;min-height:24px}
 @media (max-width:640px){.top a,.foot a{min-height:44px}}
-.tiles-strip{display:flex;gap:2px;grid-template-columns:none}
-.tiles-strip li{flex:1 1 0;min-width:0}
+/* Strip: one row of 37 where it fits; below that, even rows (19 + 18, or 13 + 13 + 11 at 320px). */
+.tiles-strip{display:grid;gap:2px;grid-template-columns:repeat(19,minmax(0,1fr))}
+@media (min-width:1100px){.tiles-strip{grid-template-columns:repeat(37,minmax(0,1fr))}}
+@media (max-width:360px){.tiles-strip{grid-template-columns:repeat(13,minmax(0,1fr))}}
+.tiles-strip li{min-width:0}
 .tiles-strip .tile{min-height:2.5rem;font-size:.75rem;padding:0;border-width:1px;overflow:hidden}
-/* In the 37-tile strip the glyph only fits on wide screens; below that the tile border carries the status. */
-@media (max-width:1099px){.tiles-strip .tile .glyph{display:none}}
 @media (max-width:640px){.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-6)}
 .more-links{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--space-3)}

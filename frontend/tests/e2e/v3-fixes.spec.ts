@@ -236,3 +236,37 @@ test('no banned phrase anywhere on any page, quoted source lines included (no ro
     expect(/\btraining steps?\b|\bsteps\b/.test(text), p.key).toBe(false);
   }
 });
+
+for (const w of [320, 390, 768, 1024, 1440]) {
+  test(`overview strip @${w}: every tile shows its data-driven glyph, even rows, no horizontal scroll`, async ({ page }) => {
+    const { data } = await import('./util');
+    const tiles = data().verifications.tiles;
+    await page.setViewportSize({ width: w, height: 900 });
+    await page.goto('');
+    await ready(page);
+    const glyphs = page.locator('.tiles-strip .tile .glyph');
+    await expect(glyphs).toHaveCount(tiles.length);
+    const want = (r: string) => label(`tile.${r === 'MATCH' || r === 'MISMATCH' ? r : 'pending'}`);
+    for (let k = 0; k < tiles.length; k++) {
+      const g = glyphs.nth(k);
+      await expect(g).toBeVisible();
+      await expect(g).toHaveText(want(tiles[k]!.result));
+      const fs = await g.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(fs).toBeGreaterThanOrEqual(12);
+      const box = (await g.boundingBox())!;
+      const tile = (await page.locator('.tiles-strip .tile').nth(k).boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(tile.x - 0.5);
+      expect(box.x + box.width).toBeLessThanOrEqual(tile.x + tile.width + 0.5);
+    }
+    const rows = await page.locator('.tiles-strip li').evaluateAll((li) => {
+      const m = new Map<number, number>();
+      for (const el of li) { const y = Math.round(el.getBoundingClientRect().top); m.set(y, (m.get(y) ?? 0) + 1); }
+      return [...m.values()];
+    });
+    for (const r of rows.slice(0, -1)) expect(r).toBe(rows[0]);
+    expect(rows[rows.length - 1]!).toBeLessThanOrEqual(rows[0]!);
+    if (w >= 1100) expect(rows).toEqual([37]);
+    const { sw, cw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+    expect(sw).toBeLessThanOrEqual(cw);
+  });
+}
