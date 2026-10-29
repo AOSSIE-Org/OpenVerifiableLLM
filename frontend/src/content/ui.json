@@ -95,5 +95,19 @@
  "footer": "Made with ♥ by AOSSIE Community",
  "footer.data": "Evidence pinned at",
  "notfound": "Page not found.",
- "brief": "project brief (not public)"
+ "brief": "project brief (not public)",
+ "h2.headline": "Three headline facts",
+ "h2.more": "More evidence",
+ "sources.more": "more sources",
+ "sources.fewer": "fewer sources",
+ "more.timeline": "What was trained, and when",
+ "more.verification": "Every check, the odds, and what the words mean",
+ "more.check": "Run the checks yourself",
+ "more.exclusion": "Training without one article",
+ "more.downloads": "Files and fingerprints",
+ "sources.one": "more source",
+ "limit.noted": "The project notes:",
+ "tile.MATCH": "✓",
+ "tile.MISMATCH": "✗",
+ "tile.pending": "…"
 }
