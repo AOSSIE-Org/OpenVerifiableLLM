@@ -5,6 +5,7 @@ import { formatValue, type Fmt } from '../../src/data/format';
 import { getPath } from '../../src/data/path';
 import { bannedIn, claims, ui } from '../../src/content/ledger';
 import { PAGES, WIDTHS, data, ready } from './util';
+import { fillCounts } from '../../src/content/fill';
 
 for (const scheme of ['light', 'dark'] as const) {
   for (const w of WIDTHS) {
@@ -56,7 +57,8 @@ for (const p of PAGES) {
     expect(parts.length).toBeGreaterThan(0);
     for (const x of parts) {
       const c = claims.get(x.id)!;
-      expect(x.text?.trim(), x.id).toBe(x.part === 'plain' ? c.plain : x.part === 'developer' ? c.developer : x.part === 'limit-text' ? limitParts(c.plain).rest : c.limit);
+      const plain = fillCounts(c.id, c.plain, d)!;
+      expect(x.text?.trim(), x.id).toBe(x.part === 'plain' ? plain : x.part === 'developer' ? fillCounts(c.id, c.developer, d) : x.part === 'limit-text' ? limitParts(plain).rest : c.limit);
     }
     const labels = await page.$$eval('[data-label]', (els) => els.map((e) => [(e as HTMLElement).dataset.label!, e.textContent]));
     for (const [k, t] of labels) expect(t).toBe(ui[k!]);

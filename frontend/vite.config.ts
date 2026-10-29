@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
+import { readFileSync } from 'node:fs';
 
 // The browser only needs the fields it renders. claims.json stays the single source; this trims the
 // bundled copy (rules, notes, values other than hashes) at build time without editing the file.
 const KEEP = ['id', 'page', 'status', 'plain', 'developer', 'limit', 'verbatim', 'sources', 'value', 'rule'];
+const COPY = JSON.parse(readFileSync(new URL('./src/content/copy.json', import.meta.url), 'utf8')) as Record<string, { plain?: string; developer?: string }>;
 function slimLedger(): Plugin {
   return {
     name: 'slim-ledger',
@@ -14,6 +16,10 @@ function slimLedger(): Plugin {
       const l = JSON.parse(code) as { claims: Record<string, unknown>[] } & Record<string, unknown>;
       const claims = l.claims.map((c) => {
         const o = Object.fromEntries(KEEP.filter((k) => k in c).map((k) => [k, c[k]]));
+        // copy.json overrides plain/developer for these ids, so the ledger wording is never rendered.
+        const cp = COPY[c.id as string];
+        if (cp?.plain) o.plain = '';
+        if (cp?.developer) o.developer = '';
         if (!(typeof o.value === 'string' && /^[0-9a-f]{64}$/.test(o.value))) o.value = null;
         o.rule = /checked by the project/i.test(String(c.rule ?? '')) ? 'checked by the project' : null;
         o.sources = (c.sources as { rev: string; file: string; lines: string }[]).map(({ rev, file, lines }) => ({ rev, file, lines }));

@@ -92,7 +92,7 @@
   "developer": "segment k = boundary k → k+1; passes only if recomputed state is identical to entry k+1."
  },
  "VE-03": {
-  "plain": "There are 46 check results, all matches, all run by the project: 37 second machine, 8 training machine, 1 fresh machine.",
+  "plain": "There are {rows} check results, all matches, all run by the project: {second} second machine, {training} training machine, {fresh} fresh machine.",
   "developer": "verifications.jsonl: 46 rows = 37 'project second pod' + 8 'project training pod' (22,31-36, 5 fast loader) + 1 'project fresh machine public files only' (21)."
  },
  "VE-04": {

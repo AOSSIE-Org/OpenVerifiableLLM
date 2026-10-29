@@ -1,29 +1,17 @@
 import type { SiteData } from '../data/types';
 
-/** Count placeholders a copy line may use. Each is read from site-data.json, never typed in copy. */
-export const COUNTS = {
-  matched: (d: SiteData) => d.verifications.segmentsMatched,
-  total: (d: SiteData) => d.chain.segments,
-  independent: (d: SiteData) => d.verifications.independentChecks,
-} as const;
-export type CountKey = keyof typeof COUNTS;
-
-/** Fill {matched} {total} {independent} from the data. Returns null when the line would be false for this
- *  data, so the caller withholds it instead of showing a stale or overstated count:
- *  - "{matched} of {total}" / "{matched}/{total}" while matched != total;
- *  - any "all match(ed|es)" / "all MATCH" while the data has a non-MATCH row (exclusion data for EX-*);
- *  - an unknown placeholder. */
+/** Fill {matched} {total} {independent} {rows} {second} {training} {fresh} in a copy line from site-data.json. Returns null (the caller
+ *  withholds the line) when it would be false for this data: "{matched} of|/ {total}" while they differ,
+ *  any "all match…" while a row is not MATCH (EX-* reads the exclusion data), or an unknown placeholder. */
 export function fillCounts(id: string, text: string, d: SiteData): string | null {
-  if (/\{matched\}( of |\/)\{total\}/.test(text) && d.verifications.segmentsMatched !== d.chain.segments) return null;
-  const allMatch = id.startsWith('EX-') ? d.exclusion.allMatch : d.verifications.allMatch;
-  if (/\ball match/i.test(text) && !allMatch) return null;
-  let bad = false;
-  const out = text.replace(/\{(\w+)\}/g, (_, k: string) => {
-    if (!(k in COUNTS)) {
-      bad = true;
-      return '';
-    }
-    return String(COUNTS[k as CountKey](d));
-  });
-  return bad ? null : out;
+  const v = d.verifications;
+  const rowsOf = (c: string) => v.groups.find((g) => g.checker === c)?.rows ?? NaN;
+  const n: Record<string, number> = {
+    matched: v.segmentsMatched, total: d.chain.segments, independent: v.independentChecks, rows: v.rowCount,
+    second: rowsOf(v.secondMachine), fresh: rowsOf(v.freshMachine), training: rowsOf('project training pod'),
+  };
+  if (/\{matched\}( of |\/)\{total\}/.test(text) && n.matched !== n.total) return null;
+  if (/\ball match/i.test(text) && !(id.startsWith('EX-') ? d.exclusion.allMatch : v.allMatch)) return null;
+  const out = text.replace(/\{(\w+)\}/g, (_, k: string) => (Number.isFinite(n[k]) ? String(n[k]) : '\0'));
+  return out.includes('\0') ? null : out;
 }

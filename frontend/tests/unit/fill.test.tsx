@@ -49,3 +49,34 @@ describe('counts come from the data, never from copy', () => {
     expect(container.querySelector('[data-claim-part="developer"]')).toBeNull();
   });
 });
+
+describe('shipped copy.json, filled from the shipped data, agrees with the ledger', () => {
+  const nums = (t: string) => new Set((t.match(/\d[\d,]*/g) ?? []).map((x) => x.replace(/,/g, '')));
+  it('every placeholder value appears as a literal number in that claim\'s ledger text', async () => {
+    const { ledger } = await import('../../src/content/ledger');
+    const d = fresh();
+    for (const [id, v] of Object.entries(copy)) {
+      const lc = ledger.claims.find((c) => c.id === id);
+      for (const t of Object.values(v)) {
+        const keys = [...t.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
+        if (!keys.length) continue;
+        expect(lc, id).toBeTruthy();
+        const filled = fillCounts(id, t, d);
+        expect(filled, `${id}: ${t}`).not.toBeNull();
+        const lit = nums(`${lc!.plain} ${lc!.developer}`);
+        const tpl = t.split(/\{\w+\}/);
+        // value each placeholder took, recovered from the filled text
+        let rest = filled!;
+        for (let i = 0; i < keys.length; i++) {
+          rest = rest.slice(tpl[i]!.length);
+          const val = /^\d+/.exec(rest)![0];
+          expect(lit.has(val), `${id} {${keys[i]}}=${val} not in ledger text`).toBe(true);
+          rest = rest.slice(val.length);
+        }
+      }
+    }
+  });
+  it('templated claim ids are exactly OV-04, VE-01, VE-03', () => {
+    expect(Object.entries(copy).filter(([, v]) => Object.values(v).some((t) => /\{\w+\}/.test(t))).map(([id]) => id)).toEqual(['OV-04', 'VE-01', 'VE-03']);
+  });
+});
