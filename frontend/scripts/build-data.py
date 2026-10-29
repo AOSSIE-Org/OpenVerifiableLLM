@@ -26,6 +26,8 @@ def fail(msg):
 
 
 def read(p):
+    if not os.path.exists(os.path.join(RAW, p)):
+        fail(f"data/raw/{p} is missing: run `npm run data:fetch` first (fresh clones do not include it)")
     b = open(os.path.join(RAW, p), "rb").read()
     want = man["files"][p]["sha256"]
     if hashlib.sha256(b).hexdigest() != want:
