@@ -111,6 +111,12 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 .tile{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;font:600 var(--fs-label) var(--font-mono);color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
 button.tile{cursor:pointer}
 a.tile{text-decoration:none}
+/* The row a tile link lands on stands out without JavaScript. */
+tr:target,tr[id^="seg-"]:target{background:var(--stamp-tint);box-shadow:inset 4px 0 0 var(--stamp);outline:2px solid var(--stamp);outline-offset:-2px}
+tr:target>*{background:transparent}
+.notfound a{display:inline-flex;align-items:center;min-height:24px}
+details.more-src>summary{min-height:24px}
+@media (max-width:640px){.notfound a,details.more-src>summary{min-height:44px}}
 button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px solid var(--ink);outline-offset:1px}
 .tile[data-checker="independent"]{background:var(--independent);color:var(--surface);border-color:var(--independent)}
 .tile[data-checker="pending"]{border-style:dashed;color:var(--pending)}

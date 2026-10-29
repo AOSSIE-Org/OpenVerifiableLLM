@@ -270,3 +270,63 @@ for (const w of [320, 390, 768, 1024, 1440]) {
     expect(sw).toBeLessThanOrEqual(cw);
   });
 }
+
+test.describe('404 page weight and tap target', () => {
+  for (const w of [320, 390, 1440]) {
+    test(`@${w}: no JS, no site-data.json, home link >= ${w <= 640 ? 44 : 24}px`, async ({ page }) => {
+      const reqs: string[] = [];
+      page.on('request', (r) => reqs.push(r.url()));
+      await page.setViewportSize({ width: w, height: 900 });
+      const res = await page.goto('no-such-page/');
+      expect(res!.status()).toBe(404);
+      await page.waitForLoadState('networkidle');
+      expect(reqs.filter((u) => u.endsWith('.js') || u.includes('site-data.json'))).toEqual([]);
+      await expect(page.locator('script')).toHaveCount(0);
+      const b = (await page.locator('[data-notfound] a').boundingBox())!;
+      expect(b.height).toBeGreaterThanOrEqual(w <= 640 ? 44 : 24);
+    });
+  }
+});
+
+test.describe('targeted segment row, JS off', () => {
+  test.use({ javaScriptEnabled: false });
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`${scheme}: the row a tile link lands on is highlighted with the stamp tokens`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto('verification/');
+      await page.locator('.tiles-int a.tile').nth(21).click();
+      await expect(page).toHaveURL(/#seg-21$/);
+      const style = (sel: string) => page.locator(sel).evaluate((el) => ({ bg: getComputedStyle(el).backgroundColor, outline: getComputedStyle(el).outlineStyle }));
+      const tokens = await page.evaluate(() => {
+        const probe = document.createElement('div');
+        document.body.appendChild(probe);
+        probe.style.background = 'var(--stamp-tint)';
+        const bg = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return bg;
+      });
+      const hit = await style('#seg-21');
+      expect(hit.bg).toBe(tokens);
+      expect(hit.outline).toBe('solid');
+      const other = await style('#seg-20');
+      expect(other.bg).not.toBe(tokens);
+    });
+  }
+});
+
+for (const w of [320, 390, 768, 1440]) {
+  test(`"+N more" summary is >= ${w <= 640 ? 44 : 24}px tall @${w} and causes no overflow`, async ({ page }) => {
+    await page.setViewportSize({ width: w, height: 900 });
+    for (const slug of ['', 'verification/']) {
+      await page.goto(slug);
+      await ready(page);
+      for (const s of await page.locator('summary.more').all()) {
+        const b = (await s.boundingBox())!;
+        expect(b.height).toBeGreaterThanOrEqual(w <= 640 ? 44 : 24);
+        expect(b.x + b.width).toBeLessThanOrEqual(w);
+      }
+      const { sw, cw } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+      expect(sw).toBeLessThanOrEqual(cw);
+    }
+  });
+}

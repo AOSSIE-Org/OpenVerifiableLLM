@@ -12,7 +12,8 @@ for (const r of renderAll(data)) {
   const html = template
     .replace('<div id="root"><!--app--></div>', `<div id="root">${r.html}</div>`)
     .replace('<title>OpenVerifiableLLM</title>', `<title>${titleOf(r.html, r.key)} · OpenVerifiableLLM</title>`);
-  if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html);
+  // 404.html is static: no app script, no preloads, so it never fetches site-data.json.
+  if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html.replace(/<script type="module"[^>]*><\/script>\s*/g, '').replace(/<link rel="modulepreload"[^>]*>\s*/g, ''));
   else {
     const dir = path.join('dist', r.slug);
     mkdirSync(dir, { recursive: true });
