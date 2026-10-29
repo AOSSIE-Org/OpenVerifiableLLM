@@ -223,3 +223,16 @@ test('#ck-05 limit note stays within the reading measure', async ({ page }) => {
     expect(w / ch).toBeLessThanOrEqual(70);
   }
 });
+
+test('no banned phrase anywhere on any page, quoted source lines included (no roadmap exception)', async ({ page }) => {
+  const { ledger } = await import('../../src/content/ledger');
+  for (const p of [...PAGES, { slug: 'no-such-page/', key: 'notfound' }]) {
+    await page.goto(p.slug);
+    await ready(page);
+    await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
+    const text = (await page.locator('body').textContent())!.toLowerCase().replaceAll('unlearning-3i-atlas', '').replaceAll('us$1–1.50', '');
+    const hits = ledger.forbidden_phrases.map((b) => b.phrase.toLowerCase()).filter((b) => text.includes(b));
+    expect(hits, p.key).toEqual([]);
+    expect(/\btraining steps?\b|\bsteps\b/.test(text), p.key).toBe(false);
+  }
+});
