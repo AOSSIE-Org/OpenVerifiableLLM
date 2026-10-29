@@ -96,10 +96,10 @@ test('links: every internal link resolves on the static build; external links ar
     await ready(page);
     for (const h of await page.$$eval('a[href]', (as) => as.map((a) => (a as HTMLAnchorElement).href))) hrefs.add(h);
   }
-  const internal = [...hrefs].filter((h) => h.startsWith('http://127.0.0.1:4173/'));
+  const internal = [...hrefs].filter((h) => h.startsWith(new URL(page.url()).origin + '/'));
   expect(internal.length).toBeGreaterThan(6);
   for (const h of internal) expect((await request.get(h.split('#')[0]!)).status(), h).toBe(200);
-  for (const h of [...hrefs].filter((x) => !x.startsWith('http://127.0.0.1:4173/'))) {
+  for (const h of [...hrefs].filter((x) => !x.startsWith(new URL(page.url()).origin + '/'))) {
     expect(h, h).toMatch(/^https:\/\//);
     if (h.includes('huggingface.co/datasets/')) expect(h, h).toContain(d.revision);
     if (h.includes('github.com/AOSSIE-Org/OpenVerifiableLLM/blob/')) expect(h, h).toContain(d.upstream.commit);
