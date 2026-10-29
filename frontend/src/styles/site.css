@@ -9,7 +9,7 @@
   --font-sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
   --fs-meta:.8rem; --fs-label:.9rem; --fs-body:clamp(1.0625rem,1rem + .2vw,1.125rem);
-  --fs-h3:1.406rem; --fs-h2:1.758rem; --fs-h1:clamp(2.2rem,1.6rem + 2.4vw,2.75rem);
+  --fs-h3:1.406rem; --fs-h2:1.758rem; --fs-h1:clamp(1.75rem,1.4rem + 2.4vw,2.75rem);
   --lh-body:1.55; --lh-head:1.15; --measure:68ch; --wide:72rem;
   --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-6:1.5rem; --space-8:2rem; --space-12:3rem;
   --radius-sm:4px; --radius:8px; --rule-w:3px;
@@ -41,11 +41,11 @@
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:400 var(--fs-body)/var(--lh-body) var(--font-sans);font-feature-settings:"cv11"}
 h1,h2,h3{font-family:var(--font-serif);line-height:var(--lh-head);font-weight:600;letter-spacing:-.01em;max-width:var(--measure)}
-h1{font-size:var(--fs-h1);margin:var(--space-8) 0 var(--space-2)}
+h1{font-size:var(--fs-h1);overflow-wrap:anywhere;margin:var(--space-8) 0 var(--space-2)}
 h2{font-size:var(--fs-h2);margin:var(--space-12) 0 var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--line)}
 h3{font-size:var(--fs-h3);margin:var(--space-6) 0 var(--space-2)}
 a{color:var(--link)}
-code,pre,.hash code{font-family:var(--font-mono);font-size:.9em}
+code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .v,td,.num{font-variant-numeric:tabular-nums lining-nums}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px;box-shadow:0 0 0 5px var(--focus-ink)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -68,7 +68,7 @@ main:focus{outline:none}
 .ev{margin:var(--space-6) 0;padding:var(--space-4) 0;border-bottom:1px solid var(--line)}
 .ev .plain{font-family:var(--font-serif);font-size:1.2rem;line-height:1.4;margin:0 0 var(--space-2);max-width:var(--measure)}
 .ev .dev{font-family:var(--font-mono);font-size:var(--fs-label);color:var(--muted);margin:var(--space-2) 0;max-width:var(--measure);overflow-wrap:anywhere}
-.limit{margin:var(--space-4) 0;padding:var(--space-2) var(--space-4);border-left:var(--rule-w) solid var(--muted);background:var(--sunk);font:inherit;width:100%}
+.limit{margin:var(--space-4) 0;padding:var(--space-2) var(--space-4);border-left:var(--rule-w) solid var(--muted);background:var(--sunk);font:inherit;max-width:var(--measure)}
 .limit strong{font-weight:600}
 .chips{display:flex;flex-wrap:wrap;gap:var(--space-2);margin-top:var(--space-2)}
 
@@ -163,16 +163,25 @@ a,button,.tile{transition:color var(--dur-fast) var(--ease),background-color var
 .more{font:inherit;font-size:var(--fs-meta);font-family:var(--font-mono);color:var(--link);background:none;border:1px dashed var(--line);border-radius:var(--radius-sm);padding:.1rem .45rem;cursor:pointer;min-height:24px}
 .plus::before{content:"+"}
 .chips-more{display:flex;flex-wrap:wrap;gap:var(--space-2);width:100%}
-.chips-more[hidden]{display:none}
+details.more-src{display:contents}
+details.more-src>summary{display:inline-flex;align-items:center;list-style:none}
+details.more-src>summary::-webkit-details-marker{display:none}
+details.more-src .more-open,details.more-src[open] .more-closed{display:none}
+details.more-src[open] .more-open{display:inline}
+.section{display:contents}
+.top a,.foot a{display:inline-flex;align-items:center;min-height:24px}
+@media (max-width:640px){.top a,.foot a{min-height:44px}}
 .tiles-strip{display:flex;gap:2px;grid-template-columns:none}
 .tiles-strip li{flex:1 1 0;min-width:0}
-.tiles-strip .tile{min-height:2.5rem;font-size:.7rem;padding:0;border-width:1px}
+.tiles-strip .tile{min-height:2.5rem;font-size:.75rem;padding:0;border-width:1px;overflow:hidden}
+/* In the 37-tile strip the glyph only fits on wide screens; below that the tile border carries the status. */
+@media (max-width:1099px){.tiles-strip .tile .glyph{display:none}}
 @media (max-width:640px){.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-6)}
 .more-links{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--space-3)}
 .more-links a{display:block;padding:var(--space-3);border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);text-decoration:none}
 .more-links a span:first-child{display:block;font-weight:600}
 .limits-list .ev{padding:var(--space-2) 0}
-.tile .glyph{margin-left:.2em;font-size:.85em;line-height:1}
-.tile .glyph[data-glyph="MISMATCH"]{color:var(--danger,#b3261e)}
+.tile .glyph{margin-left:.2em;font-size:max(12px,.85em);line-height:1}
+.tile .glyph[data-glyph="MISMATCH"]{color:var(--mismatch)}
 .trained{max-width:68ch;margin:.25rem 0 .5rem;color:var(--muted)}
