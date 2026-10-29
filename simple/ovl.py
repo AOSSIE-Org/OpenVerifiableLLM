@@ -391,6 +391,8 @@ def load_checkpoint(run, entry, model):
         sys.exit(f"checkpoint {entry['index']} weights differ from the chain")
     model.load_state_dict(ck["model"])
     model.lm_head.weight = model.transformer["wte"].weight
+    if model_digest(model.state_dict()) != entry["model"]:  # load_state_dict casts, e.g. float64 to float32
+        sys.exit(f"loaded checkpoint {entry['index']} weights differ from the chain")
     opt = optimizer(model)
     opt.load_state_dict(ck["opt"])
     if state_digest(model, opt) != entry["state"]:

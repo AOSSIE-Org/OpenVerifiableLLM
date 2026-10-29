@@ -73,6 +73,16 @@ class ModelDigestBindingTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             ovl.load_checkpoint(self.run, self.chain[0], model)
 
+    def test_checkpoint_digest_must_match_the_loaded_weights(self):
+        # float64 weights hash differently but load_state_dict casts them back to the honest float32 state.
+        ck = torch.load(self.run / "ckpt-00000.pt", weights_only=True)
+        ck["model"] = {k: v.double() if v.is_floating_point() else v for k, v in ck["model"].items()}
+        torch.save(ck, self.run / "ckpt-00000.pt")
+        self.chain[0]["model"] = ovl.model_digest(ck["model"])
+        model, _ = ovl.fresh()
+        with self.assertRaises(SystemExit):
+            ovl.load_checkpoint(self.run, self.chain[0], model)
+
 
 if __name__ == "__main__":
     unittest.main()
