@@ -32,7 +32,11 @@
 - **Near-duplicates in the exclusion fork.** The fork removed the 3I/ATLAS article as one document.
   Other articles that mention the comet stayed in, so the model may still have learned most of its
   facts. Count the training articles that mention it, and compare both models' loss on those
-  passages. Then try excluding by topic (every range that mentions it), not by document.
+  passages. Then try excluding by topic (every range that mentions it), not by document. A topic
+  exclusion is only as good as the filter that picks the ranges, so record the filter's code and
+  version in the chain, and report its misses on a hand-checked sample. Compare against control
+  articles about equally rare subjects, not just random articles of similar length, to separate
+  what the removal did from its general knock-on effect on later training.
 - **Signed check results and random segment choice.** Today a check result is a self-reported line.
   Checkers would sign their result, and the segment would be picked from public randomness (for
   example a drand beacon round), so results can't be faked in bulk or aimed at honest segments.
