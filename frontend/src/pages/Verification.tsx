@@ -30,31 +30,30 @@ export default function Verification() {
       <h2><L k="h2.map" /></h2>
       <Section needs={['verifications', 'events']}>
         <ClaimBlock id="VE-01">
-          <CoverageMap interactive />
+          <CoverageMap interactive lanes />
         </ClaimBlock>
       </Section>
       <ClaimBlock id="VE-02" />
-      <h2><L k="h2.rows" /></h2>
-      <Section needs={['verifications']}>
-        <ClaimBlock id="VE-03">
-          <RowGroups base="verifications" />
-        </ClaimBlock>
-        <ClaimBlock id="VE-04" />
-      </Section>
-      <h2><L k="h2.odds" /></h2>
-      <Section needs={['odds']}>
-        <ClaimBlock id="VE-06">
-          <OddsBar />
-        </ClaimBlock>
-        <ClaimBlock id="VE-07" />
-        <ClaimBlock id="VE-08" />
-        <ClaimBlock id="VE-09" />
-      </Section>
-      <h2><L k="h2.hardware" /></h2>
-      <Section needs={['hardware']}>
-        <HardwareMap />
-        {claimsOn('verification', 'VE-HW').map((c) => <ClaimBlock key={c.id} id={c.id} />)}
-      </Section>
+      <div className="two">
+        <div>
+          <h2><L k="h2.odds" /></h2>
+          <Section needs={['odds']}>
+            <ClaimBlock id="VE-06">
+              <OddsBar />
+            </ClaimBlock>
+            <ClaimBlock id="VE-07" />
+            <ClaimBlock id="VE-08" />
+            <ClaimBlock id="VE-09" />
+          </Section>
+        </div>
+        <div>
+          <h2><L k="h2.hardware" /></h2>
+          <Section needs={['hardware']}>
+            <HardwareMap />
+            {claimsOn('verification', 'VE-HW').map((c) => <ClaimBlock key={c.id} id={c.id} />)}
+          </Section>
+        </div>
+      </div>
       <h2><L k="h2.trust" /></h2>
       <ClaimBlock id="VE-10" />
       <ClaimBlock id="VE-11" />
@@ -62,6 +61,13 @@ export default function Verification() {
       <h2><L k="h2.meaning" /></h2>
       <ClaimBlock id="OV-08" />
       <ClaimBlock id="OV-07" />
+      <h2><L k="h2.rows" /></h2>
+      <Section needs={['verifications']}>
+        <ClaimBlock id="VE-03">
+          <RowGroups base="verifications" />
+        </ClaimBlock>
+        <ClaimBlock id="VE-04" />
+      </Section>
       <h2><L k="h2.limits" /></h2>
       <div className="limits-list">
         {distinctLimits().map((id) => <ClaimBlock key={id} id={id} hideLimit asLimit />)}

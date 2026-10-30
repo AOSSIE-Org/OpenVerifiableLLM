@@ -21,20 +21,41 @@ export default function Overview() {
             <span key={id} data-claim-ref={id} data-claim-part="plain">{i ? ' ' : ''}{claim(id).plain}</span>
           ))}
         </p>
-        <p className="indep" data-independent="">
-          <L k="independent.label" /> <strong><V path="verifications.independentChecks" /></strong>
-        </p>
+        <div className="scoreboard">
+          <Section needs={['verifications', 'chain']}>
+            <p className="score">
+              <strong>
+                <V path="verifications.segmentsMatched" />
+                {' / '}
+                <V path="chain.segments" />
+              </strong>
+              {' '}
+              <L k="score.matched" />
+            </p>
+          </Section>
+          <p className="indep" data-independent="">
+            <L k="independent.label" /> <strong><V path="verifications.independentChecks" /></strong>
+          </p>
+        </div>
         <Section needs={['verifications', 'chain']}>
           <CoverageMap interactive={false} strip />
         </Section>
       </div>
-      <h2><L k="h2.headline" /></h2>
-      <Section needs={['verifications', 'preparation', 'anchor']}>
-        {OVERVIEW_FACTS.map((id) => <ClaimBlock key={id} id={id} />)}
-      </Section>
-      <h2><L k="h2.limits" /></h2>
-      <div className="limits-list">
-        {OVERVIEW_LIMITS.map((id) => <ClaimBlock key={id} id={id} hideLimit asLimit />)}
+      <div className="split">
+        <div>
+          <h2><L k="h2.headline" /></h2>
+          <Section needs={['verifications', 'preparation', 'anchor']}>
+            <div className="facts">
+              {OVERVIEW_FACTS.map((id) => <ClaimBlock key={id} id={id} />)}
+            </div>
+          </Section>
+        </div>
+        <div>
+          <h2><L k="h2.limits" /></h2>
+          <div className="limits-list">
+            {OVERVIEW_LIMITS.map((id) => <ClaimBlock key={id} id={id} hideLimit asLimit />)}
+          </div>
+        </div>
       </div>
       <h2><L k="h2.more" /></h2>
       <ul className="more-links">

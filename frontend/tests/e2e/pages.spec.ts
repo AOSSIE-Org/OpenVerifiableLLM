@@ -23,9 +23,10 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.locator('h1')).toHaveText(ui[`h1.${p.key}`]!);
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow).toBeLessThanOrEqual(0);
+        // Axe injects its own frames; pageerrors from that run are not the site's.
+        expect(errors).toEqual([]);
         const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
         expect(axe.violations.map((v) => `${v.id}: ${v.nodes.length} (${v.nodes[0]?.target.join(' ')})`)).toEqual([]);
-        expect(errors).toEqual([]);
       });
     }
   }

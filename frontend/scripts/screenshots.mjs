@@ -13,8 +13,10 @@ for (const scheme of ['light', 'dark']) {
     const ctx = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: width === 390 ? 2 : 1 });
     const page = await ctx.newPage();
     await page.addInitScript((t) => {
-      document.documentElement.dataset.theme = t;
-      document.documentElement.style.colorScheme = t;
+      const html = document.documentElement;
+      if (!html) return;
+      html.setAttribute('data-theme', t);
+      html.style.colorScheme = t;
       try { localStorage.setItem('ovl-theme', t); } catch { /* ignore */ }
     }, scheme);
     for (const [name, slug] of pages) {

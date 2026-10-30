@@ -10,19 +10,20 @@ export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(() => (typeof document === 'undefined' ? 'light' : readTheme()));
   if (!hydrated) return null;
   const next: Theme = theme === 'dark' ? 'light' : 'dark';
+  const caption = next === 'dark' ? 'theme.toDark' : 'theme.toLight';
   return (
     <button
       type="button"
       className="theme-btn"
       aria-pressed={theme === 'dark'}
-      aria-label={label('theme.group')}
+      aria-label={`${label(caption)}. ${label('theme.group')}`}
       data-theme-toggle=""
       onClick={() => {
         writeTheme(next);
         setTheme(next);
       }}
     >
-      <L k={next === 'dark' ? 'theme.toDark' : 'theme.toLight'} />
+      <L k={caption} />
     </button>
   );
 }

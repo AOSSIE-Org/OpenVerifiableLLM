@@ -47,7 +47,20 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
         {children}
       </main>
       <footer className="foot">
-        <a href="https://aossie.org" rel="noopener noreferrer"><L k="footer" /></a>
+        <p className="foot-brand">
+          <a href="https://aossie.org" rel="noopener noreferrer">
+            <L k="footer" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+          <a href="https://discord.gg/hjUhu33uAn" rel="noopener noreferrer">
+            <L k="footer.discord" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+          <a href="https://www.gnu.org/licenses/gpl-3.0.html" rel="noopener noreferrer">
+            <L k="footer.license" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+        </p>
         {pinned ? (
           <span className="muted">
             <L k="footer.data" /> <code><V path="revShort" /></code>

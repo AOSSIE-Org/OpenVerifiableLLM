@@ -23,8 +23,10 @@ export async function ready(page: Page) {
 /** Pin the background before navigation. Light is the site default; dark is only via this or the header toggle. */
 export async function useTheme(page: Page, scheme: 'light' | 'dark') {
   await page.addInitScript((t) => {
-    document.documentElement.dataset.theme = t;
-    document.documentElement.style.colorScheme = t;
+    const html = document.documentElement;
+    if (!html) return;
+    html.setAttribute('data-theme', t);
+    html.style.colorScheme = t;
     try {
       localStorage.setItem('ovl-theme', t);
     } catch {

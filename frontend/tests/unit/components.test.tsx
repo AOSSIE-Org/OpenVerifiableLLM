@@ -212,7 +212,7 @@ describe('App states', () => {
     const { container } = render(<App state={validateSite(fresh())} route={ROUTES[0]!} Page={Overview} />);
     const btn = container.querySelector<HTMLButtonElement>('[data-theme-toggle]');
     expect(btn).not.toBeNull();
-    expect(btn!.getAttribute('aria-label')).toBe(label('theme.group'));
+    expect(btn!.getAttribute('aria-label')).toBe(`${label('theme.toDark')}. ${label('theme.group')}`);
     expect(btn!.getAttribute('aria-pressed')).toBe('false');
     fireEvent.click(btn!);
     expect(btn!.getAttribute('aria-pressed')).toBe('true');

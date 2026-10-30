@@ -112,10 +112,10 @@ test('check: the consistency commands are verbatim from README main@1049d2a7 and
   await page.goto('check/');
   await ready(page);
   const block = page.locator('[data-claim="CK-02"] .cmd pre');
-  expect(await block.evaluate((e) => e.textContent)).toBe(d.check.commands);
+  expect((await block.evaluate((e) => e.textContent))?.replaceAll('\r\n', '\n')).toBe(d.check.commands);
   await page.locator('[data-claim="CK-02"] .cmd button').click();
   await expect(page.locator('[data-claim="CK-02"] [role="status"]')).toHaveText(label('copied'));
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(d.check.commands);
+  expect((await page.evaluate(() => navigator.clipboard.readText())).replaceAll('\r\n', '\n')).toBe(d.check.commands);
 });
 
 test('source chip opens the exact cited row', async ({ page }) => {
@@ -186,7 +186,7 @@ test('background is light by default; the toggle switches to dark and keeps it a
   await expect(toggle).toHaveText(label('theme.toDark'));
   await toggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(17, 19, 23)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(15, 17, 21)');
   await page.getByRole('navigation').getByRole('link', { name: label('nav.check') }).click();
   await ready(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

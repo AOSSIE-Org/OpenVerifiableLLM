@@ -13,10 +13,15 @@ export function DownloadsList() {
           <ul className="files">
             {rel.files.map((f, fi) => (
               <li key={f.file} className="file">
-                <a href={f.download} rel="noopener noreferrer">
-                  <V path={`downloads.${ri}.files.${fi}.file`} />
-                </a>
+                <span className="file-name"><V path={`downloads.${ri}.files.${fi}.file`} /></span>
                 <Hash value={f.sha256} path={`downloads.${ri}.files.${fi}.sha256`} />
+                <a className="btn btn-small" href={f.download} rel="noopener noreferrer" target="_blank">
+                  <L k="download" />
+                  <span className="sr">
+                    {' '}
+                    <L k="newtab" />
+                  </span>
+                </a>
                 <SourceChip s={f.src} />
               </li>
             ))}

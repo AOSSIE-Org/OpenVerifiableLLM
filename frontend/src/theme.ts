@@ -2,7 +2,7 @@
 export const THEME_KEY = 'ovl-theme';
 export type Theme = 'light' | 'dark';
 /** Matches --bg in site.css. One colour, not prefers-color-scheme: dark is a toggle, not the OS. */
-export const THEME_COLOR: Record<Theme, string> = { light: '#FBFAF7', dark: '#111317' };
+export const THEME_COLOR: Record<Theme, string> = { light: '#FBFAF7', dark: '#0F1115' };
 
 export function isTheme(v: unknown): v is Theme {
   return v === 'light' || v === 'dark';
@@ -10,8 +10,10 @@ export function isTheme(v: unknown): v is Theme {
 
 export function applyTheme(t: Theme): void {
   if (typeof document === 'undefined') return;
-  document.documentElement.dataset.theme = t;
-  document.documentElement.style.colorScheme = t;
+  const html = document.documentElement;
+  if (!html) return;
+  html.setAttribute('data-theme', t);
+  html.style.colorScheme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_COLOR[t]);
 }
 

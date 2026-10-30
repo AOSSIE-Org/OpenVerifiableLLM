@@ -26,52 +26,93 @@ function Legend() {
   );
 }
 
+function TileInner({ k, result, who }: { k: number; result: string; who: string }) {
+  return (
+    <>
+      <V path={`${p}.tiles.${k}.segment`} />
+      <span aria-hidden="true" className="glyph" data-glyph={glyphKey(result)}>
+        <L k={`tile.${glyphKey(result)}`} />
+      </span>
+      <span className="sr">
+        {' '}
+        <V path={`${p}.tiles.${k}.result`} /> <L k={`who.${who}`} />
+      </span>
+    </>
+  );
+}
+
 /** 37 tiles. Interactive: links to each segment's rows before hydration, then real <button>s that reveal every check for a segment. Compact: a static list. */
-export function CoverageMap({ interactive, strip = false }: { interactive: boolean; strip?: boolean }) {
+export function CoverageMap({ interactive, strip = false, lanes = false }: { interactive: boolean; strip?: boolean; lanes?: boolean }) {
   const { data } = useData();
   const tiles = data.verifications.tiles;
   const [sel, setSel] = useState<number | null>(null);
   const hydrated = useHydrated();
   const selected = sel === null ? null : tiles[sel];
-  return (
-    <div className="map">
-      <Legend />
-      <ol className={`tiles ${interactive ? 'tiles-int' : ''} ${strip ? 'tiles-strip' : ''}`}>
-        {tiles.map((t, k) => {
-          const inner = (
-            <>
+  const projectRow = (
+    <ol className={`tiles ${interactive ? 'tiles-int' : ''} ${strip ? 'tiles-strip' : ''}`}>
+      {tiles.map((t, k) => {
+        const attrs = {
+          className: 'tile',
+          'data-result': t.result,
+          'data-checker': t.checkedBy,
+          'data-event': t.events.join(' ') || undefined,
+        };
+        const inner = <TileInner k={k} result={t.result} who={t.checkedBy} />;
+        return (
+          <li key={t.segment}>
+            {interactive && hydrated ? (
+              <button type="button" {...attrs} aria-pressed={sel === k} onClick={() => setSel(sel === k ? null : k)}>
+                {inner}
+              </button>
+            ) : interactive ? (
+              // Before JavaScript runs, each tile links to its segment's rows in the table below.
+              <a {...attrs} href={`${BASE}verification/#seg-${t.segment}`}>{inner}</a>
+            ) : (
+              <span {...attrs}>{inner}</span>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+  const independentRow = lanes ? (
+    <ol className="tiles tiles-indep">
+      {tiles.map((t, k) => {
+        const indep = t.checks.map((i) => data.verifications.rows[i]).find((r) => r?.checkedBy === 'independent');
+        const result = indep?.result ?? 'NOT_RUN';
+        const who = indep ? 'independent' : 'pending';
+        return (
+          <li key={`i-${t.segment}`}>
+            <span className="tile" data-result={result} data-checker={who}>
               <V path={`${p}.tiles.${k}.segment`} />
-              <span aria-hidden="true" className="glyph" data-glyph={glyphKey(t.result)}>
-                <L k={`tile.${glyphKey(t.result)}`} />
+              <span aria-hidden="true" className="glyph" data-glyph={glyphKey(result)}>
+                <L k={`tile.${glyphKey(result)}`} />
               </span>
               <span className="sr">
                 {' '}
-                <V path={`${p}.tiles.${k}.result`} /> <L k={`who.${t.checkedBy}`} />
+                <L k={`who.${who}`} />
               </span>
-            </>
-          );
-          const attrs = {
-            className: 'tile',
-            'data-result': t.result,
-            'data-checker': t.checkedBy,
-            'data-event': t.events.join(' ') || undefined,
-          };
-          return (
-            <li key={t.segment}>
-              {interactive && hydrated ? (
-                <button type="button" {...attrs} aria-pressed={sel === k} onClick={() => setSel(sel === k ? null : k)}>
-                  {inner}
-                </button>
-              ) : interactive ? (
-                // Before JavaScript runs, each tile links to its segment's rows in the table below.
-                <a {...attrs} href={`${BASE}verification/#seg-${t.segment}`}>{inner}</a>
-              ) : (
-                <span {...attrs}>{inner}</span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  ) : null;
+  return (
+    <div className="map">
+      <Legend />
+      {lanes ? (
+        <div className="cov-lanes">
+          <div className="cov-lane">
+            <span className="cov-lab"><L k="map.row.project" /></span>
+            {projectRow}
+          </div>
+          <div className="cov-lane">
+            <span className="cov-lab"><L k="map.row.independent" /></span>
+            {independentRow}
+          </div>
+        </div>
+      ) : projectRow}
       {interactive ? (
         <div className="tile-detail" aria-live="polite">
           {selected ? (
