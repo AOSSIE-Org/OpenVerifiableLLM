@@ -3,4 +3,5 @@ dist
 dist-ssr
 test-results
 playwright-report
+screenshots
 *.tsbuildinfo
