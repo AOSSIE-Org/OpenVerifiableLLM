@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { label } from '../../src/content/ledger';
-import { PAGES, ready } from './util';
+import { PAGES, ready, useTheme } from './util';
 
 const PINNED_GH = '1049d2a7';
 const PINNED_HF = '96dc282a';
@@ -50,9 +50,24 @@ test.describe('layout', () => {
       await page.goto('');
       await ready(page);
       const min = w <= 640 ? 44 : 24;
-      for (const a of await page.locator('header.top a:not(.skip), footer.foot a').all()) {
+      for (const a of await page.locator('header.top a:not(.skip), footer.foot a, [data-theme-toggle]').all()) {
         const b = (await a.boundingBox())!;
         expect(b.height, await a.textContent() ?? '').toBeGreaterThanOrEqual(min);
+      }
+    });
+  }
+
+  for (const w of [320, 390, 1440]) {
+    test(`copy buttons are at least ${w <= 640 ? 44 : 32}px tall @${w}`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: 900 });
+      await page.goto('downloads/');
+      await ready(page);
+      const min = w <= 640 ? 44 : 32;
+      const btns = page.locator('.hash .btn, .cmd .btn');
+      expect(await btns.count()).toBeGreaterThan(0);
+      for (const b of await btns.all()) {
+        const box = (await b.boundingBox())!;
+        expect(box.height, await b.textContent() ?? '').toBeGreaterThanOrEqual(min);
       }
     });
   }
@@ -135,7 +150,7 @@ test('404 page: real status, navigation and a link home', async ({ page }) => {
 test.describe('dark mode, everything expanded', () => {
   for (const p of PAGES) {
     test(`${p.key}: axe clean`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: 'dark' });
+      await useTheme(page, 'dark');
       await page.goto(p.slug);
       await ready(page);
       await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
@@ -292,6 +307,7 @@ test.describe('targeted segment row, JS off', () => {
   test.use({ javaScriptEnabled: false });
   for (const scheme of ['light', 'dark'] as const) {
     test(`${scheme}: the row a tile link lands on is highlighted with the stamp tokens`, async ({ page }) => {
+      await useTheme(page, scheme);
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto('verification/');
       await page.locator('.tiles-int a.tile').nth(21).click();

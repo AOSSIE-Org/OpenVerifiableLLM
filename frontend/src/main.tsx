@@ -4,7 +4,10 @@ import { App, type AppProps } from './App';
 import { loadData } from './data/load';
 import { ROUTES, routeFor } from './routes';
 import { label } from './content/ui';
+import { applyStoredTheme } from './theme';
 import './styles/site.css';
+
+applyStoredTheme();
 
 /** The data file failed (missing, malformed, wrong shape, aborted). Keep the prerendered page and replace
  *  only the evidence that depends on that data, so nothing is shown as checked. */

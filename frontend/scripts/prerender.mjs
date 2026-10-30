@@ -7,6 +7,8 @@ import { pathToFileURL } from 'node:url';
 const { renderAll } = await import(pathToFileURL(path.resolve('dist-ssr/entry-server.js')).href);
 const template = readFileSync('dist/index.html', 'utf8');
 if (!template.includes('<div id="root"><!--app--></div>')) throw new Error('prerender: root marker not found');
+const ui = JSON.parse(readFileSync('src/content/ui.json', 'utf8'));
+const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const bytes = readFileSync('dist/data/site-data.json');
 const data = JSON.parse(bytes.toString('utf8'));
 // The HTML names the exact data it was rendered from: a content-hashed copy (safe to cache forever)
@@ -20,9 +22,15 @@ const CSP = "default-src 'none'; script-src 'self'; style-src 'self'; style-src-
 const cspMeta = `<meta http-equiv="Content-Security-Policy" content="${CSP}" />`;
 const titleOf = (html, key) => (new RegExp(`data-label="${key === 'notfound' ? 'notfound' : `nav.${key}`}">([^<]*)<`).exec(html)?.[1] ?? '');
 for (const r of renderAll(data)) {
+  const pageTitle = titleOf(r.html, r.key);
+  const fullTitle = pageTitle ? `${pageTitle} · OpenVerifiableLLM` : 'OpenVerifiableLLM';
+  const desc = ui[`meta.${r.key}`] ?? ui['meta.default'] ?? '';
   const html = template
     .replace('<div id="root"><!--app--></div>', `<div id="root">${r.html}</div>`)
-    .replace('<title>OpenVerifiableLLM</title>', `<title>${titleOf(r.html, r.key)} · OpenVerifiableLLM</title>`)
+    .replace('<title>OpenVerifiableLLM</title>', `<title>${attr(fullTitle)}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${attr(desc)}" />`)
+    .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${attr(fullTitle)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${attr(desc)}" />`)
     .replace('</head>', `  ${dataMeta}\n  </head>`)
     .replace(/(<meta charset="UTF-8" \/>)/, `$1\n    ${cspMeta}`);
   // 404.html is static: no app script, no preloads, so it never fetches site-data.json.

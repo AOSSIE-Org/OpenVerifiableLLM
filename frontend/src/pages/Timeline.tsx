@@ -7,6 +7,7 @@ export default function Timeline() {
   return (
     <>
       <h1><L k="h1.timeline" /></h1>
+      <p className="lead"><L k="timeline.lead" /></p>
       <h2><L k="h2.record" /></h2>
       <Section needs={['chain', 'events', 'verifications']}>
         <ClaimBlock id="TL-01">

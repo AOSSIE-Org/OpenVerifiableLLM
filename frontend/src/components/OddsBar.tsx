@@ -32,16 +32,16 @@ export function OddsBar() {
       <figcaption id="odds-cap">
         <ul className="odds-list">
           <li className="now">
-            <L k="odds.now" />: <V path="odds.currentM" /> <L k="odds.checks" /> <span className="arrow" aria-hidden="true" /> <V path="odds.currentP" fmt="pct2" />
+            <L k="odds.now" />: <V path="odds.currentM" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.currentP" fmt="pct2" />
           </li>
           <li>
-            <V path="odds.N" /> <L k="odds.checks" /> <span className="arrow" aria-hidden="true" /> <V path="odds.pAtN" fmt="pct2" />
+            <V path="odds.N" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.pAtN" fmt="pct2" />
           </li>
           <li>
-            <V path="odds.m95" /> <L k="odds.checks" /> <span className="arrow" aria-hidden="true" /> <V path="odds.p95" fmt="pct2" />
+            <V path="odds.m95" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.p95" fmt="pct2" />
           </li>
           <li>
-            <V path="odds.m99" /> <L k="odds.checks" /> <span className="arrow" aria-hidden="true" /> <V path="odds.p99" fmt="pct2" />
+            <V path="odds.m99" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.p99" fmt="pct2" />
           </li>
         </ul>
         <code><V path="odds.formula" /></code>

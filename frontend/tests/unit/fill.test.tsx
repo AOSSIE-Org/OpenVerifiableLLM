@@ -76,7 +76,12 @@ describe('shipped copy.json, filled from the shipped data, agrees with the ledge
       }
     }
   });
-  it('templated claim ids are exactly OV-04, VE-01, VE-03', () => {
-    expect(Object.entries(copy).filter(([, v]) => Object.values(v).some((t) => /\{\w+\}/.test(t))).map(([id]) => id)).toEqual(['OV-04', 'VE-01', 'VE-03']);
+  it('templated claim ids are exactly OV-04, VE-01, VE-03, VE-07, VE-08', () => {
+    expect(Object.entries(copy).filter(([, v]) => Object.values(v).some((t) => /\{\w+\}/.test(t))).map(([id]) => id)).toEqual(['OV-04', 'VE-01', 'VE-03', 'VE-07', 'VE-08']);
+  });
+  it('fills detection-odds copy from site-data.json, not literals', () => {
+    const d = fresh();
+    expect(fillCounts('VE-07', copy['VE-07']!.plain, d)).toContain(`${d.odds.m95} independent random checks of ${d.chain.segments} segments`);
+    expect(fillCounts('VE-08', copy['VE-08']!.plain, d)).toContain(`${d.odds.m99} independent random checks`);
   });
 });

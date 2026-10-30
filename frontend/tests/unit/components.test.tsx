@@ -23,7 +23,12 @@ import type { SiteData } from '../../src/data/types';
 import { fresh } from './helpers';
 import { fillCounts } from '../../src/content/fill';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.removeItem('ovl-theme');
+  document.documentElement.removeAttribute('data-theme');
+  document.documentElement.style.colorScheme = '';
+});
 const PAGES: [string, ComponentType][] = [['overview', Overview], ['check', Check], ['verification', Verification], ['timeline', Timeline], ['exclusion', Exclusion], ['downloads', Downloads]];
 
 function mount(Page: ComponentType, data: SiteData = fresh(), errors: SectionErrors = {}) {
@@ -55,6 +60,11 @@ describe.each(PAGES)('%s page', (key, Page) => {
       if (lt) expect(lt.textContent).toBe(limitParts(plain).rest);
       else expect(ev.querySelector('[data-claim-part="plain"]')!.textContent).toBe(plain);
       expect(ev.querySelector('details.chip')).not.toBeNull();
+      const dev = ev.querySelector('[data-claim-part="developer"]');
+      if (dev) {
+        expect(dev.closest('details.dev-box')).not.toBeNull();
+        expect(ev.querySelector('details.dev-box > summary')!.textContent).toBe(label('developer'));
+      }
       const order = [...ev.querySelectorAll('.plain, .limit, .chips')].map((n) => n.className);
       expect(order[0]).toBe('plain');
       if (c.limit) expect(order.indexOf('limit')).toBeLessThan(order.indexOf('chips'));
@@ -133,6 +143,23 @@ describe('verification rows', () => {
   });
 });
 
+describe('Check page sections', () => {
+  it('renders CK-02 through CK-07 when check data is valid', () => {
+    const { container } = mount(Check);
+    for (const id of ['CK-02', 'CK-03', 'CK-04', 'CK-05', 'CK-06', 'CK-07']) {
+      expect(container.querySelector(`[data-claim="${id}"]`)).not.toBeNull();
+    }
+    expect(container.querySelector('[data-fallback]')).toBeNull();
+  });
+  it('falls back those claims only when the check section failed validation', () => {
+    const { container } = mount(Check, fresh(), { check: 'missing' });
+    expect(container.querySelectorAll('[data-fallback]').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-claim="CK-01"]')).not.toBeNull();
+    expect(container.querySelector('[data-claim="CK-08"]')).not.toBeNull();
+    expect(container.querySelector('[data-claim="CK-02"]')).toBeNull();
+  });
+});
+
 describe('Section error boundary', () => {
   it('contains a render crash to its own section', () => {
     const Boom = () => {
@@ -160,6 +187,7 @@ describe('App states', () => {
   it('shows the error page and never a MATCH when data fails', () => {
     const { container } = render(<App state={{ error: 'HTTP 500' }} route={ROUTES[0]!} Page={Overview} />);
     expect(screen.getByRole('alert').textContent).toContain(label('error.title'));
+    expect(screen.getByRole('button', { name: label('error.retry') })).toBeTruthy();
     expect(container.querySelectorAll('.result-MATCH, [data-result="MATCH"]')).toHaveLength(0);
   });
   it('shows a loading state that claims nothing', () => {
@@ -171,6 +199,26 @@ describe('App states', () => {
     render(<App state={validateSite(fresh())} route={ROUTES[2]!} Page={Verification} />);
     const current = document.querySelector('nav a[aria-current="page"]')!;
     expect(current.textContent).toBe(label('nav.verification'));
+  });
+  it('shows the brand mark next to the site title', () => {
+    const { container } = render(<App state={validateSite(fresh())} route={ROUTES[0]!} Page={Overview} />);
+    const img = container.querySelector('.wordmark img');
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute('src')).toMatch(/logo\.svg$/);
+    expect(img!.getAttribute('alt')).toBe('');
+    expect(container.querySelector('.wordmark')!.textContent).toContain(label('site.title'));
+  });
+  it('shows a background toggle that only switches light and dark', () => {
+    const { container } = render(<App state={validateSite(fresh())} route={ROUTES[0]!} Page={Overview} />);
+    const btn = container.querySelector<HTMLButtonElement>('[data-theme-toggle]');
+    expect(btn).not.toBeNull();
+    expect(btn!.getAttribute('aria-label')).toBe(label('theme.group'));
+    expect(btn!.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(btn!);
+    expect(btn!.getAttribute('aria-pressed')).toBe('true');
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    fireEvent.click(btn!);
+    expect(document.documentElement.dataset.theme).toBe('light');
   });
 });
 

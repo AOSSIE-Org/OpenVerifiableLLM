@@ -10,8 +10,13 @@ mkdirSync(out, { recursive: true });
 const browser = await chromium.launch();
 for (const scheme of ['light', 'dark']) {
   for (const width of [1440, 390]) {
-    const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: scheme, reducedMotion: 'reduce', deviceScaleFactor: width === 390 ? 2 : 1 });
+    const ctx = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce', deviceScaleFactor: width === 390 ? 2 : 1 });
     const page = await ctx.newPage();
+    await page.addInitScript((t) => {
+      document.documentElement.dataset.theme = t;
+      document.documentElement.style.colorScheme = t;
+      try { localStorage.setItem('ovl-theme', t); } catch { /* ignore */ }
+    }, scheme);
     for (const [name, slug] of pages) {
       await page.goto(base + slug);
       await page.waitForSelector('footer [data-path="revShort"]');

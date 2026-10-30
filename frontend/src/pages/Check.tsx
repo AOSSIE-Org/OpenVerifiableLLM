@@ -6,6 +6,7 @@ export default function Check() {
   return (
     <>
       <h1><L k="h1.check" /></h1>
+      <p className="lead"><L k="check.lead" /></p>
       <h2><L k="h2.try" /></h2>
       <ClaimBlock id="CK-01" />
       <h2><L k="h2.consistency" /></h2>

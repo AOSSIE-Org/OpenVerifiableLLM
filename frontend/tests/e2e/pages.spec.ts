@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 import { formatValue, type Fmt } from '../../src/data/format';
 import { getPath } from '../../src/data/path';
 import { bannedIn, claims, ui } from '../../src/content/ledger';
-import { PAGES, WIDTHS, data, ready } from './util';
+import { PAGES, WIDTHS, data, ready, useTheme } from './util';
 import { fillCounts } from '../../src/content/fill';
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -14,7 +14,8 @@ for (const scheme of ['light', 'dark'] as const) {
         const errors: string[] = [];
         page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
         page.on('pageerror', (e) => errors.push(String(e)));
-        await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
+        await useTheme(page, scheme);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.setViewportSize({ width: w, height: 900 });
         await page.goto(p.slug);
         await ready(page);
@@ -106,5 +107,5 @@ test('links: every internal link resolves on the static build; external links ar
     if (h.includes('huggingface.co/datasets/')) expect(h, h).toContain(d.revision);
     if (h.includes('github.com/AOSSIE-Org/OpenVerifiableLLM/blob/')) expect(h, h).toContain(d.upstream.commit);
   }
-  for (const f of ['fonts/InterVariable-latin.woff2', 'data/site-data.json']) expect((await request.get(f)).status()).toBe(200);
+  for (const f of ['fonts/InterVariable-latin.woff2', 'data/site-data.json', 'favicon.svg', 'logo.svg']) expect((await request.get(f)).status()).toBe(200);
 });

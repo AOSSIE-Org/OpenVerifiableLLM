@@ -26,6 +26,7 @@ export default function Verification() {
   return (
     <>
       <h1><L k="h1.verification" /></h1>
+      <p className="lead"><L k="verification.lead" /></p>
       <h2><L k="h2.map" /></h2>
       <Section needs={['verifications', 'events']}>
         <ClaimBlock id="VE-01">

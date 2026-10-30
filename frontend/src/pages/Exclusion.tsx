@@ -8,6 +8,7 @@ export default function Exclusion() {
   return (
     <>
       <h1><L k="h1.exclusion" /></h1>
+      <p className="lead"><L k="exclusion.lead" /></p>
       <h2><L k="h2.removed" /></h2>
       <ClaimBlock id="EX-01" />
       <h2><L k="h2.why" /></h2>

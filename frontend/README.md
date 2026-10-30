@@ -38,7 +38,7 @@ phone budget. Set `BASE_PATH=/OpenVerifiableLLM/` to build for a sub-path.
 ## Counts in copy
 
 Headlines never type a segment or check count. `copy.json` uses placeholders filled from `site-data.json`:
-`{matched}` `{total}` `{independent}` `{rows}` `{second}` `{training}` `{fresh}` (OV-04, VE-01, VE-03). A line
+`{matched}` `{total}` `{independent}` `{rows}` `{second}` `{training}` `{fresh}` `{m95}` `{m99}` `{N}` (OV-04, VE-01, VE-03, VE-07, VE-08). A line
 that says "{matched} of {total}" or "all matched" is withheld (scoped error) when the data disagrees. The
 ledger keeps its literal numbers; `tests/unit/fill.test.tsx` fails if a filled value is not in that claim's
 ledger text. COPY.md must carry the same placeholders, or `npm run claims:sync` reverts them (the test fails).

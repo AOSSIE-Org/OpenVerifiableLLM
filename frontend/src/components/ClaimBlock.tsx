@@ -33,7 +33,12 @@ export function ClaimBlock({ id, children, heading, hideLimit = false, asLimit =
       ) : asLimit ? <LimitSentence plain={plain} /> : <p className="plain" data-claim-part="plain">{plain}</p>}
       {c.who ? <Who who={c.who} /> : null}
       {/* A ledger line with a number the pinned data does not support is withheld (see ledger-issues.json). */}
-      {developer === null || plain === null || KNOWN_ISSUES.some((i) => i.id === id && i.part === 'developer') ? null : <p className="dev" data-claim-part="developer">{developer}</p>}
+      {developer === null || plain === null || KNOWN_ISSUES.some((i) => i.id === id && i.part === 'developer') ? null : (
+        <details className="dev-box">
+          <summary><L k="developer" /></summary>
+          <p className="dev" data-claim-part="developer">{developer}</p>
+        </details>
+      )}
       {c.verbatim ? <CommandBlock text={c.verbatim} name={c.id} /> : null}
       {children}
       {c.limit && !hideLimit && !KNOWN_ISSUES.some((i) => i.id === id && i.part === 'limit') ? (

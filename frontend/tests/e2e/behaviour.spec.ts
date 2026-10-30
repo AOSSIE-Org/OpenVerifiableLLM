@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { label } from '../../src/content/ledger';
-import { data, ready } from './util';
+import { data, ready, PAGES } from './util';
 
 test('keyboard: skip link first, then into main; tiles are focusable buttons operated with Enter and Space', async ({ page }) => {
   await page.goto('verification/');
@@ -177,3 +177,70 @@ test('an injected MISMATCH never shows "37 of 37" and causes no hydration error'
   }
   expect(errors.filter((e) => /418|hydrat/i.test(e))).toEqual([]);
 });
+
+test('background is light by default; the toggle switches to dark and keeps it across pages', async ({ page }) => {
+  await page.goto('');
+  await ready(page);
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
+  const toggle = page.locator('[data-theme-toggle]');
+  await expect(toggle).toHaveText(label('theme.toDark'));
+  await toggle.click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(17, 19, 23)');
+  await page.getByRole('navigation').getByRole('link', { name: label('nav.check') }).click();
+  await ready(page);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('[data-theme-toggle]')).toHaveText(label('theme.toLight'));
+  await page.locator('[data-theme-toggle]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('a hostile theme value in storage is ignored and the page stays light', async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('ovl-theme', '<script>alert(1)</script>');
+    } catch {
+      /* ignore */
+    }
+  });
+  await page.goto('');
+  await ready(page);
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
+});
+
+test('every source chip on every page opens to a quoted panel', async ({ page }) => {
+  for (const p of PAGES) {
+    await page.goto(p.slug);
+    await ready(page);
+    const chips = page.locator('main details.chip');
+    expect(await chips.count(), p.key).toBeGreaterThan(0);
+    const first = chips.first();
+    await expect(first.locator('.panel')).toBeHidden();
+    await first.locator(':scope > summary').click();
+    await expect(first.locator('.panel')).toBeVisible();
+    expect(((await first.locator('.panel').innerText()) ?? '').trim().length, p.key).toBeGreaterThan(0);
+    await first.locator(':scope > summary').click();
+    await expect(first.locator('.panel')).toBeHidden();
+  }
+});
+
+test('check: commands are outlined, copyable, and source chips next to them open', async ({ page }) => {
+  await page.goto('check/');
+  await ready(page);
+  const cmds = page.locator('.cmd pre[data-verbatim="command"]');
+  expect(await cmds.count()).toBeGreaterThanOrEqual(5);
+  for (const pre of await cmds.all()) {
+    const text = (await pre.textContent()) ?? '';
+    expect(text.trim().length).toBeGreaterThan(10);
+    const left = await pre.evaluate((el) => getComputedStyle(el).borderLeftWidth);
+    expect(parseFloat(left)).toBeGreaterThanOrEqual(3);
+  }
+  await expect(page.locator('.cmd .btn').first()).toBeVisible();
+  await expect(page.locator('[data-claim="CK-01"] .cmd pre')).toHaveText('ollama run ryoari/openverifiablellm');
+  await expect(page.locator('[data-claim="CK-02"] .cmd pre')).toContainText('--branch v1.0.1');
+  const chip = page.locator('[data-claim="CK-01"] details.chip').first();
+  await chip.locator(':scope > summary').click();
+  await expect(chip.locator('.panel')).toBeVisible();
+});
+

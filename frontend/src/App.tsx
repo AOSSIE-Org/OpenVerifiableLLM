@@ -1,8 +1,9 @@
 import { useEffect, useRef, type ComponentType, type MouseEvent } from 'react';
 import { DataContext, type DataState } from './data/context';
-import { ROUTES, hrefOf, type RouteDef } from './routes';
+import { BASE, ROUTES, hrefOf, type RouteDef } from './routes';
 import { L, V } from './components/text';
 import { ErrorBoundary } from './components/Section';
+import { ThemeToggle } from './components/ThemeToggle';
 
 export interface AppProps {
   state: DataState | { error: string } | 'loading';
@@ -26,6 +27,7 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
       <a className="skip" href="#main"><L k="skip" /></a>
       <header className="top">
         <a className="wordmark" href={hrefOf(ROUTES[0]!)} onClick={(e) => onNav(e, hrefOf(ROUTES[0]!))}>
+          <img src={`${BASE}logo.svg`} width={32} height={32} alt="" />
           <L k="site.title" />
         </a>
         <nav aria-label="Pages">
@@ -39,6 +41,7 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
             ))}
           </ul>
         </nav>
+        <ThemeToggle />
       </header>
       <main id="main" ref={main} tabIndex={-1}>
         {children}
@@ -69,6 +72,11 @@ export function App({ state, route, Page, navigate }: AppProps) {
         <div className="fatal" role="alert" data-fatal="">
           <h1><L k="error.title" /></h1>
           <p><L k="error.body" /></p>
+          <p>
+            <button type="button" className="btn" onClick={() => location.reload()}>
+              <L k="error.retry" />
+            </button>
+          </p>
         </div>
       </Shell>
     );

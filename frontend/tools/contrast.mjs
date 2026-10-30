@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 const css = readFileSync(new URL('../src/styles/site.css', import.meta.url), 'utf8');
 const block = (re) => Object.fromEntries([...(re.exec(css)?.[1] ?? '').matchAll(/--([a-z0-9-]+):(#[0-9A-Fa-f]{6})/g)].map((m) => [m[1], m[2]]));
 const light = block(/:root\{([\s\S]*?)\n\}/);
-const dark = { ...light, ...block(/@media \(prefers-color-scheme:dark\)\{:root\{([\s\S]*?)\}\}/) };
+const dark = { ...light, ...block(/html\[data-theme="dark"\]\{([\s\S]*?)\n\}/) };
 const lin = (c) => ((c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
 const L = (h) => {
   const [r, g, b] = [1, 3, 5].map((i) => lin(parseInt(h.slice(i, i + 2), 16)));

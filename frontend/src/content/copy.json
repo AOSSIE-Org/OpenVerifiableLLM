@@ -104,12 +104,12 @@
   "developer": "P(detect) = 1 − ((N−1)/N)^M; one checker doing k distinct segments: k/N."
  },
  "VE-07": {
-  "plain": "110 independent random checks of 37 segments would catch one forged segment 95% of the time. Only the project has checked.",
-  "developer": "Smallest M with p≥0.95 at N=37 is 110 (p=0.95090)."
+  "plain": "{m95} independent random checks of {total} segments would catch one forged segment 95% of the time. Only the project has checked.",
+  "developer": "Smallest M with p≥0.95 at N={total} is {m95} (p=0.95090)."
  },
  "VE-08": {
-  "plain": "169 independent random checks would give a 99% chance. So far only the project has checked.",
-  "developer": "Smallest M with p≥0.99 at N=37 is 169 (p=0.99025)."
+  "plain": "{m99} independent random checks would give a 99% chance. So far only the project has checked.",
+  "developer": "Smallest M with p≥0.99 at N={total} is {m99} (p=0.99025)."
  },
  "VE-09": {
   "plain": "Independent checks so far: 0. Every check to date was run by the project.",
