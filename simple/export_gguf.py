@@ -1,6 +1,6 @@
 """Export a released model to GGUF, the file format llama.cpp and Ollama load.
 
-    python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m.gguf
+    python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat-F32.gguf
     python simple/export_gguf.py ... --model base      # the Wikipedia-only model instead of the chat model
 
 The model is a GPT-2-style transformer and the tokenizer a GPT-2-style byte-level BPE, so the file
