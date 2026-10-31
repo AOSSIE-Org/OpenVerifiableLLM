@@ -1,5 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import type { ChainBoundary } from '../data/contracts';
 
 interface TrainingTimelineProps {
@@ -24,7 +25,7 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
   return (
     <section id="timeline">
       <h2>{copy.timeline.kicker}</h2>
-      <p>{copy.timeline.h2}</p>
+      <InShort>{copy.timeline.h2}</InShort>
 
       <figure className="thumb wide">
         <div className="tlwrap" tabIndex={0} role="region" aria-label="Training timeline chart">

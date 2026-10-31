@@ -1,5 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import type { ExclusionData } from '../data/contracts';
 
 interface VerifiableExclusionProps {
@@ -13,10 +14,10 @@ export const VerifiableExclusion: React.FC<VerifiableExclusionProps> = ({ exclus
   return (
     <section id="exclusion">
       <h2>{c.kicker}</h2>
-      <p>
+      <InShort>
         {c.h2} The fork removed <b>{exclusion.removedArticle}</b> before training reached it.
         Everything else is identical.
-      </p>
+      </InShort>
 
       <table className="wikitable">
         <caption>Loss before and after the removal</caption>

@@ -3,7 +3,7 @@ import type { EvidenceData } from './data/contracts';
 import { validateEvidence, SnapshotError } from './data/validate';
 import { Header } from './components/Header';
 import { Contents } from './components/Contents';
-import { Lead } from './components/Lead';
+import { Lead, KeyFacts } from './components/Lead';
 import { Overview } from './components/Overview';
 import { CheckLadder } from './components/CheckLadder';
 import { Verification } from './components/Verification';
@@ -78,7 +78,10 @@ export const App: React.FC = () => {
         </aside>
 
         <main id="main" className="article">
-          <Lead evidence={evidence} />
+          <Lead />
+          <div className="facts-inline">
+            <KeyFacts evidence={evidence} idSuffix="inline" />
+          </div>
           <Overview preparation={evidence.preparation} />
           <CheckLadder />
           <Verification verifications={evidence.verifications} hardwareMap={evidence.hardwareMap} />
@@ -88,6 +91,10 @@ export const App: React.FC = () => {
           <Faq />
           <ExternalLinks />
         </main>
+
+        <div className="rail">
+          <KeyFacts evidence={evidence} idSuffix="rail" />
+        </div>
       </div>
 
       <Footer revision={evidence.revision} />

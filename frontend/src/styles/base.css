@@ -119,7 +119,7 @@ header {
   display: flex;
   align-items: center;
   gap: 20px;
-  max-width: 1180px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 12px 24px;
 }
@@ -187,9 +187,9 @@ header {
 /* Page: contents sidebar and the article column --------------------------- */
 .page {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 48px;
-  max-width: 1180px;
+  grid-template-columns: 190px minmax(0, 1fr) 260px;
+  gap: 40px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 32px 24px 80px;
 }
@@ -235,7 +235,7 @@ header {
 
 .article {
   min-width: 0;
-  max-width: 880px;
+  max-width: 760px;
 }
 
 .article p,
@@ -791,4 +791,123 @@ footer {
 
 .level .code pre {
   background: var(--paper);
+}
+
+/* Docs layout: a key-facts card in the right rail on wide screens; under
+   the title on narrower ones */
+.rail {
+  min-width: 0;
+}
+
+.rail .facts-card {
+  position: sticky;
+  top: 24px;
+}
+
+.facts-inline {
+  display: none;
+}
+
+.facts-card {
+  padding: 16px 18px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--sheet);
+  font-size: 14px;
+}
+
+.fc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.facts-card .fc-head h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 700 15px var(--sans);
+}
+
+.facts-card dl {
+  display: grid;
+  gap: 10px;
+}
+
+.facts-card dt {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.facts-card dd {
+  margin: 0;
+}
+
+.fc-big dd {
+  font: 600 22px/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-big dd span {
+  display: block;
+  font: 400 13px var(--sans);
+  color: var(--ink-3);
+}
+
+.fc-cta {
+  display: block;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-weight: 600;
+}
+
+/* "In short" summary at the top of each section */
+.inshort {
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--link);
+  background: var(--sheet);
+}
+
+.inshort b {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.article .inshort p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.lead .intro {
+  font-size: 17px;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .page {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1180px) {
+  .rail {
+    display: none;
+  }
+
+  .facts-inline {
+    display: block;
+    margin-bottom: 8px;
+  }
+
+  .facts-inline .facts-card dl {
+    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  }
 }

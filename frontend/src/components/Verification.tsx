@@ -1,5 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import type { HardwareProbe, VerificationsData } from '../data/contracts';
 
 interface VerificationProps {
@@ -33,9 +34,9 @@ export const Verification: React.FC<VerificationProps> = ({ verifications, hardw
   return (
     <section id="verification">
       <h2>{copy.verification.kicker}</h2>
-      <p>
+      <InShort>
         {copy.verification.h2} {copy.verification.subtitle}
-      </p>
+      </InShort>
 
       <div className="ambox" role="note">
         <b>{copy.verification.warningNotice}</b> {copy.verification.captionNotice}

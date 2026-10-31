@@ -1,5 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import type { PreparationData } from '../data/contracts';
 
 interface OverviewProps {
@@ -11,8 +12,9 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
   return (
     <section id="overview">
       <h2>{o.kicker}</h2>
-      <p>{o.h2}</p>
-      <p>{o.subtitle}</p>
+      <InShort>
+        {o.h2} {o.subtitle}
+      </InShort>
 
       <table className="wikitable">
         <caption>Headline results</caption>

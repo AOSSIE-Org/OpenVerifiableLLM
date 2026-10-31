@@ -1,11 +1,14 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import { CopyButton } from './CopyButton';
 
 export const CheckLadder: React.FC = () => (
   <section id="check">
     <h2>{copy.check.kicker}</h2>
-    <p>{copy.check.h2} There are three levels; each says what it proves and what it does not.</p>
+    <InShort>
+      {copy.check.h2} There are three levels; each says what it proves and what it does not.
+    </InShort>
 
     {copy.check.ladder.map(step => (
       <div key={step.time} className="level">

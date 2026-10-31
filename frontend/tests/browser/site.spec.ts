@@ -9,7 +9,7 @@ test.describe('OpenVerifiableLLM Site', () => {
     await expect(page.getByText(/Release v1\.0\.1 · 28 October 2026 · Record timestamped 20 October 2026/)).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('OpenVerifiableLLM');
     await expect(page.getByText(/is a language model whose training anyone can recompute/)).toBeVisible();
-    await expect(page.getByRole('table', { name: 'OpenVerifiableLLM' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Key facts' }).first()).toBeVisible();
 
     // Check Overview text clarifying checker attribution
     await expect(

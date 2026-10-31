@@ -32,6 +32,9 @@ export const copy = {
       'Training was split into 37 segments between 38 recorded checkpoints. Each checkpoint stores the model state, the data position and the hash of the checkpoint before it, so the checkpoints form a chain. Because training is deterministic, anyone with the same GPU type can recompute a segment and get exactly the same bytes.',
       'All 37 segments were recomputed on a second machine by the project and matched. No independent checker has submitted a result yet.',
     ],
+    factsTitle: 'Key facts',
+    factsCta: 'Check a segment yourself →',
+    inShort: 'In short',
     infobox: {
       caption: 'OpenVerifiableLLM',
       release: 'v1.0.1 (28 October 2026)',

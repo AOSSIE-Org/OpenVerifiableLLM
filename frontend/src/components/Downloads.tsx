@@ -1,5 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
+import { InShort } from './InShort';
 import { CopyButton } from './CopyButton';
 
 interface DownloadsProps {
@@ -9,7 +10,7 @@ interface DownloadsProps {
 export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => (
   <section id="downloads">
     <h2>{copy.downloads.kicker}</h2>
-    <p>{copy.downloads.h2}</p>
+    <InShort>{copy.downloads.h2}</InShort>
 
     <table className="wikitable files">
       <thead>
