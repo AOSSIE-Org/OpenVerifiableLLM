@@ -22,8 +22,11 @@
   `verify` also checks both timestamps on `anchor.json`, ties each chain entry's model digest to its
   weights, and accepts the released base model (#263, #267; see the peer evaluation in
   [`audit/`](../audit/README.md)).
-- **31 October 2026: cleanup.** The old pipeline and the July study were removed from `main`. All
-  the code is now in `simple/`.
+- **31 October – 1 November 2026: cleanup (v1.1.0).** The old pipeline and the July study were
+  removed from `main`; all the code is now in `simple/`, and the docs are five pages. The model has
+  its own Hugging Face repository,
+  [`AOSSIE/OpenVerifiableLLM-23M`](https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M), and the
+  exclusion fork is anchored.
 
 ## Next
 
@@ -42,8 +45,6 @@
   version in the chain, and report its misses on a hand-checked sample. Compare against control
   articles about equally rare subjects, not just random articles of similar length, to separate
   what the removal did from its general knock-on effect on later training.
-- **The model in its own Hugging Face repository**, as safetensors and GGUF, separate from the data
-  and the training record.
 - **A static project site** that shows the record, the checks and the limits (in review: #264, #265).
 - **Signed check results and random segment choice.** Today a check result is a self-reported line.
   Checkers would sign their result, and the segment would be picked from public randomness (for

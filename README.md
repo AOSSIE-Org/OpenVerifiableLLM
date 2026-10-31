@@ -20,7 +20,8 @@ and get exactly the same bits.
 Wikipedia. Its training was saved at 38 points and so split into 37 pieces, called segments. Every
 segment was recomputed bit for bit on a second machine. The other terms are defined
 [below](#words-used-here).
-[Model and data on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run)
+[Model on Hugging Face](https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M)
+· [Data and training record](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence)
 · [Releases](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases) · `ollama run ryoari/openverifiablellm`
 
 <a href="docs/verify.md">
@@ -69,13 +70,12 @@ ollama run ryoari/openverifiablellm "Tell me about the Moon."
 `gsha256sum`).
 
 ```bash
-pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
-  "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
+pip install huggingface_hub torch numpy
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
-git clone -q --depth 1 --branch v1.0.2 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
@@ -83,8 +83,8 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # weights conversation-model.pt: MATCH chain entry 37
 ```
 
-Use `ovl.py` from the v1.0.2 tag. The copy in the download's `code/` folder is older and does not
-check the anchor.
+Use `ovl.py` from the v1.1.0 tag (v1.0.2 or newer works too). The copy in the download's `code/`
+folder is older and does not check the anchor.
 
 **3. Verification, on an RTX 5090 (about 1 hour, about US$1.50).**
 [Deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait, and read

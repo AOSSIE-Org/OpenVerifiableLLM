@@ -17,9 +17,12 @@ produces.
 - [Things to avoid](#things-to-avoid)
 - [Questions](#questions)
 
-**Where things are.** The model, data and record are in the Hugging Face dataset
+**Where things are.** The model is in the Hugging Face repository
+[`AOSSIE/OpenVerifiableLLM-23M`](https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M) (safetensors and
+GGUF). The data and the training record are in the dataset
 [`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence`](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence):
-`release/simple-run/` (the model) and `release/unlearning-3i-atlas/` (the exclusion fork). The code
+`release/simple-run/` (the run, with every checkpoint) and `release/unlearning-3i-atlas/` (the
+exclusion fork). The code
 is [`simple/`](../simple/README.md): `ovl.py` trains, verifies, forks and chats, and with the model,
 data helpers and timestamps it is about 1,100 lines. The exact code used for the run is also
 published in `release/simple-run/code/`. The training data was prepared at commit `3f882ad`, which
@@ -188,7 +191,8 @@ All times UTC.
 | 21 Oct | Per-boundary timestamps and the one-click checker; first check: segment 8 MATCH |
 | 26 Oct | v1.0.0: GGUF export and Ollama |
 | 28 Oct | v1.0.1: `verify` fails without the anchor. Peer evaluation of the release |
-| 31 Oct | v1.0.2: `verify` checks the timestamps itself, accepts the released base model, and ties each entry's model digest to its weights. The old pipeline is removed from `main` |
+| 31 Oct | v1.0.2: `verify` checks the timestamps itself, accepts the released base model, and ties each entry's model digest to its weights. The old pipeline is removed from `main`. The exclusion fork is anchored and timestamped |
+| 1 Nov | v1.1.0: all the code in `simple/`, the docs in five pages, safetensors. The model gets its own Hugging Face repository |
 
 ## Things to avoid
 
