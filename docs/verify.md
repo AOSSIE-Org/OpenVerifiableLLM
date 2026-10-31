@@ -17,15 +17,14 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 
 ## 1. Consistency check, without a GPU
 
-Needs Python 3.10 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
+Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
 `sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
 without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
-pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
-  "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
+pip install huggingface_hub torch numpy
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
-git clone -q --depth 1 --branch v1.0.2 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
@@ -42,13 +41,18 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
    on macOS). FreeTSA's certificates are downloaded from freetsa.org.
 4. The weights file is exactly the state at a released entry. `base-model.pt` gives
    `MATCH chain entry 31`; `conversation-model.pt` gives `MATCH chain entry 37`. A `.safetensors`
-   copy of either model gives the same result with `ovl.py` from v1.1.0 or newer (it needs
-   `pip install safetensors`); the v1.0.2 command above reads only `.pt` files.
+   copy of either model, from
+   [`AOSSIE/OpenVerifiableLLM-23M`](https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M), gives the same
+   result (it needs `pip install safetensors`).
 
 It fails if any of these fails, or if `anchor.json` or a timestamp is missing. `--no-anchor` and
 `--no-timestamps` skip those checks and print a warning; use them only for a run that has no anchor
-yet. Use `ovl.py` from the v1.0.2 tag: the copy in the download's `code/` folder is older and does
+yet. Use `ovl.py` from the v1.1.0 tag: the copy in the download's `code/` folder is older and does
 not check the anchor.
+
+The exclusion fork (`release/unlearning-3i-atlas/`) has its own anchor, timestamped on 2026-10-31
+14:28:00 UTC. That is later than the main run's, because the fork was anchored after the release. The
+same command in that folder gives `chain head MATCH (39 entries)` and `MATCH chain entry 38`.
 
 `verify` appends its result to `verifications.jsonl` in the run folder, so it changes that file in
 your download. With the prepared data (`--data PREP`), `verify` also checks that its own recipe is the one
