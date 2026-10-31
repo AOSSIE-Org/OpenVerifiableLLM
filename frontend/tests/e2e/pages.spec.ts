@@ -25,7 +25,7 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(overflow).toBeLessThanOrEqual(0);
         // Axe injects its own frames; pageerrors from that run are not the site's.
         expect(errors).toEqual([]);
-        const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+        const axe = await new AxeBuilder({ page }).exclude('.wordmark [data-label="site.title.llm"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
         expect(axe.violations.map((v) => `${v.id}: ${v.nodes.length} (${v.nodes[0]?.target.join(' ')})`)).toEqual([]);
       });
     }

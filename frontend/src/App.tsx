@@ -28,8 +28,11 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
       <header className="top">
         <a className="wordmark" href={hrefOf(ROUTES[0]!)} onClick={(e) => onNav(e, hrefOf(ROUTES[0]!))}>
           <img src={`${BASE}logo.svg`} width={32} height={32} alt="" />
-          <span className="wordmark-name">
-            <L k="site.title.lead" /><L k="site.title.llm" />
+          <span className="wordmark-lockup">
+            <span className="wordmark-name">
+              <L k="site.title.lead" /><L k="site.title.llm" />
+            </span>
+            <span className="wordmark-by"><L k="site.by" /></span>
           </span>
         </a>
         <nav aria-label="Pages">
@@ -50,6 +53,10 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
       </main>
       <footer className="foot">
         <p className="foot-brand">
+          <a href="https://aossie.org" rel="noopener noreferrer" className="foot-by">
+            <L k="site.by" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
           <a href="https://aossie.org" rel="noopener noreferrer">
             <L k="footer" />
             <span className="sr"> <L k="newtab" /></span>

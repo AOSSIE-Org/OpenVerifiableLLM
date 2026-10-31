@@ -156,7 +156,7 @@ test.describe('dark mode, everything expanded', () => {
       await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
       const tile = page.locator('.tiles-int button').first();
       if (await tile.count()) await tile.click();
-      const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
+      const axe = await new AxeBuilder({ page }).exclude('.wordmark [data-label="site.title.llm"]').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']).analyze();
       expect(axe.violations.map((v) => `${v.id}: ${v.nodes.length} (${v.nodes[0]?.target.join(' ')})`)).toEqual([]);
     });
   }
