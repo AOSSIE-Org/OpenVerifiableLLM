@@ -15,8 +15,8 @@ export const VerifiableExclusion: React.FC<VerifiableExclusionProps> = ({ exclus
     <section id="exclusion">
       <h2>{c.kicker}</h2>
       <InShort>
-        {c.h2} The fork removed <b>{exclusion.removedArticle}</b> before training reached it.
-        Everything else is identical.
+        {c.h2} The article was <b>{exclusion.removedArticle}</b>. We took it out before training reached
+        it and kept everything else the same.
       </InShort>
 
       <table className="wikitable">

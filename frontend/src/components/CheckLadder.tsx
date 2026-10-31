@@ -7,7 +7,7 @@ export const CheckLadder: React.FC = () => (
   <section id="check">
     <h2>{copy.check.kicker}</h2>
     <InShort>
-      {copy.check.h2} There are three levels; each says what it proves and what it does not.
+      {copy.check.h2}
     </InShort>
 
     {copy.check.ladder.map(step => (

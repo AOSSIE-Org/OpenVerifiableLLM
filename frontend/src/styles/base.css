@@ -119,7 +119,7 @@ header {
   display: flex;
   align-items: center;
   gap: 20px;
-  max-width: 1280px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 12px 24px;
 }
@@ -187,9 +187,9 @@ header {
 /* Page: contents sidebar and the article column --------------------------- */
 .page {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr) 260px;
-  gap: 40px;
-  max-width: 1280px;
+  grid-template-columns: 180px minmax(0, 1fr) 250px;
+  gap: 28px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 32px 24px 80px;
 }
@@ -235,7 +235,6 @@ header {
 
 .article {
   min-width: 0;
-  max-width: 760px;
 }
 
 .article p,
@@ -873,7 +872,7 @@ footer {
   background: var(--sheet);
 }
 
-.inshort b {
+.inshort > b {
   display: block;
   margin-bottom: 2px;
   font-size: 12px;
@@ -893,7 +892,7 @@ footer {
 
 @media (min-width: 901px) and (max-width: 1180px) {
   .page {
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns: 180px minmax(0, 1fr);
   }
 }
 
@@ -909,5 +908,26 @@ footer {
 
   .facts-inline .facts-card dl {
     grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
+  }
+}
+
+/* the sidebars sit right up against the article: a thin rule marks each edge */
+.side {
+  padding-right: 20px;
+  border-right: 1px solid var(--rule);
+}
+
+.toc ol {
+  border-left: 0;
+}
+
+.toc li a {
+  padding-left: 0;
+}
+
+@media (max-width: 900px) {
+  .side {
+    padding-right: 0;
+    border-right: 0;
   }
 }
