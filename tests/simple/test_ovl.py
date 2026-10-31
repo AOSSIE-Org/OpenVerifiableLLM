@@ -249,5 +249,57 @@ class WeightsMatchTests(unittest.TestCase):
         self.assertIsNone(report["checks"][0]["chain_entry"])
 
 
+class NextTargetAndExclusionTests(unittest.TestCase):
+    def test_excluded_sorts_and_filters_by_phase(self):
+        ctl = {"phase": "wikipedia", "exclude": {"wikipedia": [[50, 10], [10, 5]], "conversation": [[5, 2]]}}
+        self.assertEqual(ovl.excluded(ctl), [(10, 5), (50, 10)])
+
+        ctl_conv = {"phase": "conversation", "exclude": {"wikipedia": [[10, 5]]}}
+        self.assertEqual(ovl.excluded(ctl_conv), [])
+
+        self.assertEqual(ovl.excluded({"phase": "wikipedia"}), [])
+
+    def test_next_target_empty_ranges(self):
+        self.assertEqual(ovl.next_target(10, []), 10)
+
+    def test_next_target_cursor_before_and_after_range(self):
+        ranges = [(10, 5)]
+        self.assertEqual(ovl.next_target(5, ranges), 5)
+        self.assertEqual(ovl.next_target(9, ranges), 9)
+        self.assertEqual(ovl.next_target(15, ranges), 15)
+        self.assertEqual(ovl.next_target(20, ranges), 20)
+
+    def test_next_target_cursor_inside_range(self):
+        ranges = [(10, 5)]
+        self.assertEqual(ovl.next_target(11, ranges), 15)
+        self.assertEqual(ovl.next_target(14, ranges), 15)
+
+    def test_next_target_boundaries_exact_s_and_exact_end(self):
+        ranges = [(10, 5)]
+        self.assertEqual(ovl.next_target(10, ranges), 15)
+        self.assertEqual(ovl.next_target(15, ranges), 15)
+
+    def test_next_target_back_to_back_contiguous_ranges(self):
+        ranges = [(10, 5), (15, 7)]
+        self.assertEqual(ovl.next_target(10, ranges), 22)
+        self.assertEqual(ovl.next_target(12, ranges), 22)
+        self.assertEqual(ovl.next_target(15, ranges), 22)
+        self.assertEqual(ovl.next_target(22, ranges), 22)
+
+    def test_next_target_multiple_spaced_ranges(self):
+        ranges = [(10, 5), (30, 10)]
+        self.assertEqual(ovl.next_target(10, ranges), 15)
+        self.assertEqual(ovl.next_target(12, ranges), 15)
+        self.assertEqual(ovl.next_target(20, ranges), 20)
+        self.assertEqual(ovl.next_target(30, ranges), 40)
+        self.assertEqual(ovl.next_target(35, ranges), 40)
+        self.assertEqual(ovl.next_target(40, ranges), 40)
+
+    def test_next_target_overlapping_ranges(self):
+        ranges = [(10, 8), (14, 6)]
+        self.assertEqual(ovl.next_target(10, ranges), 20)
+        self.assertEqual(ovl.next_target(15, ranges), 20)
+
+
 if __name__ == "__main__":
     unittest.main()
