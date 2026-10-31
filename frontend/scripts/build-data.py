@@ -236,6 +236,9 @@ ml, mraw, mm = find_line(readme, r"A (\d+)-million-parameter", "model size")
 dl, draw, dm = find_line(readme, r"(\d{4}-\d{2}-\d{2}) (?:dump|English)", "dump date") if any(re.search(r"\d{4}-\d{2}-\d{2} (?:dump|English)", l) for l in readme) else (None, None, None)
 
 # ---------- upstream GitHub docs (verbatim copies at UPSTREAM) ----------
+# The v1.0.1 tag README still clones v1.0.0: that tag was cut before the docs
+# were repinned. Main was fixed in #256. Copying Getting started from
+# main@1049d2a7 is the correct source (not the tag).
 up_readme = open(os.path.join(UP, "README.md")).read().splitlines()
 gs, _, _ = find_line(up_readme, r"^## Getting started", "Getting started")
 start = next(i for i in range(gs, len(up_readme)) if up_readme[i].startswith("```bash"))
@@ -385,7 +388,7 @@ text = json.dumps(data, indent=1, ensure_ascii=False) + "\n"
 if "--check" in sys.argv:
     cur = open(OUT).read() if os.path.exists(OUT) else ""
     if cur != text:
-        fail("public/data/site-data.json is out of date with data/raw (run `npm run data`)")
+        fail("public/data/site-data.json is out of date with data/raw and src/content/claims.json (run `npm run data`)")
     print("build-data: site-data.json matches the pinned files")
 else:
     os.makedirs(os.path.dirname(OUT), exist_ok=True)

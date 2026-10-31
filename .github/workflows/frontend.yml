@@ -42,6 +42,9 @@ jobs:
       - name: Fetch pinned evidence
         run: npm run data:fetch
 
+      - name: Fail if committed site-data.json differs from a fresh build
+        run: npm run data:check
+
       - name: Playwright Chromium
         run: npx playwright install --with-deps chromium
 

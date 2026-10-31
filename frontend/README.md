@@ -30,10 +30,19 @@ npm run build           # data drift check → typecheck → client + SSR build 
 npx playwright install chromium && CI=1 E2E_PORT=4391 npm run test:e2e   # own port; never reuses a running server
 ```
 
-`npm run build` fails if `site-data.json` differs from what the pinned files produce, if any
-section fails validation, if a ledger claim has no source, uses a banned phrase, or shows a
-number found neither in its cited lines nor in `site-data.json`, or if the bundle exceeds the
-phone budget. Set `BASE_PATH=/OpenVerifiableLLM/` to build for a sub-path.
+`npm run data:check` (and therefore `npm run build` and CI) fails if the committed
+`public/data/site-data.json` differs from a fresh rebuild of the pinned files and
+`src/content/claims.json`. The build also fails if any section fails validation, if a ledger
+claim has no source, uses a banned phrase, or shows a number found neither in its cited lines
+nor in `site-data.json`, or if the bundle exceeds the phone budget. Set
+`BASE_PATH=/OpenVerifiableLLM/` to build for a sub-path.
+
+## How to change one claim
+
+Edit that claim in `src/content/claims.json` (id, sources, limits, wording). If the headline
+should change, edit the same id in `src/content/copy.json` (or in `COPY.md`, then
+`npm run claims:sync`). Run `npm run data` so `public/data/site-data.json` is rebuilt. Leave
+`ui.json` for labels that carry no facts and no numbers.
 
 ## Counts in copy
 
