@@ -1,289 +1,197 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import type { HardwareProbe, VerificationsData } from '../data/contracts';
+import { KNOWN_CHECKER_MAP, type HardwareProbe, type VerificationsData } from '../data/contracts';
+import { SectionHeading } from './Contents';
+import { Ref } from './Ref';
 
 interface VerificationProps {
   verifications: VerificationsData;
   hardwareMap: HardwareProbe[];
 }
 
-export const Verification: React.FC<VerificationProps> = ({
-  verifications,
-  hardwareMap,
-}) => {
-  // SVG odds calculations
-  const W = 520;
-  const H = 250;
-  const L = 44;
-  const R = 16;
-  const T = 34;
-  const B = 34;
-  const max = 200;
+const ODDS_ROWS = [0, 10, 37, 50, 110, 169, 200];
 
-  const getX = (m: number) => L + (m / max) * (W - L - R);
-  const getY = (p: number) => T + (1 - p) * (H - T - B);
-  const getOdds = (m: number) => 1 - Math.pow(36 / 37, m);
+export const detectionOdds = (n: number, m: number): number => 1 - Math.pow((n - 1) / n, m);
 
-  let linePath = '';
-  let areaPath = `M${getX(0)},${getY(0)}`;
-  for (let m = 0; m <= max; m += 2) {
-    const pt = `${getX(m).toFixed(1)},${getY(getOdds(m)).toFixed(1)}`;
-    linePath += (m === 0 ? 'M' : 'L') + pt;
-    areaPath += 'L' + pt;
-  }
-  areaPath += `L${getX(max)},${getY(0)}Z`;
+const Result: React.FC<{ r: 'MATCH' | 'MISMATCH' }> = ({ r }) => (
+  <span className={r === 'MATCH' ? 'res match' : 'res mismatch'}>{r}</span>
+);
+
+export const Verification: React.FC<VerificationProps> = ({ verifications: v, hardwareMap }) => {
+  const n = v.uniqueSegments;
+  const matched = v.coverage.filter(c => c.projectResult === 'MATCH').length;
+  const independent = v.independentChecksCount;
 
   return (
-    <section id="verification">
-      <div className="wrap">
-        <div className="sh">
-          <div className="kicker">{copy.verification.kicker}</div>
-          <h2>{copy.verification.h2}</h2>
-          <p>{copy.verification.subtitle}</p>
-        </div>
+    <section id="verification" aria-labelledby="verification-h">
+      <SectionHeading id="verification" />
+      <p>
+        {matched} of {n} segments have been recomputed and matched. All {v.totalChecks} recorded checks were run by
+        the project; {independent} were independent.
+        <Ref k="verifications" />
+      </p>
+      <p className="hatnote" role="note">
+        {copy.verification.selfReported}
+      </p>
 
-        <div className="panel">
-          <div className="cov-head">
-            <div>
-              <div className="sub" style={{ marginBottom: '8px' }}>
-                Coverage map
-              </div>
-              <div className="cov-big">
-                {verifications.uniqueSegments}
-                <small> / {verifications.uniqueSegments} matched</small>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <span className="chip m">■ Project: {verifications.uniqueSegments}</span>
-              <span className="chip h">▨ Independent: {verifications.independentChecksCount}</span>
-            </div>
+      <h3>
+        <span className="secnum">3.1</span> {copy.verification.coverageTitle}
+      </h3>
+      <p>{copy.verification.coverageIntro}</p>
+      <div className="coverage">
+        <div className="cov-row">
+          <div className="cov-label" id="cov-project">
+            Checked by the project ({matched}/{n})
           </div>
-
-          <div
-            className="covgrid"
-            id="cov"
-            role="img"
-            aria-label={`${verifications.uniqueSegments} segments. Project checks: ${verifications.uniqueSegments} of ${verifications.uniqueSegments} MATCH. Independent checks: ${verifications.independentChecksCount} of ${verifications.uniqueSegments}.`}
-          >
-            <span className="rl">Project</span>
-            {verifications.coverage.map((seg) => (
-              <span
-                key={`p-${seg.segment}`}
-                className="cell p"
-                title={`Segment ${seg.segment}: MATCH, checked by the project`}
-              />
-            ))}
-
-            <span className="rl">Independent</span>
-            {verifications.coverage.map((seg) => (
-              <span
-                key={`i-${seg.segment}`}
-                className="cell i"
-                title={`Segment ${seg.segment}: not checked independently yet`}
-              />
-            ))}
-          </div>
-
-          <div className="axis" aria-hidden="true">
-            <span></span>
-            {verifications.coverage.map((seg) => {
-              const k = seg.segment;
-              const isKey = k % 9 === 0 || k === 36;
-              const showText = k % 3 === 0 || k === 36;
-              return (
-                <span key={k} className={isKey ? 'k' : ''}>
-                  {showText ? k : ''}
-                </span>
-              );
-            })}
-          </div>
-
-          <div className="warn">
-            <span className="dot" aria-hidden="true" />
-            <div>
-              <b>{copy.verification.warningNotice}</b>
-              <div style={{ marginTop: '4px', fontSize: '13px', color: 'var(--ink-3)' }}>
-                {copy.verification.captionNotice}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="two">
-          <div className="panel">
-            <h3>{copy.verification.oddsTitle}</h3>
-            <div className="sub mono">{copy.verification.oddsFormula}</div>
-
-            <svg
-              viewBox={`0 0 ${W} ${H}`}
-              width="100%"
-              role="img"
-              aria-labelledby="odds-title odds-desc"
-            >
-              <title id="odds-title">Detection odds curve for 37 segments</title>
-              <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
-
-              {/* Grid lines */}
-              {[0, 0.5, 1].map((p) => (
-                <g key={p}>
-                  <line
-                    x1={L}
-                    x2={W - R}
-                    y1={getY(p)}
-                    y2={getY(p)}
-                    stroke="var(--rule)"
-                  />
-                  <text
-                    x={L - 8}
-                    y={getY(p) + 4}
-                    fontSize="11"
-                    textAnchor="end"
-                  >
-                    {p * 100}%
-                  </text>
-                </g>
-              ))}
-
-              {/* X Axis */}
-              {[0, 50, 100, 150, 200].map((m) => (
-                <text
-                  key={m}
-                  x={getX(m)}
-                  y={H - 12}
-                  fontSize="11"
-                  textAnchor="middle"
-                >
-                  {m}
-                </text>
-              ))}
-
-              {/* Area & curve */}
-              <path d={areaPath} fill="var(--ink)" opacity={0.05} />
-              <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
-
-              {/* Threshold points (110 and 169) */}
-              {[
-                { m: 110, p: 0.95, label: '110 checks: 95%', align: 'left' },
-                { m: 169, p: 0.99, label: '169 checks: 99%', align: 'center' },
-              ].map(({ m, label, align }) => {
-                const cx = getX(m);
-                const cy = getY(getOdds(m));
-                return (
-                  <g key={m}>
-                    <line
-                      x1={cx}
-                      x2={cx}
-                      y1={cy}
-                      y2={getY(0)}
-                      stroke="var(--ink-3)"
-                      strokeDasharray="2 3"
-                    />
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={4.5}
-                      fill="var(--sheet)"
-                      stroke="var(--ink)"
-                      strokeWidth={2}
-                    />
-                    <text
-                      x={align === 'left' ? cx + 8 : cx}
-                      y={align === 'left' ? cy + 20 : cy - 12}
-                      fontSize="12"
-                      textAnchor={align === 'center' ? 'middle' : 'start'}
-                      style={{ fill: 'var(--ink)', fontWeight: 600 }}
-                    >
-                      {label}
-                    </text>
-                  </g>
-                );
-              })}
-
-              {/* Current position (M = 0) */}
-              <circle
-                cx={getX(0)}
-                cy={getY(0)}
-                r={7}
-                fill="var(--gold)"
-                stroke="var(--paper)"
-                strokeWidth={2}
-              />
-              <text
-                x={getX(0) + 14}
-                y={getY(0) - 10}
-                fontSize="12"
-                style={{ fill: 'var(--ink)', fontWeight: 600 }}
+          <ol className="tiles" aria-labelledby="cov-project">
+            {v.coverage.map(c => (
+              <li
+                key={c.segment}
+                className={c.projectResult === 'MATCH' ? 'tile match' : 'tile mismatch'}
+                title={`Segment ${c.segment}: ${c.projectResult}, checked by the project`}
               >
-                You are here: 0 independent checks
-              </text>
-            </svg>
-
-            <table className="sr-only">
-              <caption>Detection odds by number of independent checks</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Checks (M)</th>
-                  <th scope="col">Detection Probability</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>0</td>
-                  <td>0% (Current: 0 independent checks)</td>
-                </tr>
-                <tr>
-                  <td>110</td>
-                  <td>95.0%</td>
-                </tr>
-                <tr>
-                  <td>169</td>
-                  <td>99.0%</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="panel hw-shining-card">
-            <div className="hw-header">
-              <h3>{copy.verification.hardwareTitle}</h3>
-              <div className="sub">{copy.verification.hardwareSubtitle}</div>
-            </div>
-            <table className="hw-table">
-              <thead>
-                <tr>
-                  <th scope="col">Hardware &amp; Architecture</th>
-                  <th scope="col">Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hardwareMap.map((probe, i) => {
-                  const isFullRun = probe.segment === 'all 37';
-                  const scopeLabel = isFullRun
-                    ? 'Full run · all 37 segments verified'
-                    : `Segment ${probe.segment} probe${probe.note ? ` · ${probe.note.split(';')[0]}` : ''}`;
-                  return (
-                    <tr key={i}>
-                      <td>
-                        <div className="hw-info">
-                          <span className="hw-title">{probe.hardware}</span>
-                          <span className={`hw-scope${isFullRun ? ' full-run' : ''}`}>
-                            {scopeLabel}
-                          </span>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span className={`chip res-chip ${probe.result === 'MATCH' ? 'match' : 'mismatch'}`}>
-                          {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                {c.segment}
+                <span className="sr-only">: {c.projectResult}</span>
+              </li>
+            ))}
+          </ol>
         </div>
+        <div className="cov-row">
+          <div className="cov-label" id="cov-independent">
+            Checked independently ({independent}/{n})
+          </div>
+          <ol className="tiles" aria-labelledby="cov-independent">
+            {v.coverage.map(c => (
+              <li
+                key={c.segment}
+                className={c.independentResult ? `tile ${c.independentResult.toLowerCase()}` : 'tile empty'}
+                title={`Segment ${c.segment}: ${c.independentResult ?? 'not checked independently yet'}`}
+              >
+                {c.segment}
+                <span className="sr-only">: {c.independentResult ?? 'not checked'}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <p className="legend">
+          <span className="tile match sample" aria-hidden="true" /> MATCH{' '}
+          <span className="tile empty sample" aria-hidden="true" /> not checked yet
+        </p>
       </div>
+
+      <h3>
+        <span className="secnum">3.2</span> {copy.verification.oddsTitle}
+      </h3>
+      <p>{copy.verification.oddsIntro}</p>
+      <p className="formula">
+        <code>{copy.verification.oddsFormula}</code>, N = {n}
+      </p>
+      <table className="wikitable">
+        <caption>Chance that M random independent checks catch one bad segment</caption>
+        <thead>
+          <tr>
+            <th scope="col">Independent checks (M)</th>
+            <th scope="col">Detection probability</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ODDS_ROWS.map(m => (
+            <tr key={m} className={m === independent ? 'current' : undefined}>
+              <td className="num">
+                {m}
+                {m === independent && <span className="note"> (current count)</span>}
+              </td>
+              <td className="num">{(detectionOdds(n, m) * 100).toFixed(1)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        Current independent checks: <b>{independent}</b>. 110 random checks would give 95%; 169 would give 99%.
+      </p>
+
+      <h3>
+        <span className="secnum">3.3</span> {copy.verification.hardwareTitle}
+      </h3>
+      <p>
+        {copy.verification.hardwareIntro}
+        <Ref k="hardware" />
+      </p>
+      <div className="table-scroll" tabIndex={0} role="region" aria-label="Hardware map">
+        <table className="wikitable">
+          <thead>
+            <tr>
+              <th scope="col">Hardware</th>
+              <th scope="col">Segment</th>
+              <th scope="col">Driver</th>
+              <th scope="col">Software</th>
+              <th scope="col">Result</th>
+              <th scope="col">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {hardwareMap.map((h, i) => (
+              <tr key={i}>
+                <td>{h.hardware}</td>
+                <td>{h.segment}</td>
+                <td>
+                  <code>{h.driver}</code>
+                </td>
+                <td>
+                  <code>{h.software}</code>
+                </td>
+                <td>
+                  <Result r={h.result} />
+                </td>
+                <td>{h.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <h3>
+        <span className="secnum">3.4</span> {copy.verification.checksTitle}
+      </h3>
+      <details>
+        <summary>
+          Show all {v.rawChecks.length} checks from <code>verifications.jsonl</code>
+        </summary>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="All recorded checks">
+          <table className="wikitable">
+            <thead>
+              <tr>
+                <th scope="col">Segment</th>
+                <th scope="col">Result</th>
+                <th scope="col">Checked by</th>
+                <th scope="col">Checker</th>
+                <th scope="col">GPU</th>
+                <th scope="col">Driver</th>
+                <th scope="col">Code</th>
+              </tr>
+            </thead>
+            <tbody>
+              {v.rawChecks.map((c, i) => (
+                <tr key={i}>
+                  <td className="num">{c.segment}</td>
+                  <td>
+                    <Result r={c.result} />
+                  </td>
+                  <td>{KNOWN_CHECKER_MAP[c.checker] ?? 'unknown'}</td>
+                  <td>{c.checker}</td>
+                  <td>{c.gpu}</td>
+                  <td>
+                    <code>{c.driver}</code>
+                  </td>
+                  <td>
+                    <code>{c.code}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </section>
   );
 };

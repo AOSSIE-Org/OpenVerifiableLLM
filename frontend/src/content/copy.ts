@@ -1,152 +1,80 @@
-// Content copy for OpenVerifiableLLM site
+// All page text in one place, so the copy lint can check it.
+// Numbers come from public/data/evidence.json, not from this file.
+
+const HF = 'https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence';
+const GH = 'https://github.com/AOSSIE-Org/OpenVerifiableLLM';
+
+export const links = {
+  github: GH,
+  release: `${GH}/releases/tag/v1.0.1`,
+  evidence: HF,
+  ollama: 'https://ollama.com/ryoari/openverifiablellm',
+  runpod: 'https://console.runpod.io/deploy?template=mai1ozh35g',
+  issues: `${GH}/issues`,
+  discord: 'https://discord.gg/hjUhu33uAn',
+  aossie: 'https://aossie.org',
+  /** Link to a file in the evidence dataset at the pinned revision. */
+  evidenceFile: (revision: string, path: string) => `${HF}/blob/${revision}/${path}`,
+};
+
 export const copy = {
-  header: {
-    title: 'OpenVerifiable',
-    suffix: 'LLM',
-    tagline: 'By AOSSIE',
-    nav: [
-      { label: 'Check it', href: '#check' },
-      { label: 'Verification', href: '#verification' },
-      { label: 'Timeline', href: '#timeline' },
-      { label: 'Exclusion', href: '#exclusion' },
-      { label: 'Downloads', href: '#downloads' },
-    ],
-    themeToggleAria: 'Switch between dark and light theme',
+  site: {
+    title: 'OpenVerifiableLLM',
+    by: 'An AOSSIE project',
   },
-  hero: {
-    kicker: 'Release v1.0.1 · 28 October 2026 · Record timestamped 20 October 2026',
-    h1Prefix: 'A language model whose training anyone can ',
-    h1Accent: 'recompute',
-    h1Suffix: '.',
-    lede: 'A 23M-parameter model trained on English Wikipedia. Each of its 37 training segments was recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
-    // shorter version for the landing
-    ledeShort: '23M parameters, trained on English Wikipedia. All 37 training segments recomputed bit for bit; no outside checks yet.',
-    verifyCta: 'Verify a segment',
-    evidenceCta: 'See the evidence',
-    termTitle: 'Consistency check',
-    termMeta: 'CPU only · about 10 minutes',
-    termCaption: 'Checks the release against its record. Recomputes nothing.',
-    poweredBy: 'Powered by',
-  },
-  story: {
-    kicker: "How it's checkable",
-    h2: 'From a training run to something you can check.',
-    sub: 'Six pieces, each one a file you can download.',
-    cta: 'Verify a segment',
-    steps: [
-      { title: 'Deterministic training', points: ['The same code, data and GPU type give the same bits.'] },
-      { title: '37 recorded segments', points: ['Each segment can be recomputed on its own in about an hour.'] },
-      { title: 'A chain of checkpoints', points: ['Each boundary links to the one before, so no step can be swapped.'] },
-      { title: 'A timestamped record', points: ['Stamped by DigiCert and FreeTSA on 20 October 2026.'] },
-      { title: 'Verifiable exclusion', points: ['A fork trained without one article, and it shows.'] },
-      { title: 'Check it yourself', points: ['From a 2-minute demo to a 1-hour recompute.'] },
-    ],
-  },
-  quote: {
-    kicker: 'The chain',
-    text: 'Every checkpoint holds the hash of the one before it. Change one, and every link after it breaks.',
-    entries: 'chain entries',
-    head: 'head',
-    hash: 'hash',
-    previous: 'previous',
-    aria: 'The last three chain entries; each one records the hash of the entry before it',
-  },
-  faq: {
-    h2: 'Questions',
-    sub: 'Short answers about checking this model.',
-    stillTitle: 'Still have questions?',
-    discord: 'Ask on Discord',
-    issue: 'Open an issue',
-    issueHref: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/issues',
-    items: [
-      {
-        q: 'What does "verified" mean here?',
-        a: 'Someone recomputed a segment and got exactly the same bytes. It says nothing about whether the answers are correct.',
-      },
-      {
-        q: 'Who has checked it so far?',
-        a: 'Only the project. No independent checker has submitted a result yet.',
-      },
-      {
-        q: 'What does the 10-minute check prove?',
-        a: 'That the released files match the timestamped record. It recomputes no training.',
-      },
-      {
-        q: 'Why does it need the same GPU type?',
-        a: 'Bit-exact results depend on the hardware. Other GPUs give different bits, which is expected.',
-      },
-    ],
-  },
-  ctaCard: {
-    h2: 'Check a segment yourself.',
-    desc: 'About an hour on a rented RTX 5090, roughly US$1.50.',
-    primary: 'Open the RunPod template',
-    primaryHref: 'https://console.runpod.io/deploy?template=mai1ozh35g',
-    secondary: 'Read the source',
-    secondaryHref: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM',
+  contents: [
+    { id: 'overview', label: 'Overview' },
+    { id: 'check', label: 'Check it yourself' },
+    { id: 'verification', label: 'Verification' },
+    { id: 'timeline', label: 'Training timeline' },
+    { id: 'exclusion', label: 'Verifiable exclusion' },
+    { id: 'downloads', label: 'Downloads' },
+    { id: 'terms', label: 'Terms used on this page' },
+    { id: 'references', label: 'References' },
+  ],
+  lead: {
+    tagline: 'From the published evidence record, Hugging Face revision',
+    // The bold name is rendered by the page; this follows it.
+    body:
+      'is a 23M-parameter language model trained in one exact pass over English Wikipedia, followed by a short conversation phase. Its training was recorded in 37 segments. Each segment can be recomputed on the same GPU type and compared bit for bit with the published result.',
+    status:
+      'All 37 segments have been recomputed and matched, all of them by the project on a second machine. No independent checks have been submitted yet.',
+    caution:
+      '"Verified" on this page means recomputed bit for bit and matched. It does not mean the model\'s answers are correct; it is a small model that is often wrong about facts.',
   },
   overview: {
-    kicker: "What's proven",
-    h2: "What you can check, and what you can't yet.",
-    subtitle: 'Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
     facts: [
-      {
-        value: '37',
-        total: ' / 37',
-        title: 'Segments recomputed bit for bit',
-        chip: 'Checked by the project',
-      },
-      {
-        value: 'Exact',
-        total: '',
-        title: 'Data rebuilt from the Wikipedia dump',
-        chip: '8de1d600…',
-      },
-      {
-        value: '20 Oct',
-        total: '',
-        title: 'Record timestamped',
-        chip: 'DigiCert · FreeTSA',
-      },
+      '37 of 37 segments recomputed bit for bit on a second machine, by the project.',
+      'Exact data provenance: the prepared data rebuilds byte-identical from the raw Wikipedia dump.',
+      'A timestamped release record: the chain head was stamped by two RFC 3161 time-stamping authorities.',
     ],
-    shownTitle: 'Shown',
-    shownItems: [
-      'The weights come from the recorded run.',
-      'The data is exactly the stated dump.',
-      'The record is unchanged since 20 October.',
+    limitsTitle: 'Limits',
+    limits: [
+      'It is a small model and is often wrong about facts.',
+      'Checks need the same GPU type (RTX 5090). Other hardware gives different bits, which is expected.',
+      'No independent checks yet. Every check so far was run by the project.',
+      'Check results are self-reported and unsigned for now.',
     ],
-    notShownTitle: 'Not shown',
-    notShownItems: [
-      "That the model's answers are right.",
-      'Results on other hardware.',
-      'Any check from outside the project.',
-    ],
-    counts: [
-      { key: 'articles', label: 'Articles' },
-      { key: 'targets', label: 'Wikipedia targets' },
-      { key: 'conversations', label: 'Conversations' },
-      { key: 'loopLines', label: 'Training loop', value: '~630 lines' },
-    ],
+    countsCaption: 'Training data',
+    loopNote:
+      'The training loop is about 630 lines in simple/ovl.py, plus about 1,000 lines of model, data and initialization helpers.',
   },
   check: {
-    kicker: 'Check it yourself',
-    h2: 'From a laptop demo to a bit-for-bit recompute.',
-    ladder: [
+    intro: 'There are three levels. Only the third recomputes any training.',
+    levels: [
       {
-        time: '2 min',
-        meta: 'Free · any laptop',
-        title: 'Try the model',
-        chips: [{ label: '○ Demo, checks nothing', type: 'h' }],
+        id: 'try',
+        title: 'Try it (2 minutes)',
+        cost: 'Free, any laptop.',
+        proves: 'Nothing. This is a demo.',
         command: 'ollama run ryoari/openverifiablellm',
       },
       {
-        time: '10 min',
-        meta: 'Free · no GPU',
-        title: 'Consistency check',
-        chips: [
-          { label: '✓ Release matches its record', type: 'm' },
-          { label: '○ No training recomputed', type: 'h' },
-        ],
+        id: 'consistency',
+        title: 'Consistency check (10 minutes, no GPU)',
+        cost: 'Free, CPU only.',
+        proves:
+          'That the released files match their timestamped record. It does not recompute any training.',
         command: `pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \\
   "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \\
@@ -159,126 +87,116 @@ git clone -q --depth 1 --branch v1.0.1 https://github.com/AOSSIE-Org/OpenVerifia
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # weights conversation-model.pt: MATCH chain entry 37`,
+        note: 'Commands copied from the README\'s "Getting started". Use ovl.py from v1.0.1.',
       },
       {
-        time: '1 hour',
-        meta: 'About US$1.50 · RTX 5090',
-        title: 'The actual verification',
-        isKey: true,
-        chips: [{ label: '✓ Recomputes a segment bit for bit', type: 'm' }],
-        desc: 'Rebuilds one segment and compares every byte with the published result.',
-        action: {
-          label: 'Open the RunPod template',
-          href: 'https://console.runpod.io/deploy?template=mai1ozh35g',
-        },
+        id: 'actual',
+        title: 'The actual verification (about 1 hour, about US$1.50)',
+        cost: 'A rented RTX 5090.',
+        proves:
+          'Recomputes one training segment and compares every byte with the published result.',
+        action: { label: 'Open the one-click RunPod template', href: 'https://console.runpod.io/deploy?template=mai1ozh35g' },
       },
     ],
   },
   verification: {
-    kicker: 'Verification',
-    h2: 'Every segment matched. Only the project has checked so far.',
-    subtitle: '"Verified" means recomputed and matched, not that the answers are correct.',
-    captionNotice: '46 checks across 37 segments (all MATCH). 0 checks from independent checkers.',
-    warningNotice: 'Results are self-reported and unsigned for now. Signed results and segment selection from public randomness are on the roadmap.',
-    oddsTitle: 'How many independent checks would catch a bad segment?',
-    oddsFormula: 'P = 1 − (36/37)^M, with N = 37',
-    oddsDescription: 'Detection odds: 95% at 110 random checks, 99% at 169. Current independent checks: 0.',
-    hardwareTitle: 'Which hardware reproduces the bits',
-    hardwareSubtitle: 'A mismatch on other GPUs is expected.',
+    coverageTitle: 'Coverage map',
+    coverageIntro:
+      'Segment k runs from boundary k to boundary k + 1. Each tile is one segment, labelled by who checked it.',
+    selfReported:
+      'Check results are self-reported and unsigned for now. Signed results and segment choice from public randomness are on the roadmap.',
+    oddsTitle: 'Detection odds',
+    oddsIntro:
+      'If one segment were wrong, how likely is it that random independent checks would find it? With N = 37 segments and M independent checks, each choosing a segment at random:',
+    oddsFormula: 'P = 1 − ((N − 1) / N)^M',
+    hardwareTitle: 'Hardware map',
+    hardwareIntro: 'Which hardware reproduces the bits. A mismatch on a different GPU type is expected.',
+    checksTitle: 'All recorded checks',
   },
   timeline: {
-    kicker: 'Training timeline',
-    h2: 'A host restart and a code change. Both still matched.',
-    restartTitle: 'Host restart',
-    restartTag: 'Segment 10',
-    restartDesc: 'Resumed on a fresh host.',
-    codeChangeTitle: 'Code change',
-    codeChangeTag: 'Segment 19 onward',
-    codeChangeDesc: 'Each segment ran its recorded code.',
-    timestampNote: 'Timestamps show the record existed by 20 October 2026, not when or how training happened.',
+    intro:
+      'The 38 boundaries recorded in the chain. Two events happened during training; both were shown harmless because the segments around them matched.',
+    events: [
+      { title: 'Host restart', where: 'Segment 10', desc: 'Training resumed on a fresh host. The segment matched.' },
+      { title: 'Code change', where: 'Segment 19 onward', desc: 'Each segment ran its recorded code. All of them matched.' },
+    ],
+    timestampNote:
+      'The timestamps show that the record existed by 20 October 2026. They do not show when or how training happened.',
+    tableTitle: 'Chain boundaries',
   },
   exclusion: {
-    kicker: 'Verifiable exclusion',
-    h2: 'A second model, provably trained without one article.',
-    desc: 'The fork removed 3I/ATLAS before training reached it. Everything else is identical.',
-    removedArticleLabel: 'Loss on the removed article',
-    removedArticleNote: 'Harder, because the fork never saw it.',
-    controlArticlesLabel: 'Loss on 50 control articles',
-    controlArticlesNote: 'Practically unchanged.',
-    whyHoldsTitle: 'Why the claim holds',
-    whyHoldsItems: [
-      'Checkpoints 0–30 are shared byte for byte.',
+    intro:
+      'A second model, trained without one article. The article removed was one that training had not reached yet.',
+    whyTitle: 'Why the claim holds',
+    why: [
+      'Checkpoints 0–30 are shared byte for byte with the original run.',
       'The removal is recorded in the chain.',
       'Every other gap in the data is refused.',
       'Every fork segment matched.',
     ],
     limitsTitle: 'Limits',
-    limitsItems: [
-      'It proves a model was trained without the article.',
-      "It doesn't erase what a model already learned.",
-      'Text the run had already seen means retraining from an earlier save point.',
-      'One run, no variance estimate.',
+    limits: [
+      'It proves a model was trained without the article. It does not erase what a model already learned.',
+      'Removing text the run had already seen means retraining from an earlier save point.',
+      'One run, so there is no variance estimate.',
     ],
-    evidenceLabel: 'Evidence:',
-    evidencePath: 'release/unlearning-3i-atlas/',
+    folderNote: 'The folder keeps its old name because it is pinned evidence.',
   },
   downloads: {
-    kicker: 'Downloads',
-    h2: 'Every file ships with its SHA-256.',
+    intro: 'Check each file against its SHA-256 before use.',
     files: [
       {
         name: 'ovl-23m-chat.gguf',
         source: 'GitHub release v1.0.1',
-        actionLabel: 'Download',
         url: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/download/v1.0.1/ovl-23m-chat.gguf',
       },
       {
         name: 'Modelfile',
         source: 'GitHub release v1.0.1',
-        actionLabel: 'Download',
         url: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/download/v1.0.1/Modelfile',
       },
       {
         name: 'conversation-model.pt',
-        source: 'Hugging Face, revision 96dc282a',
-        actionLabel: 'Open',
-        url: 'https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/blob/96dc282a/release/simple-run/conversation-model.pt',
+        source: 'Hugging Face',
+        hfPath: 'release/simple-run/conversation-model.pt',
       },
       {
-        name: 'ryoari/openverifiablellm',
-        source: 'Ollama',
-        actionLabel: 'Open',
-        note: 'Install with ollama run',
-        url: 'https://ollama.com/ryoari/openverifiablellm',
+        name: 'base-model.pt',
+        source: 'Hugging Face',
+        hfPath: 'release/simple-run/base-model.pt',
       },
     ],
+    ollama: 'Ollama: ryoari/openverifiablellm (built from the GGUF above).',
+  },
+  terms: [
+    { term: 'Verified', def: 'Recomputed bit for bit and matched. It never means the model\'s answers are correct.' },
+    { term: 'Consistency check', def: 'The laptop check: the release matches its timestamped record. Nothing is recomputed.' },
+    { term: 'Actual verification', def: 'Recomputing a training segment on the same GPU type and comparing it byte for byte.' },
+    { term: 'Project / independent', def: 'Who ran a check. "Project" means the project\'s own machines; "independent" means anyone else. There are no independent checks yet.' },
+    { term: 'Verifiable exclusion', def: 'A model provably trained without a given document, shown by a recorded fork of the training chain.' },
+  ],
+  references: {
+    intro: 'Every number on this page is read from these files at the pinned revision and validated on load.',
+    labels: {
+      'release/simple-run/chain.jsonl': 'Training chain: 38 boundaries',
+      'release/simple-run/verifications.jsonl': 'Segment check results',
+      'release/simple-run/hardware-map.jsonl': 'Hardware map',
+      'release/simple-run/release-hashes.txt': 'SHA-256 of every release file',
+      'release/simple-run/anchor.json': 'Timestamped chain head',
+      'release/simple-run/README.md': 'Wording of claims and limits',
+      'release/unlearning-3i-atlas/loo-results.json': 'Verifiable exclusion: loss results',
+    } as Record<string, string>,
+    preparationLabel: 'Data preparation counts',
   },
   footer: {
-    org: 'An AOSSIE project',
     license: 'OpenVerifiableLLM is licensed under GPL-3.0.',
-    evidenceNote: 'Evidence pinned to Hugging Face revision',
-    contactEmail: 'contact@aossie.org',
-    projectHeading: 'Project',
-    communityHeading: 'Community',
-    contactHeading: 'Contact',
-    projectLinks: [
-      { label: 'Source code on GitHub', href: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM' },
-      { label: 'Release v1.0.1', href: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.1' },
-      { label: 'Evidence on Hugging Face', href: 'https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence' },
-      { label: 'Model on Ollama', href: 'https://ollama.com/ryoari/openverifiablellm' },
-    ],
-    communityLinks: [
-      { label: 'Contribution guidelines', href: 'https://github.com/AOSSIE-Org/Info/blob/main/Rules/Contribution.md' },
-      { label: 'Code of Conduct', href: 'https://github.com/AOSSIE-Org/Info/blob/main/CODE_OF_CONDUCT.md' },
-      { label: 'AI usage policy', href: 'https://github.com/AOSSIE-Org/Info/blob/main/Rules/AI.md' },
-      { label: 'About AOSSIE', href: 'https://aossie.org/en/about' },
-    ],
-  },
-  miniBar: {
-    tagline: 'An AOSSIE project · GPL-3.0',
+    snapshot: 'Evidence snapshot fetched',
     links: [
-      { label: 'GitHub', href: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM' },
-      { label: 'Evidence', href: 'https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence' },
+      { label: 'Source code', href: GH },
+      { label: 'Release v1.0.1', href: `${GH}/releases/tag/v1.0.1` },
+      { label: 'Evidence on Hugging Face', href: HF },
+      { label: 'Model on Ollama', href: 'https://ollama.com/ryoari/openverifiablellm' },
+      { label: 'Report an issue', href: `${GH}/issues` },
       { label: 'Discord', href: 'https://discord.gg/hjUhu33uAn' },
     ],
   },

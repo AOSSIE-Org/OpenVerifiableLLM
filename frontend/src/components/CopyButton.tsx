@@ -3,14 +3,9 @@ import React, { useState } from 'react';
 interface CopyButtonProps {
   textToCopy: string;
   label?: string;
-  className?: string;
 }
 
-export const CopyButton: React.FC<CopyButtonProps> = ({
-  textToCopy,
-  label = 'Copy',
-  className = 'copy-btn',
-}) => {
+export const CopyButton: React.FC<CopyButtonProps> = ({ textToCopy, label = 'Copy' }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -27,12 +22,8 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
 
   return (
     <>
-      <button
-        type="button"
-        className={className}
-        onClick={handleCopy}
-      >
-        {copied ? 'Copied ✓' : label}
+      <button type="button" className="copy-btn" onClick={handleCopy}>
+        {copied ? 'Copied' : label}
       </button>
       <span className="sr-only" aria-live="polite">
         {copied ? 'Copied to clipboard.' : ''}

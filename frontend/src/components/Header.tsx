@@ -1,89 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { copy } from '../content/copy';
+import React from 'react';
+import { copy, links } from '../content/copy';
 
-export const Header: React.FC = () => {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try {
-      const stored = localStorage.getItem('ovl-theme');
-      return stored === 'light' ? 'light' : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
-
-  useEffect(() => {
-    try {
-      if (theme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-      localStorage.setItem('ovl-theme', theme);
-    } catch {
-      // ignore localStorage errors
-    }
-  }, [theme]);
-
-  // Over the landing sky the header is transparent; once the page scrolls it
-  // becomes a floating pill.
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
-  };
-
-  return (
-    <header className={scrolled ? 'pill' : undefined}>
-      <div className="wrap bar">
-        <a className="brand" href="#top">
-          <img
-            className="logo-d"
-            src="brand/logo-dark.svg"
-            width="36"
-            height="36"
-            alt=""
-          />
-          <img
-            className="logo-l"
-            src="brand/logo-light.svg"
-            width="36"
-            height="36"
-            alt=""
-          />
-          <span>
-            <span className="brand-name">
-              {copy.header.title}
-              <em>{copy.header.suffix}</em>
-            </span>
-            <span className="brand-by">{copy.header.tagline}</span>
-          </span>
-        </a>
-
-        <nav aria-label="Sections">
-          {copy.header.nav.map(item => (
-            <a key={item.href} href={item.href}>
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <button
-          className="tbtn"
-          id="theme"
-          type="button"
-          onClick={toggleTheme}
-          aria-label={copy.header.themeToggleAria}
-        >
-          ◐
-        </button>
-      </div>
-    </header>
-  );
-};
+export const Header: React.FC = () => (
+  <header className="topbar">
+    <div className="topbar-in">
+      <a className="site-name" href="#top">
+        <img src="brand/favicon.svg" width="24" height="24" alt="" />
+        <span>{copy.site.title}</span>
+      </a>
+      <span className="site-by">{copy.site.by}</span>
+      <nav aria-label="External" className="topbar-links">
+        <a href={links.github}>GitHub</a>
+        <a href={links.evidence}>Evidence</a>
+        <a href={links.release}>Release v1.0.1</a>
+      </nav>
+    </div>
+  </header>
+);
