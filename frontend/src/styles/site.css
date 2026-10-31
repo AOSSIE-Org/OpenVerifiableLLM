@@ -173,9 +173,9 @@ thead th{color:var(--muted);font-weight:600}
 .card dd{margin:0;overflow-wrap:anywhere}
 @media (max-width:640px){.hw-table{display:none}.hw-cards{display:grid}}
 
-.timeline .strip{list-style:none;padding:0;margin:var(--space-3) 0;display:flex;gap:2px;height:2.75rem;align-items:stretch}
-.seg{position:relative;flex-basis:0;min-width:3px;background:var(--project-tint);border:1px solid var(--project);border-radius:2px;transform-origin:center bottom}
-.seg-hit{display:block;width:100%;height:100%}
+.timeline .strip{list-style:none;padding:0;margin:var(--space-3) 0;display:flex;gap:2px;height:2.75rem;align-items:stretch;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+.seg{position:relative;flex-basis:0;min-width:24px;background:var(--project-tint);border:1px solid var(--project);border-radius:2px;transform-origin:center bottom}
+.seg-hit{display:block;width:100%;height:100%;min-width:24px;min-height:24px}
 .seg[data-phase="conversation"]{background:var(--sunk);border-style:dashed}
 .seg[data-event~="restart"]{border-top:6px solid var(--stamp)}
 .seg[data-event~="code-change"]{border-left:6px solid var(--ink)}
@@ -216,12 +216,13 @@ details.more-src[open] .more-open{display:inline}
   .top ul{flex-wrap:nowrap;padding-inline-end:var(--space-6)}
   .top ul a{white-space:nowrap}
 }
-/* Strip: one row of 37 where it fits; below that, even rows (19 + 18, or 13 + 13 + 11 at 320px). */
+/* Strip: 37 in one row from 1100px; 19 / 13 / 11 below that so each tile stays ≥24px (WCAG 2.2 target-size). */
 .tiles-strip{display:grid;gap:2px;grid-template-columns:repeat(19,minmax(0,1fr))}
 @media (min-width:1100px){.tiles-strip{grid-template-columns:repeat(37,minmax(0,1fr))}}
-@media (max-width:360px){.tiles-strip{grid-template-columns:repeat(13,minmax(0,1fr))}}
+@media (max-width:520px){.tiles-strip{grid-template-columns:repeat(13,minmax(0,1fr))}}
+@media (max-width:367px){.tiles-strip{grid-template-columns:repeat(11,minmax(0,1fr))}}
 .tiles-strip li{min-width:0}
-.tiles-strip .tile{min-height:2.5rem;font-size:.75rem;padding:0;border-width:1px;overflow:hidden}
+.tiles-strip .tile{min-height:2.5rem;min-width:24px;font-size:.75rem;padding:0;border-width:1px;overflow:hidden}
 @media (max-width:640px){.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-6);max-width:18ch}
 .more-links{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:0 var(--space-8)}
