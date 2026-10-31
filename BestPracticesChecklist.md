@@ -146,7 +146,7 @@
   - *Evidence URL:* `python -m pytest -q tests` (https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#development-setup)
 
 - [ ] 🔵 **test_most** — The test suite covers most code branches, input fields, and functionality. *(SUGGESTED)*
-  - *Estimated coverage %:* Measured in CI (job summary): 74% of `simple/` and `src/` overall. Verifier: 78–88% per module; `simple/ovl.py`: about 30% (GPU training paths have no CPU tests yet).
+  - *Estimated coverage %:* Measured in CI (job summary): 34% of `simple/` on 2026-11-01 (`simple/ovl.py` 47%). The earlier 74% included the old verifier under `src/`, which was removed in #271. The GPU training and segment-replay paths can't run in CPU tests; they are covered by recomputing all 37 segments on an RTX 5090. `export_gguf.py` is tested by running it as a separate process, which coverage doesn't count.
 
 ### New Functionality Testing Policy
 

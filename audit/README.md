@@ -14,7 +14,7 @@ report arrived.
 | ID | Finding | Status |
 |---|---|---|
 | H1 | The released `base-model.pt` fails `verify` | Fixed in #267: any `base` or `final` match is accepted. `base-model.pt` gives `MATCH chain entry 31` |
-| Private | Reported privately | Fixed in #267. Details are added here after v1.0.2 is released |
+| Private | A forged record passed `verify` | Fixed in v1.0.2 (#267): `verify` checks both anchor timestamps itself. [Write-up](2026-10-28-private-finding.md) |
 | M1 | A missing `anchor.json` is skipped silently | Fixed in v1.0.1 (#252): it fails. `--no-anchor` skips it with a warning |
 | M2 | The CPU check doesn't run the timestamp check | Fixed: the README includes the step (#253), and `verify` checks both timestamps itself (#267) |
 | M3 | Terms used before they're defined | Fixed in the docs rewrite: the README defines them in "Words used here" before using them |
