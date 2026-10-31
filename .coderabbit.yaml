@@ -25,15 +25,8 @@ reviews:
     docstrings:
       mode: off
 
-  # Evidence and frozen code are pinned by hash or kept for history; don't review them.
+  # Generated lock files; not worth reviewing line by line.
   path_filters:
-    - "!project/**"
-    - "!proofs/**"
-    - "!keys/**"
-    - "!artifacts/**"
-    - "!data/**"
-    - "!Legacy/**"
-    - "!notebooks/**"
     - "!requirements/*.lock"
 
   path_instructions:
@@ -44,14 +37,6 @@ reviews:
         serialization of chain.jsonl and checkpoints, because it changes hashes and breaks
         verification of the published run. Weights must load with torch.load(weights_only=True)
         or safetensors. Shell scripts must stay safe under `set -euo pipefail`.
-    - path: "src/{verifier,ovllm,signing}.py"
-      instructions: >-
-        This is the artifact verifier. It must fail closed: a missing hash, signature or field must
-        produce FAIL, never a silent SKIP that ends in a GREEN verdict. Check that every new check has
-        a test where honest input passes and tampered input fails.
-    - path: "src/ovl_pipeline/**"
-      instructions: >-
-        Frozen earlier pipeline. Point out if a PR changes it without a linked issue.
     - path: "tests/**"
       instructions: >-
         Tests must run on a CPU with no network. Verification tests need both a passing and a

@@ -10,9 +10,10 @@ produces.
   [`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence`](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence),
   folders `release/simple-run/` (the model) and `release/unlearning-3i-atlas/` (the unlearning fork).
   The release README there is the user guide; this page is the project record.
-- Code: `simple/` in this repository. `simple/ovl.py` (631 lines) trains, verifies and chats. It imports
-  the model (`src/model.py`) and the data and initialization helpers (`src/ovl_pipeline/data.py`,
-  `training.py`), about 1,000 lines in all. The training data was prepared by the earlier pipeline.
+- Code: `simple/` in this repository. `simple/ovl.py` trains, verifies and chats. It imports the
+  model (`simple/model.py`) and the data and initialization helpers (`simple/data.py`), about 1,100
+  lines in all with the timestamps. The training data was prepared by the earlier pipeline at commit
+  `3f882ad`, which `simple/rebuild_prep.sh` checks out.
   The exact code used for the run is also published in `release/simple-run/code/`.
 
 ## How it works
@@ -217,13 +218,13 @@ result bit for bit. Checking every segment verifies the whole computation. What 
   or how training happened. Runs started after 21 Oct stamp every boundary as it is written.
 - The repository's Git history was rewritten once, in September 2026 during repository maintenance,
   before this run. It changed the public locations of the earlier pipeline's evidence (see
-  [the provenance note](../../project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md)). This
+  [the provenance note](https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/4aee4a01c2e335e221ae2267a12066b304797c71/project/evidence/history-maintenance-v1/PROVENANCE_STATUS.md)). This
   run's record is anchored by its own timestamps, not by Git history.
 - Removal works cheaply only for documents the run had not reached at the fork point. Removing an
   earlier document means retraining from before its first appearance.
 
 ## Status of the older pipeline
 
-The `docs/` pages other than this one, and `src/ovl_pipeline/`, describe the earlier production
-pipeline. It is frozen: kept for reference and not used by the simple run, apart from the data
-preparation and library files it imports. New work should target `simple/`.
+The earlier production pipeline, its docs and the July 2026 reproducibility study were removed from
+`main` after v1.0.2. They are kept in the history at
+[`4aee4a0`](https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/4aee4a01c2e335e221ae2267a12066b304797c71). The data preparation runs from commit `3f882ad` (see `simple/rebuild_prep.sh`).

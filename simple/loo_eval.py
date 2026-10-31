@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ovl  # noqa: E402
-from ovl_pipeline.data import BOS, EOS, USER, ASSISTANT, OFFSET, stream_arrays  # noqa: E402
+from data import BOS, EOS, USER, ASSISTANT, OFFSET, stream_arrays  # noqa: E402
 
 
 def load(path):

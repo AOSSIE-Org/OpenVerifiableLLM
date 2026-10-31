@@ -17,10 +17,8 @@ If you're new to the project, issues labeled `good first issue` are a good place
 
 ## Where the work is
 
-Active development is in `simple/` (the verifiable training loop behind the released model) and in
-the `ovllm verify` artifact verifier under `src/`. The earlier production pipeline
-(`src/ovl_pipeline/` and the legacy pages listed in [docs/README.md](docs/README.md)) is frozen, so
-pull requests that only change it are on hold. Open pull requests against `main`. The
+All the code is in `simple/`: the verifiable training loop behind the released model. Open pull
+requests against `main`. The
 [roadmap](docs/project/roadmap.md) lists what's most useful right now. Checking a training segment
 on an RTX 5090 ([guide](docs/guides/check_a_segment.md)) is a valuable contribution too.
 
@@ -51,8 +49,7 @@ cd OpenVerifiableLLM
 
 # the same environment CI uses (CPU PyTorch, hash-locked)
 pip install --require-hashes -r requirements/preparation.lock
-pip install -r requirements.txt
-pip install -e ".[pipeline]" pytest
+pip install pytest gguf
 
 # confirm things work
 python -m pytest -q tests
@@ -62,9 +59,7 @@ Which install you need depends on what you work on:
 
 | Working on | Install | Quick test |
 |---|---|---|
-| `simple/` (the training loop) | the CI environment above, or just PyTorch plus the pinned packages listed in [`simple/README.md`](simple/README.md#requirements) | `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests/simple` |
-| `ovllm verify` (`src/ovllm.py`, `src/verifier.py`) | `pip install -r requirements.txt && pip install -e .` | `python -m pytest tests/test_verifier.py` |
-| Anything else | the CI environment above | `python -m pytest -q tests` |
+| `simple/` (the training loop) | the CI environment above | `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests` |
 
 Training and segment checks need an RTX 5090. Everything in `tests/` runs on a CPU; GPU-only tests skip themselves.
 

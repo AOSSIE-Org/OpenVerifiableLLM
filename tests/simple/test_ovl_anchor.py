@@ -19,7 +19,7 @@ os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "simple"), str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "simple")]
 _spec = importlib.util.spec_from_file_location("ovl_simple_anchor", ROOT / "simple" / "ovl.py")
 ovl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ovl)
@@ -120,7 +120,7 @@ class AnchorHead(unittest.TestCase):
             ovl.cmd_verify(a)
 
     def test_anchor_and_no_anchor_are_exclusive(self):
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / p) for p in ("simple", "src", ".")))
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / p) for p in ("simple",)))
         r = subprocess.run([sys.executable, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(self.run),
                             "--anchor", "a.json", "--no-anchor"], capture_output=True, text=True, env=env)
         self.assertNotEqual(r.returncode, 0)

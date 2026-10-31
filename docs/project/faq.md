@@ -62,5 +62,5 @@ checking every segment costs about US$21. See [Cost](../design/simple_run.md#cos
 
 The project first built a large production pipeline with many safeguards around renting machines
 and moving checkpoints. It never trained on real data. The simple run replaced it with one script
-and segmented verification, and finished in under a day. The older code (`src/ovl_pipeline/`) and
-its docs are frozen and kept for reference. See [Things to avoid](../design/simple_run.md#things-to-avoid).
+and segmented verification, and finished in under a day. The older code and its docs were
+removed from `main` after v1.0.2 and are kept in the history at [`4aee4a0`](https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/4aee4a01c2e335e221ae2267a12066b304797c71). See [Things to avoid](../design/simple_run.md#things-to-avoid).

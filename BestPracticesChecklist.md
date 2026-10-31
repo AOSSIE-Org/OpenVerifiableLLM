@@ -55,7 +55,7 @@
   - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/README.md
 
 - [x] 🔴 **documentation_interface** — Reference documentation describes the external interface (API inputs/outputs, CLI flags, config schema, etc.).
-  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/simple/README.md (commands and flags), https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/guides/ovllm_verify.md (`ovllm verify` CLI)
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/simple/README.md (commands and flags)
 
 ### Other Basics
 
