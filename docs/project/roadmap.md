@@ -18,7 +18,9 @@
   See [the simple run](../design/simple_run.md).
 - **Late October 2026: hardening `verify`.** Contributor fixes: `verify` fails when it ran no
   checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`. Since v1.0.1,
-  a missing `anchor.json` is a failure unless `--no-anchor` is given explicitly.
+  a missing `anchor.json` is a failure unless `--no-anchor` is given explicitly. Since v1.0.2,
+  `verify` also checks both timestamps on `anchor.json`, ties each chain entry's model digest to its
+  weights, and accepts the released base model (#263, #267; see the peer evaluation in `audit/`).
 
 ## Next
 
