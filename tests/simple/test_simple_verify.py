@@ -39,7 +39,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
         if extra_args:
             cmd.extend(extra_args)
         env = dict(os.environ)
-        env["PYTHONPATH"] = f"{ROOT / 'simple'}{os.pathsep}{ROOT / 'src'}{os.pathsep}{ROOT}"
+        env["PYTHONPATH"] = f"{ROOT / 'simple'}"
         res = subprocess.run(cmd, capture_output=True, text=True, env=env)
         return res.returncode, res.stdout, res.stderr
 

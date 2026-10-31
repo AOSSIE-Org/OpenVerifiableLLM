@@ -21,7 +21,7 @@ import gguf
 import numpy as np
 import torch
 
-CONTROLS = ["<|pad|>", "<|bos|>", "<|eos|>", "<|user|>", "<|assistant|>"]  # ids 0-4, see ovl_pipeline.data
+CONTROLS = ["<|pad|>", "<|bos|>", "<|eos|>", "<|user|>", "<|assistant|>"]  # ids 0-4, see data.py
 # Single and multi-turn chat in the training format: <|user|> text <|eos|> <|assistant|> text <|eos|> ...
 CHAT_TEMPLATE = ("{% for m in messages %}{% if m['role'] == 'user' %}<|user|>{{ m['content'] }}<|eos|>"
                  "{% elif m['role'] == 'assistant' %}<|assistant|>{{ m['content'] }}<|eos|>{% endif %}{% endfor %}"

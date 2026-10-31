@@ -10,7 +10,7 @@ import torch
 
 gguf = pytest.importorskip("gguf")
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "simple")]
 from model import TinyGPT  # noqa: E402
 
 CFG = {"attn_impl": "manual", "dropout": 0, "embed_dim": 16, "max_seq_len": 8, "num_heads": 2,

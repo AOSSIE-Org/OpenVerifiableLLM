@@ -6,6 +6,6 @@ How the verifiable training method works, with the measured results behind each 
   timestamps), results, hardware scope, verifiable unlearning, cost, timeline, things to avoid and
   lessons learned.
 
-The [July 2026 reproducibility study](../guides/ovllm_verify.md#reproducibility-matrix) measured
+The [July 2026 reproducibility study](https://github.com/AOSSIE-Org/OpenVerifiableLLM/tree/4aee4a01c2e335e221ae2267a12066b304797c71/docs/guides/ovllm_verify.md#reproducibility-matrix) measured
 when "same code + same seed" really gives the same model. Its results are the basis for the
 determinism settings and the same-GPU requirement.

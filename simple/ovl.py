@@ -38,14 +38,12 @@ import tempfile
 import threading
 import time
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "src"), str(ROOT)]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import torch
 import torch.nn.functional as F
 
-from ovl_pipeline.data import PAD, BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays
-from ovl_pipeline import training
+from data import PAD, BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays, configure
 from model import TinyGPT
 import stamp
 
@@ -123,8 +121,8 @@ def optimizer(model):
 def fresh():
     """Seeded CPU init exactly as the project defines it, then moved to the GPU."""
     deterministic()
-    # Same arithmetic as ovl_pipeline.training.initialize, minus its CPU-size gate.
-    training.configure(RECIPE["seed"])
+    # Same arithmetic as ovl_pipeline.training.initialize (commit 3f882ad), minus its CPU-size gate.
+    configure(RECIPE["seed"])
     model = TinyGPT(**RECIPE["model"])
     model.lm_head.weight = model.transformer["wte"].weight
     for name, p in model.named_parameters():
@@ -163,7 +161,7 @@ def state_digest(model, opt):
 
 
 def stream_batches(directory, pos, skip=frozenset()):
-    """ovl_pipeline.data.batches, but able to start at a recorded position.
+    """ovl_pipeline.data.batches (commit 3f882ad), but able to start at a recorded position.
 
     pos = [byte offset of a documents.jsonl row, first window start in that row]. Each
     yielded batch comes with the position just after it. The order and contents are

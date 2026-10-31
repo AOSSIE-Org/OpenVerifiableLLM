@@ -44,8 +44,8 @@ with every one of its 37 training segments recomputed bit for bit.
 
 **Small and readable**
 
--   One 631-line file trains, verifies, forks and chats: `simple/ovl.py`, plus about 1,000 lines of
-    model and data code it imports from `src/`
+-   `simple/ovl.py` trains, verifies, forks and chats. With the model, data helpers and timestamps,
+    all the code is about 1,100 lines in `simple/`
 -   Timestamped by two independent authorities
 -   Open data, open code, open results, GPL-3.0
 
@@ -181,8 +181,6 @@ Learn more:
 -   [The simple run](docs/design/simple_run.md): method, results, cost, timeline, lessons
 -   [Goals](docs/project/goals.md), [roadmap](docs/project/roadmap.md) and
     [FAQ](docs/project/faq.md)
--   [The `ovllm verify` artifact verifier](docs/guides/ovllm_verify.md) and the reproducibility
-    study
 -   [Run the model in Ollama](docs/guides/ollama.md): `ollama run ryoari/openverifiablellm`
 -   [All docs](docs/README.md)
 
@@ -192,15 +190,8 @@ Learn more:
 |---|---|---|
 | [`simple/`](simple/README.md) | The verifiable training loop: `ovl.py` (train, verify, fork, chat), segment checks, timestamps, the data rebuild. Start here | active |
 | [`docs/`](docs/README.md) | Design, project and guide docs | active |
-| `tests/` | Tests. `tests/simple/` covers `simple/ovl.py` and runs on a CPU | active |
-| `src/ovllm.py`, `src/verifier.py`, `src/publish.py` | The [`ovllm verify` artifact verifier](docs/guides/ovllm_verify.md) | active |
-| `src/` (other modules), `run_experiment.py`, `sweep.py`, `demo.py`, [`RUNBOOK.md`](RUNBOOK.md) | The July 2026 reproducibility study and its runbook | reference |
-| `notebooks/`, `experiments/`, `paper/`, `data/` | Study notebooks, the paper draft, a small sample dataset | reference |
-| `proofs/`, `keys/` | Recorded audit results and the study's public signing key | evidence |
-| `project/` | Published evidence, source commitments and technical reports. Pinned by hash: don't edit | evidence |
-| `src/ovl_pipeline/`, `scripts/`, `requirements/*.lock` | The earlier production pipeline and its locked environments. The simple run uses its data preparation | frozen |
-| `Legacy/` | The pre-GSoC codebase | frozen |
-| [`docs/legacy/`](docs/legacy/) | Superseded planning notes | frozen |
+| `tests/` | Tests for `simple/`. They run on a CPU | active |
+| `requirements/preparation.lock` | The hash-locked CPU environment CI installs | active |
 | [`brand/`](brand/Brand.md) | Logo, colours and typography | active |
 | [`MAINTAINERS.md`](MAINTAINERS.md), [`BestPracticesChecklist.md`](BestPracticesChecklist.md) | Who maintains the project, AOSSIE best-practices status | active |
 

@@ -15,7 +15,7 @@ os.environ["OVL_TIMESTAMP"] = "0"
 import torch  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "simple"), str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "simple")]
 _spec = importlib.util.spec_from_file_location("ovl_simple", ROOT / "simple" / "ovl.py")
 ovl = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ovl)
