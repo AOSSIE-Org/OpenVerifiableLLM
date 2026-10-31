@@ -174,21 +174,40 @@ class AnchorTimestamps(unittest.TestCase):
             ovl.cmd_verify(args(self.run, no_timestamps=False, **kw))
         return out.getvalue()
 
+    def stamped(self, original):
+        """A stand-in for openssl that accepts only the bytes that were stamped."""
+        return lambda tsr, name, imprint, certs: (Path(imprint[1]).read_bytes() == original, "Oct 20 14:38:43 2026 GMT")
+
     def test_both_timestamps_are_checked_against_the_anchor_bytes(self):
-        with mock.patch.object(ovl.stamp, "verify_reply", return_value=(True, "Oct 20 14:38:43 2026 GMT")) as v:
+        original = (self.run / "anchor.json").read_bytes()
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=self.stamped(original)) as v:
             out = self.verify()
         self.assertEqual(sorted(c.args[1] for c in v.call_args_list), sorted(ovl.stamp.TSA))
         for c in v.call_args_list:
             self.assertEqual(c.args[0], self.run / f"anchor.{c.args[1]}.tsr")
-            self.assertEqual(c.args[2], ["-data", str(self.run / "anchor.json")])
+            self.assertEqual(c.args[2][0], "-data")
         self.assertIn("anchor timestamp digicert: OK", out)
         record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
         self.assertEqual(set(record["checks"][0]["timestamps"]), set(ovl.stamp.TSA))
 
-    def test_timestamp_that_does_not_verify_fails(self):
-        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=[(True, "t"), (False, "t")]):
+    def test_edited_anchor_fails_its_timestamps(self):
+        # Same chain head, so the head check passes; any other byte change breaks the stamp.
+        original = (self.run / "anchor.json").read_bytes()
+        edited = {**json.loads(original), "note": "edited"}
+        (self.run / "anchor.json").write_text(json.dumps(edited))
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=self.stamped(original)):
             with self.assertRaisesRegex(SystemExit, "does not verify"):
                 self.verify()
+
+    def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
+        # Swapping anchor.json after it was read must not change what the timestamps check.
+        original = (self.run / "anchor.json").read_bytes()
+
+        def swap_then_check(tsr, name, imprint, certs):
+            (self.run / "anchor.json").write_text("swapped")
+            return self.stamped(original)(tsr, name, imprint, certs)
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=swap_then_check):
+            self.assertIn("anchor timestamp freetsa: OK", self.verify())
 
     def test_missing_timestamp_fails(self):
         os.remove(self.run / "anchor.freetsa.tsr")

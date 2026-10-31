@@ -527,13 +527,17 @@ def released(chain, hit):
     return next((i for i in reversed(hit) if chain[i]["kind"] in ("base", "final")), None)
 
 
-def check_anchor_timestamps(anchor):
+def check_anchor_timestamps(anchor, data):
     """Both RFC 3161 replies must cover anchor.json's exact bytes. Without them, anyone who can edit
-    the download can rewrite chain.jsonl and anchor.json together, and the anchor check still passes."""
+    the download can rewrite chain.jsonl and anchor.json together, and the anchor check still passes.
+    data is the bytes the chain head was compared with; openssl checks a private copy of them, so the
+    file can't be swapped between the two checks."""
     if not stamp.system_ca():
         sys.exit("no system CA bundle found for the DigiCert timestamp; pass --no-timestamps to skip it")
     stamped = {}
     with tempfile.TemporaryDirectory() as d:
+        snapshot = Path(d) / "anchor.json"
+        snapshot.write_bytes(data)
         try:
             certs = stamp.freetsa_certs(d)
         except OSError as e:
@@ -543,7 +547,7 @@ def check_anchor_timestamps(anchor):
             if not tsr.exists():
                 sys.exit(f"timestamp {tsr} not found; pass --no-timestamps only to check an unstamped anchor")
             try:
-                ok, when = stamp.verify_reply(tsr, name, ["-data", str(anchor)], certs)
+                ok, when = stamp.verify_reply(tsr, name, ["-data", str(snapshot)], certs)
             except FileNotFoundError:
                 sys.exit("openssl not found; it is needed to check the anchor's timestamps")
             if not ok:
@@ -559,8 +563,9 @@ def cmd_verify(a):
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
     checks = []
     if anchor.exists():
+        data = anchor.read_bytes()
         try:
-            want = json.loads(anchor.read_text())
+            want = json.loads(data)
         except ValueError:
             want = None
         if not isinstance(want, dict) or not {"chain_entries", "chain_head_sha256"} <= want.keys():
@@ -572,7 +577,7 @@ def cmd_verify(a):
         if a.no_timestamps:
             print("WARNING: --no-timestamps: the anchor itself is not checked against its timestamps", flush=True)
         checks.append({"anchor": str(anchor), "match": True,
-                       "timestamps": None if a.no_timestamps else check_anchor_timestamps(anchor)})
+                       "timestamps": None if a.no_timestamps else check_anchor_timestamps(anchor, data)})
     elif a.anchor or not a.no_anchor:
         sys.exit(f"anchor {anchor} not found" + ("" if a.anchor else
                  "; pass --no-anchor only to check a run that has no anchor yet"))
