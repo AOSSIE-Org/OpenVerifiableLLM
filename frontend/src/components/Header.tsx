@@ -24,12 +24,23 @@ export const Header: React.FC = () => {
     }
   }, [theme]);
 
+  // Over the landing sky the header is transparent; once the page scrolls it
+  // becomes a floating pill.
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   const toggleTheme = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
   return (
-    <header>
+    <header className={scrolled ? 'pill' : undefined}>
       <div className="wrap bar">
         <a className="brand" href="#top">
           <img

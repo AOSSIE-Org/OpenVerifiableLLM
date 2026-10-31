@@ -1,45 +1,59 @@
+/* Neutral page, one brand hue in several shades (s1 lightest to s5 deepest),
+   the way the AOSSIE Zplit site uses greens. Gold is the brand; green and red
+   still only mean MATCH and MISMATCH. Dark is the default; light is opt-in. */
 :root {
-  --paper: #050505;
-  --sheet: #101010;
-  --term: #0D141F;
-  --rule: #1E1E1E;
-  --rule-strong: #2E2E2E;
-  --ink: #F5F5F5;
-  --ink-2: #BDBDBD;
-  --ink-3: #8A8A8A;
+  --paper: #0A0A0B;
+  --sheet: #141416;
+  --term: #0D0D0F;
+  --rule: #232326;
+  --rule-strong: #333337;
+  --ink: #F4F4F5;
+  --ink-2: #C9C9CE;
+  --ink-3: #9A9AA1;
+  --s1: #FFF3C4;
+  --s2: #FFDB4D;
+  --s3: #FFCD00;
+  --s4: #D9A400;
+  --s5: #8A6400;
+  --deep: #1A1404;
+  --deep-2: #2A2006;
   --gold: #FFCD00;
   --gold-text: #FFCD00;
-  --on-gold: #050505;
+  --accent-text: #FFCD00;
+  --on-gold: #141110;
   --focus-ring: #FFCD00;
-  --match: #3DDC84;
+  --btn: #FFCD00;
+  --on-btn: #141110;
+  --match: #4ADE8A;
   --match-fill: #3DDC84;
-  --match-soft: #0D2A1A;
+  --match-soft: #10281A;
   --miss: #FF8F7A;
   --miss-soft: #2E1714;
-  --hold: #6B6B6B;
-  --sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --hold: #5E5E64;
+  --sans: "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --paper: #FAFAFA;
-  --sheet: #FFFFFF;
-  --term: #0D141F;
-  --rule: #E8E8E8;
-  --rule-strong: #D2D2D2;
-  --ink: #0A0A0A;
-  --ink-2: #3D3D3D;
-  --ink-3: #6B6B6B;
-  --gold: #FFCD00;
-  --gold-text: #0A0A0A;
-  --on-gold: #050505;
-  --focus-ring: #0A0A0A;
+  --paper: #FFFFFF;
+  --sheet: #F6F5F1;
+  --term: #0D0D0F;
+  --rule: #E9E7E1;
+  --rule-strong: #D6D3CB;
+  --ink: #141311;
+  --ink-2: #3C3A35;
+  --ink-3: #66635C;
+  --gold-text: #141311;
+  --accent-text: #8A6400;
+  --focus-ring: #141311;
+  --btn: #141311;
+  --on-btn: #FFFFFF;
   --match: #00753A;
   --match-fill: #008542;
   --match-soft: #DCF2E4;
   --miss: #A8321F;
   --miss-soft: #F7E2DC;
-  --hold: #9AA7B6;
+  --hold: #A8A59E;
   color-scheme: light;
 }

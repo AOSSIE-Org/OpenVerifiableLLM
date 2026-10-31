@@ -19,19 +19,71 @@ export const copy = {
     h1Accent: 'recompute',
     h1Suffix: '.',
     lede: 'A 23M-parameter model trained on English Wikipedia. Each of its 37 training segments was recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
+    // shorter version for the landing
+    ledeShort: '23M parameters, trained on English Wikipedia. All 37 training segments recomputed bit for bit; no outside checks yet.',
     verifyCta: 'Verify a segment',
     evidenceCta: 'See the evidence',
     termTitle: 'Consistency check',
     termMeta: 'CPU only · about 10 minutes',
     termCaption: 'Checks the release against its record. Recomputes nothing.',
-    termCommand: `$ openssl ts -verify -in anchor.digicert.tsr -data anchor.json \\
-    -CAfile /etc/ssl/certs/ca-certificates.crt
-Verification: OK
-
-$ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify \\
-    --run . --weights conversation-model.pt
-anchor anchor.json: chain head MATCH (38 entries)
-weights conversation-model.pt: MATCH chain entry 37`,
+    poweredBy: 'Powered by',
+  },
+  story: {
+    kicker: "How it's checkable",
+    h2: 'From a training run to something you can check.',
+    sub: 'Six pieces, each one a file you can download.',
+    cta: 'Verify a segment',
+    steps: [
+      { title: 'Deterministic training', points: ['The same code, data and GPU type give the same bits.'] },
+      { title: '37 recorded segments', points: ['Each segment can be recomputed on its own in about an hour.'] },
+      { title: 'A chain of checkpoints', points: ['Each boundary links to the one before, so no step can be swapped.'] },
+      { title: 'A timestamped record', points: ['Stamped by DigiCert and FreeTSA on 20 October 2026.'] },
+      { title: 'Verifiable exclusion', points: ['A fork trained without one article, and it shows.'] },
+      { title: 'Check it yourself', points: ['From a 2-minute demo to a 1-hour recompute.'] },
+    ],
+  },
+  quote: {
+    kicker: 'The chain',
+    text: 'Every checkpoint holds the hash of the one before it. Change one, and every link after it breaks.',
+    entries: 'chain entries',
+    head: 'head',
+    hash: 'hash',
+    previous: 'previous',
+    aria: 'The last three chain entries; each one records the hash of the entry before it',
+  },
+  faq: {
+    h2: 'Questions',
+    sub: 'Short answers about checking this model.',
+    stillTitle: 'Still have questions?',
+    discord: 'Ask on Discord',
+    issue: 'Open an issue',
+    issueHref: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/issues',
+    items: [
+      {
+        q: 'What does "verified" mean here?',
+        a: 'Someone recomputed a segment and got exactly the same bytes. It says nothing about whether the answers are correct.',
+      },
+      {
+        q: 'Who has checked it so far?',
+        a: 'Only the project. No independent checker has submitted a result yet.',
+      },
+      {
+        q: 'What does the 10-minute check prove?',
+        a: 'That the released files match the timestamped record. It recomputes no training.',
+      },
+      {
+        q: 'Why does it need the same GPU type?',
+        a: 'Bit-exact results depend on the hardware. Other GPUs give different bits, which is expected.',
+      },
+    ],
+  },
+  ctaCard: {
+    h2: 'Check a segment yourself.',
+    desc: 'About an hour on a rented RTX 5090, roughly US$1.50.',
+    primary: 'Open the RunPod template',
+    primaryHref: 'https://console.runpod.io/deploy?template=mai1ozh35g',
+    secondary: 'Read the source',
+    secondaryHref: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM',
   },
   overview: {
     kicker: "What's proven",

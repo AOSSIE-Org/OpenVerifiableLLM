@@ -1,12 +1,51 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import type { PreparationData } from '../data/contracts';
+import type { PreparationData, VerificationsData } from '../data/contracts';
 
 interface OverviewProps {
   preparation: PreparationData;
+  verifications: VerificationsData;
+  authorities: string[];
 }
 
-export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
+// A small drawing above each headline fact, made from the evidence.
+const FactArt: React.FC<{ index: number } & OverviewProps> = ({ index, preparation, verifications, authorities }) => {
+  if (index === 0) {
+    return (
+      <span className="art-ticks">
+        {verifications.coverage.map(c => (
+          <i key={c.segment} className={c.projectResult === 'MATCH' ? 'ok' : ''} />
+        ))}
+      </span>
+    );
+  }
+  if (index === 1) {
+    const id = `${preparation.preparedDataId.slice(0, 8)}…`;
+    return (
+      <span className="art-same">
+        <span>
+          raw dump <i /> <code>{id}</code>
+        </span>
+        <span>
+          rebuilt <i /> <code>{id}</code>
+        </span>
+      </span>
+    );
+  }
+  return (
+    <span className="art-stamp">
+      <svg viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="52" />
+        <circle cx="60" cy="60" r="42" className="inner" />
+      </svg>
+      <b>STAMPED</b>
+      <small>{authorities.length} TSAs</small>
+    </span>
+  );
+};
+
+export const Overview: React.FC<OverviewProps> = props => {
+  const { preparation } = props;
   return (
     <section id="overview">
       <div className="wrap">
@@ -19,6 +58,9 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
         <div className="facts">
           {copy.overview.facts.map((fact, i) => (
             <div key={i} className="panel fact">
+              <div className="fact-art" aria-hidden="true">
+                <FactArt index={i} {...props} />
+              </div>
               <div className="n">
                 {fact.value}
                 {fact.total && <small>{fact.total}</small>}

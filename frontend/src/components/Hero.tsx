@@ -1,44 +1,75 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { copy } from '../content/copy';
+import type { EvidenceData } from '../data/contracts';
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion';
+import { useNarrow, useScrollProgress } from '../hooks/useScrollProgress';
+import { VerifierWindow } from './VerifierWindow';
 
-export const Hero: React.FC = () => {
+interface HeroProps {
+  evidence: EvidenceData;
+}
+
+// The landing: a short centred headline, and under it a laptop with its lid
+// half closed. While the tall hero scrolls, the lid opens and the laptop rises
+// and grows until its screen fills the view, while the headline fades.
+// On narrow screens and with reduced motion it is a plain stacked layout.
+export const Hero: React.FC<HeroProps> = ({ evidence }) => {
+  const reduced = usePrefersReducedMotion();
+  const narrow = useNarrow(900);
+  const animated = !reduced && !narrow;
+  const [opened, setOpened] = useState(false);
+
+  const ref = useScrollProgress<HTMLDivElement>(animated, p => {
+    if (p > 0.8) setOpened(true);
+  });
+
+  const { verifications } = evidence;
+  const matched = verifications.coverage.filter(c => c.projectResult === 'MATCH').length;
+
   return (
-    <div className="wrap hero" id="top">
-      <div>
-        <div className="kicker">{copy.hero.kicker}</div>
-        <h1>
-          {copy.hero.h1Prefix}
-          <span>{copy.hero.h1Accent}</span>
-          {copy.hero.h1Suffix}
-        </h1>
-        <p className="lede">{copy.hero.lede}</p>
-        <div className="cta">
-          <a className="btn primary" href="#check">
-            {copy.hero.verifyCta}
-          </a>
-          <a className="btn" href="#overview">
-            {copy.hero.evidenceCta}
-          </a>
+    <div className={`hx${animated ? '' : ' hx-static'}`} id="top" ref={ref}>
+      <div className="hx-stage">
+        <div className="wrap hx-grid">
+          <div className="hx-copy">
+            <div className="kicker">{copy.hero.kicker}</div>
+            <h1>
+              {copy.hero.h1Prefix}
+              <span className="accent">{copy.hero.h1Accent}</span>
+              {copy.hero.h1Suffix}
+            </h1>
+            <p className="hx-lede">{copy.hero.ledeShort}</p>
+            <div className="cta">
+              <a className="btn primary" href="#check">
+                {copy.hero.verifyCta} <span aria-hidden="true">→</span>
+              </a>
+              <a className="btn" href="#overview">
+                {copy.hero.evidenceCta}
+              </a>
+            </div>
+            <p className="hx-meta">
+              <span>
+                {matched}/{verifications.coverage.length} segments matched
+              </span>
+              <span>GPL-3.0</span>
+              <a href="https://aossie.org">
+                {copy.hero.poweredBy} AOSSIE <span aria-hidden="true">↗</span>
+              </a>
+            </p>
+          </div>
+        </div>
+
+        <div className="hx-device">
+          <div className="lap">
+            <div className="lap-lid">
+              <span className="lap-cam" aria-hidden="true" />
+              <div className="lap-screen">
+                <VerifierWindow evidence={evidence} play={opened || !animated} instant={reduced} />
+              </div>
+            </div>
+            <div className="lap-base" aria-hidden="true" />
+          </div>
         </div>
       </div>
-
-      <figure className="term" aria-label="Output of the consistency check">
-        <div className="tt">
-          <b>{copy.hero.termTitle}</b>
-          <span>{copy.hero.termMeta}</span>
-        </div>
-        <pre tabIndex={0} role="region" aria-label="Consistency check terminal commands">
-          <span className="p">$</span> openssl ts -verify -in anchor.digicert.tsr -data anchor.json \
-          {'\n'}    -CAfile /etc/ssl/certs/ca-certificates.crt{'\n'}
-          <span className="ok">Verification: OK</span>
-          {'\n\n'}
-          <span className="p">$</span> OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify \
-          {'\n'}    --run . --weights conversation-model.pt{'\n'}
-          anchor anchor.json: chain head <span className="ok">MATCH</span> (38 entries){'\n'}
-          weights conversation-model.pt: <span className="ok">MATCH</span> chain entry 37
-        </pre>
-        <figcaption>{copy.hero.termCaption}</figcaption>
-      </figure>
     </div>
   );
 };

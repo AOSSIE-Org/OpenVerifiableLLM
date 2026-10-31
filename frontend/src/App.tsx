@@ -3,12 +3,16 @@ import type { EvidenceData } from './data/contracts';
 import { validateEvidence, SnapshotError } from './data/validate';
 import { Header } from './components/Header';
 import { Hero } from './components/Hero';
+import { Story } from './components/Story';
+import { ChainQuote } from './components/ChainQuote';
 import { Overview } from './components/Overview';
 import { CheckLadder } from './components/CheckLadder';
 import { Verification } from './components/Verification';
 import { TrainingTimeline } from './components/TrainingTimeline';
 import { VerifiableExclusion } from './components/VerifiableExclusion';
 import { Downloads } from './components/Downloads';
+import { Faq } from './components/Faq';
+import { CtaCard } from './components/CtaCard';
 import { Footer } from './components/Footer';
 import { MiniBar } from './components/MiniBar';
 
@@ -79,8 +83,14 @@ export const App: React.FC = () => {
       <Header />
 
       <main id="main">
-        <Hero />
-        <Overview preparation={evidence.preparation} />
+        <Hero evidence={evidence} />
+        <Story evidence={evidence} />
+        <ChainQuote chain={evidence.chain} anchor={evidence.anchor} />
+        <Overview
+          preparation={evidence.preparation}
+          verifications={evidence.verifications}
+          authorities={evidence.anchor.authorities}
+        />
         <CheckLadder />
         <Verification
           verifications={evidence.verifications}
@@ -89,6 +99,8 @@ export const App: React.FC = () => {
         <TrainingTimeline chain={evidence.chain} />
         <VerifiableExclusion exclusion={evidence.exclusion} />
         <Downloads releaseHashes={evidence.releaseHashes} />
+        <Faq />
+        <CtaCard />
       </main>
 
       <MiniBar />
