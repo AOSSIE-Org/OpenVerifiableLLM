@@ -7,10 +7,29 @@ import { fresh } from './helpers';
 
 const root = path.resolve(__dirname, '../..');
 
+function python(): string {
+  for (const bin of [process.env.PYTHON, 'python3', 'python']) {
+    if (!bin) continue;
+    const r = spawnSync(bin, ['--version'], { encoding: 'utf8' });
+    if (r.status === 0 && /Python 3/.test(`${r.stdout}${r.stderr}`)) return bin;
+  }
+  throw new Error('Python 3 is required (python3 on Linux CI; python on Windows)');
+}
+
 describe('scripts/build-data.py', () => {
   it('reproduces the committed site-data.json byte for byte from the pinned files (--check)', () => {
-    const out = execFileSync('python3', ['scripts/build-data.py', '--check'], { cwd: root, encoding: 'utf8' });
+    const out = execFileSync(python(), ['scripts/build-data.py', '--check'], { cwd: root, encoding: 'utf8' });
     expect(out).toContain('matches the pinned files');
+  });
+
+  it('fails when an upstream GitHub copy no longer matches its manifest sha256', () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), 'ovl-'));
+    for (const d of ['scripts', 'data', 'public', 'src/content']) cpSync(path.join(root, d), path.join(tmp, d), { recursive: true });
+    const f = path.join(tmp, 'data/upstream/1049d2a7/README.md');
+    writeFileSync(f, readFileSync(f, 'utf8') + '\n');
+    const r = spawnSync(python(), ['scripts/build-data.py'], { cwd: tmp, encoding: 'utf8' });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/upstream copy README\.md changed/);
   });
 
   it('fails when a pinned raw file no longer matches its manifest sha256', () => {
@@ -18,7 +37,7 @@ describe('scripts/build-data.py', () => {
     for (const d of ['scripts', 'data', 'public', 'src/content']) cpSync(path.join(root, d), path.join(tmp, d), { recursive: true });
     const f = path.join(tmp, 'data/raw/release/simple-run/verifications.jsonl');
     writeFileSync(f, readFileSync(f, 'utf8').replace('"MATCH", "segment": 3}', '"MISMATCH", "segment": 3}'));
-    const r = spawnSync('python3', ['scripts/build-data.py'], { cwd: tmp, encoding: 'utf8' });
+    const r = spawnSync(python(), ['scripts/build-data.py'], { cwd: tmp, encoding: 'utf8' });
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/does not match manifest sha256/);
   });
@@ -30,7 +49,7 @@ describe('scripts/build-data.py', () => {
     const l = JSON.parse(readFileSync(p, 'utf8'));
     l.claims.find((c: { id: string }) => c.id === 'OV-01').sources[0].quote = 'A 99-million-parameter GPT';
     writeFileSync(p, JSON.stringify(l));
-    const r = spawnSync('python3', ['scripts/build-data.py'], { cwd: tmp, encoding: 'utf8' });
+    const r = spawnSync(python(), ['scripts/build-data.py'], { cwd: tmp, encoding: 'utf8' });
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/quote not found/);
   });

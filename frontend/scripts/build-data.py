@@ -15,6 +15,25 @@ UPSTREAM = "1049d2a782b8f63103abfa0cca8deab0d2037290"
 UP = os.path.join(ROOT, "data", "upstream", UPSTREAM[:8])
 GH = "https://github.com/AOSSIE-Org/OpenVerifiableLLM"
 OUT = os.path.join(ROOT, "public", "data", "site-data.json")
+upman = json.load(open(os.path.join(ROOT, "data", "upstream", "manifest.json")))
+
+
+def upstream_path(rel):
+    if rel == "github-release-v1.0.1.json":
+        return os.path.join(ROOT, "data", "upstream", rel)
+    return os.path.join(UP, rel)
+
+
+def upstream_bytes(rel):
+    b = open(upstream_path(rel), "rb").read()
+    want = upman["files"][rel]["sha256"]
+    if hashlib.sha256(b).hexdigest() != want:
+        fail(f"upstream copy {rel} changed")
+    return b
+
+
+def upstream_lines(rel):
+    return upstream_bytes(rel).decode().splitlines()
 
 man = json.load(open(os.path.join(RAW, "manifest.json")))
 REV = man["revision"]
@@ -187,13 +206,14 @@ def hashes(folder):
 # ---------- anchor ----------
 anchor_raw = read(f"{SR}/anchor.json")
 anchor = json.loads(anchor_raw)
+if hashlib.sha256(read(f"{SR}/chain.jsonl")).hexdigest() != anchor["chain_jsonl_sha256"]:
+    fail("anchor.json chain_jsonl_sha256 != chain.jsonl")
 tsa = []
 for name in ("digicert", "freetsa"):
     read(f"{SR}/anchor.{name}.tsr")
     t = subprocess.run(["openssl", "ts", "-reply", "-in", os.path.join(RAW, SR, f"anchor.{name}.tsr"), "-text"],
                        capture_output=True, text=True, check=True).stdout
     ts = next(l.split(":", 1)[1].strip() for l in t.splitlines() if l.startswith("Time stamp:"))
-    imprint = "".join(t.split("Message data:")[1].split("Nonce")[0].split()) if "Message data:" in t else ""
     when = datetime.datetime.strptime(ts.replace(" GMT", ""), "%b %d %H:%M:%S %Y").replace(tzinfo=datetime.timezone.utc)
     tsa.append({"authority": name, "genTime": when.isoformat().replace("+00:00", "Z"),
                 "src": src(f"{SR}/anchor.{name}.tsr", raw=f"Time stamp: {ts}", checked_by="project")})
@@ -239,7 +259,7 @@ dl, draw, dm = find_line(readme, r"(\d{4}-\d{2}-\d{2}) (?:dump|English)", "dump 
 # The v1.0.1 tag README still clones v1.0.0: that tag was cut before the docs
 # were repinned. Main was fixed in #256. Copying Getting started from
 # main@1049d2a7 is the correct source (not the tag).
-up_readme = open(os.path.join(UP, "README.md")).read().splitlines()
+up_readme = upstream_lines("README.md")
 gs, _, _ = find_line(up_readme, r"^## Getting started", "Getting started")
 start = next(i for i in range(gs, len(up_readme)) if up_readme[i].startswith("```bash"))
 end = next(i for i in range(start + 1, len(up_readme)) if up_readme[i].startswith("```"))
@@ -247,7 +267,7 @@ cmd_lines = up_readme[start + 1:end]
 intro_end = start  # prose between heading and code block
 intro = " ".join(l.strip() for l in up_readme[gs:intro_end] if l.strip())
 rl, rraw, rm = find_line(up_readme, r"\((https://console\.runpod\.io/deploy\?template=[a-z0-9]+)\)", "runpod link")
-sr = open(os.path.join(UP, "docs/design/simple_run.md")).read().splitlines()
+sr = upstream_lines("docs/design/simple_run.md")
 cl2, craw2, cm2 = find_line(sr, r"about an hour, (about US\$[0-9.]+–[0-9.]+) rented", "cost")
 if cl2 != 85:
     fail(f"cost moved: simple_run.md line {cl2}, brief cites line 85")
@@ -308,7 +328,6 @@ data = {
 }
 # ---------- claim sources: the exact cited lines for every ledger claim ----------
 LEDGER = json.load(open(os.path.join(ROOT, "src", "content", "claims.json")))
-upman = json.load(open(os.path.join(ROOT, "data", "upstream", "manifest.json")))
 RELEASE_URL = f"{GH}/releases/tag/v1.0.1"
 
 
@@ -321,12 +340,9 @@ def cited(s):
     if rev.startswith("hf:"):
         text_lines = lines(f)
     elif rev.startswith("gh:"):
-        b = open(os.path.join(UP, f), "rb").read()
-        if hashlib.sha256(b).hexdigest() != upman["files"][f]["sha256"]:
-            fail(f"upstream copy {f} changed")
-        text_lines = b.decode().splitlines()
+        text_lines = upstream_bytes(f).decode().splitlines()
     elif rev.startswith("github-release:"):
-        rel = json.load(open(os.path.join(ROOT, "data", "upstream", "github-release-v1.0.1.json")))
+        rel = json.loads(upstream_bytes("github-release-v1.0.1.json"))
         m = re.fullmatch(r"assets\[(.+)\]\.digest", ln)
         asset = next((a for a in rel["assets"] if m and a["name"] == m.group(1)), None)
         if not asset:

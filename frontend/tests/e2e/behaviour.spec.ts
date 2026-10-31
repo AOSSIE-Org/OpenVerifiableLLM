@@ -9,6 +9,8 @@ test('keyboard: skip link first, then into main; tiles are focusable buttons ope
   await expect(page.locator('.skip')).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#main$/);
+  await expect(page.locator('h1')).toBeVisible();
+  await expect(page.locator('[data-failed]')).toHaveCount(0);
   const tile = page.locator('.tiles-int button').nth(10);
   await tile.focus();
   const ring = await tile.evaluate((el) => {

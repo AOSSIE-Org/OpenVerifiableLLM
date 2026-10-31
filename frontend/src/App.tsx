@@ -97,7 +97,7 @@ export function App({ state, route, Page, navigate }: AppProps) {
   return (
     <DataContext.Provider value={state}>
       <Shell route={route} pinned {...(navigate ? { navigate } : {})}>
-        <ErrorBoundary>
+        <ErrorBoundary key={route?.key ?? 'none'}>
           {Page ? (
             <Page />
           ) : (

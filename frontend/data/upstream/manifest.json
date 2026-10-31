@@ -21,6 +21,9 @@
   "docs/project/roadmap.md": {
    "gitBlob": "2d9ce06ed7319ac4f25017e851e776ace7ce9062",
    "sha256": "46b73d327ef71fab7fe075b00d7cb3681c2d4c7a64a7d3c5b8aebf1965ea7092"
+  },
+  "github-release-v1.0.1.json": {
+   "sha256": "c3481d1c606d029000c1ec9fa07dea813321437b1123b6e3456f61ddfba15793"
   }
  }
 }

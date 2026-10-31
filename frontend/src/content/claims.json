@@ -10,9 +10,9 @@
   "brief": "v3 2026-10-29"
  },
  "source_roots": {
-  "hf:96dc282a": "/workspace/ovllm-frontend/data/raw",
-  "gh:1049d2a7": "/workspace/ovllm-claims/repo",
-  "brief:v3-2026-10-29": "/home/box/agent-data/agents/4b8da334-09b0-45df-aea6-057a85a7e4f4/attachments/564c193a1455f587f19a1589b8408c166aa773b83b0d68b24aecc53a47cff9e7.md"
+  "hf:96dc282a": "data/raw (HF pin 96dc282a)",
+  "gh:1049d2a7": "data/upstream/1049d2a7",
+  "brief:v3-2026-10-29": "project brief v3 (not public)"
  },
  "derived": {
   "odds": {
@@ -1705,7 +1705,7 @@
     }
    ],
    "rule": "Numbers come from pinned data via script, never hand-typed (brief:28-29)",
-   "limit": "GGUF is for trying the model, not for verifying it; not in pinned HF rev 96dc282a",
+   "limit": "GGUF is for trying the model, not for verifying it; it is not in the pinned Hugging Face revision",
    "note": "ollama.md:20 links the v1.0.0 release; v1.0.1 has the same asset digest.",
    "verbatim": null
   },

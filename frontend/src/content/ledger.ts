@@ -93,4 +93,7 @@ export function bannedIn(text: string, banned: Banned[] = ledger.forbidden_phras
 }
 
 const NUM = /\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?/g;
-export const numbersIn = (s: string): string[] => [...s.matchAll(NUM)].map((m) => m[0].replace(/,/g, '').replace(/\.$/, ''));
+/** Hash ids and the word SHA-256 are identifiers, not quantities. */
+const HASH_ID = /[0-9a-f]{4,}(?:…|\.\.\.)[0-9a-f]*|sha-?256|\b(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/gi;
+export const numbersIn = (s: string): string[] =>
+  [...s.replace(HASH_ID, ' ').matchAll(NUM)].map((m) => m[0].replace(/,/g, '').replace(/\.$/, ''));

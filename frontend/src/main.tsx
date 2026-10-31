@@ -60,11 +60,17 @@ async function render(pathname: string, initial = false) {
     if (id) document.getElementById(id)?.scrollIntoView();
   }
 }
+let currentPath = location.pathname;
 function navigate(href: string) {
   history.pushState(null, '', href);
-  void render(new URL(href, location.href).pathname).then(() => document.getElementById('main')?.focus());
+  currentPath = new URL(href, location.href).pathname;
+  void render(currentPath).then(() => document.getElementById('main')?.focus());
 }
-window.addEventListener('popstate', () => void render(location.pathname));
+window.addEventListener('popstate', () => {
+  if (location.pathname === currentPath) return;
+  currentPath = location.pathname;
+  void render(currentPath);
+});
 
 void (async () => {
   if (!prerendered) show({ state: 'loading', route: routeFor(location.pathname), Page: null });

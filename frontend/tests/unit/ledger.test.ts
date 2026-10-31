@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bannedIn, buildClaim, claim, claims, copy, ledger, numbersIn, ui, whoChecked } from '../../src/content/ledger';
-import { auditClaims, KNOWN_ISSUES, unsupportedNumbers } from '../../src/content/audit';
+import { auditClaims, KNOWN_ISSUES, numberUniverse, unsupportedNumbers } from '../../src/content/audit';
 import { fresh } from './helpers';
 
 describe('claim ledger', () => {
@@ -47,6 +47,17 @@ describe('claim ledger', () => {
     delete d.claimSources['VE-03'];
     expect(auditClaims(d)).toContain('VE-03: no source');
   });
+
+  it('does not treat digits that only live inside a sha256 as a number universe', () => {
+    const d = fresh();
+    const before = numberUniverse(d);
+    d.downloads[0]!.files[0]!.sha256 = 'aaa888aaa888aaa888aaa888aaa888aaa888aaa888aaa888aaa888aaa888aaa8';
+    expect(numberUniverse(d).has('888')).toBe(before.has('888'));
+  });
+
+  it('does not ship machine paths in source_roots', () => {
+    expect(JSON.stringify(ledger)).not.toMatch(/\/home\/box|\/workspace\//);
+  });
 });
 
 describe('banned phrases', () => {
@@ -72,5 +83,10 @@ describe('banned phrases', () => {
 describe('numbersIn', () => {
   it('keeps thousands separators and splits lists', () => {
     expect(numbersIn('7,118,121,139 targets; segments (30,31) and 3.3860')).toEqual(['7118121139', '30', '31', '3.3860']);
+  });
+  it('does not split a git sha into quantities', () => {
+    expect(numbersIn('pinned to revision 96dc282a')).toEqual([]);
+    expect(numbersIn('142,815,808 bytes sha256 541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de')).toEqual(['142815808']);
+    expect(numbersIn('sha256 8de1d600…ba68')).toEqual([]);
   });
 });

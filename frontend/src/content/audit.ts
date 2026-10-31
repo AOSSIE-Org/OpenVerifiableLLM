@@ -3,18 +3,24 @@ import { formatValue } from '../data/format';
 import issues from './ledger-issues.json' with { type: 'json' };
 import { bannedIn, claims, ledger, numbersIn, ui } from './ledger';
 
+const SKIP_KEY = /^(sha256|url|download|digest|gitBlob|hash|revision|revShort|hfTree)$/;
+const SKIP_STR = /^(?:https?:|[0-9a-f]{8,})$/i;
+
 /** Every number a reader sees in a claim must be found in the claim's cited source lines or in site-data.json. */
 export function numberUniverse(data: SiteData): Set<string> {
   const out = new Set<string>();
-  const add = (v: unknown): void => {
+  const add = (v: unknown, key?: string): void => {
+    if (key && SKIP_KEY.test(key)) return;
     if (typeof v === 'number') {
       out.add(String(v));
       out.add(String(Math.trunc(v)));
       out.add(formatValue(v, 'pct2').replace('%', ''));
       for (let d = 1; d <= 5; d++) out.add(v.toFixed(d));
-    } else if (typeof v === 'string') numbersIn(v).forEach((n) => out.add(n));
-    else if (Array.isArray(v)) v.forEach(add);
-    else if (v && typeof v === 'object') Object.values(v).forEach(add);
+    } else if (typeof v === 'string') {
+      if (SKIP_STR.test(v.trim())) return;
+      numbersIn(v).forEach((n) => out.add(n));
+    } else if (Array.isArray(v)) v.forEach((x) => add(x, key));
+    else if (v && typeof v === 'object') Object.entries(v as Record<string, unknown>).forEach(([k, x]) => add(x, k));
   };
   add({ ...data, claimSources: undefined });
   return out;

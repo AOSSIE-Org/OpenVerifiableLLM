@@ -26,13 +26,13 @@ for (const r of renderAll(data)) {
   const fullTitle = pageTitle ? `${pageTitle} · OpenVerifiableLLM` : 'OpenVerifiableLLM';
   const desc = ui[`meta.${r.key}`] ?? ui['meta.default'] ?? '';
   const html = template
-    .replace('<div id="root"><!--app--></div>', `<div id="root">${r.html}</div>`)
-    .replace('<title>OpenVerifiableLLM</title>', `<title>${attr(fullTitle)}</title>`)
-    .replace(/<meta name="description" content="[^"]*" \/>/, `<meta name="description" content="${attr(desc)}" />`)
-    .replace(/<meta property="og:title" content="[^"]*" \/>/, `<meta property="og:title" content="${attr(fullTitle)}" />`)
-    .replace(/<meta property="og:description" content="[^"]*" \/>/, `<meta property="og:description" content="${attr(desc)}" />`)
-    .replace('</head>', `  ${dataMeta}\n  </head>`)
-    .replace(/(<meta charset="UTF-8" \/>)/, `$1\n    ${cspMeta}`);
+    .replace('<div id="root"><!--app--></div>', () => `<div id="root">${r.html}</div>`)
+    .replace('<title>OpenVerifiableLLM</title>', () => `<title>${attr(fullTitle)}</title>`)
+    .replace(/<meta name="description" content="[^"]*" \/>/, () => `<meta name="description" content="${attr(desc)}" />`)
+    .replace(/<meta property="og:title" content="[^"]*" \/>/, () => `<meta property="og:title" content="${attr(fullTitle)}" />`)
+    .replace(/<meta property="og:description" content="[^"]*" \/>/, () => `<meta property="og:description" content="${attr(desc)}" />`)
+    .replace('</head>', () => `  ${dataMeta}\n  </head>`)
+    .replace(/(<meta charset="UTF-8" \/>)/, (_, m) => `${m}\n    ${cspMeta}`);
   // 404.html is static: no app script, no preloads, so it never fetches site-data.json.
   if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html.replace(/<script type="module"[^>]*><\/script>\s*/g, '').replace(/<link rel="modulepreload"[^>]*>\s*/g, ''));
   else {

@@ -1,9 +1,10 @@
 # OpenVerifiableLLM evidence site (v3)
 
 A static site that shows what was trained, who has checked it, and how to check it yourself.
-Every number comes from the Hugging Face dataset
-`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence` pinned at `96dc282a`, and every
-sentence comes from the claim ledger. Nothing runs on a server.
+Pinned evidence numbers come from the Hugging Face dataset
+`AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence` at `96dc282a`. Commands, cost, and
+release digests come from GitHub copies listed below. Headlines come from `copy.json`; labels from
+`ui.json`; facts and limits from the claim ledger. Nothing runs on a server.
 
 ## Where things come from
 
@@ -23,7 +24,7 @@ sentence comes from the claim ledger. Nothing runs on a server.
 ```bash
 npm ci
 npm run data:fetch      # pinned evidence files into data/raw (needed by 3 unit tests and the build)
-npm run claims:sync     # CLAIMS_DIR=/path/to/ovllm-claims; copies claims.json and COPY.md
+CLAIMS_DIR=/path/to/ovllm-claims npm run claims:sync   # copies claims.json and COPY.md
 npm run data            # rebuild public/data/site-data.json from data/raw
 npm run lint && npm run typecheck && npm test && npm run contrast
 npm run build           # data drift check → typecheck → client + SSR build → prerender → phone budget
@@ -36,6 +37,9 @@ npx playwright install chromium && CI=1 E2E_PORT=4391 npm run test:e2e   # own p
 claim has no source, uses a banned phrase, or shows a number found neither in its cited lines
 nor in `site-data.json`, or if the bundle exceeds the phone budget. Set
 `BASE_PATH=/OpenVerifiableLLM/` to build for a sub-path.
+
+Hashed copies under `data/raw/`, `data/upstream/`, and `public/data/` are marked `-text` in
+`.gitattributes` so a Windows `core.autocrlf` checkout cannot rewrite the bytes.
 
 ## How to change one claim
 
