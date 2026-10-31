@@ -2,20 +2,16 @@ import React, { useEffect, useState } from 'react';
 import type { EvidenceData } from './data/contracts';
 import { validateEvidence, SnapshotError } from './data/validate';
 import { Header } from './components/Header';
-import { Hero } from './components/Hero';
-import { Story } from './components/Story';
-import { ChainQuote } from './components/ChainQuote';
+import { Contents } from './components/Contents';
+import { Lead } from './components/Lead';
 import { Overview } from './components/Overview';
 import { CheckLadder } from './components/CheckLadder';
 import { Verification } from './components/Verification';
 import { TrainingTimeline } from './components/TrainingTimeline';
 import { VerifiableExclusion } from './components/VerifiableExclusion';
 import { Downloads } from './components/Downloads';
-import { Faq } from './components/Faq';
-import { CtaCard } from './components/CtaCard';
+import { Faq, ExternalLinks } from './components/Faq';
 import { Footer } from './components/Footer';
-import { Band } from './components/Band';
-import { MiniBar } from './components/MiniBar';
 
 export const App: React.FC = () => {
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -50,27 +46,20 @@ export const App: React.FC = () => {
 
   if (error) {
     return (
-      <div className="wrap" style={{ padding: '64px 32px' }}>
-        <div className="panel" role="alert">
-          <h2>Snapshot unavailable or invalid</h2>
-          <p style={{ marginTop: '12px', color: 'var(--miss)' }}>{error}</p>
-          <button
-            type="button"
-            className="btn"
-            style={{ marginTop: '24px' }}
-            onClick={() => window.location.reload()}
-          >
-            Retry loading snapshot
-          </button>
-        </div>
+      <div className="page-msg" role="alert">
+        <h2>Snapshot unavailable or invalid</h2>
+        <p className="err">{error}</p>
+        <button type="button" className="btn" onClick={() => window.location.reload()}>
+          Retry loading snapshot
+        </button>
       </div>
     );
   }
 
   if (!evidence) {
     return (
-      <div className="wrap" style={{ padding: '64px 32px', textAlign: 'center' }}>
-        <p style={{ color: 'var(--ink-3)' }}>Loading display snapshot…</p>
+      <div className="page-msg">
+        <p>Loading display snapshot…</p>
       </div>
     );
   }
@@ -83,30 +72,24 @@ export const App: React.FC = () => {
 
       <Header />
 
-      <main id="main">
-        <Hero evidence={evidence} />
-        <Story evidence={evidence} />
-        <ChainQuote chain={evidence.chain} anchor={evidence.anchor} />
-        <Overview
-          preparation={evidence.preparation}
-          verifications={evidence.verifications}
-          authorities={evidence.anchor.authorities}
-        />
-        <CheckLadder />
-        <Band>
-          <Verification
-            verifications={evidence.verifications}
-            hardwareMap={evidence.hardwareMap}
-          />
-          <TrainingTimeline chain={evidence.chain} />
-        </Band>
-        <VerifiableExclusion exclusion={evidence.exclusion} />
-        <Downloads releaseHashes={evidence.releaseHashes} />
-        <Faq />
-        <CtaCard />
-      </main>
+      <div className="page">
+        <aside className="side">
+          <Contents />
+        </aside>
 
-      <MiniBar />
+        <main id="main" className="article">
+          <Lead evidence={evidence} />
+          <Overview preparation={evidence.preparation} />
+          <CheckLadder />
+          <Verification verifications={evidence.verifications} hardwareMap={evidence.hardwareMap} />
+          <TrainingTimeline chain={evidence.chain} />
+          <VerifiableExclusion exclusion={evidence.exclusion} />
+          <Downloads releaseHashes={evidence.releaseHashes} />
+          <Faq />
+          <ExternalLinks />
+        </main>
+      </div>
+
       <Footer revision={evidence.revision} />
     </>
   );

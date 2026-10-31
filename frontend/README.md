@@ -8,7 +8,7 @@ Static single-page project site for OpenVerifiableLLM, presenting real bit-for-b
 - **Real evidence data**: Pinned Hugging Face dataset `AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence` at revision `96dc282a`.
 - **Prebuild validation**: `npm run build` runs `prebuild` (`npm run validate`), failing closed if any data contract or hash link is violated.
 - **Accessible design**: WCAG 2.2 AA compliant, zero axe violations across themes (dark default, light opt-in) and viewports.
-- **Offline bundle**: Self-hosted Geist fonts, embedded SVG brand assets, and zero runtime external CDN dependencies.
+- **Offline bundle**: System fonts only (no web fonts), embedded SVG brand assets, and zero runtime external CDN dependencies.
 
 ## Commands
 

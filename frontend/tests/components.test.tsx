@@ -17,20 +17,17 @@ describe('Header component', () => {
     render(<Header />);
     expect(screen.getByText('OpenVerifiable')).toBeInTheDocument();
     expect(screen.getByText('LLM')).toBeInTheDocument();
-    expect(screen.getByText('Check it')).toBeInTheDocument();
-    expect(screen.getByText('Verification')).toBeInTheDocument();
-    expect(screen.getByText('Timeline')).toBeInTheDocument();
-    expect(screen.getByText('Exclusion')).toBeInTheDocument();
-    expect(screen.getByText('Downloads')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Source' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Evidence' })).toBeInTheDocument();
   });
 
-  it('toggles dark and light theme and sets data-theme attribute', () => {
+  it('starts light and toggles to dark', () => {
     render(<Header />);
     const button = screen.getByRole('button', { name: /switch between dark and light theme/i });
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();
 
     fireEvent.click(button);
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
 
     fireEvent.click(button);
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();

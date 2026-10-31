@@ -6,52 +6,43 @@ interface DownloadsProps {
   releaseHashes: Record<string, string>;
 }
 
-export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => {
-  return (
-    <section id="downloads">
-      <div className="wrap">
-        <div className="sh">
-          <div className="kicker">{copy.downloads.kicker}</div>
-          <h2>{copy.downloads.h2}</h2>
-        </div>
+export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => (
+  <section id="downloads">
+    <h2>{copy.downloads.kicker}</h2>
+    <p>{copy.downloads.h2}</p>
 
-        <div className="files">
-          {copy.downloads.files.map((file, i) => {
-            const hash = releaseHashes[file.name];
-            return (
-              <div key={i} className="file">
-                <div>
-                  <b>{file.name}</b>
-                  <div className="src">{file.source}</div>
-                </div>
-
-                <div className="h">
-                  {hash ? (
-                    <>
-                      <span title={hash}>{hash}</span>
-                      <div style={{ marginTop: '4px' }}>
-                        <CopyButton textToCopy={hash} label="SHA-256" />
-                      </div>
-                    </>
-                  ) : (
-                    <span>{'note' in file ? file.note : ''}</span>
-                  )}
-                </div>
-
-                <a
-                  className="btn"
-                  href={file.url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {file.actionLabel}
+    <table className="wikitable files">
+      <thead>
+        <tr>
+          <th scope="col">File</th>
+          <th scope="col">Source</th>
+          <th scope="col">SHA-256</th>
+        </tr>
+      </thead>
+      <tbody>
+        {copy.downloads.files.map(file => {
+          const hash = releaseHashes[file.name];
+          return (
+            <tr key={file.name}>
+              <th scope="row">
+                <a href={file.url}>
+                  <code>{file.name}</code>
                 </a>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-};
-
+              </th>
+              <td>{file.source}</td>
+              <td className="hash">
+                {hash ? (
+                  <>
+                    <code>{hash}</code> <CopyButton textToCopy={hash} label="Copy hash" />
+                  </>
+                ) : (
+                  'note' in file && file.note
+                )}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </section>
+);

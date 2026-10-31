@@ -1,20 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { copy } from '../content/copy';
 
+type Theme = 'light' | 'dark';
+
+// Light by default, like a reference page; the reader's choice is remembered.
+function initialTheme(): Theme {
+  try {
+    const stored = localStorage.getItem('ovl-theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch {
+    // localStorage unavailable
+  }
+  return 'light';
+}
+
 export const Header: React.FC = () => {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    try {
-      const stored = localStorage.getItem('ovl-theme');
-      return stored === 'light' ? 'light' : 'dark';
-    } catch {
-      return 'dark';
-    }
-  });
+  const [theme, setTheme] = useState<Theme>(initialTheme);
 
   useEffect(() => {
     try {
-      if (theme === 'light') {
-        document.documentElement.setAttribute('data-theme', 'light');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
       } else {
         document.documentElement.removeAttribute('data-theme');
       }
@@ -24,39 +30,12 @@ export const Header: React.FC = () => {
     }
   }, [theme]);
 
-  // Over the landing sky the header is transparent; once the page scrolls it
-  // becomes a floating pill.
-  const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 24);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
-  };
-
   return (
-    <header className={scrolled ? 'pill' : undefined}>
-      <div className="wrap bar">
+    <header>
+      <div className="bar">
         <a className="brand" href="#top">
-          <img
-            className="logo-d"
-            src="brand/logo-dark.svg"
-            width="36"
-            height="36"
-            alt=""
-          />
-          <img
-            className="logo-l"
-            src="brand/logo-light.svg"
-            width="36"
-            height="36"
-            alt=""
-          />
+          <img className="logo-l" src="brand/logo-light.svg" width="30" height="30" alt="" />
+          <img className="logo-d" src="brand/logo-dark.svg" width="30" height="30" alt="" />
           <span>
             <span className="brand-name">
               {copy.header.title}
@@ -66,22 +45,22 @@ export const Header: React.FC = () => {
           </span>
         </a>
 
-        <nav aria-label="Sections">
-          {copy.header.nav.map(item => (
-            <a key={item.href} href={item.href}>
-              {item.label}
+        <nav aria-label="Project links" className="top-links">
+          {copy.header.links.map(link => (
+            <a key={link.href} href={link.href}>
+              {link.label}
             </a>
           ))}
         </nav>
 
         <button
           className="tbtn"
-          id="theme"
           type="button"
-          onClick={toggleTheme}
+          onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
           aria-label={copy.header.themeToggleAria}
+          aria-pressed={theme === 'dark'}
         >
-          ◐
+          {theme === 'dark' ? 'Light' : 'Dark'}
         </button>
       </div>
     </header>

@@ -5,9 +5,11 @@ test.describe('OpenVerifiableLLM Site', () => {
   test('renders all sections and numbers from evidence.json', async ({ page }) => {
     await page.goto('/');
 
-    // Check Hero and kicker with separated dates
+    // Article title, byline with separated dates, and lead
     await expect(page.getByText(/Release v1\.0\.1 · 28 October 2026 · Record timestamped 20 October 2026/)).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('A language model whose training anyone can recompute');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('OpenVerifiableLLM');
+    await expect(page.getByText(/is a language model whose training anyone can recompute/)).toBeVisible();
+    await expect(page.getByRole('table', { name: 'OpenVerifiableLLM' })).toBeVisible();
 
     // Check Overview text clarifying checker attribution
     await expect(
@@ -48,28 +50,28 @@ test.describe('OpenVerifiableLLM Site', () => {
     expect(clipboardText.length).toBeGreaterThan(10);
   });
 
-  test('theme toggle switches between dark and light themes', async ({ page }) => {
+  test('theme toggle switches between light and dark themes', async ({ page }) => {
     await page.goto('/');
     const html = page.locator('html');
-    await expect(html).not.toHaveAttribute('data-theme', 'light');
+    await expect(html).not.toHaveAttribute('data-theme', 'dark');
 
     const themeBtn = page.getByRole('button', { name: /switch between dark and light theme/i });
     await themeBtn.click();
-    await expect(html).toHaveAttribute('data-theme', 'light');
+    await expect(html).toHaveAttribute('data-theme', 'dark');
 
     await themeBtn.click();
-    await expect(html).not.toHaveAttribute('data-theme', 'light');
+    await expect(html).not.toHaveAttribute('data-theme', 'dark');
   });
 
-  test('minimal bottom bar becomes inert and hidden when footer is in view', async ({ page }) => {
+  test('contents links jump to every section', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/');
-    const mini = page.locator('#mini');
-    await expect(mini).toBeVisible();
-
-    const footer = page.locator('footer');
-    await footer.scrollIntoViewIfNeeded();
-
-    await expect(mini).toHaveAttribute('inert', '');
+    const toc = page.getByRole('navigation', { name: 'Contents' });
+    const links = toc.getByRole('link');
+    await expect(links).toHaveCount(8);
+    for (const href of await links.evaluateAll(els => els.map(e => e.getAttribute('href')))) {
+      await expect(page.locator(href as string)).toHaveCount(1);
+    }
   });
 
   test('keyboard-only navigation: skip link and tab navigation', async ({ page }) => {
@@ -113,10 +115,10 @@ test.describe('OpenVerifiableLLM Site', () => {
         await page.setViewportSize({ width: vp.width, height: vp.height });
         await page.goto('/');
 
-        if (theme === 'light') {
+        if (theme === 'dark') {
           const themeBtn = page.getByRole('button', { name: /switch between dark and light theme/i });
           await themeBtn.click();
-          await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+          await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
         }
 
         const axeResults = await new AxeBuilder({ page })
@@ -138,7 +140,7 @@ test.describe('OpenVerifiableLLM Site', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
 
-    const heroHeading = page.getByRole('heading', { level: 1 });
-    await expect(heroHeading).toBeVisible();
+    const title = page.getByRole('heading', { level: 1 });
+    await expect(title).toBeVisible();
   });
 });

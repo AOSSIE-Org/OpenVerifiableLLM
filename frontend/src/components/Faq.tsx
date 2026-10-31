@@ -1,52 +1,33 @@
-import React, { useId, useState } from 'react';
+import React from 'react';
 import { copy } from '../content/copy';
 
-// A short numbered list of questions; one answer open at a time.
-export const Faq: React.FC = () => {
-  const [open, setOpen] = useState<number | null>(0);
-  const id = useId();
+export const Faq: React.FC = () => (
+  <section id="faq">
+    <h2>{copy.faq.h2}</h2>
+    <dl className="qa">
+      {copy.faq.items.map(item => (
+        <React.Fragment key={item.q}>
+          <dt>{item.q}</dt>
+          <dd>{item.a}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
+    <p>
+      {copy.faq.stillTitle} <a href="https://discord.gg/hjUhu33uAn">{copy.faq.discord}</a> or{' '}
+      <a href={copy.faq.issueHref}>{copy.faq.issue.toLowerCase()}</a>.
+    </p>
+  </section>
+);
 
-  return (
-    <section id="faq" className="faq">
-      <div className="wrap faq-wrap">
-        <div className="sh">
-          <h2>{copy.faq.h2}</h2>
-          <p>{copy.faq.sub}</p>
-        </div>
-
-        <ol className="faq-list">
-          {copy.faq.items.map((item, i) => {
-            const isOpen = open === i;
-            const panel = `${id}-a${i}`;
-            return (
-              <li key={item.q} className={isOpen ? 'open' : undefined}>
-                <h3>
-                  <button
-                    type="button"
-                    aria-expanded={isOpen}
-                    aria-controls={panel}
-                    onClick={() => setOpen(isOpen ? null : i)}
-                  >
-                    <span className="faq-n">{String(i + 1).padStart(2, '0')}</span>
-                    <span className="faq-q">{item.q}</span>
-                    <span className="faq-icon" aria-hidden="true">
-                      {isOpen ? '−' : '+'}
-                    </span>
-                  </button>
-                </h3>
-                <div id={panel} hidden={!isOpen}>
-                  <p>{item.a}</p>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-
-        <p className="faq-still">
-          {copy.faq.stillTitle} <a href="https://discord.gg/hjUhu33uAn">{copy.faq.discord}</a> ·{' '}
-          <a href={copy.faq.issueHref}>{copy.faq.issue}</a>
-        </p>
-      </div>
-    </section>
-  );
-};
+export const ExternalLinks: React.FC = () => (
+  <section id="links">
+    <h2>External links</h2>
+    <ul>
+      {[...copy.footer.projectLinks, ...copy.footer.communityLinks].map(link => (
+        <li key={link.href}>
+          <a href={link.href}>{link.label}</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+);

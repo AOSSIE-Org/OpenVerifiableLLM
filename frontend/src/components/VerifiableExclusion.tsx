@@ -6,82 +6,69 @@ interface VerifiableExclusionProps {
   exclusion: ExclusionData;
 }
 
+const signed = (n: number) => (n > 0 ? `+${n.toFixed(4)}` : n.toFixed(4));
+
 export const VerifiableExclusion: React.FC<VerifiableExclusionProps> = ({ exclusion }) => {
+  const c = copy.exclusion;
   return (
     <section id="exclusion">
-      <div className="wrap">
-        <div className="sh">
-          <div className="kicker">{copy.exclusion.kicker}</div>
-          <h2>{copy.exclusion.h2}</h2>
-          <p>
-            The fork removed <b>{exclusion.removedArticle}</b> before training reached it. Everything else is identical.
-          </p>
+      <h2>{c.kicker}</h2>
+      <p>
+        {c.h2} The fork removed <b>{exclusion.removedArticle}</b> before training reached it.
+        Everything else is identical.
+      </p>
+
+      <table className="wikitable">
+        <caption>Loss before and after the removal</caption>
+        <thead>
+          <tr>
+            <th scope="col">Measured on</th>
+            <th scope="col">Original model</th>
+            <th scope="col">Fork</th>
+            <th scope="col">Change</th>
+            <th scope="col">Reading</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">{c.removedArticleLabel.replace('Loss on ', '')}</th>
+            <td className="num">{exclusion.originalRemovedLoss.toFixed(4)}</td>
+            <td className="num">{exclusion.forkRemovedLoss.toFixed(4)}</td>
+            <td className="num">{signed(exclusion.removedLossDelta)}</td>
+            <td>{c.removedArticleNote}</td>
+          </tr>
+          <tr>
+            <th scope="row">{c.controlArticlesLabel.replace('Loss on ', '')}</th>
+            <td className="num">{exclusion.originalControlLossMean.toFixed(4)}</td>
+            <td className="num">{exclusion.forkControlLossMean.toFixed(4)}</td>
+            <td className="num">{signed(exclusion.controlLossDelta)}</td>
+            <td>{c.controlArticlesNote}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="cols">
+        <div>
+          <h3>{c.whyHoldsTitle}</h3>
+          <ul className="ticks">
+            {c.whyHoldsItems.map(item => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </div>
-
-        <div className="exclusion-glass-cards" tabIndex={0} role="region" aria-label="Exclusion results">
-          {/* Div 1: Loss Measurements Glass Card */}
-          <div className="glass-card exclusion-loss-card">
-            <div className="loss">
-              <div className="lossrow">
-                <div className="lbl">{copy.exclusion.removedArticleLabel}</div>
-                <div className="vals">
-                  <span className="a">{exclusion.originalRemovedLoss.toFixed(4)}</span>
-                  <span aria-hidden="true">→</span>
-                  <span className="b">{exclusion.forkRemovedLoss.toFixed(4)}</span>
-                  <span className="d pos">
-                    {exclusion.removedLossDelta > 0 ? `+${exclusion.removedLossDelta.toFixed(4)}` : exclusion.removedLossDelta.toFixed(4)}
-                  </span>
-                </div>
-                <div className="sub" style={{ margin: '10px 0 0' }}>
-                  {copy.exclusion.removedArticleNote}
-                </div>
-              </div>
-
-              <div className="lossrow">
-                <div className="lbl">{copy.exclusion.controlArticlesLabel}</div>
-                <div className="vals">
-                  <span className="a">{exclusion.originalControlLossMean.toFixed(4)}</span>
-                  <span aria-hidden="true">→</span>
-                  <span className="b">{exclusion.forkControlLossMean.toFixed(4)}</span>
-                  <span className="d">
-                    {exclusion.controlLossDelta > 0 ? `+${exclusion.controlLossDelta.toFixed(4)}` : exclusion.controlLossDelta.toFixed(4)}
-                  </span>
-                </div>
-                <div className="sub" style={{ margin: '10px 0 0' }}>
-                  {copy.exclusion.controlArticlesNote}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Div 2: Claims, Limits & Evidence Glass Card */}
-          <div className="glass-card exclusion-logic-card">
-            <div className="split">
-              <div className="yes">
-                <h3>{copy.exclusion.whyHoldsTitle}</h3>
-                <ul>
-                  {copy.exclusion.whyHoldsItems.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="no">
-                <h3>{copy.exclusion.limitsTitle}</h3>
-                <ul>
-                  {copy.exclusion.limitsItems.map((item, i) => (
-                    <li key={i}>{item}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-
-            <p className="sub exclusion-evidence">
-              {copy.exclusion.evidenceLabel} <code>{exclusion.evidencePath}</code>
-            </p>
-          </div>
+        <div>
+          <h3>{c.limitsTitle}</h3>
+          <ul className="circles">
+            {c.limitsItems.map(item => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
         </div>
       </div>
+
+      <p className="note">
+        {c.evidenceLabel} <code>{exclusion.evidencePath}</code>
+      </p>
     </section>
   );
 };
