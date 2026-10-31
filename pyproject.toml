@@ -5,7 +5,7 @@ description = "Train a small language model on English Wikipedia so that anyone 
 readme = "README.md"
 requires-python = ">=3.12"
 # Pinned with hashes in requirements/preparation.lock, which CI installs.
-dependencies = ["torch>=2.10.0,<3.0", "numpy>=2.4,<3.0", "tokenizers==0.23.2"]
+dependencies = ["torch>=2.10.0,<3.0", "numpy>=2.4,<3.0", "tokenizers==0.23.3"]
 
 [project.optional-dependencies]
 gguf = ["gguf"]
