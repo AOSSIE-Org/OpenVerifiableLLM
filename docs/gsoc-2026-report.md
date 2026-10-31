@@ -4,7 +4,8 @@ GSoC 2026 final report. Rajat Roy ([@ryoari](https://github.com/ryoari)), AOSSIE
 ([@Archit381](https://github.com/Archit381)).
 
 - Code: https://github.com/AOSSIE-Org/OpenVerifiableLLM (everything that matters is in `simple/`)
-- Model, data and training record: https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence
+- Model (safetensors and GGUF): https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M
+- Data and training record: https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence
 - Releases: https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases
 - Try it: `ollama run ryoari/openverifiablellm`
 
@@ -59,6 +60,9 @@ How it works:
   removed article went up 3.360 → 3.386; on 50 control articles it barely moved (2.8710 → 2.8712). One run,
   so don't read much into the exact size.
 - Released as v1.0.0 (26 Oct), with a GGUF export that runs in Ollama.
+- Cleaned up in v1.1.0 (31 Oct): the old pipeline is gone from `main`, all the code is in `simple/`, the docs
+  are five short pages, and the model has its own Hugging Face repo with safetensors files. The fork's
+  record is timestamped too (31 Oct).
 
 ## What "verified" means here, and what it doesn't
 
@@ -97,12 +101,10 @@ to the replayed weights (#263).
 - Cheaper checks: per-segment data slices, so a checker doesn't download 22 GB.
 - Near-duplicates: other articles that mention 3I/ATLAS stayed in. Exclusion by topic, with the filter itself
   recorded in the chain, is the harder and more useful version.
-- Cleanup (in progress): the old pipeline is removed from `main`, the model gets its own Hugging Face repo,
-  and the docs shrink to a few pages.
 
 ## Work
 
-108 merged pull requests, March–October 2026. The ones that shaped the result:
+117 merged pull requests, March–October 2026. The ones that shaped the result:
 
 - [#34](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/34) development environment (uv, ruff)
 - [#73](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/73) checkpoint reproducibility and entropy sources in PyTorch
@@ -113,6 +115,7 @@ to the replayed weights (#263).
 - [#239](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/239) security review and its fixes
 - [#252](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/252), [#267](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/267) `verify` requires the anchor and checks its timestamps
 - [#253](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/253) what "verified" means, and the limits
+- [#271](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/271), [#272](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/272), [#273](https://github.com/AOSSIE-Org/OpenVerifiableLLM/pull/273) cleanup: one folder, five doc pages, safetensors
 
 Full list: https://github.com/AOSSIE-Org/OpenVerifiableLLM/pulls?q=is%3Apr+author%3Aryoari+is%3Amerged
 
