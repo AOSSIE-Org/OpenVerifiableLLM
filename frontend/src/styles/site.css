@@ -115,6 +115,10 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 .btn{font:inherit;font-size:var(--fs-label);padding:.3rem .8rem;border:1px solid var(--ink-2);border-radius:var(--radius-sm);background:var(--surface);color:var(--ink);cursor:pointer;min-height:44px}
 .btn-small{min-height:32px;padding:.1rem .6rem;font-size:var(--fs-meta)}
 .btn-primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
+@media (forced-colors:active){
+  .cmd pre{background:Canvas;color:CanvasText;border-left-color:CanvasText}
+  .btn-primary{background:ButtonText;color:ButtonFace;border-color:ButtonText}
+}
 .cmd-status{font-size:var(--fs-meta);color:var(--muted)}
 .hash{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);margin:var(--space-2) 0}
 .hash code{overflow-wrap:anywhere;word-break:break-all}
