@@ -65,7 +65,7 @@ segment was recomputed bit for bit on a second machine. The other terms are defi
 ollama run ryoari/openverifiablellm "Tell me about the Moon."
 ```
 
-**2. Consistency check, no GPU (10 minutes).** Needs Python 3.10 or newer, `git`, `openssl`,
+**2. Consistency check, no GPU (10 minutes).** Needs Python 3.12 or newer, `git`, `openssl`,
 `sha256sum` and network access. On macOS, `sha256sum` comes with `brew install coreutils` (as
 `gsha256sum`).
 
