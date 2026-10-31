@@ -14,6 +14,7 @@ import { Downloads } from './components/Downloads';
 import { Faq } from './components/Faq';
 import { CtaCard } from './components/CtaCard';
 import { Footer } from './components/Footer';
+import { Band } from './components/Band';
 import { MiniBar } from './components/MiniBar';
 
 export const App: React.FC = () => {
@@ -92,11 +93,13 @@ export const App: React.FC = () => {
           authorities={evidence.anchor.authorities}
         />
         <CheckLadder />
-        <Verification
-          verifications={evidence.verifications}
-          hardwareMap={evidence.hardwareMap}
-        />
-        <TrainingTimeline chain={evidence.chain} />
+        <Band>
+          <Verification
+            verifications={evidence.verifications}
+            hardwareMap={evidence.hardwareMap}
+          />
+          <TrainingTimeline chain={evidence.chain} />
+        </Band>
         <VerifiableExclusion exclusion={evidence.exclusion} />
         <Downloads releaseHashes={evidence.releaseHashes} />
         <Faq />

@@ -153,10 +153,6 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
                 );
               })}
 
-              <text x={L} y={yy + 60} fontSize="12" style={{ fill: 'var(--ink-3)' }}>
-                {copy.timeline.caption}
-              </text>
-
               {baseIndex > 0 && (
                 <g>
                   <path

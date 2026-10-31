@@ -1434,8 +1434,10 @@ header {
   border-bottom: 0;
 }
 
+/* only the size and position ease: the pill is solid at once, so page text
+   never shows through a half-faded header */
 header .bar {
-  transition: max-width 0.25s ease, margin 0.25s ease, background-color 0.25s ease, box-shadow 0.25s ease;
+  transition: max-width 0.25s ease, margin 0.25s ease;
 }
 
 header.pill .bar {
@@ -2855,4 +2857,197 @@ html {
   .hw-table th, .hw-table td {
     padding: 10px 8px;
   }
+}
+
+/* The 3D stamp: its position follows the scroll (set from JavaScript); when
+   it lands, a gold ring spreads out once */
+.fact-art {
+  perspective: 700px;
+}
+
+.art-stamp {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .art-stamp.landed::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px solid var(--s3);
+    opacity: 0;
+    animation: stamp-ring 0.6s ease-out both;
+  }
+}
+
+@keyframes stamp-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+/* The data band: Verification and the Timeline fill with a warm yellow as
+   you scroll into them. --bp (0 to 1) comes from Band.tsx; each colour is the
+   page colour mixed with its yellow-band twin by that amount. The band keeps
+   the page colours as --name-0 so its children can mix from them. */
+.band {
+  --bp: 0;
+  --paper-0: var(--paper);
+  --sheet-0: var(--sheet);
+  --rule-0: var(--rule);
+  --rule-strong-0: var(--rule-strong);
+  --ink-0: var(--ink);
+  --ink-2-0: var(--ink-2);
+  --ink-3-0: var(--ink-3);
+  --gold-0: var(--gold);
+  --gold-text-0: var(--gold-text);
+  --accent-text-0: var(--accent-text);
+  --match-0: var(--match);
+  --match-fill-0: var(--match-fill);
+  --match-soft-0: var(--match-soft);
+  --miss-0: var(--miss);
+  --miss-soft-0: var(--miss-soft);
+  background: color-mix(in srgb, #FFF1BF calc(var(--bp) * 100%), var(--paper-0));
+}
+
+.band > * {
+  --paper: color-mix(in srgb, #FFF1BF calc(var(--bp) * 100%), var(--paper-0));
+  --sheet: color-mix(in srgb, #FFF7DA calc(var(--bp) * 100%), var(--sheet-0));
+  --rule: color-mix(in srgb, #E8D99C calc(var(--bp) * 100%), var(--rule-0));
+  --rule-strong: color-mix(in srgb, #D4C27A calc(var(--bp) * 100%), var(--rule-strong-0));
+  --ink: color-mix(in srgb, #17140A calc(var(--bp) * 100%), var(--ink-0));
+  --ink-2: color-mix(in srgb, #3A3523 calc(var(--bp) * 100%), var(--ink-2-0));
+  --ink-3: color-mix(in srgb, #5C5540 calc(var(--bp) * 100%), var(--ink-3-0));
+  --gold: color-mix(in srgb, #8A6400 calc(var(--bp) * 100%), var(--gold-0));
+  --gold-text: color-mix(in srgb, #6E5000 calc(var(--bp) * 100%), var(--gold-text-0));
+  --accent-text: color-mix(in srgb, #6E5000 calc(var(--bp) * 100%), var(--accent-text-0));
+  --match: color-mix(in srgb, #006B34 calc(var(--bp) * 100%), var(--match-0));
+  --match-fill: color-mix(in srgb, #008542 calc(var(--bp) * 100%), var(--match-fill-0));
+  --match-soft: color-mix(in srgb, #D6EFD9 calc(var(--bp) * 100%), var(--match-soft-0));
+  --miss: color-mix(in srgb, #A02E1C calc(var(--bp) * 100%), var(--miss-0));
+  --miss-soft: color-mix(in srgb, #F5DDD3 calc(var(--bp) * 100%), var(--miss-soft-0));
+  color: var(--ink);
+}
+
+/* sections in the band let the band's colour show through */
+.band section {
+  background: transparent;
+}
+
+/* Inside the band the data gets more room: taller sections, the odds chart
+   and hardware table one above the other, bigger tiles and roomier rows. */
+.band section {
+  padding-block: 120px;
+}
+
+.band .two {
+  grid-template-columns: 1.1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  margin-top: 56px;
+}
+
+.band .cell {
+  height: 48px;
+}
+
+.band .cov-head {
+  margin-bottom: 28px;
+}
+
+.band td,
+.band th {
+  padding-block: 16px;
+}
+
+.band .events {
+  gap: 48px;
+  margin-top: 36px;
+}
+
+.band .warn {
+  margin-top: 32px;
+}
+
+
+/* The hardware card follows the page colours, so it stays readable as the
+   band turns yellow (no dark glass, no glow) */
+.band .hw-shining-card {
+  background: var(--sheet) !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border: 1px solid var(--rule) !important;
+  box-shadow: none;
+}
+
+.band .hw-shining-card::after {
+  display: none;
+}
+
+.band .hw-table th,
+.band .hw-table td {
+  border-bottom-color: var(--rule);
+}
+
+.band .hw-table tbody tr:hover {
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.band .hw-scope.full-run {
+  color: var(--accent-text);
+}
+
+.band .res-chip.match {
+  color: var(--match);
+  background: var(--match-soft);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.band .res-chip.mismatch {
+  color: var(--miss);
+  background: var(--miss-soft);
+  border-color: transparent;
+}
+
+@media (max-width: 900px) {
+  .band .two {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Timeline events: two clear blocks, each with its own spacing, and a MATCH
+   chip that never splits across lines */
+.events {
+  align-items: start;
+}
+
+.ev {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ev .tag,
+.ev h3 {
+  margin: 0;
+}
+
+.ev p {
+  line-height: 1.7;
+}
+
+.ev .chip {
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+.events + p {
+  margin-top: 32px !important;
 }

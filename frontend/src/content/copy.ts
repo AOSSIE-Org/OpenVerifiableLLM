@@ -185,7 +185,6 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     oddsDescription: 'Detection odds: 95% at 110 random checks, 99% at 169. Current independent checks: 0.',
     hardwareTitle: 'Which hardware reproduces the bits',
     hardwareSubtitle: 'A mismatch on other GPUs is expected.',
-    hardwareNote: 'Bit-exact checking requires the same GPU architecture.',
   },
   timeline: {
     kicker: 'Training timeline',
@@ -196,7 +195,6 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     codeChangeTitle: 'Code change',
     codeChangeTag: 'Segment 19 onward',
     codeChangeDesc: 'Each segment ran its recorded code.',
-    caption: 'Ticks are boundaries. Green bars are segments that matched. Gold marks events.',
     timestampNote: 'Timestamps show the record existed by 20 October 2026, not when or how training happened.',
   },
   exclusion: {

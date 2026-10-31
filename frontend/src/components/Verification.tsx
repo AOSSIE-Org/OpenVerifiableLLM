@@ -281,10 +281,6 @@ export const Verification: React.FC<VerificationProps> = ({
                 })}
               </tbody>
             </table>
-            <p className="hw-note">
-              <span aria-hidden="true">ℹ</span>
-              {copy.verification.hardwareNote}
-            </p>
           </div>
         </div>
       </div>

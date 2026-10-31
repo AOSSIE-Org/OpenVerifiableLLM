@@ -18,7 +18,7 @@ export const VerifiableExclusion: React.FC<VerifiableExclusionProps> = ({ exclus
           </p>
         </div>
 
-        <div className="exclusion-glass-cards">
+        <div className="exclusion-glass-cards" tabIndex={0} role="region" aria-label="Exclusion results">
           {/* Div 1: Loss Measurements Glass Card */}
           <div className="glass-card exclusion-loss-card">
             <div className="loss">
