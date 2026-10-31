@@ -1,23 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="OpenVerifiableLLM">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="OpenVerifiableLLM">
  <title>OpenVerifiableLLM</title>
- <g stroke-linecap="round" stroke-linejoin="round">
-  <rect x="31" y="34" width="9" height="14" rx="4.5" fill="#262626" stroke="#D4D4D4" stroke-width="3.5"/><rect x="70" y="34" width="9" height="14" rx="4.5" fill="#262626" stroke="#D4D4D4" stroke-width="3.5"/><rect x="31" y="66" width="9" height="14" rx="4.5" fill="#262626" stroke="#D4D4D4" stroke-width="3.5"/><rect x="70" y="66" width="9" height="14" rx="4.5" fill="#262626" stroke="#D4D4D4" stroke-width="3.5"/>
-  <clipPath id="ovl-s1"><rect x="12" y="14" width="86" height="24" rx="9"/></clipPath>
-  <g clip-path="url(#ovl-s1)"><rect y="14" width="128" height="24" fill="#1A1A1A"/><rect y="31" width="128" height="8" fill="#000" opacity="0.35"/></g>
-  <rect x="12" y="14" width="86" height="24" rx="9" fill="none" stroke="#D4D4D4" stroke-width="4.5"/>
-  <circle cx="26" cy="26" r="3.8" fill="#3DDC84"/><path d="M38 26H66" stroke="#6B6B6B" stroke-width="4.5"/>
-  <clipPath id="ovl-s2"><rect x="12" y="46" width="86" height="24" rx="9"/></clipPath>
-  <g clip-path="url(#ovl-s2)"><rect y="46" width="128" height="24" fill="#1A1A1A"/><rect y="63" width="128" height="8" fill="#000" opacity="0.35"/></g>
-  <rect x="12" y="46" width="86" height="24" rx="9" fill="none" stroke="#D4D4D4" stroke-width="4.5"/>
-  <circle cx="26" cy="58" r="3.8" fill="#3DDC84"/><path d="M38 58H66" stroke="#6B6B6B" stroke-width="4.5"/>
-  <clipPath id="ovl-s3"><rect x="12" y="78" width="86" height="24" rx="9"/></clipPath>
-  <g clip-path="url(#ovl-s3)"><rect y="78" width="128" height="24" fill="#1A1A1A"/><rect y="95" width="128" height="8" fill="#000" opacity="0.35"/></g>
-  <rect x="12" y="78" width="86" height="24" rx="9" fill="none" stroke="#D4D4D4" stroke-width="4.5"/>
-  <circle cx="26" cy="90" r="3.8" fill="#3DDC84"/><path d="M38 90H66" stroke="#6B6B6B" stroke-width="4.5"/>
-  <path d="M104 106L116 118" stroke="#D4D4D4" stroke-width="15"/><path d="M104 106L116 118" stroke="#3A3A3A" stroke-width="6.5"/>
-  <circle cx="92" cy="94" r="21" fill="#FFCD00" stroke="#D4D4D4" stroke-width="4.5"/>
-  <path d="M92 73A21 21 0 0 1 113 94" fill="none" stroke="#D9AE00" stroke-width="4"/>
-  <circle cx="92" cy="94" r="14.28" fill="#050505" stroke="#D4D4D4" stroke-width="4.5"/>
-  <path d="M84.86 94.5l4.28 4.28 8.57 -9.28" fill="none" stroke="#3DDC84" stroke-width="5"/>
- </g>
+ <path d="M50.00 9.50Q62.81 2.19 70.25 14.93Q85.00 15.00 85.07 29.75Q97.81 37.19 90.50 50.00Q97.81 62.81 85.07 70.25Q85.00 85.00 70.25 85.07Q62.81 97.81 50.00 90.50Q37.19 97.81 29.75 85.07Q15.00 85.00 14.93 70.25Q2.19 62.81 9.50 50.00Q2.19 37.19 14.93 29.75Q15.00 15.00 29.75 14.93Q37.19 2.19 50.00 9.50Z" fill="#2997FF"/>
+ <path d="M31 51L44 64L69 37" fill="none" stroke="#000000" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+ <g fill="#000000"><circle cx="31" cy="51" r="6"/><circle cx="44" cy="64" r="6"/><circle cx="69" cy="37" r="6"/></g>
 </svg>
