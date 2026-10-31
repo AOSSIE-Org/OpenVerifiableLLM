@@ -52,7 +52,7 @@
   - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#making-changes (tests, determinism, pinned dependencies)
 
 - [x] 🔴 **documentation_basics** — Basic documentation exists for the software (README, Wiki, or docs folder).
-  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/README.md
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/how-it-works.md
 
 - [x] 🔴 **documentation_interface** — Reference documentation describes the external interface (API inputs/outputs, CLI flags, config schema, etc.).
   - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/simple/README.md (commands and flags)
@@ -177,7 +177,7 @@
 ### Secure Development Knowledge
 
 - [x] 🔴 **know_secure_design** — At least one primary developer knows how to design secure software (familiar with OWASP, threat modeling, secure-by-default principles).
-  - *Self-certification note:* The project is verification infrastructure: fail-closed checks, hash-linked records, signed and timestamped anchors. Threat model and limitations in https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/design/simple_run.md.
+  - *Self-certification note:* The project is verification infrastructure: fail-closed checks, hash-linked records, signed and timestamped anchors. Threat model and limitations in https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/how-it-works.md and https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/verify.md.
 
 - [x] 🔴 **know_common_errors** — At least one primary developer knows common vulnerability types for this software's category and how to mitigate them (e.g., injection, XSS, reentrancy for Solidity, prompt injection for AI).
   - *Self-certification note:* Unsafe deserialization (weights load with `weights_only=True` or safetensors), dependency tampering (hash-locked requirements), false verification passes (fail-closed verifier, #205/#218).
