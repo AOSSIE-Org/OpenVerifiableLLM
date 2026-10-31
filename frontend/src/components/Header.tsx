@@ -5,16 +5,16 @@ export const Header: React.FC = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     try {
       const stored = localStorage.getItem('ovl-theme');
-      return stored === 'dark' ? 'dark' : 'light';
+      return stored === 'light' ? 'light' : 'dark';
     } catch {
-      return 'light';
+      return 'dark';
     }
   });
 
   useEffect(() => {
     try {
-      if (theme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
+      if (theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
       } else {
         document.documentElement.removeAttribute('data-theme');
       }

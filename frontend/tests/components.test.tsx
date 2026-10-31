@@ -24,13 +24,13 @@ describe('Header component', () => {
     expect(screen.getByText('Downloads')).toBeInTheDocument();
   });
 
-  it('starts on the light paper theme and toggles to dark', () => {
+  it('toggles dark and light theme and sets data-theme attribute', () => {
     render(<Header />);
     const button = screen.getByRole('button', { name: /switch between dark and light theme/i });
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();
 
     fireEvent.click(button);
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
 
     fireEvent.click(button);
     expect(document.documentElement.getAttribute('data-theme')).toBeNull();

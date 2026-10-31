@@ -1,52 +1,45 @@
-/* Clean product-page look: white and light-grey bands, near-black text,
-   one blue for links and the primary action. Green and red only mean
-   MATCH and MISMATCH. Light is the default; dark via data-theme="dark". */
 :root {
-  --paper: #FFFFFF;
-  --sheet: #F5F5F7;
-  --term: #F5F5F7;
-  --term-ink: #1D1D1F;
-  --term-rule: #E8E8ED;
-  --rule: #E8E8ED;
-  --rule-strong: #D2D2D7;
-  --ink: #1D1D1F;
-  --ink-2: #424245;
-  --ink-3: #6E6E73;
-  --accent: #0071E3;
-  --accent-text: #0066CC;
-  --on-accent: #FFFFFF;
-  --focus-ring: #0071E3;
-  --match: #1D7A3A;
-  --match-fill: #34C759;
-  --match-soft: #E4F5E8;
-  --miss: #B3261E;
-  --miss-soft: #FCE8E6;
-  --hold: #AEAEB2;
-  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Segoe UI", Helvetica, Arial, sans-serif;
+  --paper: #050505;
+  --sheet: #101010;
+  --term: #0D141F;
+  --rule: #1E1E1E;
+  --rule-strong: #2E2E2E;
+  --ink: #F5F5F5;
+  --ink-2: #BDBDBD;
+  --ink-3: #8A8A8A;
+  --gold: #FFCD00;
+  --gold-text: #FFCD00;
+  --on-gold: #050505;
+  --focus-ring: #FFCD00;
+  --match: #3DDC84;
+  --match-fill: #3DDC84;
+  --match-soft: #0D2A1A;
+  --miss: #FF8F7A;
+  --miss-soft: #2E1714;
+  --hold: #6B6B6B;
+  --sans: "Geist", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color-scheme: light;
+  color-scheme: dark;
 }
 
-:root[data-theme="dark"] {
-  --paper: #000000;
-  --sheet: #161617;
-  --term: #1D1D1F;
-  --term-ink: #F5F5F7;
-  --term-rule: #2C2C2E;
-  --rule: #2C2C2E;
-  --rule-strong: #424245;
-  --ink: #F5F5F7;
-  --ink-2: #D2D2D7;
-  --ink-3: #A1A1A6;
-  --accent: #0071E3;
-  --accent-text: #2997FF;
-  --on-accent: #FFFFFF;
-  --focus-ring: #2997FF;
-  --match: #30D158;
-  --match-fill: #30D158;
-  --match-soft: #0E2A17;
-  --miss: #FF6961;
-  --miss-soft: #33100E;
-  --hold: #48484A;
-  color-scheme: dark;
+:root[data-theme="light"] {
+  --paper: #FAFAFA;
+  --sheet: #FFFFFF;
+  --term: #0D141F;
+  --rule: #E8E8E8;
+  --rule-strong: #D2D2D2;
+  --ink: #0A0A0A;
+  --ink-2: #3D3D3D;
+  --ink-3: #6B6B6B;
+  --gold: #FFCD00;
+  --gold-text: #0A0A0A;
+  --on-gold: #050505;
+  --focus-ring: #0A0A0A;
+  --match: #00753A;
+  --match-fill: #008542;
+  --match-soft: #DCF2E4;
+  --miss: #A8321F;
+  --miss-soft: #F7E2DC;
+  --hold: #9AA7B6;
+  color-scheme: light;
 }
