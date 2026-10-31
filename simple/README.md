@@ -74,7 +74,8 @@ To build it yourself, you need the run folder and the tokenizer, and `pip instal
 
 ```bash
 python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat.gguf
-ollama create openverifiablellm -f simple/Modelfile     # run where ovl-23m-chat.gguf is
+cp simple/Modelfile .                                     # its FROM line is ./ovl-23m-chat.gguf
+ollama create openverifiablellm -f Modelfile
 ollama run openverifiablellm "Tell me about the Moon."
 ```
 
