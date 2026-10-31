@@ -174,11 +174,12 @@ thead th{color:var(--muted);font-weight:600}
 @media (max-width:640px){.hw-table{display:none}.hw-cards{display:grid}}
 
 .timeline .strip{list-style:none;padding:0;margin:var(--space-3) 0;display:flex;gap:2px;height:2.75rem;align-items:stretch;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
-.seg{position:relative;flex-basis:0;min-width:24px;background:var(--project-tint);border:1px solid var(--project);border-radius:2px;transform-origin:center bottom}
-.seg-hit{display:block;width:100%;height:100%;min-width:24px;min-height:24px}
+.seg{position:relative;flex-basis:0;min-width:26px;background:var(--project-tint);border:1px solid var(--project);border-radius:2px;transform-origin:center bottom}
+.seg-hit{position:absolute;inset:0}
 .seg[data-phase="conversation"]{background:var(--sunk);border-style:dashed}
-.seg[data-event~="restart"]{border-top:6px solid var(--stamp)}
-.seg[data-event~="code-change"]{border-left:6px solid var(--ink)}
+.seg[data-event~="restart"]{box-shadow:inset 0 4px 0 var(--stamp)}
+.seg[data-event~="code-change"]{box-shadow:inset 4px 0 0 var(--ink)}
+.seg[data-event~="restart"][data-event~="code-change"]{box-shadow:inset 0 4px 0 var(--stamp),inset 4px 0 0 var(--ink)}
 
 .files{list-style:none;padding:0;display:grid;gap:var(--space-3)}
 .file{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(12rem,2fr) auto auto;gap:var(--space-2) var(--space-3);align-items:center;padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
