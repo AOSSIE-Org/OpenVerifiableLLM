@@ -48,7 +48,7 @@ PY
     grep -q "^$k " "$WORK/segments.txt" && continue
     [ -f "$MIRROR/$(printf 'ckpt-%05d.pt' "$k")" ] || continue
     # Record only the verifier's verdict; a crash (missing package, OOM) is retried next round.
-    out=$(python simple/ovl.py verify --data "$PREP" --run "$MIRROR" --segment "$k" 2>&1 | tee -a "$WORK/follow.log" || true)
+    out=$(python simple/ovl.py verify --data "$PREP" --run "$MIRROR" --segment "$k" --no-anchor 2>&1 | tee -a "$WORK/follow.log" || true)
     if grep -q "^segment $k->$((k + 1)) .*: MATCH" <<<"$out"; then
       echo "$k MATCH" >> "$WORK/segments.txt"
     elif grep -q "^segment $k->$((k + 1)) .*: MISMATCH" <<<"$out"; then

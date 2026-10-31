@@ -6,10 +6,14 @@ import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+import torch
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -33,8 +37,10 @@ def fake_chain(n):
     return chain
 
 
-def args(run, anchor=None):
-    return argparse.Namespace(run=str(run), data=None, segment=None, random=0, all=False, weights=None, anchor=anchor)
+def args(run, anchor=None, no_anchor=False, no_timestamps=True):
+    # The anchors here are fake and unstamped; AnchorTimestamps below covers the timestamp check.
+    return argparse.Namespace(run=str(run), data=None, segment=None, random=0, all=False, weights=None, anchor=anchor,
+                              no_anchor=no_anchor, no_timestamps=no_timestamps)
 
 
 class AnchorHead(unittest.TestCase):
@@ -75,14 +81,157 @@ class AnchorHead(unittest.TestCase):
         self.write(self.chain[:4])
         anchor = self.run / "anchor.json"
         os.rename(anchor, self.run / "release-anchor.json")
-        self.assertNotIn("anchor", self.verify_ok(args(self.run)))  # no anchor next to the chain: not checked
+        with self.assertRaisesRegex(SystemExit, "not found"):  # no anchor next to the chain
+            ovl.cmd_verify(args(self.run))
         with self.assertRaisesRegex(SystemExit, "chain head differs"):
             ovl.cmd_verify(args(self.run, str(self.run / "release-anchor.json")))
+
+    def test_missing_anchor_fails_by_default(self):
+        self.write(self.chain)
+        os.remove(self.run / "anchor.json")
+        with self.assertRaisesRegex(SystemExit, "not found.*--no-anchor"):
+            ovl.cmd_verify(args(self.run))
+
+    def test_no_anchor_opt_out_warns_and_continues(self):
+        weights = {"w": torch.arange(4.0)}
+        chain = fake_chain(3)  # shorter than the anchor, so it would fail the anchor check if one were read
+        chain[-1]["model"] = ovl.model_digest(weights)
+        self.write(chain)
+        torch.save(weights, self.run / "final-model.pt")
+        os.remove(self.run / "anchor.json")
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "final-model.pt")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ovl.cmd_verify(a)  # a passing check must not exit
+        self.assertIn("WARNING: --no-anchor", out.getvalue())
+        self.assertNotIn("chain head MATCH", out.getvalue())
+        self.assertIn("verify PASS", out.getvalue())
+        record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(record["result"], "PASS")
+
+    def test_no_anchor_opt_out_still_fails_bad_weights(self):
+        self.write(fake_chain(3))
+        torch.save({"w": torch.arange(4.0)}, self.run / "other.pt")
+        os.remove(self.run / "anchor.json")
+        a = args(self.run, no_anchor=True)
+        a.weights = str(self.run / "other.pt")
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            ovl.cmd_verify(a)
+
+    def test_anchor_and_no_anchor_are_exclusive(self):
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(ROOT / p) for p in ("simple", "src", ".")))
+        r = subprocess.run([sys.executable, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(self.run),
+                            "--anchor", "a.json", "--no-anchor"], capture_output=True, text=True, env=env)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not allowed with", r.stderr)
 
     def test_missing_explicit_anchor_fails(self):
         self.write(self.chain)
         with self.assertRaisesRegex(SystemExit, "not found"):
             ovl.cmd_verify(args(self.run, str(self.run / "nope.json")))
+
+    def test_file_that_is_not_an_anchor_fails_clearly(self):
+        self.write(self.chain)
+        for text in ('{"model": {}}', "[1, 2]", "not json"):
+            (self.run / "recipe.json").write_text(text)
+            with self.assertRaisesRegex(SystemExit, "not an anchor file"):
+                ovl.cmd_verify(args(self.run, str(self.run / "recipe.json")))
+
+    def test_anchor_result_is_recorded(self):
+        self.write(self.chain)
+        with contextlib.redirect_stdout(io.StringIO()):
+            ovl.cmd_verify(args(self.run))
+        record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(record["checks"][0]["anchor"], str(self.run / "anchor.json"))
+        self.assertTrue(record["checks"][0]["match"])
+        self.assertEqual(record["result"], "PASS")
+
+
+class AnchorTimestamps(unittest.TestCase):
+    """A rewritten anchor.json still matches a rewritten chain; only its timestamps catch that."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run = Path(self.tmp.name)
+        chain = fake_chain(5)
+        (self.run / "chain.jsonl").write_text("".join(json.dumps(e) + "\n" for e in chain))
+        (self.run / "anchor.json").write_text(json.dumps(
+            {"chain_entries": 5, "chain_head_index": 4, "chain_head_sha256": link(chain[-1])}))
+        for name in ovl.stamp.TSA:
+            (self.run / f"anchor.{name}.tsr").write_bytes(b"reply")
+        for target, value in (("system_ca", "/ca.pem"), ("freetsa_certs", ("ca", "tsa"))):
+            patch = mock.patch.object(ovl.stamp, target, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def verify(self, **kw):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ovl.cmd_verify(args(self.run, no_timestamps=False, **kw))
+        return out.getvalue()
+
+    def stamped(self, original):
+        """A stand-in for openssl that accepts only the bytes that were stamped."""
+        return lambda tsr, name, imprint, certs: (Path(imprint[1]).read_bytes() == original, "Oct 20 14:38:43 2026 GMT")
+
+    def test_both_timestamps_are_checked_against_the_anchor_bytes(self):
+        original = (self.run / "anchor.json").read_bytes()
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=self.stamped(original)) as v:
+            out = self.verify()
+        self.assertEqual(sorted(c.args[1] for c in v.call_args_list), sorted(ovl.stamp.TSA))
+        for c in v.call_args_list:
+            self.assertEqual(c.args[0], self.run / f"anchor.{c.args[1]}.tsr")
+            self.assertEqual(c.args[2][0], "-data")
+        self.assertIn("anchor timestamp digicert: OK", out)
+        record = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(set(record["checks"][0]["timestamps"]), set(ovl.stamp.TSA))
+
+    def test_edited_anchor_fails_its_timestamps(self):
+        # Same chain head, so the head check passes; any other byte change breaks the stamp.
+        original = (self.run / "anchor.json").read_bytes()
+        edited = {**json.loads(original), "note": "edited"}
+        (self.run / "anchor.json").write_text(json.dumps(edited))
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=self.stamped(original)):
+            with self.assertRaisesRegex(SystemExit, "does not verify"):
+                self.verify()
+
+    def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
+        # Swapping anchor.json after it was read must not change what the timestamps check.
+        original = (self.run / "anchor.json").read_bytes()
+
+        def swap_then_check(tsr, name, imprint, certs):
+            (self.run / "anchor.json").write_text("swapped")
+            return self.stamped(original)(tsr, name, imprint, certs)
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=swap_then_check):
+            self.assertIn("anchor timestamp freetsa: OK", self.verify())
+
+    def test_missing_timestamp_fails(self):
+        os.remove(self.run / "anchor.freetsa.tsr")
+        with mock.patch.object(ovl.stamp, "verify_reply", return_value=(True, "t")):
+            with self.assertRaisesRegex(SystemExit, "anchor.freetsa.tsr not found.*--no-timestamps"):
+                self.verify()
+
+    def test_certificates_that_cannot_be_downloaded_fail(self):
+        with mock.patch.object(ovl.stamp, "freetsa_certs", side_effect=OSError("offline")):
+            with self.assertRaisesRegex(SystemExit, "could not download"):
+                self.verify()
+
+    def test_missing_openssl_fails(self):
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=FileNotFoundError("openssl")):
+            with self.assertRaisesRegex(SystemExit, "openssl not found"):
+                self.verify()
+
+    def test_no_timestamps_opt_out_warns(self):
+        with mock.patch.object(ovl.stamp, "verify_reply") as v:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                ovl.cmd_verify(args(self.run, no_timestamps=True))
+        v.assert_not_called()
+        self.assertIn("WARNING: --no-timestamps", out.getvalue())
 
 
 if __name__ == "__main__":

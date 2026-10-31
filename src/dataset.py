@@ -194,7 +194,11 @@ class CIFARDataset:
                         target_path = (DATA_DIR / member.name).resolve()
                         if not target_path.is_relative_to(DATA_DIR.resolve()):
                             raise ValueError(f"Unsafe path in archive: {member.name}")
-                    tf.extractall(DATA_DIR)
+                        # links and devices could redirect later writes outside DATA_DIR
+                        if not (member.isfile() or member.isdir()):
+                            raise ValueError(f"Unsafe member type in archive: {member.name}")
+                    # filter="data" needs Python 3.10.12+; older versions raise and use the fallback below
+                    tf.extractall(DATA_DIR, filter="data")
             import pickle
 
             xs, ys = [], []

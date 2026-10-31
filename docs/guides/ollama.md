@@ -7,7 +7,23 @@ This is for trying the model. It isn't how the model is verified. llama.cpp uses
 different GELU and different kernels, so its outputs are close to PyTorch's but not bit-identical.
 To check the model, use the released `.pt` files and [`ovl.py verify`](check_a_segment.md).
 
-## Build it
+## Run it
+
+The model is on the Ollama registry as
+[`ryoari/openverifiablellm`](https://ollama.com/ryoari/openverifiablellm):
+
+```bash
+ollama run ryoari/openverifiablellm "Tell me about the Moon."
+```
+
+The GGUF file is also attached to the
+[v1.0.0 release](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.0) and stored in the
+[Hugging Face dataset](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/2fbebaa3ac861898eb8a3dbd9a2a44d08d08216c/release/simple-run/gguf)
+(revision `2fbebaa3`). All three are the same file, SHA-256
+`541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de`. Running
+`ollama show --modelfile ryoari/openverifiablellm` prints a `FROM` line ending in that hash.
+
+## Build it yourself
 
 You need the release's run folder and tokenizer (see [Check a training segment](check_a_segment.md)
 for the download), plus `pip install gguf torch`.

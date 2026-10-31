@@ -35,7 +35,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             (dest / "chain.jsonl").write_text(json.dumps(e0) + "\n" + json.dumps(e1) + "\n")
 
     def _run_verify(self, run_dir, extra_args=None):
-        cmd = [PYTHON, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(run_dir)]
+        cmd = [PYTHON, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(run_dir), "--no-anchor"]
         if extra_args:
             cmd.extend(extra_args)
         env = dict(os.environ)

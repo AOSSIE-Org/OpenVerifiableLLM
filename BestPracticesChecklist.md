@@ -2,6 +2,9 @@
 
 > Criteria adapted from the [OpenSSF Best Practices Badge](https://github.com/coreinfrastructure/best-practices-badge)
 > (MIT / CC BY 3.0) by OpenSSF contributors. Modified for AOSSIE multi-repo template use.
+>
+> This project's own answers to the full OpenSSF criteria, with evidence for each one, are on
+> [bestpractices.dev](https://www.bestpractices.dev/projects/15952).
 
 > **Purpose:** Covers OpenSSF Best Practices criteria that are NOT auto-detected by OpenSSF Scorecard.
 > Scorecard already handles: License, SAST tools, CI tests, Security Policy file, Branch Protection,
@@ -28,8 +31,8 @@
 | Reporting          | 8   | 8     | ✅     |
 | Quality            | 9   | 11     | 🟡     |
 | Security           | 9   | 9     | ✅     |
-| Analysis           | 6   | 7     | 🟡     |
-| **Total**          | **46** | **49** | **94%** |
+| Analysis           | 7   | 7     | ✅     |
+| **Total**          | **47** | **49** | **96%** |
 ---
 
 ## 🏗️ Basics
@@ -208,8 +211,8 @@
 
 ### Static Code Analysis
 
-- [ ] 🔴 **static_analysis_fixed** — All medium+ severity vulnerabilities found by static analysis are fixed in a timely manner after confirmation.
-  - *Note:* Not met yet: no static security analysis runs; to be added with the AI security review.
+- [x] 🔴 **static_analysis_fixed** — All medium+ severity vulnerabilities found by static analysis are fixed in a timely manner after confirmation.
+  - *Evidence:* the AI security review's Medium finding was fixed and deployed the same day ([remediation](https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/security-reviews/sec_review_2026-10-26T01-27-31Z_9ae0c16_remediations.md)). CodeQL's three findings were triaged within a day: the tar-extraction one was fixed with a regression test (#244), and two were dismissed with reasons. No CodeQL alerts are open.
 
 - [x] 🔵 **static_analysis_common_vulnerabilities** — The static analysis tool includes checks for common vulnerabilities in the language/environment (e.g., eslint-plugin-security, bandit, Slither). *(SUGGESTED)*
   - *Tool + ruleset:* CodeQL for Python, `security-extended` queries (`.github/workflows/codeql.yml`).

@@ -256,7 +256,8 @@ def test_abandonment_with_exited_leader_never_acknowledges_live_descendant(tmp_p
     identity=m.process_identity(leader.pid);descendant=None
     try:
         end=time.monotonic()+5
-        while not(tmp_path/'descendant').exists() and time.monotonic()<end:time.sleep(.01)
+        # the child creates the file before writing its pid; wait for the content, not just the file
+        while not((tmp_path/'descendant').exists() and (tmp_path/'descendant').read_text()) and time.monotonic()<end:time.sleep(.01)
         descendant=m.process_identity(int((tmp_path/'descendant').read_text()))
         write_json(launch/'child.json',{'schema':'ovl.pod-job-child.v1','job_sha256':root,'process':identity})
         (tmp_path/'release').touch()

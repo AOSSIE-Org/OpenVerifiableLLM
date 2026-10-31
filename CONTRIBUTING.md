@@ -101,7 +101,7 @@ For security-relevant issues (for example, a way to make the verifier report a f
 
 ## Where discussion happens
 
-Project discussion and questions happen in the [AOSSIE community](https://aossie.org) and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
+Project discussion and questions happen in the project's [Discord channel](https://discord.com/channels/1022871757289422898/1472946773235466443) on the AOSSIE server ([join the server](https://discord.gg/hjUhu33uAn) first if you aren't a member) and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
 
 ## Code of conduct
 

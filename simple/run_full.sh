@@ -32,7 +32,7 @@ nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader | 
 #    with simple/verify_segment.sh; nobody has to replay the whole run.
 CONV=$(python -c "import json,sys; c=[json.loads(l) for l in open(sys.argv[1])]; b=[e['index'] for e in c if e['kind']=='base'][0]; print(*range(b, len(c)-1))" "$RUN/chain.jsonl")
 python simple/ovl.py verify --data "$PREP" --run "$RUN" --weights "$RUN/conversation-model.pt" \
-  --segment $CONV --random 1 2>&1 | tee -a "$WORK/verify.log"
+  --segment $CONV --random 1 --no-anchor 2>&1 | tee -a "$WORK/verify.log"
 
 # 5. Does it talk?
 for q in "What is Wikipedia?" "Who was Albert Einstein?" "Explain photosynthesis."; do
