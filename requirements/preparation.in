@@ -8,7 +8,7 @@ defusedxml==0.7.1
 pyarrow==25.0.1
 rfc8785==0.1.4
 torch==2.14.0+cpu
-sigstore==4.5.0
+sigstore==4.5.1
 # Preserve versions already exercised by the local fixture environment.
 filelock==3.32.3
 setuptools==78.1.0
