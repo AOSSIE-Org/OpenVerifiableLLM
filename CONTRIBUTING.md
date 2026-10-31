@@ -28,7 +28,7 @@ other versions.
 git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
 pip install --require-hashes -r requirements/preparation.lock   # the same CPU environment as CI
-pip install pytest gguf ruff
+pip install pytest gguf safetensors ruff
 OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest -q tests        # runs on a CPU, about 15 s
 ruff check simple tests
 ```

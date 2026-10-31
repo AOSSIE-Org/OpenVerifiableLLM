@@ -25,7 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
           pip install --require-hashes -r requirements/preparation.lock
-          pip install pytest pytest-cov ruff gguf
+          pip install pytest pytest-cov ruff gguf safetensors
 
       - name: Ruff
         run: ruff check simple tests

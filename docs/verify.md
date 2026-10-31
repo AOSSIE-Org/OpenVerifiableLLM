@@ -41,7 +41,8 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
    against the system CA bundle (`/etc/ssl/certs/ca-certificates.crt` on Linux, `/etc/ssl/cert.pem`
    on macOS). FreeTSA's certificates are downloaded from freetsa.org.
 4. The weights file is exactly the state at a released entry. `base-model.pt` gives
-   `MATCH chain entry 31`; `conversation-model.pt` gives `MATCH chain entry 37`.
+   `MATCH chain entry 31`; `conversation-model.pt` gives `MATCH chain entry 37`. A `.safetensors`
+   copy of either model gives the same result (it needs `pip install safetensors`).
 
 It fails if any of these fails, or if `anchor.json` or a timestamp is missing. `--no-anchor` and
 `--no-timestamps` skip those checks and print a warning; use them only for a run that has no anchor
