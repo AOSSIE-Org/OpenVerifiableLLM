@@ -10,7 +10,7 @@ import { Verification } from './components/Verification';
 import { TrainingTimeline } from './components/TrainingTimeline';
 import { VerifiableExclusion } from './components/VerifiableExclusion';
 import { Downloads } from './components/Downloads';
-import { Faq, ExternalLinks } from './components/Faq';
+import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
 
 export const App: React.FC = () => {
@@ -89,7 +89,6 @@ export const App: React.FC = () => {
           <VerifiableExclusion exclusion={evidence.exclusion} />
           <Downloads releaseHashes={evidence.releaseHashes} />
           <Faq />
-          <ExternalLinks />
         </main>
 
         <div className="rail">

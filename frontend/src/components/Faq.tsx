@@ -18,16 +18,3 @@ export const Faq: React.FC = () => (
     </p>
   </section>
 );
-
-export const ExternalLinks: React.FC = () => (
-  <section id="links">
-    <h2>External links</h2>
-    <ul>
-      {[...copy.footer.projectLinks, ...copy.footer.communityLinks].map(link => (
-        <li key={link.href}>
-          <a href={link.href}>{link.label}</a>
-        </li>
-      ))}
-    </ul>
-  </section>
-);

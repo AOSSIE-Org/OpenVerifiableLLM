@@ -606,16 +606,6 @@ footer {
   color: var(--ink-3);
 }
 
-.foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 16px 32px;
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 20px 24px 28px;
-}
-
 .foot-org {
   display: flex;
   align-items: center;
@@ -628,16 +618,9 @@ footer {
   color: var(--ink);
 }
 
-.foot-lines {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .socials {
   display: flex;
   gap: 4px;
-  margin-left: auto;
 }
 
 .socials a {
@@ -656,6 +639,50 @@ footer {
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.fcols {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, 1fr);
+  gap: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 24px 28px;
+}
+
+.fcols h2 {
+  margin: 0 0 10px;
+  font: 600 13px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.fcols ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fcols li {
+  margin-bottom: 6px;
+}
+
+.fcol-about p {
+  max-width: 30ch;
+  margin: 12px 0 0;
+}
+
+.fbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 24px 20px;
+  border-top: 1px solid var(--rule);
 }
 
 /* Loading and error states */
@@ -677,6 +704,14 @@ footer {
 
 /* Narrow screens: contents become a collapsible box, the infobox stacks ---- */
 @media (max-width: 900px) {
+  .fcols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fcol-about {
+    grid-column: 1 / -1;
+  }
+
   .page {
     grid-template-columns: 1fr;
     gap: 16px;
@@ -764,9 +799,6 @@ footer {
     padding-top: 44px;
   }
 
-  .socials {
-    margin-left: 0;
-  }
 }
 
 /* the odds chart, then the hardware table under it */
@@ -931,3 +963,4 @@ footer {
     border-right: 0;
   }
 }
+

@@ -242,12 +242,14 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
   },
   footer: {
     org: 'An AOSSIE project',
+    about: 'A language model whose training anyone can recompute, built in the open by AOSSIE.',
     license: 'OpenVerifiableLLM is licensed under GPL-3.0.',
     evidenceNote: 'Evidence pinned to Hugging Face revision',
     contactEmail: 'contact@aossie.org',
     projectHeading: 'Project',
     communityHeading: 'Community',
     contactHeading: 'Contact',
+    helpHeading: 'Get help',
     projectLinks: [
       { label: 'Source code on GitHub', href: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM' },
       { label: 'Release v1.0.1', href: 'https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases/tag/v1.0.1' },
