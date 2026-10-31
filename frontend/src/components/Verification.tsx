@@ -243,30 +243,46 @@ export const Verification: React.FC<VerificationProps> = ({
             </table>
           </div>
 
-          <div className="panel">
-            <h3>{copy.verification.hardwareTitle}</h3>
-            <div className="sub">{copy.verification.hardwareSubtitle}</div>
-            <table>
+          <div className="panel hw-shining-card">
+            <div className="hw-header">
+              <h3>{copy.verification.hardwareTitle}</h3>
+              <div className="sub">{copy.verification.hardwareSubtitle}</div>
+            </div>
+            <table className="hw-table">
               <thead>
                 <tr>
-                  <th scope="col">Hardware</th>
+                  <th scope="col">Hardware &amp; Architecture</th>
                   <th scope="col">Result</th>
                 </tr>
               </thead>
               <tbody>
-                {hardwareMap.map((probe, i) => (
-                  <tr key={i}>
-                    <td>{probe.hardware}</td>
-                    <td>
-                      <span className={`chip ${probe.result === 'MATCH' ? 'm' : 'x'}`}>
-                        {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {hardwareMap.map((probe, i) => {
+                  const isFullRun = probe.segment === 'all 37';
+                  const scopeLabel = isFullRun
+                    ? 'Full run · all 37 segments verified'
+                    : `Segment ${probe.segment} probe${probe.note ? ` · ${probe.note.split(';')[0]}` : ''}`;
+                  return (
+                    <tr key={i}>
+                      <td>
+                        <div className="hw-info">
+                          <span className="hw-title">{probe.hardware}</span>
+                          <span className={`hw-scope${isFullRun ? ' full-run' : ''}`}>
+                            {scopeLabel}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className={`chip res-chip ${probe.result === 'MATCH' ? 'match' : 'mismatch'}`}>
+                          {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            <p style={{ marginTop: '16px', fontSize: '13px', color: 'var(--ink-3)' }}>
+            <p className="hw-note">
+              <span aria-hidden="true">ℹ</span>
               {copy.verification.hardwareNote}
             </p>
           </div>
@@ -275,4 +291,3 @@ export const Verification: React.FC<VerificationProps> = ({
     </section>
   );
 };
-
