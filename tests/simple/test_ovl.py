@@ -185,6 +185,41 @@ class WeightsMatchTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.verify(self.states[1])
 
+    def test_base_weights_match_although_transition_repeats_them(self):
+        # The phase change records the base model's digest again, so the last match is the transition.
+        kinds = ("initial", "progress", "base", "transition", "final")
+        states = [self.states[0], self.states[1], self.states[2], self.states[2], self.states[3]]
+        write_chain(self.run, fake_chain(list(zip(kinds, states, strict=True))))
+        report = self.verify(self.states[2])
+        self.assertEqual(report["result"], "PASS")
+        self.assertEqual(report["checks"][0]["chain_entry"], 2)
+
+    def test_recipe_mismatch_fails_before_any_replay(self):
+        chain = [json.loads(l) for l in (self.run / "chain.jsonl").read_text().splitlines()]
+        chain[0]["recipe"] = "0" * 64
+        for i in range(1, len(chain)):
+            chain[i]["previous"] = hashlib.sha256(json.dumps(chain[i - 1], sort_keys=True).encode()).hexdigest()
+        write_chain(self.run, chain)
+        a = argparse.Namespace(run=str(self.run), data=str(self.run / "no-data"), weights=None, segment=[0], random=0,
+                               all=False, anchor=None, no_anchor=True)
+        with self.assertRaisesRegex(SystemExit, "RECIPE differs"):
+            ovl.cmd_verify(a)
+
+    def test_matching_recipe_goes_on_to_the_data_check(self):
+        chain = [json.loads(l) for l in (self.run / "chain.jsonl").read_text().splitlines()]
+        chain[0]["recipe"] = hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest()
+        chain[0]["data"] = {"wikipedia": "0" * 64, "conversation": "0" * 64}
+        for i in range(1, len(chain)):
+            chain[i]["previous"] = hashlib.sha256(json.dumps(chain[i - 1], sort_keys=True).encode()).hexdigest()
+        write_chain(self.run, chain)
+        for phase in ("wikipedia", "conversation"):
+            (self.run / "data" / phase).mkdir(parents=True)
+            (self.run / "data" / phase / "stream.json").write_text("{}")
+        a = argparse.Namespace(run=str(self.run), data=str(self.run / "data"), weights=None, segment=[0], random=0,
+                               all=False, anchor=None, no_anchor=True)
+        with self.assertRaisesRegex(SystemExit, "prepared data differs"):  # past the recipe check
+            ovl.cmd_verify(a)
+
     def test_unknown_or_modified_weights_fail(self):
         sd = {k: v.clone() for k, v in self.states[3].items()}
         sd["b"][0] += 1e-6

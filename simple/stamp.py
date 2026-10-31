@@ -74,12 +74,32 @@ def stamp_async(run, entry):
     return t
 
 
+def system_ca():
+    """The system CA bundle that holds DigiCert's root: Linux, then macOS."""
+    return next((p for p in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
+                             "/etc/ssl/cert.pem") if Path(p).exists()), None)
+
+
+def freetsa_certs(d):
+    ca, tsa = (Path(d) / "cacert.pem", Path(d) / "tsa.crt")
+    for url, path in zip(FREETSA_CERTS, (ca, tsa), strict=True):
+        path.write_bytes(urllib.request.urlopen(url, timeout=30).read())
+    return ca, tsa
+
+
+def verify_reply(path, name, imprint, certs):
+    """Check one saved reply with openssl. imprint is ["-digest", hex] or ["-data", file]; returns (ok, time)."""
+    ca, tsa = certs
+    trust = ["-CAfile", str(ca), "-untrusted", str(tsa)] if name == "freetsa" else ["-CAfile", str(system_ca())]
+    r = subprocess.run(["openssl", "ts", "-verify", *imprint, "-in", str(path)] + trust, capture_output=True, text=True)
+    when = subprocess.run(["openssl", "ts", "-reply", "-in", str(path), "-text"], capture_output=True, text=True).stdout
+    when = next((l.split(":", 1)[1].strip() for l in when.splitlines() if l.startswith("Time stamp:")), "?")
+    return "Verification: OK" in r.stdout, when
+
+
 def check(run, chain):
     with tempfile.TemporaryDirectory() as d:
-        ca, tsa = (Path(d) / "cacert.pem", Path(d) / "tsa.crt")
-        for url, path in zip(FREETSA_CERTS, (ca, tsa), strict=True):
-            path.write_bytes(urllib.request.urlopen(url, timeout=30).read())
-        system = "/etc/ssl/certs/ca-certificates.crt"
+        certs = freetsa_certs(d)
         ok = True
         for e in chain:
             for name in TSA:
@@ -87,13 +107,7 @@ def check(run, chain):
                 if not path.exists():
                     print(f"entry {e['index']} {name}: missing"); ok = False
                     continue
-                trust = ["-CAfile", str(ca), "-untrusted", str(tsa)] if name == "freetsa" else ["-CAfile", system]
-                r = subprocess.run(["openssl", "ts", "-verify", "-digest", entry_hash(e), "-in", str(path)] + trust,
-                                   capture_output=True, text=True)
-                when = subprocess.run(["openssl", "ts", "-reply", "-in", str(path), "-text"],
-                                      capture_output=True, text=True).stdout
-                when = next((l.split(":", 1)[1].strip() for l in when.splitlines() if l.startswith("Time stamp:")), "?")
-                good = "Verification: OK" in r.stdout
+                good, when = verify_reply(path, name, ["-digest", entry_hash(e)], certs)
                 ok &= good
                 print(f"entry {e['index']} {name}: {'OK' if good else 'FAIL'} {when}")
     return ok

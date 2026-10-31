@@ -17,12 +17,11 @@
 
   See [the simple run](../design/simple_run.md).
 - **Late October 2026: hardening `verify`.** Contributor fixes: `verify` fails when it ran no
-  checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`.
+  checks, clearer output for non-released weights, and CPU tests for `simple/ovl.py`. Since v1.0.1,
+  a missing `anchor.json` is a failure unless `--no-anchor` is given explicitly.
 
 ## Next
 
-- **Anchor required in `verify`.** A missing `anchor.json` is a failure unless `--no-anchor` is given
-  explicitly (#210 added the check, and it now fails closed).
 - **Independent checks.** Get segments checked by people outside the project, using the
   [one-click check](../guides/check_a_segment.md#one-segment-one-click). This is the single most
   valuable next step for the release's credibility.
@@ -30,6 +29,14 @@
   the full 22 GB of prepared data.
 - **Per-article membership proofs.** For any Wikipedia article, show which segment trained on it,
   with a proof against the chain.
+- **Near-duplicates in the exclusion fork.** The fork removed the 3I/ATLAS article as one document.
+  Other articles that mention the comet stayed in, so the model may still have learned most of its
+  facts. Count the training articles that mention it, and compare both models' loss on those
+  passages. Then try excluding by topic (every range that mentions it), not by document. A topic
+  exclusion is only as good as the filter that picks the ranges, so record the filter's code and
+  version in the chain, and report its misses on a hand-checked sample. Compare against control
+  articles about equally rare subjects, not just random articles of similar length, to separate
+  what the removal did from its general knock-on effect on later training.
 - **Signed check results and random segment choice.** Today a check result is a self-reported line.
   Checkers would sign their result, and the segment would be picked from public randomness (for
   example a drand beacon round), so results can't be faked in bulk or aimed at honest segments.
