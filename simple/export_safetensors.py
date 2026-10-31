@@ -29,6 +29,8 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
     source = Path(a.run) / f"{a.model}-model.pt"
+    if source.resolve() == Path(a.out).resolve():
+        p.error("--out must not overwrite the source checkpoint")
     sd = torch.load(source, map_location="cpu", weights_only=True)
     digest = ovl.model_digest(sd)
     save_file({k: v.detach().clone().contiguous() for k, v in sd.items()}, a.out,

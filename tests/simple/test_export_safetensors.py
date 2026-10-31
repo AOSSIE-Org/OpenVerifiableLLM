@@ -80,6 +80,16 @@ def test_export_is_byte_identical_every_time(tmp_path):
     assert all(export(tmp_path).read_bytes() == first for _ in range(3))
 
 
+def test_export_refuses_to_overwrite_the_source(tmp_path):
+    make_run(tmp_path)
+    source = tmp_path / "conversation-model.pt"
+    before = source.read_bytes()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_safetensors.py"), "--run", str(tmp_path),
+                        "--out", str(source)], capture_output=True, text=True)
+    assert r.returncode != 0 and "must not overwrite" in r.stderr
+    assert source.read_bytes() == before
+
+
 def test_verify_matches_the_safetensors_file(tmp_path):
     make_run(tmp_path)
     assert "MATCH chain entry 1" in verify(tmp_path, export(tmp_path))
