@@ -306,7 +306,7 @@ test.describe('404 page weight and tap target', () => {
 test.describe('targeted segment row, JS off', () => {
   test.use({ javaScriptEnabled: false });
   for (const scheme of ['light', 'dark'] as const) {
-    test(`${scheme}: the row a tile link lands on is highlighted with the stamp tokens`, async ({ page }) => {
+    test(`${scheme}: the row a tile link lands on is highlighted with the match tokens`, async ({ page }) => {
       await useTheme(page, scheme);
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto('verification/');
@@ -316,7 +316,7 @@ test.describe('targeted segment row, JS off', () => {
       const tokens = await page.evaluate(() => {
         const probe = document.createElement('div');
         document.body.appendChild(probe);
-        probe.style.background = 'var(--stamp-tint)';
+        probe.style.background = 'var(--match-tint)';
         const bg = getComputedStyle(probe).backgroundColor;
         probe.remove();
         return bg;

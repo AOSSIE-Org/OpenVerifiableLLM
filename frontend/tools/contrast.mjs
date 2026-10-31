@@ -29,10 +29,11 @@ for (const [mode, T] of [['light', light], ['dark', dark]]) {
     for (const bg of ['bg', 'surface', `${t}-tint`, ...(t === 'ink' || t === 'muted' ? ['sunk'] : [])]) if (T[bg]) check(mode, `${t} on ${bg}`, T[t], T[bg], 4.5);
   check(mode, 'surface text on solid independent', T.surface, T.independent, 4.5);
   check(mode, 'command text on sunk (journal block)', T.ink, T.sunk, 4.5);
+  check(mode, 'primary button text on ink', T.bg, T.ink, 4.5);
   check(mode, 'link on sunk (chips, panels)', T.link, T.sunk, 4.5);
-  // Row landed on from a tile link (tr:target): stamp-tint fill, stamp edge.
-  for (const t of ['ink', 'ink-2', 'muted', 'link', 'project', 'match']) check(mode, `${t} on stamp-tint (targeted row)`, T[t], T['stamp-tint'], 4.5);
-  check(mode, 'targeted row edge (stamp) on surface', T.stamp, T.surface, 3);
+  // Row landed on from a tile link (tr:target): match-tint fill, match edge.
+  for (const t of ['ink', 'ink-2', 'muted', 'link', 'project', 'match']) check(mode, `${t} on match-tint (targeted row)`, T[t], T['match-tint'], 4.5);
+  check(mode, 'targeted row edge (match) on surface', T.match, T.surface, 3);
   check(mode, 'project tile border on surface', T.project, T.surface, 3);
   check(mode, 'pending dashed border on bg', T.pending, T.bg, 3);
   const best = Math.max(ratio(T.focus, T.bg), ratio(T['focus-ink'], T.bg));
