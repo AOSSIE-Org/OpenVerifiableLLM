@@ -3,7 +3,8 @@
 Everything that trained, checked and published the released model. `ovl.py` is the core: one file
 that trains with a hash-linked record of every checkpoint, verifies any segment bit for bit, forks
 a run to remove documents, and chats with the result. The shell scripts wrap it for rented GPU
-pods. For the method and results, see [the simple run](../docs/design/simple_run.md).
+pods. For the method and results, see [how it works](../docs/how-it-works.md); to check the release,
+see [verify](../docs/verify.md).
 
 ## Which script do I want?
 
@@ -19,7 +20,7 @@ pods. For the method and results, see [the simple run](../docs/design/simple_run
 | Test whether another GPU reproduces the bits | `bash simple/hwmap_check.sh` | any GPU |
 | Remove documents from a run and retrain | `python simple/ovl.py fork ...`, then `loo_eval.py` | RTX 5090 |
 | Estimate the cost of a bigger model | `python simple/bench_sizes.py --data PREP` | RTX 5090 |
-| Run the model in Ollama | `python simple/export_gguf.py ...`, then `ollama create -f simple/Modelfile` ([guide](../docs/guides/ollama.md)) | any CPU |
+| Run the model in Ollama | `ollama run ryoari/openverifiablellm`, or build it yourself ([below](#run-the-model-in-ollama)) | any CPU |
 
 `RUN` is a run directory (`chain.jsonl`, `recipe.json`, models, `ckpt-*.pt`). `PREP` is the prepared
 data directory, `prepared/8de1d600…` in the
@@ -30,7 +31,8 @@ On a CPU, set `OVL_DEVICE=cpu`.
 
 | File | What it does |
 |---|---|
-| [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`; it needs the run's `anchor.json` or `--anchor FILE`, and `--no-anchor` is only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
+| [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`, `--data`; it needs the run's `anchor.json` and its two timestamps, or `--anchor FILE`; `--no-anchor` and `--no-timestamps` are only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
+| [`model.py`](model.py), [`data.py`](data.py) | The GPT model, and the token ids, batch layout and seeding shared with the data preparation (copied unchanged from commit `3f882ad`) |
 | [`stamp.py`](stamp.py) | RFC 3161 timestamps (FreeTSA and DigiCert) for each chain entry while training runs; `--check` verifies them. `OVL_TIMESTAMP=0` turns stamping off |
 | [`verify_segment.sh`](verify_segment.sh) | Downloads the release's data, record and the needed checkpoints, then checks `K` random segments (or `SEGMENTS="7 8"`) |
 | [`checker_pod.sh`](checker_pod.sh) | One-click check for a fresh RTX 5090 pod: fetches the release code at a pinned revision, runs `verify_segment.sh`, prints one result line to share |
@@ -47,11 +49,45 @@ On a CPU, set `OVL_DEVICE=cpu`.
 
 ## Requirements
 
-- Python 3.10+, PyTorch, and the release's pinned packages:
-  `pip install numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"`
-  (the shell scripts install these themselves).
+- Python 3.12, PyTorch and NumPy. `chat` and `loo_eval.py` also need `tokenizers==0.23.2`, and
+  `export_gguf.py` needs `gguf`. The shell scripts install what they need. For development, use the
+  hash-locked environment in [CONTRIBUTING.md](../CONTRIBUTING.md#development-setup).
 - Bit-exact training and segment checks: an RTX 5090 with the image
   `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (PyTorch 2.8.0, CUDA 12.8). Other GPU
-  architectures don't reproduce the bits; see [hardware scope](../docs/design/simple_run.md#results).
+  architectures don't reproduce the bits; see [hardware](../docs/how-it-works.md#results).
 
-Tests: `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests/simple`.
+Tests: `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests`.
+
+## Run the model in Ollama
+
+The chat model is on the Ollama registry as
+[`ryoari/openverifiablellm`](https://ollama.com/ryoari/openverifiablellm). The GGUF file is also
+attached to each [release](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases). All copies are
+the same file, SHA-256 `541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de`;
+`ollama show --modelfile ryoari/openverifiablellm` prints a `FROM` line that ends in that hash.
+
+This is for trying the model, not for verifying it. llama.cpp uses a slightly different GELU and
+different kernels, so its outputs are close to PyTorch's but not bit-identical. To check the model,
+use the released `.pt` files and `ovl.py verify`.
+
+To build it yourself, you need the run folder and the tokenizer, and `pip install gguf torch`:
+
+```bash
+python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat.gguf
+cp simple/Modelfile .                                     # its FROM line is ./ovl-23m-chat.gguf
+ollama create openverifiablellm -f Modelfile
+ollama run openverifiablellm "Tell me about the Moon."
+```
+
+`--model base` exports the Wikipedia-only model instead; it continues text and doesn't chat. The
+GGUF's description records the SHA-256 of the `.pt` file it came from.
+
+| | |
+|---|---|
+| Architecture | llama.cpp `gpt2`: 6 layers, 6 heads, 384 dimensions, 512-token context |
+| Weights | float32, unchanged from the released `.pt` file (143 MB) |
+| Tokenizer | GPT-2-style byte-level BPE, 32,000 tokens: `<\|pad\|>`, `<\|bos\|>`, `<\|eos\|>`, `<\|user\|>` and `<\|assistant\|>` at ids 0–4, then the trained vocabulary |
+| Chat format | `<\|user\|>` question `<\|eos\|>` `<\|assistant\|>` answer `<\|eos\|>`, as in training |
+
+Running the exported tensors with llama.cpp's GPT-2 computation reproduces the PyTorch model's
+greedy output token for token on a test prompt.

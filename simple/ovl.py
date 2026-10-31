@@ -602,7 +602,7 @@ def cmd_verify(a):
         sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
-        sys.exit("prepared data differs from the data the chain trained on")
+        sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")
     env = chain[0].get("environment", {})
     if a.data and env and env != report["environment"]:
         print(f"WARNING: environment differs from training: {env} vs {report['environment']}", flush=True)
