@@ -28,7 +28,9 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
       <header className="top">
         <a className="wordmark" href={hrefOf(ROUTES[0]!)} onClick={(e) => onNav(e, hrefOf(ROUTES[0]!))}>
           <img src={`${BASE}logo.svg`} width={32} height={32} alt="" />
-          <L k="site.title" />
+          <span className="wordmark-name">
+            <L k="site.title.lead" /><L k="site.title.llm" />
+          </span>
         </a>
         <nav aria-label="Pages">
           <ul>

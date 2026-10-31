@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="OpenVerifiableLLM">
-  <!-- Hash mark: two uprights + two strokes. Last stroke is AOSSIE gold. Holds at 16px. -->
-  <rect x="9" y="3" width="4" height="26" fill="#00843D" shape-rendering="crispEdges"/>
-  <rect x="19" y="3" width="4" height="26" fill="#00843D" shape-rendering="crispEdges"/>
-  <rect x="3" y="9" width="26" height="4" fill="#00843D" shape-rendering="crispEdges"/>
-  <rect x="3" y="19" width="26" height="4" fill="#FFCD00" shape-rendering="crispEdges"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-labelledby="title desc">
+<title id="title">OpenVerifiableLLM symbol</title><desc id="desc">OpenVerifiableLLM logo by AOSSIE.</desc>
+<g id="ovl-mark">
+  <path fill="#00843D" d="M8 2H24A6 6 0 0 1 30 8V17.25H23.5V10.45A2.45 2.45 0 0 0 21.05 8H10.95A2.95 2.95 0 0 0 8 10.95V21.05A2.95 2.95 0 0 0 10.95 24H17.15V30H8A6 6 0 0 1 2 24V8A6 6 0 0 1 8 2Z"/>
+  <path fill="#FFCD00" d="M23.1 19.5H30V24A6 6 0 0 1 24 30H19.5V23.1A3.6 3.6 0 0 1 23.1 19.5Z"/>
+</g>
 </svg>

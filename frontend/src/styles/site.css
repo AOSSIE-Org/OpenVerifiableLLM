@@ -56,8 +56,10 @@ code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .skip{position:absolute;left:var(--space-2);top:-3rem;background:var(--surface);padding:var(--space-2) var(--space-3);z-index:30}
 .skip:focus{top:var(--space-2)}
 .top{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);align-items:center;padding:var(--space-4) max(var(--space-4),calc((100% - var(--wide))/2));border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:20}
-.wordmark{display:inline-flex;align-items:center;gap:var(--space-2);font-family:var(--font-serif);font-weight:700;font-size:1.25rem;color:var(--ink);text-decoration:none}
-.wordmark img{width:2rem;height:2rem;flex-shrink:0}
+.wordmark{display:inline-flex;align-items:center;gap:var(--space-3);font-family:var(--font-sans);font-weight:700;font-size:1.125rem;letter-spacing:-.04em;line-height:1;color:var(--ink);text-decoration:none}
+.wordmark img{width:2rem;height:2rem;flex-shrink:0;display:block}
+.wordmark-name{display:inline-flex;align-items:baseline;white-space:nowrap}
+.wordmark [data-label="site.title.llm"]{color:var(--stamp)}
 .top ul{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);list-style:none;margin:0;padding:0;font-size:var(--fs-label)}
 .top a[aria-current="page"]{color:var(--ink);font-weight:600;text-decoration-thickness:2px;text-underline-offset:.3em}
 .theme-btn{margin-left:auto;align-self:center;font:inherit;font-size:var(--fs-label);color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:.25rem .15rem;cursor:pointer;min-height:44px}

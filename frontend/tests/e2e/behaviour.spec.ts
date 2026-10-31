@@ -2,6 +2,16 @@ import { expect, test } from '@playwright/test';
 import { label } from '../../src/content/ledger';
 import { data, ready, PAGES } from './util';
 
+test('header uses the approved C-gate mark and lockup', async ({ page, request }) => {
+  await page.goto('');
+  await ready(page);
+  await expect(page.locator('.wordmark img')).toHaveAttribute('src', /logo\.svg$/);
+  await expect(page.locator('.wordmark')).toContainText(label('site.title'));
+  const svg = await (await request.get('logo.svg')).text();
+  expect(svg).toContain('M8 2H24A6 6 0 0 1 30 8V17.25H23.5V10.45');
+  expect(svg).toContain('#FFCD00');
+});
+
 test('keyboard: skip link first, then into main; tiles are focusable buttons operated with Enter and Space', async ({ page }) => {
   await page.goto('verification/');
   await ready(page);

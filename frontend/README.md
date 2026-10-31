@@ -17,6 +17,7 @@ release digests come from GitHub copies listed below. Headlines come from `copy.
 | Claims: ids, sources, limits, banned phrases | `src/content/claims.json` | Research Lab (`npm run claims:sync`) |
 | Plain-language headlines per claim id | `src/content/copy.json` (from `COPY.md`) | Open Source Ops (`npm run claims:sync`) |
 | Navigation and table labels (no facts, no numbers) | `src/content/ui.json` | site |
+| Approved mark (header + favicon) | `logo/*.svg` copied to `public/logo.svg` and `public/favicon.svg` | brand |
 | Ledger numbers the pinned data does not support | `src/content/ledger-issues.json` | reported, withheld from the page |
 
 ## Commands

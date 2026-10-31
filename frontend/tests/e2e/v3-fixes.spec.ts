@@ -215,8 +215,8 @@ test('external links: rel=noopener noreferrer and pinned revisions', async ({ pa
     expect(links.length).toBeGreaterThan(0);
     for (const l of links) {
       expect(l.rel.split(' '), l.href).toEqual(expect.arrayContaining(['noopener', 'noreferrer']));
-      if (/github\.com\/AOSSIE-Org\/OpenVerifiableLLM\/(blob|tree|raw)\//.test(l.href)) expect(l.href, l.href).toContain(PINNED_GH);
-      if (/huggingface\.co\/.*\/(blob|resolve|tree)\//.test(l.href)) expect(l.href, l.href).toContain(PINNED_HF);
+      if (/^https:\/\/github\.com\/AOSSIE-Org\/OpenVerifiableLLM\/(blob|tree|raw)\//.test(l.href)) expect(l.href, l.href).toContain(PINNED_GH);
+      if (/^https:\/\/huggingface\.co\/.+\/(blob|resolve|tree)\//.test(l.href)) expect(l.href, l.href).toContain(PINNED_HF);
     }
   }
 });

@@ -1,5 +1,7 @@
 {
  "site.title": "OpenVerifiableLLM",
+ "site.title.lead": "OpenVerifiable",
+ "site.title.llm": "LLM",
  "skip": "Skip to content",
  "nav.label": "Pages",
  "nav.overview": "Overview",

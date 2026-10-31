@@ -207,6 +207,7 @@ describe('App states', () => {
     expect(img!.getAttribute('src')).toMatch(/logo\.svg$/);
     expect(img!.getAttribute('alt')).toBe('');
     expect(container.querySelector('.wordmark')!.textContent).toContain(label('site.title'));
+    expect(container.querySelector('[data-label="site.title.llm"]')!.textContent).toBe(label('site.title.llm'));
   });
   it('shows a background toggle that only switches light and dark', () => {
     const { container } = render(<App state={validateSite(fresh())} route={ROUTES[0]!} Page={Overview} />);
