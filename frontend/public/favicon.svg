@@ -1,4 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="OpenVerifiableLLM">
-  <rect width="32" height="32" rx="8" fill="#00843D"/>
-  <path d="M8.4 16.6 13.7 21.9 24.1 9.6" fill="none" stroke="#FFCD00" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect width="32" height="32" fill="#00843D" shape-rendering="crispEdges"/>
+  <rect x="5" y="17" width="5" height="12" fill="#FBFAF7" shape-rendering="crispEdges"/>
+  <rect x="13" y="10" width="5" height="19" fill="#FBFAF7" shape-rendering="crispEdges"/>
+  <rect x="21" y="4" width="5" height="25" fill="#FFCD00" shape-rendering="crispEdges"/>
 </svg>

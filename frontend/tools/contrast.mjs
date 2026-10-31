@@ -28,7 +28,7 @@ for (const [mode, T] of [['light', light], ['dark', dark]]) {
   for (const t of ['ink', 'ink-2', 'muted', 'link', 'match', 'mismatch', 'project', 'independent', 'pending', 'stamp'])
     for (const bg of ['bg', 'surface', `${t}-tint`, ...(t === 'ink' || t === 'muted' ? ['sunk'] : [])]) if (T[bg]) check(mode, `${t} on ${bg}`, T[t], T[bg], 4.5);
   check(mode, 'surface text on solid independent', T.surface, T.independent, 4.5);
-  check(mode, 'command text on ink (light terminal)', T.bg, T.ink, 4.5);
+  check(mode, 'command text on sunk (journal block)', T.ink, T.sunk, 4.5);
   check(mode, 'link on sunk (chips, panels)', T.link, T.sunk, 4.5);
   // Row landed on from a tile link (tr:target): stamp-tint fill, stamp edge.
   for (const t of ['ink', 'ink-2', 'muted', 'link', 'project', 'match']) check(mode, `${t} on stamp-tint (targeted row)`, T[t], T['stamp-tint'], 4.5);

@@ -1,5 +1,6 @@
 import { useData } from '../data/context';
 import { L, V } from './text';
+import { BASE } from '../routes';
 
 /** Cell weight from two boundary times; a missing or non-finite time (tiles and boundaries out of step)
  *  falls back to 1 instead of throwing. */
@@ -21,12 +22,14 @@ export function Timeline() {
             data-event={t.events.join(' ') || undefined}
             style={{ flexGrow: span(B[k]?.time, B[k + 1]?.time) }}
           >
-            <span className="sr">
-              <L k="th.segment" /> <V path={`verifications.tiles.${k}.segment`} /> <L k={`phase.${t.phase}`} />
-              {t.events.map((e) => (
-                <span key={e}> <L k={`event.${e}`} /></span>
-              ))}
-            </span>
+            <a className="seg-hit" href={`${BASE}verification/#seg-${t.segment}`}>
+              <span className="sr">
+                <L k="th.segment" /> <V path={`verifications.tiles.${k}.segment`} /> <L k={`phase.${t.phase}`} />
+                {t.events.map((e) => (
+                  <span key={e}> <L k={`event.${e}`} /></span>
+                ))}
+              </span>
+            </a>
           </li>
         ))}
       </ol>

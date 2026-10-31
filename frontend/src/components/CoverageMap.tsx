@@ -64,11 +64,9 @@ export function CoverageMap({ interactive, strip = false, lanes = false }: { int
               <button type="button" {...attrs} aria-pressed={sel === k} onClick={() => setSel(sel === k ? null : k)}>
                 {inner}
               </button>
-            ) : interactive ? (
-              // Before JavaScript runs, each tile links to its segment's rows in the table below.
-              <a {...attrs} href={`${BASE}verification/#seg-${t.segment}`}>{inner}</a>
             ) : (
-              <span {...attrs}>{inner}</span>
+              // Overview strip and no-JS verification: each tile opens that segment's recorded row.
+              <a {...attrs} href={`${BASE}verification/#seg-${t.segment}`}>{inner}</a>
             )}
           </li>
         );

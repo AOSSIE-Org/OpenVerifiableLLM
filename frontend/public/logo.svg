@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" role="img" aria-label="OpenVerifiableLLM">
-  <path d="M25.85 12.85A10.15 10.15 0 1 1 21.4 6.7" stroke="#00843D" stroke-width="3.15" stroke-linecap="round"/>
-  <path d="M5.05 21.55 3.7 27.35 10.15 24.4z" fill="#00843D"/>
-  <path d="M9.15 16.2 13.85 20.9 23.55 9.35" stroke="#FFCD00" stroke-width="3.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Three checkpoint bars. Integer coords + crispEdges so it holds at 16px; last bar is AOSSIE gold. -->
+  <rect x="4" y="16" width="6" height="13" fill="#00843D" shape-rendering="crispEdges"/>
+  <rect x="13" y="9" width="6" height="20" fill="#00843D" shape-rendering="crispEdges"/>
+  <rect x="22" y="3" width="6" height="26" fill="#FFCD00" shape-rendering="crispEdges"/>
 </svg>
