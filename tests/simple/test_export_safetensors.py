@@ -69,9 +69,15 @@ def test_export_keeps_every_weight_and_records_the_source(tmp_path):
     assert set(loaded) == set(sd)
     assert all(torch.equal(loaded[k], sd[k]) for k in sd)
     with safetensors.safe_open(out, "pt") as f:
-        meta = f.metadata()
+        meta = json.loads(f.metadata()["ovl"])
     assert meta["model_digest"] == ovl.model_digest(sd)
     assert meta["source_sha256"] == hashlib.sha256((tmp_path / "conversation-model.pt").read_bytes()).hexdigest()
+
+
+def test_export_is_byte_identical_every_time(tmp_path):
+    make_run(tmp_path)
+    first = export(tmp_path).read_bytes()
+    assert all(export(tmp_path).read_bytes() == first for _ in range(3))
 
 
 def test_verify_matches_the_safetensors_file(tmp_path):

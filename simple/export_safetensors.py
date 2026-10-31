@@ -6,10 +6,12 @@
 safetensors stores raw tensors without pickle, so loading a file runs no code. The tied embedding and
 output weights are stored as two copies, so the file holds exactly the state dict that training wrote,
 and `ovl.py verify --weights FILE.safetensors` matches the same chain entry as the .pt file. The
-metadata records the .pt file's SHA-256 and the model digest. Needs `pip install safetensors`.
+metadata key "ovl" holds a JSON object with the .pt file's name and SHA-256 and the model digest. It is
+one key, so the file is byte-identical every time it is exported. Needs `pip install safetensors`.
 """
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import sys
 
@@ -30,8 +32,9 @@ def main():
     sd = torch.load(source, map_location="cpu", weights_only=True)
     digest = ovl.model_digest(sd)
     save_file({k: v.detach().clone().contiguous() for k, v in sd.items()}, a.out,
-              metadata={"source": source.name, "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                        "model_digest": digest})
+              metadata={"ovl": json.dumps({"source": source.name, "model_digest": digest,
+                                           "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest()},
+                                          sort_keys=True)})
     if ovl.model_digest(load_file(a.out)) != digest:
         sys.exit(f"{a.out}: the weights differ from {source}")
     print(f"{a.out}: model digest {digest}")
