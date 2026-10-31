@@ -5,6 +5,7 @@ export const Hero: React.FC = () => {
   return (
     <div className="wrap hero" id="top">
       <div>
+        <div className="kicker">{copy.hero.kicker}</div>
         <h1>
           {copy.hero.h1Prefix}
           <span>{copy.hero.h1Accent}</span>

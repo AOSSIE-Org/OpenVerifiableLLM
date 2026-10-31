@@ -20,9 +20,6 @@ export const Footer: React.FC<FooterProps> = ({ revision }) => {
               />
             </a>
             <b>{copy.footer.org}</b>
-            <p>
-              Open-source algorithms, education and infrastructure for public-good AI.
-            </p>
           </div>
 
           <nav aria-label="Project links">

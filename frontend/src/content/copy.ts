@@ -143,7 +143,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     codeChangeTitle: 'Code change',
     codeChangeTag: 'Segment 19 onward',
     codeChangeDesc: 'Each segment ran its recorded code.',
-    caption: 'Ticks are boundaries. Green bars are segments that matched. Gold marks events. Conversation phase (32 s) highlighted with scale indicator.',
+    caption: 'Ticks are boundaries. Green bars are segments that matched. Gold marks events.',
     timestampNote: 'Timestamps show the record existed by 20 October 2026, not when or how training happened.',
   },
   exclusion: {
@@ -158,7 +158,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     whyHoldsItems: [
       'Checkpoints 0–30 are shared byte for byte.',
       'The removal is recorded in the chain.',
-      'Every other gap is refused.',
+      'Every other gap in the data is refused.',
       'Every fork segment matched.',
     ],
     limitsTitle: 'Limits',
@@ -197,6 +197,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
         name: 'ryoari/openverifiablellm',
         source: 'Ollama',
         actionLabel: 'Open',
+        note: 'Install with ollama run',
         url: 'https://ollama.com/ryoari/openverifiablellm',
       },
     ],

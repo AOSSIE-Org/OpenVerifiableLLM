@@ -17,7 +17,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => {
 
         <div className="files">
           {copy.downloads.files.map((file, i) => {
-            const hash = releaseHashes[file.name] || 'Hash recorded in release';
+            const hash = releaseHashes[file.name];
             return (
               <div key={i} className="file">
                 <div>
@@ -26,10 +26,16 @@ export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => {
                 </div>
 
                 <div className="h">
-                  <span title={hash}>{hash}</span>
-                  <div style={{ marginTop: '4px' }}>
-                    <CopyButton textToCopy={hash} label="SHA-256" />
-                  </div>
+                  {hash ? (
+                    <>
+                      <span title={hash}>{hash}</span>
+                      <div style={{ marginTop: '4px' }}>
+                        <CopyButton textToCopy={hash} label="SHA-256" />
+                      </div>
+                    </>
+                  ) : (
+                    <span>{'note' in file ? file.note : ''}</span>
+                  )}
                 </div>
 
                 <a

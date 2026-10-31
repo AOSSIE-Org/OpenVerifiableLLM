@@ -228,8 +228,8 @@ header nav a:hover {
     font-size: 16px;
   }
   .brand img {
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
   }
 }
 
@@ -1165,4 +1165,11 @@ main {
   header nav a {
     transition: color 0.35s ease, background-color 0.35s ease, box-shadow 0.35s ease;
   }
+}
+
+/* the note under the timeline that says how long each phase really took */
+.tl-scale {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--ink-3);
 }

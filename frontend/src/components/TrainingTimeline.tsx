@@ -14,6 +14,13 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
   const x = (i: number): number => L + (i * (W - L - R)) / 37;
   const rx = (x(10) + x(11)) / 2;
 
+  // Ticks are evenly spaced, so the very short conversation phase gets a
+  // bracket that says how long it really took.
+  const baseIndex = chain.findIndex(b => b.kind === 'base');
+  const last = chain.length - 1;
+  const wikiHours = baseIndex > 0 ? (chain[baseIndex].time - chain[0].time) / 3600 : 0;
+  const convSeconds = baseIndex > 0 ? Math.round(chain[last].time - chain[baseIndex].time) : 0;
+
   return (
     <section id="timeline">
       <div className="wrap">
@@ -149,7 +156,31 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
               <text x={L} y={yy + 60} fontSize="12" style={{ fill: 'var(--ink-3)' }}>
                 {copy.timeline.caption}
               </text>
+
+              {baseIndex > 0 && (
+                <g>
+                  <path
+                    d={`M${x(baseIndex)} ${yy + 44}v6H${x(last)}v-6`}
+                    fill="none"
+                    stroke="var(--ink-3)"
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={x(last)}
+                    y={yy + 64}
+                    fontSize="12"
+                    textAnchor="end"
+                    style={{ fill: 'var(--ink-2)' }}
+                  >
+                    Conversation phase: {convSeconds} s · not to scale
+                  </text>
+                </g>
+              )}
             </svg>
+            <p className="tl-scale">
+              Boundaries are evenly spaced, not placed by time. The Wikipedia pass took about{' '}
+              {wikiHours.toFixed(1)} hours; the conversation phase took {convSeconds} seconds.
+            </p>
           </div>
 
           <div className="events">
