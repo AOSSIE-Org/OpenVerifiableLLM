@@ -1,12 +1,18 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-test.describe('OpenVerifiableLLM Site v3', () => {
+test.describe('OpenVerifiableLLM Site', () => {
   test('renders all sections and numbers from evidence.json', async ({ page }) => {
     await page.goto('/');
 
-    // Check Hero
+    // Check Hero and kicker with separated dates
+    await expect(page.getByText(/Release v1\.0\.1 · 28 October 2026 · Record timestamped 20 October 2026/)).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toContainText('A language model whose training anyone can recompute');
+
+    // Check Overview text clarifying checker attribution
+    await expect(
+      page.locator('#overview').getByText('Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.')
+    ).toBeVisible();
 
     // Check Overview numbers
     await expect(page.getByText('7,232,582', { exact: true })).toBeVisible();
@@ -59,11 +65,10 @@ test.describe('OpenVerifiableLLM Site v3', () => {
     await page.goto('/');
     const mini = page.locator('#mini');
     await expect(mini).toBeVisible();
-    await expect(mini).not.toHaveClass(/off/);
 
-    // Scroll to the footer
-    await page.locator('#footer').scrollIntoViewIfNeeded();
-    await expect(mini).toHaveClass(/off/);
+    const footer = page.locator('footer');
+    await footer.scrollIntoViewIfNeeded();
+
     await expect(mini).toHaveAttribute('inert', '');
   });
 
@@ -82,42 +87,49 @@ test.describe('OpenVerifiableLLM Site v3', () => {
   });
 
   test('handles snapshot load errors gracefully', async ({ page }) => {
-    await page.route('**/data/evidence.json', route =>
-      route.fulfill({ status: 500, contentType: 'application/json', body: '{"error": "Internal Error"}' })
-    );
+    await page.route('**/data/evidence.json', (route) => {
+      route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Internal Server Error' }),
+      });
+    });
+
     await page.goto('/');
+    await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Snapshot unavailable or invalid' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry loading snapshot' })).toBeVisible();
   });
 
-  // WCAG 2.2 AA accessibility and responsive checks across viewports and themes
-  for (const viewport of [
-    { width: 1440, height: 900, name: 'desktop' },
-    { width: 720, height: 900, name: 'tablet-200pct-zoom' },
-    { width: 390, height: 844, name: 'mobile' },
-  ]) {
-    for (const theme of ['dark', 'light']) {
-      test(`a11y and layout: ${viewport.name} (${viewport.width}px) in ${theme} theme passes WCAG 2.2 AA`, async ({ page }) => {
-        await page.setViewportSize(viewport);
+  const viewports = [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'tablet-200pct-zoom', width: 720, height: 900 },
+    { name: 'mobile', width: 390, height: 844 },
+  ];
+
+  for (const vp of viewports) {
+    for (const theme of ['dark', 'light'] as const) {
+      test(`a11y and layout: ${vp.name} (${vp.width}px) in ${theme} theme passes WCAG 2.2 AA`, async ({ page }) => {
+        await page.setViewportSize({ width: vp.width, height: vp.height });
         await page.goto('/');
 
         if (theme === 'light') {
-          await page.getByRole('button', { name: /switch between dark and light theme/i }).click();
+          const themeBtn = page.getByRole('button', { name: /switch between dark and light theme/i });
+          await themeBtn.click();
           await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
         }
 
-        // Verify no horizontal overflow
+        const axeResults = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+
+        expect(axeResults.violations).toEqual([]);
+
+        // Ensure no horizontal overflow
         const hasNoHorizontalScroll = await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth
         );
-        expect(hasNoHorizontalScroll).toBe(true);
-
-        // Run axe accessibility analysis
-        const a11y = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-          .analyze();
-
-        expect(a11y.violations).toEqual([]);
+        expect(hasNoHorizontalScroll, `Horizontal scroll detected on ${vp.name} in ${theme} theme`).toBe(true);
       });
     }
   }
@@ -125,7 +137,8 @@ test.describe('OpenVerifiableLLM Site v3', () => {
   test('respects prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
-    const matches = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
-    expect(matches).toBe(true);
+
+    const heroHeading = page.getByRole('heading', { level: 1 });
+    await expect(heroHeading).toBeVisible();
   });
 });

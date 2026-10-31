@@ -14,11 +14,11 @@ export const copy = {
     themeToggleAria: 'Switch between dark and light theme',
   },
   hero: {
-    kicker: 'Release v1.0.1 · 20 October 2026',
+    kicker: 'Release v1.0.1 · 28 October 2026 · Record timestamped 20 October 2026',
     h1Prefix: 'A language model whose training anyone can ',
     h1Accent: 'recompute',
     h1Suffix: '.',
-    lede: 'A 23M-parameter model trained on English Wikipedia. Each of its 37 training segments reproduces bit for bit on the same GPU type.',
+    lede: 'A 23M-parameter model trained on English Wikipedia. Each of its 37 training segments was recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
     verifyCta: 'Verify a segment',
     evidenceCta: 'See the evidence',
     termTitle: 'Consistency check',
@@ -36,6 +36,7 @@ weights conversation-model.pt: MATCH chain entry 37`,
   overview: {
     kicker: "What's proven",
     h2: "What you can check, and what you can't yet.",
+    subtitle: 'Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
     facts: [
       {
         value: '37',

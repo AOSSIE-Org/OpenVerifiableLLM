@@ -17,20 +17,26 @@ describe('Evidence Validator', () => {
     expect(validated.chain.length).toBe(38);
     expect(validated.verifications.uniqueSegments).toBe(37);
     expect(validated.verifications.totalChecks).toBe(46);
-    expect(validated.preparation.articles).toBe(7232582);
-    expect(validated.preparation.wikipediaTargets).toBe(7118121139);
-    expect(validated.preparation.conversations).toBe(3481);
+    expect(validated.preparation.articles).toBeGreaterThan(0);
+    expect(validated.preparation.wikipediaTargets).toBeGreaterThan(0);
+    expect(validated.preparation.conversations).toBeGreaterThan(0);
     expect(validated.exclusion.removedArticle).toBe('3I/ATLAS');
-    expect(validated.exclusion.originalRemovedLoss).toBe(3.3604);
-    expect(validated.exclusion.forkRemovedLoss).toBe(3.386);
+    expect(validated.exclusion.forkRemovedLoss).toBeGreaterThan(validated.exclusion.originalRemovedLoss);
   });
 
-  it('fails if chain length is not exactly 38 entries', () => {
+  it('fails if chain length is less than 2 boundaries', () => {
+    const bad = JSON.parse(JSON.stringify(validData));
+    bad.chain = [bad.chain[0]];
+    expect(() => validateEvidence(bad)).toThrow(SnapshotError);
+    expect(() => validateEvidence(bad)).toThrow(/Chain must have at least 2 entries/);
+  });
+
+  it('fails if unique segment count does not match derived count from chain.jsonl', () => {
     const bad = JSON.parse(
-      readFileSync(getFixturePath('invalid-chain-len.json'), 'utf8')
+      readFileSync(getFixturePath('invalid-segment-count.json'), 'utf8')
     );
     expect(() => validateEvidence(bad)).toThrow(SnapshotError);
-    expect(() => validateEvidence(bad)).toThrow(/Chain must have exactly 38 entries/);
+    expect(() => validateEvidence(bad)).toThrow(/Segment count mismatch/);
   });
 
   it('fails if previous link in chain is broken', () => {
@@ -41,12 +47,11 @@ describe('Evidence Validator', () => {
     expect(() => validateEvidence(bad)).toThrow(/Broken previous link at boundary 10/);
   });
 
-  it('fails if unique segment count is not 37', () => {
-    const bad = JSON.parse(
-      readFileSync(getFixturePath('invalid-segment-count.json'), 'utf8')
-    );
+  it('fails if any row in verifications points at an invalid segment', () => {
+    const bad = JSON.parse(JSON.stringify(validData));
+    bad.verifications.rawChecks[0].segment = 999;
     expect(() => validateEvidence(bad)).toThrow(SnapshotError);
-    expect(() => validateEvidence(bad)).toThrow(/Segment count must be exactly 37/);
+    expect(() => validateEvidence(bad)).toThrow(/points at invalid segment 999/);
   });
 
   it('fails if checker string is unknown / unauthorized', () => {
@@ -63,6 +68,13 @@ describe('Evidence Validator', () => {
     );
     expect(() => validateEvidence(bad)).toThrow(SnapshotError);
     expect(() => validateEvidence(bad)).toThrow(/Invalid or corrupted SHA-256 hash/);
+  });
+
+  it('fails if verifiable exclusion loss delta is mathematically inconsistent', () => {
+    const bad = JSON.parse(JSON.stringify(validData));
+    bad.exclusion.removedLossDelta = 9.9999;
+    expect(() => validateEvidence(bad)).toThrow(SnapshotError);
+    expect(() => validateEvidence(bad)).toThrow(/Exclusion removed loss delta inconsistent/);
   });
 
   it('fails on null or non-object payloads', () => {

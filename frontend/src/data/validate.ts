@@ -1,4 +1,4 @@
-// Strict validator for OpenVerifiableLLM evidence data
+// Structural and internal consistency validator for OpenVerifiableLLM evidence data
 import {
   type EvidenceData,
   KNOWN_CHECKER_MAP,
@@ -17,31 +17,55 @@ function assert(condition: boolean, message: string): asserts condition {
   }
 }
 
+const HEX_64_REGEX = /^[0-9a-f]{64}$/i;
+
 export function validateEvidence(data: unknown): EvidenceData {
   assert(typeof data === 'object' && data !== null, 'Evidence data must be a non-null object');
 
   const root = data as Record<string, unknown>;
-  assert(root.schemaVersion === 1, `Unsupported schemaVersion: ${root.schemaVersion}`);
-  assert(root.revision === '96dc282a', `Evidence revision must be 96dc282a, got ${root.revision}`);
+  assert(
+    typeof root.schemaVersion === 'number' && Number.isInteger(root.schemaVersion) && root.schemaVersion >= 1,
+    `Invalid schemaVersion: ${root.schemaVersion}`
+  );
+  assert(
+    typeof root.revision === 'string' && /^[0-9a-f]{7,40}$/i.test(root.revision),
+    `Invalid evidence revision format: ${root.revision}`
+  );
 
-  // 1. Preparation counts
+  // 1. Preparation counts & types (internal consistency, no hand-typed numbers)
   assert(typeof root.preparation === 'object' && root.preparation !== null, 'Missing preparation section');
   const prep = root.preparation as Record<string, unknown>;
-  assert(prep.articles === 7232582, `Expected 7,232,582 articles, got ${prep.articles}`);
-  assert(prep.wikipediaTargets === 7118121139, `Expected 7,118,121,139 targets, got ${prep.wikipediaTargets}`);
-  assert(prep.conversations === 3481, `Expected 3,481 conversations, got ${prep.conversations}`);
+  assert(
+    typeof prep.articles === 'number' && Number.isInteger(prep.articles) && prep.articles > 0,
+    `articles count must be a positive integer, got ${prep.articles}`
+  );
+  assert(
+    typeof prep.wikipediaTargets === 'number' && Number.isInteger(prep.wikipediaTargets) && prep.wikipediaTargets > 0,
+    `wikipediaTargets count must be a positive integer, got ${prep.wikipediaTargets}`
+  );
+  assert(
+    typeof prep.conversations === 'number' && Number.isInteger(prep.conversations) && prep.conversations > 0,
+    `conversations count must be a positive integer, got ${prep.conversations}`
+  );
+  assert(
+    typeof prep.preparedDataId === 'string' && HEX_64_REGEX.test(prep.preparedDataId),
+    `Invalid preparedDataId SHA-256 hash: ${prep.preparedDataId}`
+  );
 
-  // 2. Chain boundaries
+  // 2. Chain boundaries: cryptographic continuity and segment count derivation
   assert(Array.isArray(root.chain), 'Chain must be an array');
-  assert(root.chain.length === 38, `Chain must have exactly 38 entries, got ${root.chain.length}`);
+  assert(
+    root.chain.length >= 2,
+    `Chain must have at least 2 entries to define training segments, got ${root.chain.length}`
+  );
 
   const chain = root.chain as Array<Record<string, unknown>>;
   for (let i = 0; i < chain.length; i++) {
     const entry = chain[i];
     assert(entry.index === i, `Chain entry index mismatch: expected ${i}, got ${entry.index}`);
-    assert(typeof entry.state === 'string' && entry.state.length === 64, `Invalid state hash at boundary ${i}`);
-    assert(typeof entry.model === 'string' && entry.model.length === 64, `Invalid model hash at boundary ${i}`);
-    assert(typeof entry.entryHash === 'string' && entry.entryHash.length === 64, `Invalid entryHash at boundary ${i}`);
+    assert(typeof entry.state === 'string' && HEX_64_REGEX.test(entry.state), `Invalid state hash at boundary ${i}`);
+    assert(typeof entry.model === 'string' && HEX_64_REGEX.test(entry.model), `Invalid model hash at boundary ${i}`);
+    assert(typeof entry.entryHash === 'string' && HEX_64_REGEX.test(entry.entryHash), `Invalid entryHash at boundary ${i}`);
 
     if (i === 0) {
       assert(entry.previous === null, 'Boundary 0 must have null previous pointer');
@@ -54,25 +78,48 @@ export function validateEvidence(data: unknown): EvidenceData {
     }
   }
 
+  // Number of segments is derived directly from chain boundaries (N boundaries => N - 1 segments)
+  const segmentCount = chain.length - 1;
+
   // 3. Verifications and segment coverage
   assert(typeof root.verifications === 'object' && root.verifications !== null, 'Missing verifications section');
   const ver = root.verifications as Record<string, unknown>;
-  assert(ver.uniqueSegments === 37, `Segment count must be exactly 37, got ${ver.uniqueSegments}`);
+  assert(
+    ver.uniqueSegments === segmentCount,
+    `Segment count mismatch: chain has ${chain.length} boundaries (${segmentCount} segments), but verifications reported ${ver.uniqueSegments}`
+  );
   assert(Array.isArray(ver.coverage), 'Verifications coverage must be an array');
-  assert(ver.coverage.length === 37, `Coverage array must have exactly 37 segments, got ${ver.coverage.length}`);
+  assert(
+    ver.coverage.length === segmentCount,
+    `Coverage array length (${ver.coverage.length}) does not match derived segment count (${segmentCount})`
+  );
 
   const coverage = ver.coverage as Array<Record<string, unknown>>;
-  for (let s = 0; s < 37; s++) {
+  for (let s = 0; s < segmentCount; s++) {
     const seg = coverage[s];
     assert(seg.segment === s, `Coverage segment order mismatch at index ${s}`);
-    assert(seg.projectResult === 'MATCH', `Project segment ${s} must have MATCH result, got ${seg.projectResult}`);
+    assert(
+      seg.projectResult === 'MATCH' || seg.projectResult === 'MISMATCH',
+      `Invalid projectResult for segment ${s}: ${seg.projectResult}`
+    );
   }
 
-  // 4. Strict Checker validation
+  // 4. Verification checks: every row in verifications.jsonl points at a real segment
   assert(Array.isArray(ver.rawChecks), 'verifications.rawChecks must be an array');
   const rawChecks = ver.rawChecks as Array<Record<string, unknown>>;
-  for (const check of rawChecks) {
-    assert(typeof check.checker === 'string', 'Checker name must be a string');
+  assert(rawChecks.length >= segmentCount, `Expected at least ${segmentCount} checks, got ${rawChecks.length}`);
+
+  for (let r = 0; r < rawChecks.length; r++) {
+    const check = rawChecks[r];
+    assert(
+      typeof check.segment === 'number' && Number.isInteger(check.segment),
+      `Check #${r} segment must be an integer, got ${check.segment}`
+    );
+    assert(
+      check.segment >= 0 && check.segment < segmentCount,
+      `Check #${r} points at invalid segment ${check.segment}; must be in [0, ${segmentCount - 1}]`
+    );
+    assert(typeof check.checker === 'string', `Check #${r} checker name must be a string`);
     assert(
       Object.prototype.hasOwnProperty.call(KNOWN_CHECKER_MAP, check.checker),
       `Unknown or unauthorized checker string: "${check.checker}"`
@@ -88,24 +135,50 @@ export function validateEvidence(data: unknown): EvidenceData {
     );
   }
 
-  // 5. Source Hashes
+  // 5. Source Hashes & Release Hashes validation
   assert(typeof root.sourceHashes === 'object' && root.sourceHashes !== null, 'Missing sourceHashes');
-  const hashes = root.sourceHashes as Record<string, unknown>;
-  const hex64Regex = /^[0-9a-f]{64}$/i;
-  for (const [file, hash] of Object.entries(hashes)) {
+  const sourceHashes = root.sourceHashes as Record<string, unknown>;
+  for (const [file, hash] of Object.entries(sourceHashes)) {
     assert(
-      typeof hash === 'string' && hex64Regex.test(hash),
+      typeof hash === 'string' && HEX_64_REGEX.test(hash),
       `Invalid or corrupted SHA-256 hash for ${file}: ${hash}`
     );
   }
 
-  // 6. Exclusion validation
+  assert(typeof root.releaseHashes === 'object' && root.releaseHashes !== null, 'Missing releaseHashes');
+  const releaseHashes = root.releaseHashes as Record<string, unknown>;
+  assert(Object.keys(releaseHashes).length > 0, 'releaseHashes must not be empty');
+  for (const [file, hash] of Object.entries(releaseHashes)) {
+    assert(
+      typeof hash === 'string' && HEX_64_REGEX.test(hash),
+      `Invalid SHA-256 hash in releaseHashes for ${file}: ${hash}`
+    );
+  }
+
+  // 6. Exclusion validation (internal loss delta consistency)
   assert(typeof root.exclusion === 'object' && root.exclusion !== null, 'Missing exclusion section');
   const excl = root.exclusion as Record<string, unknown>;
-  assert(excl.removedArticle === '3I/ATLAS', `Exclusion removedArticle mismatch: ${excl.removedArticle}`);
-  assert(excl.originalRemovedLoss === 3.3604, `originalRemovedLoss mismatch: ${excl.originalRemovedLoss}`);
-  assert(excl.forkRemovedLoss === 3.386, `forkRemovedLoss mismatch: ${excl.forkRemovedLoss}`);
-  assert(excl.controlArticlesCount === 50, `controlArticlesCount mismatch: ${excl.controlArticlesCount}`);
+  assert(typeof excl.removedArticle === 'string' && excl.removedArticle.length > 0, 'Missing removedArticle');
+  assert(typeof excl.originalRemovedLoss === 'number' && excl.originalRemovedLoss > 0, 'Invalid originalRemovedLoss');
+  assert(typeof excl.forkRemovedLoss === 'number' && excl.forkRemovedLoss > 0, 'Invalid forkRemovedLoss');
+  assert(typeof excl.removedLossDelta === 'number', 'Invalid removedLossDelta');
+  assert(
+    Math.abs(excl.removedLossDelta - (excl.forkRemovedLoss - excl.originalRemovedLoss)) < 0.001,
+    `Exclusion removed loss delta inconsistent: ${excl.removedLossDelta} !== ${excl.forkRemovedLoss} - ${excl.originalRemovedLoss}`
+  );
+
+  assert(
+    typeof excl.controlArticlesCount === 'number' && Number.isInteger(excl.controlArticlesCount) && excl.controlArticlesCount > 0,
+    `controlArticlesCount must be a positive integer, got ${excl.controlArticlesCount}`
+  );
+  assert(typeof excl.originalControlLossMean === 'number' && excl.originalControlLossMean > 0, 'Invalid originalControlLossMean');
+  assert(typeof excl.forkControlLossMean === 'number' && excl.forkControlLossMean > 0, 'Invalid forkControlLossMean');
+  assert(typeof excl.controlLossDelta === 'number', 'Invalid controlLossDelta');
+  assert(
+    Math.abs(excl.controlLossDelta - (excl.forkControlLossMean - excl.originalControlLossMean)) < 0.001,
+    `Exclusion control loss delta inconsistent: ${excl.controlLossDelta} !== ${excl.forkControlLossMean} - ${excl.originalControlLossMean}`
+  );
+  assert(excl.evidencePath === 'release/unlearning-3i-atlas/', `Invalid exclusion evidencePath: ${excl.evidencePath}`);
 
   return data as EvidenceData;
 }

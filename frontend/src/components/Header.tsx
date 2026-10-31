@@ -31,7 +31,7 @@ export const Header: React.FC = () => {
   return (
     <header>
       <div className="wrap bar">
-        <a className="brand" href="#top" aria-label="OpenVerifiableLLM by AOSSIE, home">
+        <a className="brand" href="#top">
           <img
             className="logo-d"
             src="brand/logo-dark.svg"

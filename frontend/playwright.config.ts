@@ -7,7 +7,7 @@ export default defineConfig({
   timeout: 60000,
   use: {
     baseURL: 'http://127.0.0.1:4173',
-    channel: 'chrome',
+    channel: process.env.CI ? undefined : (process.platform === 'win32' ? 'chrome' : undefined),
     trace: 'retain-on-failure',
   },
   reporter: [['list'], ['html', { open: 'never' }]],

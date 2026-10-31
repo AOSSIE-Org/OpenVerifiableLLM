@@ -13,6 +13,7 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
         <div className="sh">
           <div className="kicker">{copy.overview.kicker}</div>
           <h2>{copy.overview.h2}</h2>
+          <p>{copy.overview.subtitle}</p>
         </div>
 
         <div className="facts">
@@ -74,4 +75,3 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
     </section>
   );
 };
-
