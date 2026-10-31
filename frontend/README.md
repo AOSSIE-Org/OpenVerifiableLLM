@@ -27,7 +27,7 @@ npm run preview    # preview production build locally
 ```
 frontend/
 ├── public/
-│   ├── brand/       # Checkpoint seal SVGs (logo-dark, logo-light, favicon, app-icon, aossie-logo)
+│   ├── brand/       # Segment check SVGs (logo-dark, logo-light, favicon, app-icon, aossie-logo)
 │   └── data/        # evidence.json (pinned data committed for offline validation)
 ├── scripts/
 │   └── fetch-evidence.mjs  # Manual script to fetch and assemble snapshot from Hugging Face

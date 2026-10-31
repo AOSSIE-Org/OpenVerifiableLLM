@@ -144,9 +144,9 @@ header {
 
 .brand-name {
   display: block;
-  font-weight: 600;
-  font-size: 18px;
-  letter-spacing: -0.025em;
+  font-weight: 800;
+  font-size: 19px;
+  letter-spacing: -0.04em;
   line-height: 1;
   color: var(--ink);
 }

@@ -1,7 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-label="OpenVerifiableLLM">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="OpenVerifiableLLM">
  <title>OpenVerifiableLLM</title>
- <rect width="100" height="100" rx="22" fill="#FFFFFF"/>
- <g transform="translate(12 12) scale(.76)"><path d="M50.00 9.50Q62.81 2.19 70.25 14.93Q85.00 15.00 85.07 29.75Q97.81 37.19 90.50 50.00Q97.81 62.81 85.07 70.25Q85.00 85.00 70.25 85.07Q62.81 97.81 50.00 90.50Q37.19 97.81 29.75 85.07Q15.00 85.00 14.93 70.25Q2.19 62.81 9.50 50.00Q2.19 37.19 14.93 29.75Q15.00 15.00 29.75 14.93Q37.19 2.19 50.00 9.50Z" fill="#0071E3"/>
- <path d="M31 51L44 64L69 37" fill="none" stroke="#FFFFFF" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
- <g fill="#FFFFFF"><circle cx="31" cy="51" r="6"/><circle cx="44" cy="64" r="6"/><circle cx="69" cy="37" r="6"/></g></g>
+ <defs><mask id="tile"><rect width="48" height="48" rx="11" fill="#fff"/><g transform="translate(7.5 7.5) scale(.69)"><path d="M3 24H13L18 32L33 7H44L22 44H15.5Z" fill="#000"/></g><rect x="20" y="21.4" width="22" height="2.8" fill="#fff"/></mask></defs>
+ <rect width="48" height="48" rx="11" fill="#FFCD00" mask="url(#tile)"/>
 </svg>

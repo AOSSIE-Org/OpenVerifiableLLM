@@ -35,15 +35,15 @@ export const Header: React.FC = () => {
           <img
             className="logo-d"
             src="brand/logo-dark.svg"
-            width="44"
-            height="44"
+            width="36"
+            height="36"
             alt=""
           />
           <img
             className="logo-l"
             src="brand/logo-light.svg"
-            width="44"
-            height="44"
+            width="36"
+            height="36"
             alt=""
           />
           <span>
