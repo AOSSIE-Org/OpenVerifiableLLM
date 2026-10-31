@@ -50,22 +50,22 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
                 width={x(37) - x(19)}
                 height={38}
                 rx={6}
-                fill="color-mix(in srgb, var(--gold) 7%, transparent)"
-                stroke="color-mix(in srgb, var(--gold) 35%, transparent)"
+                fill="color-mix(in srgb, var(--accent) 7%, transparent)"
+                stroke="color-mix(in srgb, var(--accent) 35%, transparent)"
               />
               <line
                 x1={x(19)}
                 x2={x(19)}
                 y1={yy - 44}
                 y2={yy + 16}
-                stroke="var(--gold)"
+                stroke="var(--accent)"
                 strokeWidth={1.5}
               />
               <text
                 x={x(19) + 8}
                 y={yy - 34}
                 fontSize="12"
-                style={{ fill: 'var(--gold-text)' }}
+                style={{ fill: 'var(--accent-text)' }}
               >
                 Code change from segment 19 →
               </text>
@@ -101,7 +101,7 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
                 x2={rx}
                 y1={yy - 44}
                 y2={yy + 16}
-                stroke="var(--gold)"
+                stroke="var(--accent)"
                 strokeWidth={1.5}
               />
               <text
@@ -109,7 +109,7 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
                 y={yy - 50}
                 fontSize="12"
                 textAnchor="middle"
-                style={{ fill: 'var(--gold-text)' }}
+                style={{ fill: 'var(--accent-text)' }}
               >
                 Host restart at segment 10
               </text>

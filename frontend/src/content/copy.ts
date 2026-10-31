@@ -143,7 +143,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     codeChangeTitle: 'Code change',
     codeChangeTag: 'Segment 19 onward',
     codeChangeDesc: 'Each segment ran its recorded code.',
-    caption: 'Ticks are boundaries. Green bars are segments that matched. Gold marks events. Conversation phase (32 s) highlighted with scale indicator.',
+    caption: 'Ticks are boundaries. Green bars are segments that matched. Blue lines mark events. Conversation phase (32 s) highlighted with scale indicator.',
     timestampNote: 'Timestamps show the record existed by 20 October 2026, not when or how training happened.',
   },
   exclusion: {

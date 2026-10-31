@@ -42,17 +42,17 @@ test.describe('OpenVerifiableLLM Site v3', () => {
     expect(clipboardText.length).toBeGreaterThan(10);
   });
 
-  test('theme toggle switches between dark and light themes', async ({ page }) => {
+  test('theme toggle switches between light and dark themes', async ({ page }) => {
     await page.goto('/');
     const html = page.locator('html');
-    await expect(html).not.toHaveAttribute('data-theme', 'light');
+    await expect(html).not.toHaveAttribute('data-theme', 'dark');
 
     const themeBtn = page.getByRole('button', { name: /switch between dark and light theme/i });
     await themeBtn.click();
-    await expect(html).toHaveAttribute('data-theme', 'light');
+    await expect(html).toHaveAttribute('data-theme', 'dark');
 
     await themeBtn.click();
-    await expect(html).not.toHaveAttribute('data-theme', 'light');
+    await expect(html).not.toHaveAttribute('data-theme', 'dark');
   });
 
   test('minimal bottom bar becomes inert and hidden when footer is in view', async ({ page }) => {
@@ -101,9 +101,9 @@ test.describe('OpenVerifiableLLM Site v3', () => {
         await page.setViewportSize(viewport);
         await page.goto('/');
 
-        if (theme === 'light') {
+        if (theme === 'dark') {
           await page.getByRole('button', { name: /switch between dark and light theme/i }).click();
-          await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+          await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
         }
 
         // Verify no horizontal overflow

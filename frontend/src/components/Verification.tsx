@@ -204,7 +204,7 @@ export const Verification: React.FC<VerificationProps> = ({
                 cx={getX(0)}
                 cy={getY(0)}
                 r={7}
-                fill="var(--gold)"
+                fill="var(--accent)"
                 stroke="var(--paper)"
                 strokeWidth={2}
               />

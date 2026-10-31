@@ -8,7 +8,7 @@ Static single-page project site for OpenVerifiableLLM, presenting real bit-for-b
 - **Real evidence data**: Pinned Hugging Face dataset `AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence` at revision `96dc282a`.
 - **Prebuild validation**: `npm run build` runs `prebuild` (`npm run validate`), failing closed if any data contract or hash link is violated.
 - **Accessible design**: WCAG 2.2 AA compliant, zero axe violations across themes (dark default, light opt-in) and viewports.
-- **Offline bundle**: Self-hosted Geist fonts, embedded SVG brand assets, and zero runtime external CDN dependencies.
+- **Offline bundle**: System UI font with self-hosted Geist Mono for code, embedded SVG brand assets, and zero runtime external CDN dependencies.
 
 ## Commands
 
@@ -27,7 +27,7 @@ npm run preview    # preview production build locally
 ```
 frontend/
 ├── public/
-│   ├── brand/       # Checkpoint stack SVGs (logo-dark, logo-light, favicon, app-icon, aossie-logo)
+│   ├── brand/       # Checkpoint seal SVGs (logo-dark, logo-light, favicon, app-icon, aossie-logo)
 │   └── data/        # evidence.json (pinned data committed for offline validation)
 ├── scripts/
 │   └── fetch-evidence.mjs  # Manual script to fetch and assemble snapshot from Hugging Face
