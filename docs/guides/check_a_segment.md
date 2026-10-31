@@ -23,16 +23,19 @@ Download `release/simple-run/` without the `ckpt-*.pt` files, then from that fol
 pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \
   "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
-git clone -q --depth 1 --branch v1.0.1 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+git clone -q --depth 1 --branch v1.0.2 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
+# anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
+# anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
 
-This checks that `chain.jsonl` ends at the timestamped head in `anchor.json`, and that the published
-model is exactly the state committed at the end of training. Use `ovl.py` from the v1.0.1 tag, as
-above; it also fails if `anchor.json` is missing. The copy in the download's `code/` folder predates the anchor check, so an edited record
-would still pass with it. With the prepared data (`--data`), `verify` also regenerates the
+This checks that `chain.jsonl` ends at the head in `anchor.json`, that both timestamps on
+`anchor.json` verify, and that the published model is exactly the state committed at the end of
+training. `base-model.pt` gives `MATCH chain entry 31`. Use `ovl.py` from the v1.0.2 tag, as above;
+it fails if `anchor.json` or a timestamp is missing or wrong. The copy in the download's `code/`
+folder predates these checks, so an edited record would still pass with it. With the prepared data (`--data`), `verify` also regenerates the
 seeded starting weights and compares them with entry 0. That part works on any device, including a
 CPU.
 

@@ -159,17 +159,17 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
-# Verification: OK   (DigiCert stamped anchor.json on 2026-10-20)
-git clone -q --depth 1 --branch v1.0.1 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+git clone -q --depth 1 --branch v1.0.2 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
+# anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
+# anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
 
-Use `ovl.py` from the v1.0.1 tag, as above. It fails if `anchor.json` is missing. The copy in the
-download's `code/` folder predates the anchor check, so it doesn't compare the record with its
-timestamped anchor.
+Use `ovl.py` from the v1.0.2 tag, as above. It checks that the record ends at the head in
+`anchor.json`, and that both timestamps on `anchor.json` verify (this needs `openssl`). It fails if
+either is missing or wrong. The copy in the download's `code/` folder predates these checks.
 
 Recompute a training segment on an RTX 5090, in one click:
 [deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait about an
