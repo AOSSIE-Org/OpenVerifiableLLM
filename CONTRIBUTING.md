@@ -1,107 +1,81 @@
 # Contributing to OpenVerifiableLLM
 
-Thanks for considering a contribution. Whether you're fixing a typo, filing a bug, or building a new feature, you're welcome here. This guide explains how to get started and what a contribution needs to look like.
+Thanks for considering a contribution. You don't have to write code to help:
 
-This is a verification project, so it has a couple of project-specific standards (around determinism and falsifiability) that are explained below. Everything else is ordinary open-source practice.
-
-## Ways to contribute
-
-You don't have to write code to be useful:
-
-- **Report a bug** or a confusing behavior by opening an issue.
-- **Improve the docs.** Clarifications, fixed examples, and better explanations are genuinely valuable and a great first contribution.
-- **Suggest a feature** by opening an issue to discuss it before building.
-- **Fix or build something.** Pick up an open issue, or open one for what you have in mind.
-
-If you're new to the project, issues labeled `good first issue` are a good place to start.
+- **Check a training segment** on an RTX 5090 and post the result ([verify.md](docs/verify.md#2-one-segment-one-click)).
+  Independent checks are the most useful contribution right now.
+- **Report a bug** or something confusing, in an issue.
+- **Improve the docs.** Clearer wording and fixed examples are a good first contribution.
+- **Fix or build something.** Pick an open issue, or open one first. Issues labeled
+  `good first issue` are a good start. The [roadmap](docs/roadmap.md) lists what is most useful.
 
 ## Where the work is
 
-All the code is in `simple/`: the verifiable training loop behind the released model. Open pull
-requests against `main`. The
-[roadmap](docs/project/roadmap.md) lists what's most useful right now. Checking a training segment
-on an RTX 5090 ([guide](docs/guides/check_a_segment.md)) is a valuable contribution too.
+All the code is in [`simple/`](simple/README.md). `simple/ovl.py` is the training loop behind the
+released model. Open pull requests against `main`.
 
-## Before writing code
-
-For a small fix (a typo, a doc clarification, an obvious bug), feel free to open a pull request directly.
-
-For anything larger, **open an issue first** (or comment on an existing one) so the approach can be discussed before you invest time. This is partly courtesy and partly practical: changes that touch determinism, the manifest format, or the verifier have correctness consequences that are much cheaper to discuss up front than to unwind at review. A short conversation saves a large PR that has to be reworked.
-
-When you start working on an issue, leave a comment so others know it's taken.
-
-## Project philosophy (worth knowing)
-
-Two ideas shape how this codebase is built, and contributions are expected to respect them:
-
-**Validate assumptions before building on them.** This project exists because a widely-held assumption (that identical training runs produce identical results) turned out to need checking. The same mindset applies throughout: before adding a feature, it's worth confirming the thing it rests on actually holds.
-
-**Falsifiability is first-class.** This is verification infrastructure, so a feature that touches training, serialization, or the manifest needs a way to show it *fails when it should*, not only that it passes when everything is correct. In practice that means new verification behavior should extend the falsifiability test suite.
+For a small fix (a typo, a doc fix, an obvious bug), open a pull request directly. For anything
+larger, open an issue first, or comment on an existing one. A change to determinism, the chain
+format or `verify` is much cheaper to discuss before you write it. When you start on an issue, say
+so in a comment.
 
 ## Development setup
 
-Dependencies are pinned and hash-locked. This is deliberate: it's both a reproducibility measure (the project's whole point) and a defense against malicious dependency updates. Use the locked environment rather than installing packages by hand.
+Use Python 3.12: the lock file was compiled for it, and `--require-hashes` installs can fail on
+other versions.
 
 ```bash
-# clone your fork
 git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
-
-# the same environment CI uses (CPU PyTorch, hash-locked)
-pip install --require-hashes -r requirements/preparation.lock
+pip install --require-hashes -r requirements/preparation.lock   # the same CPU environment as CI
 pip install pytest gguf
-
-# confirm things work
-python -m pytest -q tests
+OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest -q tests        # runs on a CPU, about 15 s
+ruff check simple tests
 ```
 
-Which install you need depends on what you work on:
+Training and segment checks need an RTX 5090. Everything in `tests/` runs on a CPU. To add a
+dependency, add it to the lock file, so that every install stays pinned by hash.
 
-| Working on | Install | Quick test |
-|---|---|---|
-| `simple/` (the training loop) | the CI environment above | `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests` |
+## Rules for changes
 
-Training and segment checks need an RTX 5090. Everything in `tests/` runs on a CPU; GPU-only tests skip themselves.
+This is verification software, so three rules apply:
 
-If you need to add a dependency, add it through the lockfile so the hash-locked set stays authoritative. An unpinned dependency undermines both reproducibility and the project's supply-chain posture.
+1. **Don't change the bits.** A change to seeds, data order, dtypes, kernels, determinism settings,
+   RNG or optimizer state, or how `chain.jsonl` and checkpoints are written changes the hashes and
+   breaks verification of the published run. If a change must do this, say so in the PR.
+2. **Test the failure, not only the success.** A change to `verify`, the chain or checkpoints needs
+   a test where honest input passes and a test where tampered input fails.
+3. **Fail closed.** A missing file, hash, timestamp or field must give a failure, never a silent
+   skip that ends in PASS.
 
-## Making changes
+If a change alters behaviour, commands or output, update the docs in the same PR.
 
-**Branches.** Work on a branch off `main`, named for the change, for example `fix/manifest-rng-ordering` or `feat/segment-verifier-cli`.
+## Pull requests
 
-**Commits.** Write clear, present-tense messages that explain why, not just what. Keep commits focused.
+- Work on a branch off `main`, named for the change, for example `fix/verify-anchor-message`.
+- Write commit messages that say why, not only what. Keep each PR to one change.
+- Reference the issue (`Closes #123`), and say what you want reviewers to look at.
+- Make sure the tests and `ruff` pass. CI runs both on every PR.
 
-**Tests.**
+Maintainers review as volunteers. A small, tested, well-described PR gets reviewed fastest.
 
-- Run the test suite (`python -m pytest -q tests`) locally before opening a PR. The determinism checks in CI must pass; a PR that breaks them won't merge.
-- Code that changes verification behavior, serialization, RNG/optimizer state handling, or the manifest should include tests for both the success case and the failure case. For verification-affecting changes, extend the test suite so a clean run passes and the relevant tampered run fails.
-- A change must not silently weaken the bit-exact reproducibility guarantee on the supported single-GPU stack. If a change trades determinism for performance, make that tradeoff explicit and document it.
+## Bugs and security
 
-**Docs.** If a change alters behavior, inputs, the manifest format, or the verification contract, update the relevant docs in the same PR. The manifest schema is a versioned contract that other parts of the project depend on, so changes there need maintainer sign-off and a migration note.
+A good bug report has the exact command, your OS, Python and PyTorch versions (and for
+reproducibility problems, the GPU and CUDA version), what you expected and what happened.
 
-## Opening a pull request
+Report a security problem privately, not in a public issue. For example, a way to make `verify`
+report a false PASS. See [MAINTAINERS.md](MAINTAINERS.md#reporting-a-vulnerability).
 
-- Reference the issue it addresses (`Closes #123`) if there is one.
-- Describe what changed and why, and flag anything you'd like reviewers to look at closely.
-- Confirm the test suite passes.
-- Keep each PR to one logical change. Small, focused PRs get reviewed and merged faster than large, multi-purpose ones.
+## Discussion
 
-Maintainers review on a volunteer basis, so a clear, well-tested, well-scoped PR is the best way to get a quick response. Expect some back-and-forth; review comments are about the work, not about you.
-
-## Reporting bugs
-
-A good bug report includes enough to reproduce the problem: the exact command, your environment (OS, and for reproducibility issues the GPU, CUDA, and PyTorch versions, since the stack is usually the cause), what you expected, and what actually happened.
-
-For security-relevant issues (for example, a way to make the verifier report a false pass, or a supply-chain concern), please contact the maintainers privately rather than opening a public issue, so it can be addressed before it's widely visible.
-
-## Where discussion happens
-
-Project discussion and questions happen in the project's [Discord channel](https://discord.com/channels/1022871757289422898/1472946773235466443) on the AOSSIE server ([join the server](https://discord.gg/hjUhu33uAn) first if you aren't a member) and in GitHub issues. Technical decisions are made in the open so the reasoning stays available to everyone; if something is discussed privately, it helps to summarize it back into the relevant issue.
-
-## Code of conduct
-
-Be respectful and constructive. Technical disagreement is welcome and expected; keep it about the work, and assume good faith from others.
+Questions and discussion happen in the project's
+[Discord channel](https://discord.com/channels/1022871757289422898/1472946773235466443) on the
+AOSSIE server ([join the server](https://discord.gg/hjUhu33uAn) first) and in GitHub issues. If
+something is decided privately, summarize it in the issue. Be respectful, and keep disagreement
+about the work.
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the project's [LICENSE](LICENSE).
+By contributing, you agree that your contributions are licensed under the project's
+[LICENSE](LICENSE).

@@ -44,7 +44,7 @@ reviews:
     - path: "**/*.md"
       instructions: >-
         Check that commands are runnable as written, links resolve, and numbers (segments, costs,
-        hashes) match docs/design/simple_run.md.
+        hashes) match docs/how-it-works.md.
 
   tools:
     ruff:
