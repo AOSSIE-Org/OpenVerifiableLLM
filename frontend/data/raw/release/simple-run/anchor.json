@@ -1,0 +1,13 @@
+{
+ "chain_entries": 38,
+ "chain_head_index": 37,
+ "chain_head_sha256": "9edbcaddbb08ed20f3d655ac59d0aa57f6339a702d0fa1d3422856f5d8251a51",
+ "chain_jsonl_sha256": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+ "commit": "1dc7fb2a430d24c06c970309d332c4891916548c",
+ "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+ "final_model": "ec9a2b31ca524613f791aba00f4f7f31e4a7bf4a8a921e0deb81c1a922d0958b",
+ "final_state": "934d681c99e5c3e10617e82dbbb0ae0ddd1ad4e32cf45e8e3a6d2ed94b69f200",
+ "path": "release/simple-run",
+ "release_hashes_sha256": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
+ "schema": "ovl.release-anchor.v1"
+}

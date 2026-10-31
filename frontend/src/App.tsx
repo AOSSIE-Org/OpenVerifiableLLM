@@ -1,0 +1,126 @@
+import { useEffect, useRef, type ComponentType, type MouseEvent } from 'react';
+import { DataContext, type DataState } from './data/context';
+import { BASE, ROUTES, hrefOf, type RouteDef } from './routes';
+import { L, V } from './components/text';
+import { ErrorBoundary } from './components/Section';
+import { ThemeToggle } from './components/ThemeToggle';
+
+export interface AppProps {
+  state: DataState | { error: string } | 'loading';
+  route: RouteDef | null;
+  Page: ComponentType | null;
+  navigate?: (href: string) => void;
+}
+
+function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; navigate?: AppProps['navigate']; children: React.ReactNode; pinned: boolean }) {
+  const main = useRef<HTMLElement>(null);
+  const onNav = (e: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (!navigate || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    navigate(href);
+  };
+  useEffect(() => {
+    if (route) document.title = `${document.querySelector(`[data-label="nav.${route.key}"]`)?.textContent ?? ''} · OpenVerifiableLLM`;
+  }, [route]);
+  return (
+    <>
+      <a className="skip" href="#main"><L k="skip" /></a>
+      <header className="top">
+        <a className="wordmark" href={hrefOf(ROUTES[0]!)} onClick={(e) => onNav(e, hrefOf(ROUTES[0]!))}>
+          <img src={`${BASE}logo.svg`} width={32} height={32} alt="" />
+          <span className="wordmark-lockup">
+            <span className="wordmark-name">
+              <L k="site.title.lead" /><L k="site.title.llm" />
+            </span>
+            <span className="wordmark-by"><L k="site.by" /></span>
+          </span>
+        </a>
+        <nav aria-label="Pages">
+          <ul>
+            {ROUTES.map((r) => (
+              <li key={r.key}>
+                <a href={hrefOf(r)} aria-current={route?.key === r.key ? 'page' : undefined} onClick={(e) => onNav(e, hrefOf(r))}>
+                  <L k={`nav.${r.key}`} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <ThemeToggle />
+      </header>
+      <main id="main" ref={main} tabIndex={-1}>
+        {children}
+      </main>
+      <footer className="foot">
+        <p className="foot-brand">
+          <a href="https://aossie.org" rel="noopener noreferrer" className="foot-by">
+            <L k="site.by" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+          <a href="https://aossie.org" rel="noopener noreferrer">
+            <L k="footer" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+          <a href="https://discord.gg/hjUhu33uAn" rel="noopener noreferrer">
+            <L k="footer.discord" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+          <a href="https://www.gnu.org/licenses/gpl-3.0.html" rel="noopener noreferrer">
+            <L k="footer.license" />
+            <span className="sr"> <L k="newtab" /></span>
+          </a>
+        </p>
+        {pinned ? (
+          <span className="muted">
+            <L k="footer.data" /> <code><V path="revShort" /></code>
+          </span>
+        ) : null}
+      </footer>
+    </>
+  );
+}
+
+export function App({ state, route, Page, navigate }: AppProps) {
+  if (state === 'loading') {
+    return (
+      <Shell route={route} pinned={false} {...(navigate ? { navigate } : {})}>
+        <p role="status"><L k="loading" /></p>
+      </Shell>
+    );
+  }
+  if ('error' in state) {
+    return (
+      <Shell route={route} pinned={false} {...(navigate ? { navigate } : {})}>
+        <div className="fatal" role="alert" data-fatal="">
+          <h1><L k="error.title" /></h1>
+          <p><L k="error.body" /></p>
+          <p>
+            <button type="button" className="btn" onClick={() => location.reload()}>
+              <L k="error.retry" />
+            </button>
+          </p>
+        </div>
+      </Shell>
+    );
+  }
+  return (
+    <DataContext.Provider value={state}>
+      <Shell route={route} pinned {...(navigate ? { navigate } : {})}>
+        <ErrorBoundary key={route?.key ?? 'none'}>
+          {Page ? (
+            <Page />
+          ) : (
+            <div className="notfound" data-notfound="">
+              <h1><L k="notfound" /></h1>
+              <p>
+                <a href={hrefOf(ROUTES[0]!)} onClick={(e) => { if (navigate && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); navigate(hrefOf(ROUTES[0]!)); } }}>
+                  <L k="notfound.home" />
+                </a>
+              </p>
+            </div>
+          )}
+        </ErrorBoundary>
+      </Shell>
+    </DataContext.Provider>
+  );
+}
