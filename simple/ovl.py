@@ -375,7 +375,15 @@ def run_phases(data, model, opt, on_boundary, start=None):
 
 
 def read_chain(run):
-    chain = [json.loads(l) for l in (Path(run) / "chain.jsonl").read_text().splitlines()]
+    path = Path(run) / "chain.jsonl"
+    chain = []
+    for n, line in enumerate(path.read_text().splitlines(), 1):
+        try:
+            chain.append(json.loads(line))
+        except json.JSONDecodeError as err:
+            sys.exit(f"{path}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged")
+    if not chain:
+        sys.exit(f"{path} has no chain entries")
     for i, e in enumerate(chain):
         want = hashlib.sha256(json.dumps(chain[i - 1], sort_keys=True).encode()).hexdigest() if i else None
         if e["index"] != i or e["previous"] != want:
@@ -404,7 +412,9 @@ def load_checkpoint(run, entry, model):
 def cmd_train(a):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    chain = read_chain(out) if (out / "chain.jsonl").exists() else []
+    # A crash right after the file was opened can leave it empty: that is a run with no entries yet.
+    chain_file = out / "chain.jsonl"
+    chain = read_chain(out) if chain_file.exists() and chain_file.stat().st_size else []
     model, opt = fresh()
     start = None
     if chain:
