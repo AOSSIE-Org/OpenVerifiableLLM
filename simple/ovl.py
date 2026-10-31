@@ -534,6 +534,14 @@ def weights_verdict(chain, hit, ok):
     return "NOT in the chain"
 
 
+def load_weights(path):
+    """A released model as a state dict, from a .pt file or a .safetensors file (see export_safetensors.py)."""
+    if str(path).endswith(".safetensors"):
+        from safetensors.torch import load_file
+        return load_file(path)
+    return torch.load(path, map_location="cpu", weights_only=True)
+
+
 def released(chain, hit):
     """The last base or final entry among the matches. A transition entry repeats the base model's
     digest, because the phase change doesn't touch the weights, so the base match isn't the last one."""
@@ -607,7 +615,7 @@ def cmd_verify(a):
     if a.data and env and env != report["environment"]:
         print(f"WARNING: environment differs from training: {env} vs {report['environment']}", flush=True)
     if a.weights:
-        sd = torch.load(a.weights, map_location="cpu", weights_only=True)
+        sd = load_weights(a.weights)
         hit = [e["index"] for e in chain if e["model"] == model_digest(sd)]
         ok = released(chain, hit) is not None
         print(f"weights {a.weights}: {weights_verdict(chain, hit, ok)}", flush=True)
