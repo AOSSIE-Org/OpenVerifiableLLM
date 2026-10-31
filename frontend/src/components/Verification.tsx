@@ -83,153 +83,157 @@ export const Verification: React.FC<VerificationProps> = ({ verifications, hardw
         ))}
       </div>
 
-      <figure className="thumb">
-        <figcaption className="fig-title">
-          {copy.verification.oddsTitle} <code>{copy.verification.oddsFormula}</code>
-        </figcaption>
+      <div className="pair">
+        <figure className="thumb">
+          <figcaption className="fig-title">
+            {copy.verification.oddsTitle} <code>{copy.verification.oddsFormula}</code>
+          </figcaption>
 
-        <svg
-          viewBox={`0 0 ${W} ${H}`}
-          width="100%"
-          role="img"
-          aria-labelledby="odds-title odds-desc"
-        >
-          <title id="odds-title">Detection odds curve for 37 segments</title>
-          <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            width="100%"
+            role="img"
+            aria-labelledby="odds-title odds-desc"
+          >
+            <title id="odds-title">Detection odds curve for 37 segments</title>
+            <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
 
-          {/* Grid lines */}
-          {[0, 0.5, 1].map(p => (
-            <g key={p}>
-              <line x1={L} x2={W - R} y1={getY(p)} y2={getY(p)} stroke="var(--rule)" />
-              <text x={L - 8} y={getY(p) + 4} fontSize="11" textAnchor="end">
-                {p * 100}%
-              </text>
-            </g>
-          ))}
-
-          {/* X Axis */}
-          {[0, 50, 100, 150, 200].map(m => (
-            <text key={m} x={getX(m)} y={H - 12} fontSize="11" textAnchor="middle">
-              {m}
-            </text>
-          ))}
-
-          {/* Area & curve */}
-          <path d={areaPath} fill="var(--ink)" opacity={0.05} />
-          <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
-
-          {/* Threshold points (110 and 169) */}
-          {[
-            { m: 110, p: 0.95, label: '110 checks: 95%', align: 'left' },
-            { m: 169, p: 0.99, label: '169 checks: 99%', align: 'center' },
-          ].map(({ m, label, align }) => {
-            const cx = getX(m);
-            const cy = getY(getOdds(m));
-            return (
-              <g key={m}>
-                <line
-                  x1={cx}
-                  x2={cx}
-                  y1={cy}
-                  y2={getY(0)}
-                  stroke="var(--ink-3)"
-                  strokeDasharray="2 3"
-                />
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={4.5}
-                  fill="var(--sheet)"
-                  stroke="var(--ink)"
-                  strokeWidth={2}
-                />
-                <text
-                  x={align === 'left' ? cx + 8 : cx}
-                  y={align === 'left' ? cy + 20 : cy - 12}
-                  fontSize="12"
-                  textAnchor={align === 'center' ? 'middle' : 'start'}
-                  style={{ fill: 'var(--ink)', fontWeight: 600 }}
-                >
-                  {label}
+            {/* Grid lines */}
+            {[0, 0.5, 1].map(p => (
+              <g key={p}>
+                <line x1={L} x2={W - R} y1={getY(p)} y2={getY(p)} stroke="var(--rule)" />
+                <text x={L - 8} y={getY(p) + 4} fontSize="11" textAnchor="end">
+                  {p * 100}%
                 </text>
               </g>
-            );
-          })}
+            ))}
 
-          {/* Current position (M = 0) */}
-          <circle
-            cx={getX(0)}
-            cy={getY(0)}
-            r={7}
-            fill="var(--gold)"
-            stroke="var(--paper)"
-            strokeWidth={2}
-          />
-          <text
-            x={getX(0) + 14}
-            y={getY(0) - 10}
-            fontSize="12"
-            style={{ fill: 'var(--ink)', fontWeight: 600 }}
-          >
-            You are here: 0 independent checks
-          </text>
-        </svg>
+            {/* X Axis */}
+            {[0, 50, 100, 150, 200].map(m => (
+              <text key={m} x={getX(m)} y={H - 12} fontSize="11" textAnchor="middle">
+                {m}
+              </text>
+            ))}
 
-        <table className="sr-only">
-          <caption>Detection odds by number of independent checks</caption>
-          <thead>
-            <tr>
-              <th scope="col">Checks (M)</th>
-              <th scope="col">Detection Probability</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>0</td>
-              <td>0% (Current: 0 independent checks)</td>
-            </tr>
-            <tr>
-              <td>110</td>
-              <td>95.0%</td>
-            </tr>
-            <tr>
-              <td>169</td>
-              <td>99.0%</td>
-            </tr>
-          </tbody>
-        </table>
-      </figure>
+            {/* Area & curve */}
+            <path d={areaPath} fill="var(--ink)" opacity={0.05} />
+            <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
 
-      <h3>{copy.verification.hardwareTitle}</h3>
-      <p>{copy.verification.hardwareSubtitle}</p>
-      <table className="wikitable">
-        <thead>
-          <tr>
-            <th scope="col">Hardware</th>
-            <th scope="col">Probe</th>
-            <th scope="col">Result</th>
-          </tr>
-        </thead>
-        <tbody>
-          {hardwareMap.map((probe, i) => {
-            const isFullRun = probe.segment === 'all 37';
-            const scopeLabel = isFullRun
-              ? 'Full run, all 37 segments'
-              : `Segment ${probe.segment}${probe.note ? `: ${probe.note.split(';')[0]}` : ''}`;
-            return (
-              <tr key={i}>
-                <th scope="row">{probe.hardware}</th>
-                <td>{scopeLabel}</td>
-                <td>
-                  <span className={`res ${probe.result === 'MATCH' ? 'match' : 'mismatch'}`}>
-                    {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
-                  </span>
-                </td>
+            {/* Threshold points (110 and 169) */}
+            {[
+              { m: 110, p: 0.95, label: '110 checks: 95%', align: 'left' },
+              { m: 169, p: 0.99, label: '169 checks: 99%', align: 'center' },
+            ].map(({ m, label, align }) => {
+              const cx = getX(m);
+              const cy = getY(getOdds(m));
+              return (
+                <g key={m}>
+                  <line
+                    x1={cx}
+                    x2={cx}
+                    y1={cy}
+                    y2={getY(0)}
+                    stroke="var(--ink-3)"
+                    strokeDasharray="2 3"
+                  />
+                  <circle
+                    cx={cx}
+                    cy={cy}
+                    r={4.5}
+                    fill="var(--sheet)"
+                    stroke="var(--ink)"
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={align === 'left' ? cx + 8 : cx}
+                    y={align === 'left' ? cy + 20 : cy - 12}
+                    fontSize="12"
+                    textAnchor={align === 'center' ? 'middle' : 'start'}
+                    style={{ fill: 'var(--ink)', fontWeight: 600 }}
+                  >
+                    {label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Current position (M = 0) */}
+            <circle
+              cx={getX(0)}
+              cy={getY(0)}
+              r={7}
+              fill="var(--gold)"
+              stroke="var(--paper)"
+              strokeWidth={2}
+            />
+            <text
+              x={getX(0) + 14}
+              y={getY(0) - 10}
+              fontSize="12"
+              style={{ fill: 'var(--ink)', fontWeight: 600 }}
+            >
+              You are here: 0 independent checks
+            </text>
+          </svg>
+
+          <table className="sr-only">
+            <caption>Detection odds by number of independent checks</caption>
+            <thead>
+              <tr>
+                <th scope="col">Checks (M)</th>
+                <th scope="col">Detection Probability</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              <tr>
+                <td>0</td>
+                <td>0% (Current: 0 independent checks)</td>
+              </tr>
+              <tr>
+                <td>110</td>
+                <td>95.0%</td>
+              </tr>
+              <tr>
+                <td>169</td>
+                <td>99.0%</td>
+              </tr>
+            </tbody>
+          </table>
+        </figure>
+
+        <div>
+          <h3 className="pair-h">{copy.verification.hardwareTitle}</h3>
+          <p>{copy.verification.hardwareSubtitle}</p>
+          <table className="wikitable">
+            <thead>
+              <tr>
+                <th scope="col">Hardware</th>
+                <th scope="col">Probe</th>
+                <th scope="col">Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hardwareMap.map((probe, i) => {
+                const isFullRun = probe.segment === 'all 37';
+                const scopeLabel = isFullRun
+                  ? 'Full run, all 37 segments'
+                  : `Segment ${probe.segment}${probe.note ? `: ${probe.note.split(';')[0]}` : ''}`;
+                return (
+                  <tr key={i}>
+                    <th scope="row">{probe.hardware}</th>
+                    <td>{scopeLabel}</td>
+                    <td>
+                      <span className={`res ${probe.result === 'MATCH' ? 'match' : 'mismatch'}`}>
+                        {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
   );
 };

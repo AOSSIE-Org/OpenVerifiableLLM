@@ -34,11 +34,9 @@ export const copy = {
     ],
     infobox: {
       caption: 'OpenVerifiableLLM',
-      developer: 'AOSSIE',
       release: 'v1.0.1 (28 October 2026)',
       parameters: '23 million',
       data: 'English Wikipedia, one exact pass',
-      segments: '37, between 38 checkpoints',
       checked: 'by the project',
       independent: 'none yet',
       stamped: '20 October 2026 (DigiCert, FreeTSA)',

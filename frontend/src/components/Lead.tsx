@@ -22,17 +22,18 @@ export const Lead: React.FC<LeadProps> = ({ evidence }) => {
       </p>
 
       <table className="infobox">
-        <caption>{box.caption}</caption>
+        <caption className="sr-only">{box.caption}</caption>
         <tbody>
           <tr>
-            <td colSpan={2} className="ib-logo">
-              <img className="logo-l" src="brand/logo-light.svg" width="96" height="96" alt="" />
-              <img className="logo-d" src="brand/logo-dark.svg" width="96" height="96" alt="" />
-            </td>
+            <th colSpan={2} scope="col" className="ib-title">
+              {box.caption}
+            </th>
           </tr>
           <tr>
-            <th scope="row">Developer</th>
-            <td>{box.developer}</td>
+            <td colSpan={2} className="ib-logo">
+              <img className="logo-l" src="brand/logo-light.svg" width="72" height="72" alt="" />
+              <img className="logo-d" src="brand/logo-dark.svg" width="72" height="72" alt="" />
+            </td>
           </tr>
           <tr>
             <th scope="row">Release</th>
@@ -47,17 +48,13 @@ export const Lead: React.FC<LeadProps> = ({ evidence }) => {
             <td>{box.data}</td>
           </tr>
           <tr>
-            <th scope="row">Segments</th>
-            <td>{box.segments}</td>
-          </tr>
-          <tr>
             <th scope="row">Recomputed</th>
             <td>
-              {matched} of {segments}, {box.checked}
+              {matched} of {segments} segments, {box.checked}
             </td>
           </tr>
           <tr>
-            <th scope="row">Independent checks</th>
+            <th scope="row">Independent</th>
             <td>{box.independent}</td>
           </tr>
           <tr>
