@@ -34,6 +34,7 @@ from pathlib import Path
 import queue
 import secrets
 import sys
+import tempfile
 import threading
 import time
 
@@ -519,28 +520,78 @@ def verify_segment(data, run, chain, k):
 def weights_verdict(chain, hit, ok):
     """Console message for a weights check: a match on a non-released entry is not 'not in the chain'."""
     if ok:
-        return f"MATCH chain entry {hit[-1]}"
+        return f"MATCH chain entry {released(chain, hit)}"
     if hit:
         return f"chain entry {hit[-1]} ({chain[hit[-1]]['kind']}), not a released model (expected base or final)"
     return "NOT in the chain"
+
+
+def released(chain, hit):
+    """The last base or final entry among the matches. A transition entry repeats the base model's
+    digest, because the phase change doesn't touch the weights, so the base match isn't the last one."""
+    return next((i for i in reversed(hit) if chain[i]["kind"] in ("base", "final")), None)
+
+
+def check_anchor_timestamps(anchor, data):
+    """Both RFC 3161 replies must cover anchor.json's exact bytes. Without them, anyone who can edit
+    the download can rewrite chain.jsonl and anchor.json together, and the anchor check still passes.
+    data is the bytes the chain head was compared with; openssl checks a private copy of them, so the
+    file can't be swapped between the two checks."""
+    if not stamp.system_ca():
+        sys.exit("no system CA bundle found for the DigiCert timestamp; pass --no-timestamps to skip it")
+    stamped = {}
+    with tempfile.TemporaryDirectory() as d:
+        snapshot = Path(d) / "anchor.json"
+        snapshot.write_bytes(data)
+        try:
+            certs = stamp.freetsa_certs(d)
+        except OSError as e:
+            sys.exit(f"could not download the FreeTSA certificates ({e}); pass --no-timestamps to skip the check")
+        for name in stamp.TSA:
+            tsr = anchor.with_name(f"{anchor.stem}.{name}.tsr")
+            if not tsr.exists():
+                sys.exit(f"timestamp {tsr} not found; pass --no-timestamps only to check an unstamped anchor")
+            try:
+                ok, when = stamp.verify_reply(tsr, name, ["-data", str(snapshot)], certs)
+            except FileNotFoundError:
+                sys.exit("openssl not found; it is needed to check the anchor's timestamps")
+            if not ok:
+                sys.exit(f"timestamp {tsr} does not verify for {anchor}: the anchor was changed after it was stamped")
+            print(f"anchor timestamp {name}: OK ({when})", flush=True)
+            stamped[name] = when
+    return stamped
 
 
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
+    checks = []
     if anchor.exists():
-        want = json.loads(anchor.read_text())
+        data = anchor.read_bytes()
+        try:
+            want = json.loads(data)
+        except ValueError:
+            want = None
+        if not isinstance(want, dict) or not {"chain_entries", "chain_head_sha256"} <= want.keys():
+            sys.exit(f"{anchor} is not an anchor file: it needs chain_entries and chain_head_sha256")
         head = hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest()
         if (len(chain), head) != (want["chain_entries"], want["chain_head_sha256"]):
             sys.exit(f"chain head differs from {anchor}: {len(chain)} entries, head {head}")
         print(f"anchor {anchor}: chain head MATCH ({len(chain)} entries)", flush=True)
+        if a.no_timestamps:
+            print("WARNING: --no-timestamps: the anchor itself is not checked against its timestamps", flush=True)
+        checks.append({"anchor": str(anchor), "match": True,
+                       "timestamps": None if a.no_timestamps else check_anchor_timestamps(anchor, data)})
     elif a.anchor or not a.no_anchor:
         sys.exit(f"anchor {anchor} not found" + ("" if a.anchor else
                  "; pass --no-anchor only to check a run that has no anchor yet"))
     else:
         print("WARNING: --no-anchor: the chain is not compared with a timestamped anchor", flush=True)
-    report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": []}
+    report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": checks}
+    recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
+    if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
+        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
         sys.exit("prepared data differs from the data the chain trained on")
@@ -550,9 +601,10 @@ def cmd_verify(a):
     if a.weights:
         sd = torch.load(a.weights, map_location="cpu", weights_only=True)
         hit = [e["index"] for e in chain if e["model"] == model_digest(sd)]
-        ok = bool(hit) and chain[hit[-1]]["kind"] in ("base", "final")
+        ok = released(chain, hit) is not None
         print(f"weights {a.weights}: {weights_verdict(chain, hit, ok)}", flush=True)
-        report["checks"].append({"weights": str(a.weights), "chain_entry": hit[-1] if hit else None, "match": ok})
+        entry = released(chain, hit) if ok else hit[-1] if hit else None
+        report["checks"].append({"weights": str(a.weights), "chain_entry": entry, "match": ok})
     if a.data:
         model, opt = fresh()  # regenerate the seeded initialization
         ok = state_digest(model, opt) == chain[0]["state"]
@@ -625,6 +677,7 @@ def main():
     v.add_argument("--all", action="store_true"); v.add_argument("--weights")
     anchored = v.add_mutually_exclusive_group()
     anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
+    v.add_argument("--no-timestamps", action="store_true", help="skip the anchor's RFC 3161 timestamp check")
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
     fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
     fk.add_argument("--out", required=True)
