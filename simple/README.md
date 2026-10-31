@@ -63,8 +63,9 @@ Tests: `OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest tests`.
 
 The chat model is on the Ollama registry as
 [`ryoari/openverifiablellm`](https://ollama.com/ryoari/openverifiablellm). The GGUF file is also
-attached to each [release](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases). All copies are
-the same file, SHA-256 `541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de`;
+on the [model repository](https://huggingface.co/AOSSIE/OpenVerifiableLLM-23M) as `ovl-23m-chat-F32.gguf`
+(all weights are F32) and attached to each [release](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases)
+(as `ovl-23m-chat.gguf` up to v1.1.0). All copies are the same file, SHA-256 `541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de`;
 `ollama show --modelfile ryoari/openverifiablellm` prints a `FROM` line that ends in that hash.
 
 This is for trying the model, not for verifying it. llama.cpp uses a slightly different GELU and
@@ -74,8 +75,8 @@ use the released `.pt` files and `ovl.py verify`.
 To build it yourself, you need the run folder and the tokenizer, and `pip install gguf torch`:
 
 ```bash
-python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat.gguf
-cp simple/Modelfile .                                     # its FROM line is ./ovl-23m-chat.gguf
+python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat-F32.gguf
+cp simple/Modelfile .                                     # its FROM line is ./ovl-23m-chat-F32.gguf
 ollama create openverifiablellm -f Modelfile
 ollama run openverifiablellm "Tell me about the Moon."
 ```
