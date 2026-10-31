@@ -9,7 +9,7 @@
   were published with a signed source statement, together with the prepared token streams.
 - **October 2026: the simple run.** A 23M model was trained on one exact pass over English
   Wikipedia, and all 37 segments were recomputed bit for bit. The data rebuild from the raw dump
-  gives byte-identical files. It also includes:
+  gives a byte-identical `preparation.json`. It also includes:
   - a hardware reproducibility map;
   - a verifiable exclusion fork (one article the run hadn't reached, retrained without it);
   - RFC 3161 timestamps, per boundary since 21 Oct;

@@ -16,8 +16,10 @@ When a model is published, you usually have to trust how it was made. OpenVerifi
 training itself the evidence: anyone with the same GPU type can recompute any part of the training
 and get exactly the same bits.
 
-**The first release** is a 23M-parameter model, trained on one exact pass over all of English
-Wikipedia. All 37 of its training segments were recomputed bit for bit on a second machine.
+**The first release** is a 23.1M-parameter model, trained on one exact pass over all of English
+Wikipedia. Its training was saved at 38 points and so split into 37 pieces, called segments. Every
+segment was recomputed bit for bit on a second machine. The other terms are defined
+[below](#words-used-here).
 [Model and data on Hugging Face](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence/tree/main/release/simple-run)
 · [Releases](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases) · `ollama run ryoari/openverifiablellm`
 
@@ -62,7 +64,9 @@ Wikipedia. All 37 of its training segments were recomputed bit for bit on a seco
 ollama run ryoari/openverifiablellm "Tell me about the Moon."
 ```
 
-**2. Consistency check, no GPU (10 minutes).** Needs Python 3.10 or newer, `openssl` and network access.
+**2. Consistency check, no GPU (10 minutes).** Needs Python 3.10 or newer, `git`, `openssl`,
+`sha256sum` and network access. On macOS, `sha256sum` comes with `brew install coreutils` (as
+`gsha256sum`).
 
 ```bash
 pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \

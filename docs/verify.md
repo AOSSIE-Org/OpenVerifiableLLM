@@ -17,8 +17,9 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 
 ## 1. Consistency check, without a GPU
 
-Needs Python 3.10 or newer, `openssl` and network access. Download `release/simple-run/` without
-the `ckpt-*.pt` files, then from that folder:
+Needs Python 3.10 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
+without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
 pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \

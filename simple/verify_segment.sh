@@ -14,7 +14,8 @@ RUN_PATH=${RUN_PATH:-release/simple-run}   # where the run is published in $REPO
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
-fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json" "$RUN_PATH/anchor.json"
+fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json" "$RUN_PATH/anchor.json" \
+  "$RUN_PATH/anchor.digicert.tsr" "$RUN_PATH/anchor.freetsa.tsr"
 check_prep "$WORK/hf/prepared/$PREP_ID"
 RUN=$WORK/hf/$RUN_PATH
 if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
@@ -22,5 +23,7 @@ if [ -n "${SEGMENTS:-}" ]; then PICK=$SEGMENTS; else
 fi
 # Only the checkpoints at the start of the chosen segments are needed.
 fetch $(for k in $PICK; do printf "%s/ckpt-%05d.pt " "$RUN_PATH" "$k"; done)
+# verify checks the anchor's two timestamps with openssl against the system CA certificates.
+command -v openssl >/dev/null && [ -f /etc/ssl/certs/ca-certificates.crt ] || { apt-get update -qq && apt-get install -y -qq openssl ca-certificates; } >/dev/null
 # --anchor makes a missing or different anchor.json fail instead of being skipped.
 python simple/ovl.py verify --data "$WORK/hf/prepared/$PREP_ID" --run "$RUN" --anchor "$RUN/anchor.json" --segment $PICK

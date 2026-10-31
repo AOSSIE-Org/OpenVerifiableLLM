@@ -97,7 +97,8 @@ step is caught by a cheap independent check.
 | H100 80GB (Hopper) | MISMATCH |
 | x86 CPU (PyTorch 2.14) | MISMATCH |
 
-Bit-exactness holds within one GPU architecture, regardless of driver. So checkers need the training
+Bit-exactness holds within one GPU architecture, across the two drivers tested (570.195.03 and
+595.91.07), with the same PyTorch, CUDA and container image. So checkers need the training
 GPU's architecture. This is the method's main trust assumption. The July 2026 study found the same
 on a 116M model on A40s.
 
@@ -108,8 +109,10 @@ without some data. The release folder for this is `unlearning-3i-atlas`.
 
 - A fork at boundary 30 removed one article that training had not reached yet: "3I/ATLAS", 10,395
   targets.
-- The fork shares checkpoints 0–30 byte for byte and records the removed range in its chain. Its
-  coverage check accepts a gap only at that range. Every fork segment matched.
+- The fork shares checkpoints 0–30 byte for byte. Its fork entry keeps the state of checkpoint 30 and
+  records the removed range; `verify` checks that entry against checkpoint 30 and the recorded range,
+  without training. The coverage check then accepts a gap only at that range. Every retrained
+  segment after the fork was recomputed and matched.
 - Loss on the article's text went from 3.3604 to 3.3860 (+0.0256). Mean loss on 50 control articles
   from the same segment, which both models saw, went from 2.8710 to 2.8712 (+0.0002). That is about
   100 times more change on the removed article. One run, no variance estimate.
@@ -173,7 +176,7 @@ All times UTC.
 
 | When | What |
 |---|---|
-| July 2026 | First complete deterministic run and segmented replay audit (116M model on A40): same-GPU recomputation matched, other architectures did not |
+| July 2026 | First complete deterministic run and segmented replay audit (116M model on A40): same-GPU recomputation matched, other architectures did not. The audit cost 0.173 of training, against a theoretical 0.15 |
 | September 2026 | Wikipedia dump and OpenAssistant files published with a signed source statement; prepared token streams published |
 | mid-Sep to 19 Oct | Work on a large production pipeline (rental, transfer and budget guards). No training on real data in this period |
 | 19 Oct | Switched to one script, `simple/ovl.py`, and segmented verification. Training starts at 15:04 on one RTX 5090; a second RTX 5090 mirrors every checkpoint and recomputes each segment as it closes |
