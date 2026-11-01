@@ -1,6 +1,5 @@
 import { ClaimBlock } from '../components/ClaimBlock';
 import { CoverageMap } from '../components/CoverageMap';
-import { OddsBar } from '../components/OddsBar';
 import { Section } from '../components/Section';
 import { L, V } from '../components/text';
 import { claim } from '../content/ledger';
@@ -43,13 +42,6 @@ export default function Overview() {
           <CoverageMap interactive={false} strip />
         </Section>
       </div>
-      {/* The detection-odds figure from Verification, full width: it shows what 0 independent checks means. */}
-      <section className="overview-odds">
-        <h2><L k="h2.odds" /></h2>
-        <Section needs={['odds']}>
-          <OddsBar who compact atN={false} />
-        </Section>
-      </section>
       <div className="split">
         <div>
           <h2><L k="h2.headline" /></h2>

@@ -3,9 +3,8 @@ import { detect } from '../data/validate';
 import { L, V } from './text';
 
 /** Detection probability 1-((N-1)/N)^M as an inline SVG. Every tick comes from site-data.json.
- *  `atN` shows the M = N row (pAtN); it is computed, not a ledger number, so Overview hides it.
- *  `compact` puts the "now" line first and draws a smaller, lighter chart. */
-export function OddsBar({ who = false, atN = true, compact = false }: { who?: boolean; atN?: boolean; compact?: boolean }) {
+ *  `atN` shows the M = N row (pAtN), which is computed and not a ledger number; set it false to drop that row. */
+export function OddsBar({ atN = true }: { atN?: boolean }) {
   const { data } = useData();
   const o = data.odds;
   const maxM = Math.ceil(o.m99 * 1.15);
@@ -37,13 +36,11 @@ export function OddsBar({ who = false, atN = true, compact = false }: { who?: bo
           <V path="odds.m99" /> <L k="odds.checks" /> <L k="odds.wouldGive" /> <V path="odds.p99" fmt="pct2" />
         </li>
       </ul>
-      {who ? <p className="odds-who"><L k="odds.who" /></p> : null}
       <code><V path="odds.formula" /></code>
     </figcaption>
   );
   return (
-    <figure className={compact ? 'odds odds-compact' : 'odds'}>
-      {compact ? cap : null}
+    <figure className="odds">
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="odds-cap" preserveAspectRatio="xMidYMid meet">
         <line x1={pad} x2={W - pad} y1={H - pad} y2={H - pad} className="axis" />
         <polyline points={pts} className="curve" fill="none" />
@@ -54,7 +51,7 @@ export function OddsBar({ who = false, atN = true, compact = false }: { who?: bo
           </g>
         ))}
       </svg>
-      {compact ? null : cap}
+      {cap}
     </figure>
   );
 }
