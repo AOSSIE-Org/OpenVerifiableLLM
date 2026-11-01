@@ -31,16 +31,19 @@
 }
 html[data-theme="dark"]{
   color-scheme: dark;
-  --bg:#0F1115; --surface:#181B20; --sunk:#121212; --line:#2C3038;
-  --ink:#ECEDEF; --ink-2:#C4C8CF; --muted:#9AA0AA; --link:#8DB1FF;
-  --match:#5CCFA2; --match-tint:#0F2A21;
-  --mismatch:#FF9B73; --mismatch-tint:#33190F;
-  --project:#A9B8DA; --project-tint:#1C2333;
-  --independent:#DDA0EC; --independent-tint:#2B1631;
-  --pending:#9AA0AA; --pending-tint:#22252B;
-  --stamp:#F2C14E; --stamp-tint:#2E2410;
-  --focus-ink:#0F1115;
+  /* Warm dark neutrals in the Cloud Dancer family; text is Cloud Dancer #F0EEE9 and its shades. */
+  --bg:#1A1816; --surface:#23201D; --sunk:#151311; --line:#3A3530;
+  --ink:#F0EEE9; --ink-2:#D8D6D1; --muted:#ADA79F; --link:#A9BDD6;
+  --match:#7ED3A4; --match-tint:#16271D;
+  --mismatch:#F2A27E; --mismatch-tint:#33201A;
+  --project:#B4C3D6; --project-tint:#1F252C;
+  --independent:#D6BFDC; --independent-tint:#2C2230;
+  --independent-fill:#A792AC; --on-independent:#1A1816; --pending-line:#9A948E;
+  --pending:#ADA79F; --pending-tint:#2A2622;
+  --stamp:#E6C66A; --stamp-tint:#2E2614;
+  --focus-ink:#1A1816;
 }
+
 
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;scroll-padding-top:6rem}

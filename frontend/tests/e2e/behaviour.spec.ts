@@ -202,7 +202,7 @@ test('background is light by default; the toggle switches to dark and keeps it a
   await expect(toggle).toHaveText(label('theme.toDark'));
   await toggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(15, 17, 21)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(26, 24, 22)');
   await page.getByRole('navigation').getByRole('link', { name: label('nav.check') }).click();
   await ready(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -260,3 +260,15 @@ test('check: commands are outlined, copyable, and source chips next to them open
   await expect(chip.locator('.panel')).toBeVisible();
 });
 
+
+test('a stored dark theme applies before any app script runs (no light flash)', async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('ovl-theme', 'dark'); } catch { /* ignore */ }
+  });
+  // Block the app bundle: only the head boot script can set the theme.
+  await page.route(/\/assets\/.*\.js$/, (r) => r.abort());
+  await page.goto('');
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(26, 24, 22)');
+  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#1A1816');
+});

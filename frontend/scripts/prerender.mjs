@@ -33,8 +33,8 @@ for (const r of renderAll(data)) {
     .replace(/<meta property="og:description" content="[^"]*" \/>/, () => `<meta property="og:description" content="${attr(desc)}" />`)
     .replace('</head>', () => `  ${dataMeta}\n  </head>`)
     .replace(/(<meta charset="UTF-8" \/>)/, (_, m) => `${m}\n    ${cspMeta}`);
-  // 404.html is static: no app script, no preloads, so it never fetches site-data.json.
-  if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html.replace(/<script type="module"[^>]*><\/script>\s*/g, '').replace(/<link rel="modulepreload"[^>]*>\s*/g, ''));
+  // 404.html is static: no app script, no theme boot script, no preloads, so it never fetches site-data.json.
+  if (r.slug.endsWith('.html')) writeFileSync(path.join('dist', r.slug), html.replace(/<script type="module"[^>]*><\/script>\s*/g, '').replace(/<script src="[^"]*theme-boot\.js"><\/script>\s*/g, '').replace(/<link rel="modulepreload"[^>]*>\s*/g, ''));
   else {
     const dir = path.join('dist', r.slug);
     mkdirSync(dir, { recursive: true });
