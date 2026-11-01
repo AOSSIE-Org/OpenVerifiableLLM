@@ -1,6 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import { InShort } from './InShort';
+import { Explain } from './Explain';
 import type { ExclusionData } from '../data/contracts';
 
 interface VerifiableExclusionProps {
@@ -14,9 +14,10 @@ export const VerifiableExclusion: React.FC<VerifiableExclusionProps> = ({ exclus
   return (
     <section id="exclusion">
       <h2>{c.kicker}</h2>
-      <InShort>
+      <p className="sub">
         {c.h2} Removed article: <b>{exclusion.removedArticle}</b>.
-      </InShort>
+      </p>
+      <Explain label="Why this matters">{c.explain}</Explain>
 
       <div className="split">
         <table className="wikitable">

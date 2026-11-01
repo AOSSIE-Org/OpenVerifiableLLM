@@ -1,6 +1,5 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import { InShort } from './InShort';
 import type { ChainBoundary } from '../data/contracts';
 
 interface TrainingTimelineProps {
@@ -19,13 +18,12 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
   // bracket that says how long it really took.
   const baseIndex = chain.findIndex(b => b.kind === 'base');
   const last = chain.length - 1;
-  const wikiHours = baseIndex > 0 ? (chain[baseIndex].time - chain[0].time) / 3600 : 0;
   const convSeconds = baseIndex > 0 ? Math.round(chain[last].time - chain[baseIndex].time) : 0;
 
   return (
     <section id="timeline">
       <h2>{copy.timeline.kicker}</h2>
-      <InShort>{copy.timeline.h2}</InShort>
+      <p className="sub">{copy.timeline.intro}</p>
 
       <figure className="thumb wide">
         <div className="tlwrap" tabIndex={0} role="region" aria-label="Training timeline chart">
@@ -144,11 +142,7 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
             )}
           </svg>
         </div>
-        <figcaption>
-          The 38 recorded boundaries. Green bars are segments that matched. Boundaries are evenly
-          spaced, not placed by time: the Wikipedia pass took about {wikiHours.toFixed(1)} hours and
-          the conversation phase {convSeconds} seconds.
-        </figcaption>
+        <figcaption>37 segments, all matched. Evenly spaced, not to time.</figcaption>
       </figure>
 
       <div className="split">

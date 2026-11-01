@@ -1,6 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import { InShort } from './InShort';
+import { Explain } from './Explain';
 import type { HardwareProbe, VerificationsData } from '../data/contracts';
 
 interface VerificationProps {
@@ -34,10 +34,7 @@ export const Verification: React.FC<VerificationProps> = ({ verifications, hardw
   return (
     <section id="verification">
       <h2>{copy.verification.kicker}</h2>
-      <InShort>
-        {copy.verification.h2} {copy.verification.subtitle}
-      </InShort>
-
+      <p className="sub">{copy.verification.intro}</p>
       <div className="ambox" role="note">
         <b>{copy.verification.warningNotice}</b> {copy.verification.captionNotice}
       </div>
@@ -200,11 +197,12 @@ export const Verification: React.FC<VerificationProps> = ({ verifications, hardw
               </tr>
             </tbody>
           </table>
+          <Explain label="How to read this chart">{copy.verification.explain}</Explain>
         </figure>
 
         <div>
           <h3 className="pair-h">{copy.verification.hardwareTitle}</h3>
-          <p>{copy.verification.hardwareSubtitle}</p>
+          <p className="note">{copy.verification.hardwareNote}</p>
           <table className="wikitable">
             <thead>
               <tr>

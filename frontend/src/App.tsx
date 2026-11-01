@@ -12,6 +12,7 @@ import { VerifiableExclusion } from './components/VerifiableExclusion';
 import { Downloads } from './components/Downloads';
 import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
+import { HowItWorks } from './components/HowItWorks';
 
 export const App: React.FC = () => {
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -82,6 +83,7 @@ export const App: React.FC = () => {
             <Lead />
             <KeyFacts evidence={evidence} idSuffix="top" />
           </div>
+          <HowItWorks />
           <Overview preparation={evidence.preparation} />
           <CheckLadder />
           <Verification verifications={evidence.verifications} hardwareMap={evidence.hardwareMap} />

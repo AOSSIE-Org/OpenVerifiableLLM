@@ -1,12 +1,11 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import { InShort } from './InShort';
 import { CopyButton } from './CopyButton';
 
 export const CheckLadder: React.FC = () => (
   <section id="check">
     <h2>{copy.check.kicker}</h2>
-    <InShort>{copy.check.h2}</InShort>
+    <p className="sub">{copy.check.intro}</p>
 
     <div className="levels">
       {copy.check.ladder.map(step => (

@@ -17,7 +17,6 @@ export const Footer: React.FC<FooterProps> = ({ revision }) => (
           <img src="brand/aossie-logo.svg" alt="" height="32" width="30" />
           <span>{footer.org}</span>
         </a>
-        <p>{footer.about}</p>
       </div>
       <LinkColumn title={footer.projectHeading} links={footer.projectLinks} />
       <LinkColumn title={footer.communityHeading} links={footer.communityLinks} />

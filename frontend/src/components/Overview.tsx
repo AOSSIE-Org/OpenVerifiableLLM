@@ -1,6 +1,6 @@
 import React from 'react';
 import { copy } from '../content/copy';
-import { InShort } from './InShort';
+import { Explain } from './Explain';
 import type { PreparationData } from '../data/contracts';
 
 interface OverviewProps {
@@ -12,9 +12,8 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
   return (
     <section id="overview">
       <h2>{o.kicker}</h2>
-      <InShort>
-        {o.h2} {o.subtitle}
-      </InShort>
+      <p className="sub">{o.subtitle}</p>
+      <Explain>{o.explain}</Explain>
 
       <div className="split">
         <div>
