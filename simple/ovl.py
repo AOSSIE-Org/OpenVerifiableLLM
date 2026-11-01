@@ -374,6 +374,8 @@ def run_phases(data, model, opt, on_boundary, start=None):
 
 def read_chain(run):
     path = Path(run) / "chain.jsonl"
+    if not path.is_file():
+        sys.exit(f"{path} not found")
     chain = []
     for n, line in enumerate(path.read_text().splitlines(), 1):
         try:

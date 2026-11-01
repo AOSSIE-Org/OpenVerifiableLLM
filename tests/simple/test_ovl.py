@@ -91,6 +91,10 @@ class ChainLinkTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "chain.jsonl has no chain entries"):
             ovl.read_chain(self.run)
 
+    def test_chain_path_that_is_directory_is_reported(self):
+        (self.run / "chain.jsonl").mkdir()
+        with self.assertRaisesRegex(SystemExit, r"chain\.jsonl not found"):
+            ovl.read_chain(self.run)
     def test_cut_off_last_line_is_reported_with_its_line_number(self):
         write_chain(self.run, self.chain[:2])
         with (self.run / "chain.jsonl").open("a") as f:
