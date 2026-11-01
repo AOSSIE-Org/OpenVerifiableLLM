@@ -19,22 +19,26 @@ for (const s of STRIPS) test.describe(`${s.name}: every number fits its tile and
         const tiles = [...document.querySelectorAll<HTMLElement>(sel)];
         const boxes = tiles.map((t) => t.getBoundingClientRect());
         const bar = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--bar-w'));
-        const clipped: string[] = [];
+        const clipped: string[] = []; // number or glyph outside the content box
         let clear = Infinity;
         for (const t of tiles) {
           const c = t.getBoundingClientRect();
-          const bw = parseFloat(getComputedStyle(t).borderLeftWidth);
+          const cs = getComputedStyle(t);
+          const px = (k: string) => parseFloat(cs.getPropertyValue(k));
+          const bw = px('border-left-width');
+          // Content box: inside border and padding on every side. Strict, no tolerance.
+          const box = { l: c.left + bw + px('padding-left'), r: c.right - px('border-right-width') - px('padding-right'), t: c.top + px('border-top-width') + px('padding-top'), b: c.bottom - px('border-bottom-width') - px('padding-bottom') };
           const v = t.querySelector('.v')!;
           for (const el of [v, t.querySelector('.glyph')]) {
             if (!el || el.getBoundingClientRect().width <= 1) continue; // visually hidden below 641px
-            const a = text(el);
-            if (a.left < c.left + bw - 0.01 || a.right > c.right - bw + 0.01 || a.top < c.top || a.bottom > c.bottom) clipped.push(v.textContent!);
+            const a = el.getBoundingClientRect();
+            if (a.left < box.l || a.right > box.r || a.top < box.t || a.bottom > box.b) clipped.push(v.textContent!);
           }
           if (t.dataset.event?.includes('code-change') && v.getBoundingClientRect().width > 1) clear = Math.min(clear, text(v).left - (c.left + bw + bar));
         }
         const spread = (a: number[]) => Math.max(...a) - Math.min(...a);
-        return { n: tiles.length, w: spread(boxes.map((b) => b.width)), h: spread(boxes.map((b) => b.height)), clipped, clear, // Content may use the right padding (no bar there) but never reaches the border.
-          scroll: tiles.filter((t) => t.scrollWidth - t.clientWidth > parseFloat(getComputedStyle(t).paddingRight)).length };
+        return { n: tiles.length, w: spread(boxes.map((b) => b.width)), h: spread(boxes.map((b) => b.height)), clipped, clear,
+          scroll: tiles.filter((t) => t.scrollWidth > t.clientWidth || t.scrollHeight > t.clientHeight).length };
       }, s.sel);
       expect(r.n).toBe(37);
       expect(r.w).toBeLessThan(0.05);
