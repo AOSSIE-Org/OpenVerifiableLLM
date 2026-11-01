@@ -84,7 +84,7 @@
   "developer": "Verbatim openssl ts -verify commands for DigiCert and FreeTSA."
  },
  "VE-01": {
-  "plain": "Coverage map: {total} tiles, one tile for each segment. The project checked all {matched}. All match. Independent checks: none yet.",
+  "plain": "Coverage map: {total} tiles, one tile for each segment. The project checked {matched} of {total}. All match. Independent checks: none yet.",
   "developer": "Tiles = verifications.jsonl rows 1-37 (project second pod), segments 0-36; label 'project'; reserve 'independent'."
  },
  "VE-02": {
