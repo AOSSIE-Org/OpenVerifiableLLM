@@ -10,6 +10,7 @@ see [verify](../docs/verify.md).
 
 | I want to… | Run | Needs |
 |---|---|---|
+| Check the release in one command (download, hashes, record, weights) | `bash simple/check_release.sh` | any CPU, ~2 minutes |
 | Check the released weights and record | `python simple/ovl.py verify --run RUN --weights RUN/conversation-model.pt` | any CPU |
 | Check one training segment of the release | `bash simple/verify_segment.sh` | RTX 5090 |
 | Do that in one click on a fresh pod | the RunPod template in [`checker_template.md`](checker_template.md), which runs [`checker_pod.sh`](checker_pod.sh) | RTX 5090 pod |
@@ -34,6 +35,7 @@ On a CPU, set `OVL_DEVICE=cpu`.
 | [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`, `--data`; it needs the run's `anchor.json` and its two timestamps, or `--anchor FILE`; `--no-anchor` and `--no-timestamps` are only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
 | [`model.py`](model.py), [`data.py`](data.py) | The GPT model, and the token ids, batch layout and seeding shared with the data preparation (copied unchanged from commit `3f882ad`) |
 | [`stamp.py`](stamp.py) | RFC 3161 timestamps (FreeTSA and DigiCert) for each chain entry while training runs; `--check` verifies them. `OVL_TIMESTAMP=0` turns stamping off |
+| [`check_release.sh`](check_release.sh) | The laptop check in one command: a CPU-only Python environment, the release without its checkpoints, the hash list, then `ovl.py verify` |
 | [`verify_segment.sh`](verify_segment.sh) | Downloads the release's data, record and the needed checkpoints, then checks `K` random segments (or `SEGMENTS="7 8"`) |
 | [`checker_pod.sh`](checker_pod.sh) | One-click check for a fresh RTX 5090 pod: fetches the release code at a pinned revision, runs `verify_segment.sh`, prints one result line to share |
 | [`checker_template.md`](checker_template.md) | The description and start command of the public RunPod template |
