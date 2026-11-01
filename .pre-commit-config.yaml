@@ -1,0 +1,8 @@
+# `pre-commit install` once, then ruff runs on every commit, as in CI.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3
+    hooks:
+      - id: ruff-check
+        args: [simple, tests]
+        pass_filenames: false
