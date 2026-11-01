@@ -1,23 +1,26 @@
-"""OpenVerifiableLLM, simple production loop: train -> verify segments -> chat.
+"""OpenVerifiableLLM: train a model so that anyone can recompute its training bit for bit.
 
-One file, one GPU. Reuses the project's prepared streams, batch order and model:
-  G03 reproducible init     seeded CPU init (no pretrained weights); `verify` regenerates it
-  G04 exactly one pass      every target id checked in order; Wikipedia covered exactly once
-  G05 committed progress    chain.jsonl: hash-linked state digests at fixed boundaries, and
-                            every boundary checkpoint kept so anyone can start from it
-  G06 conversation phase    same loop on the conversation stream, fresh AdamW at transition
-  G07 exact replay          split into segments (boundary k -> k+1). Each segment is checked
-                            independently, bit for bit, so verification runs in parallel and
-                            the model is usable as soon as training ends.
+How a run is built:
+  start          a seeded random initialization; `verify --data` regenerates it
+  one pass       every Wikipedia token is trained on exactly once, in a fixed order
+  the record     chain.jsonl: at each boundary, a hash of the full model and optimizer state,
+                 linked to the previous entry. Every boundary checkpoint is kept
+  conversation   the same loop on the conversation data, with a fresh optimizer
+  segments       the training between two boundaries. Each one can be recomputed on its own,
+                 from its starting checkpoint, and compared with the record bit for bit
 
-Usage (on a pod):
+On any computer, no GPU needed:
+  python simple/ovl.py verify --run RUN --weights RUN/conversation-model.pt   # release vs. record
+  python simple/ovl.py chat   --run RUN --tokenizer PREP/tokenizer/tokenizer.json "What is Wikipedia?"
+
+On an RTX 5090 (bit-exact results need the training GPU type):
   python simple/ovl.py train  --data PREP --out RUN
   python simple/ovl.py verify --data PREP --run RUN --random 2        # spot check
   python simple/ovl.py verify --data PREP --run RUN --segment 7 8     # chosen segments
   python simple/ovl.py verify --data PREP --run RUN --all             # full replay
-  python simple/ovl.py verify --run RUN --weights RUN/conversation-model.pt
-  python simple/ovl.py chat   --run RUN --tokenizer PREP/tokenizer/tokenizer.json "What is Wikipedia?"
   python simple/ovl.py bench  --data PREP --seconds 600
+
+RUN is a run directory (chain.jsonl, anchor.json, models, checkpoints); PREP is the prepared data.
 
 Each new chain entry is also timestamped by two RFC 3161 authorities while training runs
 (simple/stamp.py; OVL_TIMESTAMP=0 turns it off), so the record shows when each boundary existed.
@@ -55,12 +58,22 @@ RECIPE = {"batch_size": 32, "boundary_every": 18080, "context": 512, "init": "no
                        "conversation": "0.0001"},
           "model": {"attn_impl": "manual", "dropout": 0, "embed_dim": 384, "max_seq_len": 512,
                     "num_heads": 6, "num_layers": 6, "vocab_size": 32000}}
-DEV = os.environ.get("OVL_DEVICE", "cuda")  # "cpu" only for smoke tests
+# The GPU when there is one. Training and segment checks need it (see require_gpu); checking
+# a release's weights and record works on a CPU.
+DEV = os.environ.get("OVL_DEVICE") or ("cuda" if torch.cuda.is_available() else "cpu")
 if os.environ.get("OVL_BOUNDARY_EVERY"):  # smoke tests only
     RECIPE["boundary_every"] = int(os.environ["OVL_BOUNDARY_EVERY"])
     RECIPE["schedule"].update(warmup=2, wikipedia_updates=4)
 STOP = "stop"
 TIMESTAMP = os.environ.get("OVL_TIMESTAMP", "1") != "0"
+
+
+def require_gpu(what):
+    """Stop before work that only reproduces the published bits on the training GPU type, unless
+    OVL_DEVICE=cpu asks for a CPU run on purpose (tests and smoke runs)."""
+    if DEV == "cpu" and "OVL_DEVICE" not in os.environ:
+        sys.exit(f"{what} needs an NVIDIA GPU, and none was found. The release reproduces bit for bit only "
+                 "on an RTX 5090 (see docs/verify.md). To run on the CPU anyway, for a test, set OVL_DEVICE=cpu.")
 
 
 def stages():
@@ -410,6 +423,7 @@ def load_checkpoint(run, entry, model):
 
 
 def cmd_train(a):
+    require_gpu("Training")
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     # A crash right after the file was opened can leave it empty: that is a run with no entries yet.
@@ -581,6 +595,10 @@ def check_anchor_timestamps(anchor, data):
 
 
 def cmd_verify(a):
+    if a.data and (a.all or a.segment or a.random):
+        require_gpu("Recomputing a segment")
+    if a.weights and not Path(a.weights).is_file():
+        sys.exit(f"weights file {a.weights} not found")
     run = Path(a.run)
     chain = read_chain(run)
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
@@ -610,6 +628,8 @@ def cmd_verify(a):
     recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
     if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
         sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
+    if a.data and not (Path(a.data) / "wikipedia" / "stream.json").is_file():
+        sys.exit(f"{a.data} is not a prepared data directory: wikipedia/stream.json not found")
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
         sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")
@@ -639,11 +659,15 @@ def cmd_verify(a):
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
           f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
+    if report["result"] == "PASS" and not any("segment" in c for c in report["checks"]):
+        print("The release matches its record. No training was recomputed: to check a segment, "
+              "see docs/verify.md (needs an RTX 5090).", flush=True)
     if report["result"] != "PASS":
         sys.exit(1)
 
 
 def cmd_bench(a):
+    require_gpu("bench")
     model, opt = fresh()
     ctl, n, t0 = initial_control(), 0, None
     for b, _ in prefetch(a.data, "wikipedia", [0, 0]):
@@ -690,11 +714,16 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest="cmd", required=True)
     t = s.add_parser("train"); t.add_argument("--data", required=True); t.add_argument("--out", required=True)
-    v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
-    v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
-    v.add_argument("--all", action="store_true"); v.add_argument("--weights")
+    v = s.add_parser("verify", help="check a run or a release against its record")
+    v.add_argument("--run", required=True, help="the run directory: chain.jsonl, anchor.json, models")
+    v.add_argument("--data", help="the prepared data directory; needed to recompute segments")
+    v.add_argument("--segment", type=int, nargs="*", help="recompute these segments (k means boundary k to k+1)")
+    v.add_argument("--random", type=int, default=0, help="also recompute this many randomly chosen segments")
+    v.add_argument("--all", action="store_true", help="recompute every segment")
+    v.add_argument("--weights", help="check that this model file (.pt or .safetensors) is in the record")
     anchored = v.add_mutually_exclusive_group()
-    anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
+    anchored.add_argument("--anchor", help="the timestamped anchor to compare with (default: RUN/anchor.json)")
+    anchored.add_argument("--no-anchor", action="store_true", help="only for a run that has no anchor yet")
     v.add_argument("--no-timestamps", action="store_true", help="skip the anchor's RFC 3161 timestamp check")
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
     fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
