@@ -197,7 +197,7 @@ test('an injected MISMATCH never shows "37 of 37" and causes no hydration error'
 test('background is light by default; the toggle switches to dark and keeps it across pages', async ({ page }) => {
   await page.goto('');
   await ready(page);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(240, 238, 233)');
   const toggle = page.locator('[data-theme-toggle]');
   await expect(toggle).toHaveText(label('theme.toDark'));
   await toggle.click();
@@ -222,7 +222,7 @@ test('a hostile theme value in storage is ignored and the page stays light', asy
   await page.goto('');
   await ready(page);
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(240, 238, 233)');
 });
 
 test('every source chip on every page opens to a quoted panel', async ({ page }) => {

@@ -14,15 +14,17 @@
   --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-5:1.25rem; --space-6:1.5rem; --space-8:2rem; --space-12:3rem;
   --radius-sm:4px; --radius:8px; --rule-w:3px;
 
-  --bg:#FBFAF7; --surface:#FFFFFF; --sunk:#F2F0EA; --line:#DCD8CE;
-  --ink:#16181D; --ink-2:#3D424B; --muted:#5B616B; --link:#1F4FB8;
-  --match:#007338; --match-tint:#F3FBF6;
-  --mismatch:#B3401A; --mismatch-tint:#FBE9E1;
-  --project:#3B4A6B; --project-tint:#E8ECF4;
-  --independent:#7B2E8E; --independent-tint:#F3E6F6;
-  --pending:#5B616B; --pending-tint:#EEEDE8;
-  --stamp:#8A5A00; --stamp-tint:#FBF1D6;
-  --focus:#FFCD00; --focus-ink:#16181D;
+  /* Pantone 2026 Cloud Dancer (11-4201) and its palettes. Pastels are fills only; text uses darker
+     shades of Blue Fusion, Hematite, Quiet Violet and Golden Mist so every pair passes WCAG AA (tools/contrast.mjs). */
+  --bg:#F0EEE9; --surface:#FFFFFF; --sunk:#DADBDD; --line:#D8D6D1;
+  --ink:#1F2A36; --ink-2:#3E4C5C; --muted:#585450; --link:#4E6175;
+  --match:#005A2B; --match-tint:#C8E5CA;
+  --mismatch:#8A2E12; --mismatch-tint:#EEDCD1;
+  --project:#4E6175; --project-tint:#DCE7F2;
+  --independent:#5C4566; --independent-tint:#DED7DD;
+  --pending:#585450; --pending-tint:#DADBDD;
+  --stamp:#6B4A00; --stamp-tint:#F6EEC9;
+  --focus:#FFCD00; --focus-ink:#1F2A36;
   --ease:cubic-bezier(.2,0,0,1); --dur-fast:120ms; --dur:180ms;
 }
 html[data-theme="dark"]{
