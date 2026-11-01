@@ -4,7 +4,9 @@ version = "1.1.0"
 description = "Train a small language model on English Wikipedia so that anyone can recompute it bit for bit."
 readme = "README.md"
 requires-python = ">=3.12"
-# Pinned with hashes in requirements/preparation.lock, which CI installs.
+# For the tools and the CPU checks; pinned with hashes in requirements/preparation.lock, which CI
+# installs. Training and segment checks don't use these: they run in the training image
+# (PyTorch 2.8.0, CUDA 12.8), the only setup that reproduces the published bits.
 dependencies = ["torch>=2.10.0,<3.0", "numpy>=2.4,<3.0", "tokenizers==0.23.2"]
 
 [project.optional-dependencies]
