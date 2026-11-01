@@ -210,12 +210,32 @@ header {
 .toc ol {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 22px;
+  gap: 0 4px;
+  margin-left: -10px;
 }
 
 .toc li a {
   display: block;
-  padding: 10px 0;
+  padding: 12px 10px 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.toc li a:visited {
+  color: var(--ink-3);
+}
+
+.toc li a:hover {
+  border-bottom-color: var(--rule-strong);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.toc li a[aria-current] {
+  border-bottom-color: var(--link);
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .toc-mobile li a {
@@ -869,9 +889,6 @@ footer {
   margin-top: 0;
 }
 
-.pair-h {
-  margin-top: 0;
-}
 
 .cols.stack {
   grid-template-columns: minmax(0, 1fr);
@@ -1052,4 +1069,127 @@ footer {
 
 .step .step-code pre {
   padding: 40px 12px 10px;
+}
+
+/* Verification: the odds chart and the hardware table as matching panels */
+.pair {
+  align-items: stretch;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.article .panel h3 {
+  margin: 0 0 4px;
+}
+
+.article .panel .note {
+  margin-bottom: 12px;
+}
+
+.article .panel .thumb,
+.article .panel .hw {
+  flex: 1;
+  margin: 0;
+}
+
+.panel .thumb {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.panel .explain {
+  margin: 8px 0 0;
+}
+
+.hw {
+  font-size: 14px;
+}
+
+.hw th,
+.hw td {
+  padding: 8px 10px;
+}
+
+/* Header buttons: Source, Evidence and the theme switch share one look */
+.top-links {
+  gap: 8px;
+}
+
+.hbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 14px var(--sans);
+  text-decoration: none;
+}
+
+.hbtn:visited {
+  color: var(--ink);
+}
+
+.hbtn:hover {
+  border-color: var(--ink-3);
+  background: var(--sheet);
+  text-decoration: none;
+}
+
+.hicon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Exclusion: the two lists as equal ruled columns under the table */
+.cols.ruled {
+  gap: 32px;
+  margin-top: 8px;
+}
+
+.cols.ruled > div {
+  padding: 14px 18px 4px;
+  border: 0;
+  border-left: 3px solid var(--match-fill);
+  border-radius: 0 6px 6px 0;
+  background: var(--aqua);
+}
+
+.cols.ruled > div + div {
+  border-left-color: var(--notice-rule);
+  background: var(--peach);
+}
+
+.cols.ruled h3 {
+  margin-top: 0;
+}
+
+/* the evidence path as a small tinted tag */
+#exclusion .note {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--orchid);
+  color: var(--ink);
+}
+
+#exclusion .note code {
+  background: none;
+}
+
+.bar {
+  gap: 8px;
 }

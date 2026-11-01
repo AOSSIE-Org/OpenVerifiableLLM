@@ -191,11 +191,11 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     explain: 'Say someone had tampered with one of the 37 segments. If people check segments at random, 110 checks give a 95% chance of landing on the bad one, and 169 checks give 99%. Right now there are no independent checks, which is why the curve starts at zero.',
     captionNotice: '46 checks across 37 segments, all matching, none independent.',
     warningNotice: 'Self-reported and not yet signed.',
-    oddsTitle: 'How many independent checks would catch a bad segment?',
+    oddsTitle: 'How many checks would catch a bad segment',
     oddsFormula: 'P = 1 − (36/37)^M, with N = 37',
     oddsDescription: 'Detection odds: 95% at 110 random checks, 99% at 169. Current independent checks: 0.',
     hardwareTitle: 'Which hardware reproduces the bits',
-    hardwareNote: 'Only the same GPU model gives identical bits. Other hardware rounds numbers a little differently, so a mismatch there is normal.',
+    hardwareNote: 'Only the same GPU model gives identical bits; a mismatch elsewhere is normal.',
   },
   timeline: {
     kicker: 'Training timeline',

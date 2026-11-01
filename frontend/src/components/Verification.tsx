@@ -82,128 +82,130 @@ export const Verification: React.FC<VerificationProps> = ({ verifications, hardw
       </div>
 
       <div className="pair">
-        <figure className="thumb">
-          <figcaption className="fig-title">
-            {copy.verification.oddsTitle} <code>{copy.verification.oddsFormula}</code>
-          </figcaption>
+        <div className="panel">
+          <h3>{copy.verification.oddsTitle}</h3>
+          <p className="note">
+            <code>{copy.verification.oddsFormula}</code>
+          </p>
+          <figure className="thumb">
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              width="100%"
+              role="img"
+              aria-labelledby="odds-title odds-desc"
+            >
+              <title id="odds-title">Detection odds curve for 37 segments</title>
+              <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
 
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            width="100%"
-            role="img"
-            aria-labelledby="odds-title odds-desc"
-          >
-            <title id="odds-title">Detection odds curve for 37 segments</title>
-            <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
-
-            {/* Grid lines */}
-            {[0, 0.5, 1].map(p => (
-              <g key={p}>
-                <line x1={L} x2={W - R} y1={getY(p)} y2={getY(p)} stroke="var(--rule)" />
-                <text x={L - 8} y={getY(p) + 4} fontSize="11" textAnchor="end">
-                  {p * 100}%
-                </text>
-              </g>
-            ))}
-
-            {/* X Axis */}
-            {[0, 50, 100, 150, 200].map(m => (
-              <text key={m} x={getX(m)} y={H - 12} fontSize="11" textAnchor="middle">
-                {m}
-              </text>
-            ))}
-
-            {/* Area & curve */}
-            <path d={areaPath} fill="var(--ink)" opacity={0.05} />
-            <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
-
-            {/* Threshold points (110 and 169) */}
-            {[
-              { m: 110, p: 0.95, label: '110 checks: 95%', align: 'left' },
-              { m: 169, p: 0.99, label: '169 checks: 99%', align: 'center' },
-            ].map(({ m, label, align }) => {
-              const cx = getX(m);
-              const cy = getY(getOdds(m));
-              return (
-                <g key={m}>
-                  <line
-                    x1={cx}
-                    x2={cx}
-                    y1={cy}
-                    y2={getY(0)}
-                    stroke="var(--ink-3)"
-                    strokeDasharray="2 3"
-                  />
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r={4.5}
-                    fill="var(--sheet)"
-                    stroke="var(--ink)"
-                    strokeWidth={2}
-                  />
-                  <text
-                    x={align === 'left' ? cx + 8 : cx}
-                    y={align === 'left' ? cy + 20 : cy - 12}
-                    fontSize="12"
-                    textAnchor={align === 'center' ? 'middle' : 'start'}
-                    style={{ fill: 'var(--ink)', fontWeight: 600 }}
-                  >
-                    {label}
+              {/* Grid lines */}
+              {[0, 0.5, 1].map(p => (
+                <g key={p}>
+                  <line x1={L} x2={W - R} y1={getY(p)} y2={getY(p)} stroke="var(--rule)" />
+                  <text x={L - 8} y={getY(p) + 4} fontSize="11" textAnchor="end">
+                    {p * 100}%
                   </text>
                 </g>
-              );
-            })}
+              ))}
 
-            {/* Current position (M = 0) */}
-            <circle
-              cx={getX(0)}
-              cy={getY(0)}
-              r={7}
-              fill="var(--gold)"
-              stroke="var(--paper)"
-              strokeWidth={2}
-            />
-            <text
-              x={getX(0) + 14}
-              y={getY(0) - 10}
-              fontSize="12"
-              style={{ fill: 'var(--ink)', fontWeight: 600 }}
-            >
-              You are here: 0 independent checks
-            </text>
-          </svg>
+              {/* X Axis */}
+              {[0, 50, 100, 150, 200].map(m => (
+                <text key={m} x={getX(m)} y={H - 12} fontSize="11" textAnchor="middle">
+                  {m}
+                </text>
+              ))}
 
-          <table className="sr-only">
-            <caption>Detection odds by number of independent checks</caption>
-            <thead>
-              <tr>
-                <th scope="col">Checks (M)</th>
-                <th scope="col">Detection Probability</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>0</td>
-                <td>0% (Current: 0 independent checks)</td>
-              </tr>
-              <tr>
-                <td>110</td>
-                <td>95.0%</td>
-              </tr>
-              <tr>
-                <td>169</td>
-                <td>99.0%</td>
-              </tr>
-            </tbody>
-          </table>
-          <Explain label="How to read this chart">{copy.verification.explain}</Explain>
-        </figure>
+              {/* Area & curve */}
+              <path d={areaPath} fill="var(--ink)" opacity={0.05} />
+              <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
 
-        <div>
-          <h3 className="pair-h">{copy.verification.hardwareTitle}</h3>
+              {/* Threshold points (110 and 169) */}
+              {[
+                { m: 110, p: 0.95, label: '110 checks: 95%', align: 'left' },
+                { m: 169, p: 0.99, label: '169 checks: 99%', align: 'center' },
+              ].map(({ m, label, align }) => {
+                const cx = getX(m);
+                const cy = getY(getOdds(m));
+                return (
+                  <g key={m}>
+                    <line
+                      x1={cx}
+                      x2={cx}
+                      y1={cy}
+                      y2={getY(0)}
+                      stroke="var(--ink-3)"
+                      strokeDasharray="2 3"
+                    />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={4.5}
+                      fill="var(--sheet)"
+                      stroke="var(--ink)"
+                      strokeWidth={2}
+                    />
+                    <text
+                      x={align === 'left' ? cx + 8 : cx}
+                      y={align === 'left' ? cy + 20 : cy - 12}
+                      fontSize="12"
+                      textAnchor={align === 'center' ? 'middle' : 'start'}
+                      style={{ fill: 'var(--ink)', fontWeight: 600 }}
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Current position (M = 0) */}
+              <circle
+                cx={getX(0)}
+                cy={getY(0)}
+                r={7}
+                fill="var(--gold)"
+                stroke="var(--paper)"
+                strokeWidth={2}
+              />
+              <text
+                x={getX(0) + 14}
+                y={getY(0) - 10}
+                fontSize="12"
+                style={{ fill: 'var(--ink)', fontWeight: 600 }}
+              >
+                You are here: 0 independent checks
+              </text>
+            </svg>
+
+            <table className="sr-only">
+              <caption>Detection odds by number of independent checks</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Checks (M)</th>
+                  <th scope="col">Detection Probability</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>0</td>
+                  <td>0% (Current: 0 independent checks)</td>
+                </tr>
+                <tr>
+                  <td>110</td>
+                  <td>95.0%</td>
+                </tr>
+                <tr>
+                  <td>169</td>
+                  <td>99.0%</td>
+                </tr>
+              </tbody>
+            </table>
+            <Explain label="How to read this chart">{copy.verification.explain}</Explain>
+          </figure>
+        </div>
+
+        <div className="panel">
+          <h3>{copy.verification.hardwareTitle}</h3>
           <p className="note">{copy.verification.hardwareNote}</p>
-          <table className="wikitable">
+          <table className="wikitable hw">
             <thead>
               <tr>
                 <th scope="col">Hardware</th>
