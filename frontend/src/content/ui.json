@@ -23,7 +23,7 @@
  "h2.limits": "Limits",
  "h2.map": "Coverage",
  "h2.rows": "Every recorded check",
- "h2.odds": "How many independent checks would catch a bad segment",
+ "h2.odds": "How many independent checks would catch a forged segment",
  "h2.hardware": "Which hardware reproduces the bits",
  "h2.trust": "What you still have to trust",
  "h2.try": "Two minutes",
@@ -145,5 +145,6 @@
  "runpod": "Open the RunPod template",
  "map.row.project": "Project",
  "map.row.independent": "Independent",
- "odds.who": "Who checked: only the project."
+ "odds.who": "Independent checks so far: none. Only the project has checked.",
+ "odds.wouldGive": "would give"
 }

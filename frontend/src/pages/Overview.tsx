@@ -47,7 +47,7 @@ export default function Overview() {
       <section className="overview-odds">
         <h2><L k="h2.odds" /></h2>
         <Section needs={['odds']}>
-          <OddsBar who />
+          <OddsBar who compact atN={false} />
         </Section>
       </section>
       <div className="split">

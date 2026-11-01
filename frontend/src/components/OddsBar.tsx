@@ -2,8 +2,10 @@ import { useData } from '../data/context';
 import { detect } from '../data/validate';
 import { L, V } from './text';
 
-/** Detection probability 1-((N-1)/N)^M as an inline SVG. Every tick comes from site-data.json. */
-export function OddsBar({ who = false }: { who?: boolean }) {
+/** Detection probability 1-((N-1)/N)^M as an inline SVG. Every tick comes from site-data.json.
+ *  `atN` shows the M = N row (pAtN); it is computed, not a ledger number, so Overview hides it.
+ *  `compact` puts the "now" line first and draws a smaller, lighter chart. */
+export function OddsBar({ who = false, atN = true, compact = false }: { who?: boolean; atN?: boolean; compact?: boolean }) {
   const { data } = useData();
   const o = data.odds;
   const maxM = Math.ceil(o.m99 * 1.15);
@@ -13,12 +15,35 @@ export function OddsBar({ who = false }: { who?: boolean }) {
   const pts = Array.from({ length: maxM + 1 }, (_, m) => `${x(m).toFixed(1)},${y(detect(o.N, m)).toFixed(1)}`).join(' ');
   const ticks = [
     { m: o.currentM, path: 'odds.currentM', now: true },
-    { m: o.N, path: 'odds.N', now: false },
+    ...(atN ? [{ m: o.N, path: 'odds.N', now: false }] : []),
     { m: o.m95, path: 'odds.m95', now: false },
     { m: o.m99, path: 'odds.m99', now: false },
   ];
+  const cap = (
+    <figcaption id="odds-cap">
+      <ul className="odds-list">
+        <li className="now">
+          <L k="odds.now" />: <V path="odds.currentM" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.currentP" fmt="pct2" />
+        </li>
+        {atN ? (
+          <li>
+            <V path="odds.N" /> <L k="odds.checks" /> <L k="odds.wouldGive" /> <V path="odds.pAtN" fmt="pct2" />
+          </li>
+        ) : null}
+        <li>
+          <V path="odds.m95" /> <L k="odds.checks" /> <L k="odds.wouldGive" /> <V path="odds.p95" fmt="pct2" />
+        </li>
+        <li>
+          <V path="odds.m99" /> <L k="odds.checks" /> <L k="odds.wouldGive" /> <V path="odds.p99" fmt="pct2" />
+        </li>
+      </ul>
+      {who ? <p className="odds-who"><L k="odds.who" /></p> : null}
+      <code><V path="odds.formula" /></code>
+    </figcaption>
+  );
   return (
-    <figure className="odds">
+    <figure className={compact ? 'odds odds-compact' : 'odds'}>
+      {compact ? cap : null}
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-labelledby="odds-cap" preserveAspectRatio="xMidYMid meet">
         <line x1={pad} x2={W - pad} y1={H - pad} y2={H - pad} className="axis" />
         <polyline points={pts} className="curve" fill="none" />
@@ -29,24 +54,7 @@ export function OddsBar({ who = false }: { who?: boolean }) {
           </g>
         ))}
       </svg>
-      <figcaption id="odds-cap">
-        <ul className="odds-list">
-          <li className="now">
-            <L k="odds.now" />: <V path="odds.currentM" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.currentP" fmt="pct2" />
-          </li>
-          <li>
-            <V path="odds.N" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.pAtN" fmt="pct2" />
-          </li>
-          <li>
-            <V path="odds.m95" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.p95" fmt="pct2" />
-          </li>
-          <li>
-            <V path="odds.m99" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.p99" fmt="pct2" />
-          </li>
-        </ul>
-        {who ? <p className="odds-who"><L k="odds.who" /></p> : null}
-        <code><V path="odds.formula" /></code>
-      </figcaption>
+      {compact ? null : cap}
     </figure>
   );
 }

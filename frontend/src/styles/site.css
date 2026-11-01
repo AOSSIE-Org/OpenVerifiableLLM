@@ -258,7 +258,11 @@ details.more-src[open] .more-open{display:inline}
   .tiles-strip .tile .glyph{margin-left:0}
   .tiles-strip .tile[data-event~="code-change"]{padding-left:3px}
 }
-.overview-odds .odds svg{max-width:none}
+.overview-odds h2{font-size:var(--fs-h3)}
+/* Compact (Overview): lighter and smaller than the "Independent checks: 0" number; the "now" line comes first. */
+.odds-compact svg{max-width:32rem;margin-top:var(--space-2)}
+.odds-compact .curve{stroke-width:1.5}
+.odds-compact .odds-list{font-size:var(--fs-meta);color:var(--ink-2)}
 .odds-who{margin:var(--space-2) 0;font-weight:600;color:var(--ink-2)}
 /* Even grid: equal gap, equal-height rows, every card the same padding and a full-height left rule. */
 .more-links{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr));grid-auto-rows:1fr;gap:var(--space-4);align-items:stretch}
