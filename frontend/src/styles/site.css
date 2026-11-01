@@ -274,8 +274,9 @@ body{container-type:inline-size}
 .two{display:grid;gap:var(--space-8);grid-template-columns:minmax(0,1.2fr) minmax(16rem,1fr);align-items:start}
 .split h2,.two h2{margin-top:var(--space-8)}
 .ladder{margin:var(--space-4) 0 var(--space-8)}
-.step{display:grid;grid-template-columns:8.5rem minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-6) 0 var(--space-6) var(--space-4);border-bottom:1px solid var(--line);border-left:var(--rule-w) solid transparent}
-.step-key{border-left-color:var(--match)}
+/* Step text starts on the content edge; the key-step rule sits in the gutter just left of it. */
+.step{position:relative;display:grid;grid-template-columns:8.5rem minmax(0,1fr);gap:var(--space-3) var(--space-6);padding:var(--space-6) 0;border-bottom:1px solid var(--line)}
+.step-key::before{content:"";position:absolute;inset-block:0;left:calc(-1 * (var(--rule-w) + var(--space-2)));width:var(--rule-w);background:var(--match)}
 .step-time{font:600 var(--fs-h3)/1.15 var(--font-display);color:var(--match);margin:0;padding-top:.15rem}
 .step-meta{color:var(--muted);font-size:var(--fs-label);margin:0 0 var(--space-3)}
 .ladder h2{border:0;padding:0;margin:0 0 var(--space-1);font-size:var(--fs-h3)}
