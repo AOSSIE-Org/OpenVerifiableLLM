@@ -326,7 +326,7 @@ def step(model, opt, b, ctl):
 
 
 def targets(data, phase):
-    return json.loads((Path(data) / phase / "stream.json").read_text())["targets"]
+    return json.loads((Path(data) / phase / "stream.json").read_text(encoding="utf-8"))["targets"]
 
 
 def initial_control():
@@ -377,7 +377,7 @@ def read_chain(run):
     if not path.is_file():
         sys.exit(f"{path} not found")
     chain = []
-    for n, line in enumerate(path.read_text().splitlines(), 1):
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         try:
             chain.append(json.loads(line))
         except json.JSONDecodeError as err:
@@ -424,7 +424,7 @@ def cmd_train(a):
         start = chain[-1]["control"]
         print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
     else:
-        (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1))
+        (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1), encoding="utf-8")
     stamping = []
 
     def boundary(kind, ctl, o):
@@ -445,7 +445,7 @@ def cmd_train(a):
         if kind in ("base", "final"):
             torch.save(model.state_dict(), out / f"{'base' if kind == 'base' else 'conversation'}-model.pt")
         chain.append(entry)
-        with (out / "chain.jsonl").open("a") as f:
+        with (out / "chain.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, sort_keys=True) + "\n")
             f.flush()
             os.fsync(f.fileno())
@@ -483,7 +483,7 @@ def cmd_fork(a):
         sys.exit("not every requested page is in the Wikipedia stream")
     out.mkdir(parents=True, exist_ok=False)
     (out / "recipe.json").write_bytes((src / "recipe.json").read_bytes())
-    lines = (src / "chain.jsonl").read_text().splitlines()[:k + 1]
+    lines = (src / "chain.jsonl").read_text(encoding="utf-8").splitlines()[:k + 1]
     ck = torch.load(src / f"ckpt-{k:05d}.pt", map_location="cpu", weights_only=True)
     torch.save(ck, out / f"ckpt-{k:05d}.pt")
     ctl = {**start, "exclude": {"wikipedia": sorted(ranges)}}
@@ -491,7 +491,7 @@ def cmd_fork(a):
     entry = {"index": k + 1, "kind": "fork", "control": ctl, "state": chain[k]["state"], "model": chain[k]["model"],
              "previous": hashlib.sha256(json.dumps(chain[k], sort_keys=True).encode()).hexdigest(),
              "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
-    (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n")
+    (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n", encoding="utf-8")
     read_chain(out)
     if TIMESTAMP:
         stamp.stamp_entry(out, entry)
@@ -635,7 +635,7 @@ def cmd_verify(a):
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
     report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
-    with (run / "verifications.jsonl").open("a") as f:
+    with (run / "verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
           f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
