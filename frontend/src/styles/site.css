@@ -141,9 +141,9 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 .lg-phase-wikipedia::before{background:var(--project-tint)}
 .lg-phase-conversation::before{background:var(--sunk);border-style:dashed}
 .tiles{list-style:none;padding:0;margin:var(--space-3) 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(2.75rem,1fr));gap:var(--space-1)}
-/* Every tile, in every strip, keeps its content --bar-gap clear of the code-change bar. Content that is wider than
+/* Every tile stacks its number over its glyph. Every tile, in every strip, keeps its content --bar-gap clear of the code-change bar. Content that is wider than
    the box overflows to the right (safe center), never under the bar. Same padding on all tiles keeps them identical; the right side has no bar, so it only needs --bar-gap. */
-.tile{position:relative;display:flex;align-items:center;justify-content:safe center;width:100%;padding-block:0;padding-inline:calc(var(--bar-w) + var(--bar-gap)) var(--bar-gap);min-height:var(--target);font:600 var(--fs-label) var(--font-sans);font-variant-numeric:tabular-nums lining-nums;color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
+.tile{position:relative;display:flex;flex-direction:column;align-items:safe center;justify-content:safe center;gap:var(--space-px);width:100%;line-height:1;padding-block:0;padding-inline:calc(var(--bar-w) + var(--bar-gap)) var(--bar-gap);min-height:var(--target);font:600 var(--fs-label) var(--font-sans);font-variant-numeric:tabular-nums lining-nums;color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
 button.tile,a.tile{cursor:pointer}
 a.tile{text-decoration:none}
 /* The row a tile link lands on stands out without JavaScript. */
@@ -241,7 +241,7 @@ details.more-src[open] .more-open{display:inline}
 @media (max-width:520px){.tiles-strip{grid-template-columns:repeat(13,minmax(0,1fr))}}
 @media (max-width:367px){.tiles-strip{grid-template-columns:repeat(11,minmax(0,1fr))}}
 .tiles-strip li{min-width:0}
-.tiles-strip .tile{min-height:3rem;min-width:var(--target-min);font-size:.75rem;border-width:1px;overflow:hidden;line-height:1}
+.tiles-strip .tile{min-height:3rem;min-width:var(--target-min);font-size:.75rem;border-width:1px;overflow:hidden}
 /* Below 641px the strip number is visually hidden, so only the glyph shows: no bar clearance needed. */
 @media (max-width:640px){.tiles-strip .tile{padding-inline:0}.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-8);max-width:18ch}
@@ -250,26 +250,21 @@ body{container-type:inline-size}
 .overview-top .tiles-strip{--strip-w:min(100cqw - 2rem,88rem);width:var(--strip-w);margin-block:var(--space-4) var(--space-8);margin-inline:calc((100% - var(--strip-w))/2)}
 .overview-top .tiles-strip .tile{min-height:4rem;font-size:1rem}
 @media (max-width:640px){.overview-top .tiles-strip .tile{min-height:3.25rem;font-size:.875rem}}
-/* Wherever the number shows (641px+), stack it over the glyph and use proportional figures, so a
-   two-digit number fits its tile and stays 3px clear of the code-change bar. */
-@media (min-width:641px){
-  .tiles-strip .tile{flex-direction:column;align-items:safe center;gap:var(--space-px)}
-  .tiles-strip .tile .glyph{margin-left:0}
-  .tiles-strip .tile .v{font-variant-numeric:proportional-nums lining-nums}
-}
 /* 19 columns below 768px: 29px tiles at 641. */
-@media (min-width:641px) and (max-width:767px){.overview-top .tiles-strip .tile{font-size:.875rem}}
+@media (min-width:641px) and (max-width:767px){.overview-top .tiles-strip .tile{font-size:.8125rem}}
 @media (min-width:1100px){.overview-top .tiles-strip .tile{min-height:4.5rem;font-size:.9375rem}}
 /* 37 columns: 26px tiles at 1100, 31px at 1280. */
 @media (min-width:1100px) and (max-width:1439px){.overview-top .tiles-strip .tile{font-size:.8125rem}}
-@media (min-width:1100px) and (max-width:1279px){.overview-top .tiles-strip .tile{font-size:.75rem}}
+@media (min-width:1100px) and (max-width:1279px){.overview-top .tiles-strip .tile{font-size:.6875rem}.overview-top .tiles-strip .v{letter-spacing:-.02em}}
 /* Even grid: equal gap, equal-height rows, every card the same padding and a full-height left rule. */
 .more-links{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,16rem),1fr));grid-auto-rows:1fr;gap:var(--space-4);align-items:stretch}
 .more-links li{display:flex;min-width:0}
 .more-links a{display:flex;flex-direction:column;gap:var(--space-1);flex:1;box-sizing:border-box;padding:var(--space-4);border:1px solid var(--line);border-left:var(--rule-w) solid var(--match);border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--surface);text-decoration:none;color:var(--ink);line-height:var(--lh-tight)}
 .more-links a span:first-child{display:block;font-family:var(--font-display);font-weight:600}
 .limits-list .ev{padding:var(--space-4) 0}
-.tile .glyph{margin-left:.2em;font-size:max(12px,.85em);line-height:1}
+.tile .glyph{font-size:max(12px,.85em);line-height:1}
+/* Proportional figures: a narrow '1' lets two-digit numbers fit inside every tile's content box. */
+.tile .v{font-variant-numeric:proportional-nums lining-nums}
 .tile .glyph[data-glyph="MISMATCH"]{color:var(--mismatch)}
 .trained{max-width:var(--measure);margin:0 0 var(--space-6);color:var(--muted)}
 .split{display:grid;gap:var(--space-8);grid-template-columns:minmax(0,1.35fr) minmax(16rem,1fr);align-items:start}
