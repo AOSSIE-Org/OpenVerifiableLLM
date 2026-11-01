@@ -14,7 +14,7 @@
   --fs-h3:1.406rem; --fs-h2:1.758rem; --fs-h1:clamp(1.75rem,1.4rem + 2.4vw,2.75rem);
   --lh-body:1.6; --lh-tight:1.4; --lh-head:1.2; --measure:68ch; --wide:72rem;
   --space-1:.25rem; --space-2:.5rem; --space-3:.75rem; --space-4:1rem; --space-5:1.25rem; --space-6:1.5rem; --space-8:2rem; --space-12:3rem;
-  --space-px:2px; --radius-sm:4px; --radius-pill:999px; --target-min:24px; --target:44px; --radius:8px; --rule-w:3px;
+  --space-px:2px; --bar-w:2px; --bar-gap:4px; --radius-sm:4px; --radius-pill:999px; --target-min:24px; --target:44px; --radius:8px; --rule-w:3px;
   /* One content edge for header, main and footer: the main column's padding inside the --wide container. */
   --gutter:max(var(--space-4),calc((100% - var(--wide))/2 + var(--space-4)));
 
@@ -141,7 +141,9 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 .lg-phase-wikipedia::before{background:var(--project-tint)}
 .lg-phase-conversation::before{background:var(--sunk);border-style:dashed}
 .tiles{list-style:none;padding:0;margin:var(--space-3) 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(2.75rem,1fr));gap:var(--space-1)}
-.tile{position:relative;display:flex;align-items:center;justify-content:center;width:100%;min-height:var(--target);font:600 var(--fs-label) var(--font-sans);font-variant-numeric:tabular-nums lining-nums;color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
+/* Every tile, in every strip, keeps its content --bar-gap clear of the code-change bar. Content that is wider than
+   the box overflows to the right (safe center), never under the bar. Same padding on all tiles keeps them identical; the right side has no bar, so it only needs --bar-gap. */
+.tile{position:relative;display:flex;align-items:center;justify-content:safe center;width:100%;padding-block:0;padding-inline:calc(var(--bar-w) + var(--bar-gap)) var(--bar-gap);min-height:var(--target);font:600 var(--fs-label) var(--font-sans);font-variant-numeric:tabular-nums lining-nums;color:var(--project);border-radius:var(--radius-sm);border:2px solid var(--project);background:var(--surface)}
 button.tile,a.tile{cursor:pointer}
 a.tile{text-decoration:none}
 /* The row a tile link lands on stands out without JavaScript. */
@@ -156,8 +158,8 @@ button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px soli
 .tile[data-result="MISMATCH"]{background:repeating-linear-gradient(45deg,var(--mismatch-tint) 0 4px,transparent 4px 8px);border-color:var(--mismatch);color:var(--mismatch)}
 /* Event marks are inset bars, so a marked tile keeps the same box, border and number position as its neighbours. */
 .tile[data-event~="restart"]{box-shadow:inset 0 4px 0 var(--stamp)}
-.tile[data-event~="code-change"]{box-shadow:inset 2px 0 0 var(--ink)}
-.tile[data-event~="restart"][data-event~="code-change"]{box-shadow:inset 0 4px 0 var(--stamp),inset 2px 0 0 var(--ink)}
+.tile[data-event~="code-change"]{box-shadow:inset var(--bar-w) 0 0 var(--ink)}
+.tile[data-event~="restart"][data-event~="code-change"]{box-shadow:inset 0 4px 0 var(--stamp),inset var(--bar-w) 0 0 var(--ink)}
 /* The gold ring shows only for keyboard focus or the targeted tile, drawn inside the tile so it never covers a neighbour. */
 .tiles .tile:focus{outline:none}
 .tiles .tile:focus-visible,.tiles .tile:target{outline:2px solid var(--focus-ink);outline-offset:-2px;box-shadow:inset 0 0 0 5px var(--focus);z-index:1}
@@ -241,8 +243,9 @@ details.more-src[open] .more-open{display:inline}
 @media (max-width:520px){.tiles-strip{grid-template-columns:repeat(13,minmax(0,1fr))}}
 @media (max-width:367px){.tiles-strip{grid-template-columns:repeat(11,minmax(0,1fr))}}
 .tiles-strip li{min-width:0}
-.tiles-strip .tile{min-height:3rem;min-width:var(--target-min);font-size:.75rem;padding:0;border-width:1px;overflow:hidden;line-height:1}
-@media (max-width:640px){.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
+.tiles-strip .tile{min-height:3rem;min-width:var(--target-min);font-size:.75rem;border-width:1px;overflow:hidden;line-height:1}
+/* Below 641px the strip number is visually hidden, so only the glyph shows: no bar clearance needed. */
+@media (max-width:640px){.tiles-strip .tile{padding-inline:0}.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-8);max-width:18ch}
 /* Overview scoreboard strip: wider than the text column (up to 88rem) and taller, still 37 in one row from 1100px. */
 body{container-type:inline-size}
@@ -252,7 +255,7 @@ body{container-type:inline-size}
 /* Wherever the number shows (641px+), stack it over the glyph and use proportional figures, so a
    two-digit number fits its tile and stays 3px clear of the code-change bar. */
 @media (min-width:641px){
-  .tiles-strip .tile{flex-direction:column;gap:var(--space-px)}
+  .tiles-strip .tile{flex-direction:column;align-items:safe center;gap:var(--space-px)}
   .tiles-strip .tile .glyph{margin-left:0}
   .tiles-strip .tile .v{font-variant-numeric:proportional-nums lining-nums}
 }
