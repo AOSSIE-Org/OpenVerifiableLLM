@@ -71,7 +71,7 @@ TIMESTAMP = os.environ.get("OVL_TIMESTAMP", "1") != "0"
 def require_gpu(what):
     """Stop before work that only reproduces the published bits on the training GPU type, unless
     OVL_DEVICE=cpu asks for a CPU run on purpose (tests and smoke runs)."""
-    if DEV == "cpu" and "OVL_DEVICE" not in os.environ:
+    if DEV == "cpu" and os.environ.get("OVL_DEVICE") != "cpu":
         sys.exit(f"{what} needs an NVIDIA GPU, and none was found. The release reproduces bit for bit only "
                  "on an RTX 5090 (see docs/verify.md). To run on the CPU anyway, for a test, set OVL_DEVICE=cpu.")
 
@@ -601,6 +601,12 @@ def cmd_verify(a):
         sys.exit(f"weights file {a.weights} not found")
     run = Path(a.run)
     chain = read_chain(run)
+    recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
+    if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
+        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
+    for phase in ("wikipedia", "conversation") if a.data else ():  # before the anchor's network checks
+        if not (Path(a.data) / phase / "stream.json").is_file():
+            sys.exit(f"{a.data} is not a prepared data directory: {phase}/stream.json not found")
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
     checks = []
     if anchor.exists():
@@ -625,11 +631,6 @@ def cmd_verify(a):
     else:
         print("WARNING: --no-anchor: the chain is not compared with a timestamped anchor", flush=True)
     report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": checks}
-    recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
-    if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
-        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
-    if a.data and not (Path(a.data) / "wikipedia" / "stream.json").is_file():
-        sys.exit(f"{a.data} is not a prepared data directory: wikipedia/stream.json not found")
     if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
                                        for p in ("wikipedia", "conversation")}:
         sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")

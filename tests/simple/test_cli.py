@@ -28,6 +28,11 @@ class RequireGpuTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "Training needs an NVIDIA GPU.*OVL_DEVICE=cpu"):
                 ovl.require_gpu("Training")
 
+    def test_an_empty_device_setting_is_not_a_cpu_choice(self):
+        with mock.patch.object(ovl, "DEV", "cpu"), mock.patch.dict(os.environ, {"OVL_DEVICE": ""}):
+            with self.assertRaisesRegex(SystemExit, "Training needs an NVIDIA GPU"):
+                ovl.require_gpu("Training")
+
     def test_runs_on_cpu_when_asked_explicitly(self):
         with mock.patch.object(ovl, "DEV", "cpu"), mock.patch.dict(os.environ, {"OVL_DEVICE": "cpu"}):
             ovl.require_gpu("Training")
@@ -66,6 +71,18 @@ class MissingInputTests(unittest.TestCase):
     def test_data_directory_without_streams_is_reported(self):
         with self.assertRaisesRegex(SystemExit, "is not a prepared data directory"):
             ovl.cmd_verify(verify_args(run=str(self.run_dir), data=str(self.run_dir)))
+
+    def test_data_directory_without_conversation_stream_is_reported(self):
+        (self.run_dir / "wikipedia").mkdir()
+        (self.run_dir / "wikipedia" / "stream.json").write_text("{}")
+        with self.assertRaisesRegex(SystemExit, "conversation/stream.json not found"):
+            ovl.cmd_verify(verify_args(run=str(self.run_dir), data=str(self.run_dir)))
+
+    def test_data_directory_is_checked_before_the_anchor(self):
+        # An anchor that would fail (and, with timestamps on, go online) must not be reached first.
+        (self.run_dir / "anchor.json").write_text("not json")
+        with self.assertRaisesRegex(SystemExit, "is not a prepared data directory"):
+            ovl.cmd_verify(verify_args(run=str(self.run_dir), data=str(self.run_dir), no_anchor=False))
 
 
 class HelpTests(unittest.TestCase):
