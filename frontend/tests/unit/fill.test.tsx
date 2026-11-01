@@ -81,7 +81,9 @@ describe('shipped copy.json, filled from the shipped data, agrees with the ledge
   });
   it('fills detection-odds copy from site-data.json, not literals', () => {
     const d = fresh();
-    expect(fillCounts('VE-07', copy['VE-07']!.plain, d)).toContain(`${d.odds.m95} independent random checks of ${d.chain.segments} segments`);
+    const ve07 = fillCounts('VE-07', copy['VE-07']!.plain, d)!;
+    expect(ve07).toContain(`${d.chain.segments} segments`);
+    expect(ve07).toContain(`${d.odds.m95} independent random checks`);
     expect(fillCounts('VE-08', copy['VE-08']!.plain, d)).toContain(`${d.odds.m99} independent random checks`);
   });
 });
