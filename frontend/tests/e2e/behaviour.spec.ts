@@ -10,7 +10,8 @@ test('header uses the approved C-gate mark and lockup', async ({ page, request }
   await expect(page.locator('.wordmark-by')).toHaveText(label('site.by'));
   await expect(page.locator('footer a')).toHaveCount(1);
   await expect(page.locator('footer [data-label="footer"]')).toHaveText('Made by AOSSIE');
-  expect(await page.locator('footer').innerText()).toBe('Made by AOSSIE');
+  // Visible text only: the screen-reader "(opens in a new tab)" hint is clipped.
+  expect(await page.locator('footer').evaluate((f) => { const c = f.cloneNode(true) as HTMLElement; c.querySelectorAll('.sr').forEach((e) => e.remove()); return c.textContent!.trim(); })).toBe('Made by AOSSIE');
   const llm = page.locator('.wordmark [data-label="site.title.llm"]');
   await expect(llm).toHaveCSS('color', 'rgb(255, 205, 0)');
   const svg = await (await request.get('logo.svg')).text();
