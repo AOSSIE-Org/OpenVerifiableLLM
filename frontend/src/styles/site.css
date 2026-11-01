@@ -53,7 +53,7 @@ h2{font-size:var(--fs-h2);margin:var(--space-12) 0 var(--space-4);padding-top:va
 h3{font-size:var(--fs-h3);margin:var(--space-8) 0 var(--space-4)}
 p,ul,ol{margin-block:0 var(--space-4)}
 a{color:var(--link)}
-code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
+code,pre{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .v,td,.num{font-variant-numeric:tabular-nums lining-nums}
 :focus-visible{outline:3px solid var(--focus);outline-offset:2px;box-shadow:0 0 0 5px var(--focus-ink)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -69,7 +69,7 @@ code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .wordmark [data-label="site.title.llm"]{color:var(--brand-gold)}
 .wordmark-by{font-size:var(--fs-meta);font-weight:400;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;line-height:1;white-space:nowrap}
 .top ul{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);list-style:none;margin:0;padding:0;font-size:var(--fs-label)}
-.top a[aria-current="page"]{color:var(--ink);font-weight:600;text-decoration-thickness:2px;text-underline-offset:.3em}
+.top a[aria-current="page"]{color:var(--ink);font-weight:600;text-decoration-thickness:var(--space-px);text-underline-offset:.3em}
 .theme-btn{margin-left:auto;align-self:center;font:inherit;font-size:var(--fs-label);color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:var(--space-1);cursor:pointer;min-height:var(--target)}
 .theme-btn[aria-pressed="true"]{border-bottom-color:var(--ink)}
 .lead{max-width:var(--measure);color:var(--ink-2);margin:0 0 var(--space-6)}
@@ -150,7 +150,7 @@ a.tile{text-decoration:none}
 tr:target,tr[id^="seg-"]:target{background:var(--match-tint);box-shadow:inset 4px 0 0 var(--match);outline:2px solid var(--match);outline-offset:-2px}
 tr:target>*{background:transparent}
 .notfound a{display:inline-flex;align-items:center;min-height:var(--target-min)}
-details.more-src>summary{min-height:var(--target-min)}
+details.more-src>summary{display:inline-flex;align-items:center;list-style:none;min-height:var(--target-min)}
 @media (max-width:640px){.notfound a,details.more-src>summary{min-height:var(--target)}details.chip>summary{display:inline-flex;align-items:center;min-height:var(--target)}}
 button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px solid var(--ink);outline-offset:1px}
 .tile[data-checker="independent"]{background:var(--independent);color:var(--surface);border-color:var(--independent)}
@@ -208,10 +208,10 @@ thead th{color:var(--muted);font-weight:600}
 
 a,button,.tile,.seg{transition:color var(--dur-fast) var(--ease),background-color var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),transform var(--dur) var(--ease),opacity var(--dur-fast) var(--ease)}
 @media (hover:hover) and (pointer:fine){
-  button.tile:hover,a.tile:hover{transform:translateY(-2px)}
+  button.tile:hover,a.tile:hover{transform:translateY(calc(-1 * var(--space-px)))}
   button.tile:active,a.tile:active{transform:scale(.97)}
   .seg:hover{transform:scaleY(1.14)}
-  .more-links a:hover{transform:translateX(2px)}
+  .more-links a:hover{transform:translateX(var(--space-px))}
   .theme-btn:hover{border-bottom-color:var(--ink)}
   .btn-primary:hover{transform:translateY(-1px)}
 }
@@ -221,7 +221,6 @@ a,button,.tile,.seg{transition:color var(--dur-fast) var(--ease),background-colo
 .plus::before{content:"+"}
 .chips-more{display:flex;flex-wrap:wrap;gap:var(--space-2);width:100%}
 details.more-src{display:contents}
-details.more-src>summary{display:inline-flex;align-items:center;list-style:none}
 details.more-src>summary::-webkit-details-marker{display:none}
 details.more-src .more-open,details.more-src[open] .more-closed{display:none}
 details.more-src[open] .more-open{display:inline}
@@ -231,7 +230,6 @@ details.more-src[open] .more-open{display:inline}
   .wordmark img{width:2.25rem;height:2.25rem}
   .top{padding-top:var(--space-3);padding-bottom:var(--space-2);gap:var(--space-1) var(--space-4)}
   .top a,.foot a,.btn-small,.theme-btn,details.dev-box>summary,details.table-fallback>summary{min-height:var(--target)}
-  details.dev-box>summary,details.table-fallback>summary{display:inline-flex;align-items:center}
   .top nav{flex:1 1 100%;order:3;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none}
   .top nav::-webkit-scrollbar{display:none}
   .top ul{flex-wrap:nowrap;padding-inline-end:var(--space-6)}
