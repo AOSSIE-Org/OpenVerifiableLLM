@@ -147,17 +147,27 @@ for (const p of PAGES) {
 }
 
 test('keyboard-only: Tab reaches every nav page and Enter navigates', async ({ page }) => {
+  // After each render the app moves focus to <main> (main.tsx). That focus call is async, so wait for it
+  // before pressing keys; otherwise it can land between finding the nav link and pressing Enter.
   await page.goto('');
   await ready(page);
+  // On first load focus is at the top of the document, so Tab forward reaches the nav first.
+  let key = 'Tab';
   for (const p of PAGES.slice(1)) {
+    const link = page.getByRole('navigation').locator(`a[href$="/${p.slug}"]`);
     let found = false;
-    for (let i = 0; i < 400 && !found; i++) {
-      await page.keyboard.press('Tab');
-      found = await page.evaluate((s) => (document.activeElement as HTMLAnchorElement | null)?.closest('nav') !== null && (document.activeElement as HTMLAnchorElement).href?.endsWith('/' + s), p.slug);
+    for (let i = 0; i < 40 && !found; i++) {
+      await page.keyboard.press(key);
+      found = await link.evaluate((a) => a === document.activeElement);
     }
     expect(found, p.slug).toBe(true);
+    await expect(link).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(new RegExp(`${p.slug}$`));
+    await ready(page);
+    await expect(page.locator('#main')).toBeFocused();
+    // Now focus is on <main>; the nav comes before it in tab order, so Shift+Tab reaches it in a few steps.
+    key = 'Shift+Tab';
   }
 });
 
