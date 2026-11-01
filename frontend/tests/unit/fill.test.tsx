@@ -32,6 +32,29 @@ describe('counts come from the data, never from copy', () => {
     d.exclusion.allMatch = false;
     expect(fillCounts('EX-05', 'all MATCH', d)).toBeNull();
   });
+  it('VE-01 fills {total} from the data for a segment count other than 37 (D2 regression)', () => {
+    for (const N of [38, 1000]) {
+      const d = fresh();
+      const t0 = d.verifications.tiles[0]!;
+      d.verifications.tiles = Array.from({ length: N }, (_, k) => ({ ...t0, segment: k }));
+      d.chain.segments = N;
+      d.verifications.segmentsMatched = N;
+      const line = fillCounts('VE-01', copy['VE-01']!.plain, d)!;
+      expect(line).toContain(`${N} tiles`);
+      expect(line).toContain(`${N} of ${N}`);
+      expect(line).not.toMatch(/\b37\b/);
+    }
+  });
+  it('VE-01 fails closed when the total disagrees with the tiles or matched != total', () => {
+    const d = fresh();
+    d.chain.segments = 1000; // tiles still 37: a stale or mixed total is withheld, never printed
+    expect(fillCounts('VE-01', copy['VE-01']!.plain, d)).toBeNull();
+    const e = fresh();
+    e.verifications.segmentsMatched -= 1; // allMatch left true on purpose: "All match" must still fail closed
+    expect(fillCounts('VE-01', copy['VE-01']!.plain, e)).toBeNull();
+    expect(fillCounts('X', 'The project checked all {matched}.', e)).toBeNull();
+    expect(fillCounts('X', '{matched} checked. All match.', e)).toBeNull();
+  });
   it('an unknown placeholder is withheld, not printed', () => {
     expect(fillCounts('X', 'got {nope}', fresh())).toBeNull();
   });

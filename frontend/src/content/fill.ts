@@ -12,8 +12,13 @@ export function fillCounts(id: string, text: string, d: SiteData): string | null
     second: rowsOf(v.secondMachine), fresh: rowsOf(v.freshMachine), training: rowsOf('project training pod'),
     m95: o.m95, m99: o.m99, N: o.N,
   };
+  // {total} is the chain's segment count; it must agree with the tiles the page draws, or the line is withheld.
+  if (/\{total\}/.test(text) && n.total !== v.tiles.length) return null;
   if (/\{matched\}( of |\/)\{total\}/.test(text) && n.matched !== n.total) return null;
+  // "all {matched}" or "All match" next to a count claims every segment matched: fail closed unless it did.
+  if (/\ball \{matched\}/i.test(text) && n.matched !== n.total) return null;
   if (/\ball match/i.test(text) && !(id.startsWith('EX-') ? d.exclusion.allMatch : v.allMatch)) return null;
+  if (/\ball match/i.test(text) && /\{(matched|total)\}/.test(text) && n.matched !== n.total) return null;
   const out = text.replace(/\{(\w+)\}/g, (_, k: string) => (Number.isFinite(n[k]) ? String(n[k]) : '\0'));
   return out.includes('\0') ? null : out;
 }
