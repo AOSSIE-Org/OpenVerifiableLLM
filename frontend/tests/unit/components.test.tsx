@@ -209,7 +209,7 @@ describe('App states', () => {
     expect(container.querySelector('.wordmark')!.textContent).toContain(label('site.title'));
     expect(container.querySelector('[data-label="site.title.llm"]')!.textContent).toBe(label('site.title.llm'));
     expect(container.querySelector('.wordmark-by')!.textContent).toBe(label('site.by'));
-    expect(container.querySelector('.foot-by')!.textContent).toContain(label('site.by'));
+    expect(container.querySelector('footer')!.textContent).toBe(`${label('footer')} ${label('newtab')}`);
   });
   it('shows a background toggle that only switches light and dark', () => {
     const { container } = render(<App state={validateSite(fresh())} route={ROUTES[0]!} Page={Overview} />);

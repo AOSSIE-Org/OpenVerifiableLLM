@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ComponentType, type MouseEvent } from 'react';
 import { DataContext, type DataState } from './data/context';
 import { BASE, ROUTES, hrefOf, type RouteDef } from './routes';
-import { L, V } from './components/text';
+import { L } from './components/text';
 import { ErrorBoundary } from './components/Section';
 import { ThemeToggle } from './components/ThemeToggle';
 
@@ -51,30 +51,11 @@ function Shell({ route, navigate, children, pinned }: { route: RouteDef | null; 
       <main id="main" ref={main} tabIndex={-1}>
         {children}
       </main>
-      <footer className="foot">
-        <p className="foot-brand">
-          <a href="https://aossie.org" rel="noopener noreferrer" className="foot-by">
-            <L k="site.by" />
-            <span className="sr"> <L k="newtab" /></span>
-          </a>
-          <a href="https://aossie.org" rel="noopener noreferrer">
-            <L k="footer" />
-            <span className="sr"> <L k="newtab" /></span>
-          </a>
-          <a href="https://discord.gg/hjUhu33uAn" rel="noopener noreferrer">
-            <L k="footer.discord" />
-            <span className="sr"> <L k="newtab" /></span>
-          </a>
-          <a href="https://www.gnu.org/licenses/gpl-3.0.html" rel="noopener noreferrer">
-            <L k="footer.license" />
-            <span className="sr"> <L k="newtab" /></span>
-          </a>
-        </p>
-        {pinned ? (
-          <span className="muted">
-            <L k="footer.data" /> <code><V path="revShort" /></code>
-          </span>
-        ) : null}
+      <footer className="foot" data-pinned={pinned ? '' : undefined}>
+        <a href="https://aossie.org" rel="noopener noreferrer">
+          <L k="footer" />
+          <span className="sr"> <L k="newtab" /></span>
+        </a>
       </footer>
     </>
   );

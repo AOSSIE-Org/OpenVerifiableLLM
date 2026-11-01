@@ -16,7 +16,7 @@ export const data = (): SiteData => JSON.parse(readFileSync(path.resolve('public
 
 /** Wait for the client to load and validate the data (hydration done). */
 export async function ready(page: Page) {
-  await page.waitForFunction(() => document.querySelector('[data-fatal]') || document.querySelector('footer code [data-path="revShort"]'));
+  await page.waitForFunction(() => document.querySelector('[data-fatal]') || document.querySelector('footer[data-pinned]'));
   await page.waitForLoadState('networkidle');
 }
 
