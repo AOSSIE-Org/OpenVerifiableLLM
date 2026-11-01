@@ -19,9 +19,11 @@
   --bg:#F0EEE9; --surface:#FFFFFF; --sunk:#DADBDD; --line:#D8D6D1;
   --ink:#1F2A36; --ink-2:#3E4C5C; --muted:#585450; --link:#4E6175;
   --match:#005A2B; --match-tint:#C8E5CA;
-  --mismatch:#8A2E12; --mismatch-tint:#EEDCD1;
+  --mismatch:#8A2E12; --mismatch-tint:#EDD9CC;
   --project:#4E6175; --project-tint:#DCE7F2;
   --independent:#5C4566; --independent-tint:#DED7DD;
+  /* Quiet Violet and Hematite are fills and borders only, never text. */
+  --independent-fill:#A792AC; --on-independent:#1F2A36; --pending-line:#746F6A;
   --pending:#585450; --pending-tint:#DADBDD;
   --stamp:#6B4A00; --stamp-tint:#F6EEC9;
   --focus:#FFCD00; --focus-ink:#1F2A36;
@@ -95,9 +97,9 @@ details.dev-box[open]>.dev{animation:fade var(--dur) var(--ease)}
 
 .pill{display:inline-block;font-size:var(--fs-meta);font-weight:600;padding:.1rem .55rem;border-radius:999px;border:2px solid var(--project);color:var(--project);background:var(--surface)}
 .pill-project::before{content:"◇ "}
-.pill-independent{background:var(--independent);border-color:var(--independent);color:var(--surface)}
+.pill-independent{background:var(--independent-fill);border-color:var(--independent);color:var(--on-independent)}
 .pill-independent::before{content:"◆ "}
-.pill-pending{border-style:dashed;color:var(--pending);border-color:var(--pending)}
+.pill-pending{border-style:dashed;color:var(--pending);border-color:var(--pending-line)}
 .result{font-family:var(--font-sans);font-variant-numeric:tabular-nums;font-size:var(--fs-meta);font-weight:600;padding:.05rem .4rem;border-radius:var(--radius-sm)}
 .result-MATCH{color:var(--match);background:var(--match-tint)}
 .result-MATCH::before{content:"✓ "}
@@ -134,7 +136,7 @@ details[open]>.panel{animation:fade var(--dur) var(--ease)}
 /* Coverage map */
 .legend{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);list-style:none;padding:0;margin:var(--space-3) 0;font-size:var(--fs-label);color:var(--ink-2)}
 .lg::before{content:"";display:inline-block;width:.9em;height:.9em;margin-right:.4em;vertical-align:-.1em;border:2px solid var(--project);background:var(--surface)}
-.lg-independent::before{background:var(--independent);border-color:var(--independent)}
+.lg-independent::before{background:var(--independent-fill);border-color:var(--independent)}
 .lg-restart::before{border-color:var(--stamp);border-top-width:6px}
 .lg-code::before{border-color:var(--ink);border-left-width:6px}
 .lg-phase-wikipedia::before{background:var(--project-tint)}
@@ -150,8 +152,8 @@ tr:target>*{background:transparent}
 details.more-src>summary{min-height:24px}
 @media (max-width:640px){.notfound a,details.more-src>summary{min-height:44px}details.chip>summary{display:inline-flex;align-items:center;min-height:44px}}
 button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px solid var(--ink);outline-offset:1px}
-.tile[data-checker="independent"]{background:var(--independent);color:var(--surface);border-color:var(--independent)}
-.tile[data-checker="pending"]{border-style:dashed;color:var(--pending)}
+.tile[data-checker="independent"]{background:var(--independent-fill);color:var(--on-independent);border-color:var(--independent)}
+.tile[data-checker="pending"]{border-style:dashed;color:var(--pending);border-color:var(--pending-line)}
 .tile[data-result="MISMATCH"]{background:repeating-linear-gradient(45deg,var(--mismatch-tint) 0 4px,transparent 4px 8px);border-color:var(--mismatch);color:var(--mismatch)}
 /* Event marks are inset bars, so a marked tile keeps the same box, border and number position as its neighbours. */
 .tile[data-event~="restart"]{box-shadow:inset 0 4px 0 var(--stamp)}
@@ -179,7 +181,7 @@ thead th{color:var(--muted);font-weight:600}
 .odds .curve{stroke:var(--ink-2);stroke-width:2}
 .odds .tick line{stroke:var(--muted);stroke-dasharray:3 3}
 .odds .tick circle{fill:var(--ink)}
-.odds .tick.now circle{fill:var(--independent)}
+.odds .tick.now circle{fill:var(--independent-fill);stroke:var(--independent);stroke-width:1.5}
 .odds-list{list-style:none;padding:0;margin:var(--space-2) 0;font-size:var(--fs-label)}
 .odds-list .now{font-weight:600}
 
@@ -202,7 +204,7 @@ thead th{color:var(--muted);font-weight:600}
 .file{display:grid;grid-template-columns:minmax(8rem,1fr) minmax(12rem,2fr) auto auto;gap:var(--space-2) var(--space-3);align-items:center;padding-bottom:var(--space-3);border-bottom:1px solid var(--line)}
 .file-name{font-family:var(--font-mono);font-size:var(--fs-label);overflow-wrap:anywhere}
 @media (max-width:640px){.file{grid-template-columns:1fr}}
-.fallback,.fatal{padding:var(--space-4);border:2px dashed var(--pending);border-radius:var(--radius);background:var(--pending-tint);margin:var(--space-4) 0}
+.fallback,.fatal{padding:var(--space-4);border:2px dashed var(--pending-line);border-radius:var(--radius);background:var(--pending-tint);margin:var(--space-4) 0}
 
 a,button,.tile,.seg{transition:color var(--dur-fast) var(--ease),background-color var(--dur-fast) var(--ease),border-color var(--dur-fast) var(--ease),transform var(--dur) var(--ease),opacity var(--dur-fast) var(--ease)}
 @media (hover:hover) and (pointer:fine){
