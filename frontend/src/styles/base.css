@@ -928,7 +928,6 @@ footer {
   .top,
   .split,
   .pair,
-  .steps,
   .qa {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1192,4 +1191,12 @@ footer {
 
 .bar {
   gap: 8px;
+}
+
+/* Phones: the three ways to check stack, one under another */
+@media (max-width: 900px) {
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
 }
