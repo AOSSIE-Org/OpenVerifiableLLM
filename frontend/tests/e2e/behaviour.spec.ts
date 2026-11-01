@@ -10,7 +10,7 @@ test('header uses the approved C-gate mark and lockup', async ({ page, request }
   await expect(page.locator('.wordmark-by')).toHaveText(label('site.by'));
   await expect(page.locator('footer .foot-by [data-label="site.by"]')).toHaveText(label('site.by'));
   const llm = page.locator('.wordmark [data-label="site.title.llm"]');
-  await expect(llm).toHaveCSS('color', 'rgb(255, 205, 0)');
+  await expect(llm).toHaveCSS('color', 'rgb(122, 96, 0)'); // #7A6000 in light; dark keeps #FFCD00
   const svg = await (await request.get('logo.svg')).text();
   expect(svg).toContain('M8 2H24A6 6 0 0 1 30 8V17.25H23.5V10.45');
   expect(svg).toContain('#FFCD00');

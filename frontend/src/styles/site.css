@@ -27,6 +27,7 @@
   --pending:#585450; --pending-tint:#DADBDD;
   --stamp:#6B4A00; --stamp-tint:#F6EEC9;
   --focus:#FFCD00; --focus-ink:#1F2A36;
+  --wordmark-llm:#7A6000;
   --ease:cubic-bezier(.2,0,0,1); --dur-fast:120ms; --dur:180ms;
 }
 html[data-theme="dark"]{
@@ -42,6 +43,7 @@ html[data-theme="dark"]{
   --pending:#ADA79F; --pending-tint:#2A2622;
   --stamp:#E6C66A; --stamp-tint:#2E2614;
   --focus-ink:#1A1816;
+  --wordmark-llm:#FFCD00;
 }
 
 
@@ -68,7 +70,7 @@ code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .wordmark img{width:2rem;height:2rem;flex-shrink:0;display:block}
 .wordmark-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:.3rem;min-width:0}
 .wordmark-name{display:inline-flex;align-items:baseline;white-space:nowrap}
-.wordmark [data-label="site.title.llm"]{color:#FFCD00}
+.wordmark [data-label="site.title.llm"]{color:var(--wordmark-llm)}
 .wordmark-by,.foot-by{font-size:.75rem;font-weight:400;letter-spacing:.35em;color:var(--muted);text-transform:uppercase;line-height:1;white-space:nowrap}
 .foot-by{letter-spacing:.23em}
 .top ul{display:flex;flex-wrap:wrap;gap:var(--space-1) var(--space-4);list-style:none;margin:0;padding:0;font-size:var(--fs-label)}

@@ -30,6 +30,8 @@ for (const [mode, T] of [['light', light], ['dark', dark]]) {
   check(mode, 'text on Quiet Violet fill (independent)', T['on-independent'], T['independent-fill'], 4.5);
   check(mode, 'independent tile edge on surface', T.independent, T.surface, 3);
   check(mode, 'Hematite dashed pending border on bg', T['pending-line'], T.bg, 3);
+  check(mode, 'wordmark LLM on header (surface)', T['wordmark-llm'], T.surface, 4.5);
+  check(mode, 'wordmark LLM on bg', T['wordmark-llm'], T.bg, 4.5);
   check(mode, 'command text on sunk (journal block)', T.ink, T.sunk, 4.5);
   check(mode, 'primary button text on ink', T.bg, T.ink, 4.5);
   check(mode, 'link on sunk (chips, panels)', T.link, T.sunk, 4.5);

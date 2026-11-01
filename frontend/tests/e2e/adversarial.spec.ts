@@ -135,7 +135,7 @@ for (const p of PAGES) {
     await page.emulateMedia({ forcedColors: 'active' });
     await page.goto(p.slug);
     await ready(page);
-    const r = await new AxeBuilder({ page }).exclude('.wordmark [data-label="site.title.llm"]').withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
+    const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag22aa']).analyze();
     expect(r.violations.map((v) => v.id)).toEqual([]);
   });
   test(`${p.key}: print media hides nav and keeps h1`, async ({ page }) => {
