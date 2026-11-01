@@ -66,8 +66,9 @@ code,pre,.hash code{font-family:var(--font-mono);font-size:max(12px,.9em)}
 .skip{position:absolute;left:var(--space-2);top:-3rem;background:var(--surface);padding:var(--space-2) var(--space-3);z-index:30}
 .skip:focus{top:var(--space-2)}
 .top{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);align-items:center;padding:var(--space-4) max(var(--space-4),calc((100% - var(--wide))/2));border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:20}
-.wordmark{display:inline-flex;align-items:center;gap:var(--space-3);font-family:var(--font-sans);font-weight:700;font-size:1.125rem;letter-spacing:-.04em;line-height:1;color:var(--ink);text-decoration:none}
-.wordmark img{width:2rem;height:2rem;flex-shrink:0;display:block}
+.wordmark{display:inline-flex;align-items:center;gap:var(--space-3);font-family:var(--font-sans);font-weight:700;font-size:clamp(1.125rem,1rem + .5vw,1.375rem);letter-spacing:-.04em;line-height:1;color:var(--ink);text-decoration:none}
+.wordmark img{width:2.75rem;height:2.75rem;flex-shrink:0;display:block}
+@media (max-width:640px){.wordmark img{width:2.25rem;height:2.25rem}}
 .wordmark-lockup{display:flex;flex-direction:column;align-items:flex-start;gap:.3rem;min-width:0}
 .wordmark-name{display:inline-flex;align-items:baseline;white-space:nowrap}
 .wordmark [data-label="site.title.llm"]{color:var(--wordmark-llm)}
@@ -250,9 +251,13 @@ details.more-src[open] .more-open{display:inline}
 .tiles-strip .tile{min-height:3rem;min-width:24px;font-size:.75rem;padding:0;border-width:1px;overflow:hidden;line-height:1}
 @media (max-width:640px){.tiles-strip .tile .v{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}}
 .overview-top h1{margin-top:var(--space-8);max-width:18ch}
-.overview-top .tiles-strip{margin-block:var(--space-4) var(--space-8)}
+/* Overview scoreboard strip: wider than the text column (up to 88rem) and taller, still 37 in one row from 1100px. */
+body{container-type:inline-size}
+.overview-top .tiles-strip{--strip-w:min(100cqw - 2rem,88rem);width:var(--strip-w);margin-block:var(--space-4) var(--space-8);margin-inline:calc((100% - var(--strip-w))/2);gap:3px}
+.overview-top .tiles-strip .tile{min-height:4rem;font-size:1rem}
+@media (max-width:640px){.overview-top .tiles-strip .tile{min-height:3.25rem;font-size:.875rem}}
 @media (min-width:1100px){
-  .overview-top .tiles-strip .tile{min-height:3.5rem}
+  .overview-top .tiles-strip .tile{min-height:4.5rem;font-size:.9375rem}
   /* 37 columns leave 26px inside a tile: stack the number over the glyph so neither is clipped. */
   .tiles-strip .tile{flex-direction:column;gap:2px}
   .tiles-strip .tile .glyph{margin-left:0}
