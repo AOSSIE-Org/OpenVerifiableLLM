@@ -144,5 +144,6 @@
  "step.meta.actual": "Rented GPU",
  "runpod": "Open the RunPod template",
  "map.row.project": "Project",
- "map.row.independent": "Independent"
+ "map.row.independent": "Independent",
+ "odds.who": "Who checked: only the project."
 }

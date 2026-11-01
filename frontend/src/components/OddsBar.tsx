@@ -3,7 +3,7 @@ import { detect } from '../data/validate';
 import { L, V } from './text';
 
 /** Detection probability 1-((N-1)/N)^M as an inline SVG. Every tick comes from site-data.json. */
-export function OddsBar() {
+export function OddsBar({ who = false }: { who?: boolean }) {
   const { data } = useData();
   const o = data.odds;
   const maxM = Math.ceil(o.m99 * 1.15);
@@ -44,6 +44,7 @@ export function OddsBar() {
             <V path="odds.m99" /> <L k="odds.checks" /> <L k="odds.gives" /> <V path="odds.p99" fmt="pct2" />
           </li>
         </ul>
+        {who ? <p className="odds-who"><L k="odds.who" /></p> : null}
         <code><V path="odds.formula" /></code>
       </figcaption>
     </figure>
