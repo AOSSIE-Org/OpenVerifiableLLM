@@ -430,34 +430,6 @@ header {
   color: var(--miss);
 }
 
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.tag {
-  padding: 0 6px;
-  border: 1px solid var(--rule-strong);
-  border-radius: 2px;
-  font-size: 13px;
-}
-
-.tag.m {
-  border-color: var(--match);
-  color: var(--match);
-}
-
-.tag.h {
-  color: var(--ink-3);
-}
-
-/* Check levels */
-.level-meta {
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
 .code {
   position: relative;
 }
@@ -803,23 +775,6 @@ footer {
 }
 
 
-/* check levels sit in light boxes */
-.level {
-  margin-bottom: 16px;
-  padding: 2px 16px 4px;
-  border: 1px solid var(--rule);
-  border-left: 3px solid var(--rule-strong);
-  background: var(--peach);
-}
-
-.level:last-of-type {
-  border-left-color: var(--match);
-}
-
-.level .code pre {
-  background: var(--paper);
-}
-
 .facts-card {
   padding: 16px 18px;
   border: 1px solid var(--rule-strong);
@@ -923,22 +878,6 @@ footer {
   gap: 12px;
 }
 
-.levels {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.levels .level {
-  margin: 0;
-}
-
-.levels .code pre {
-  max-height: 240px;
-  padding: 44px 14px 12px;
-  font-size: 13px;
-}
-
 .qa {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -953,7 +892,7 @@ footer {
   .top,
   .split,
   .pair,
-  .levels,
+  .steps,
   .qa {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1008,4 +947,90 @@ footer {
   .how ol {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* Check it yourself: three columns, each set off by a thin rule */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  list-style: none;
+  margin: 8px 0 16px;
+  padding: 0;
+}
+
+.article .steps > li {
+  margin: 0;
+  padding: 2px 0 2px 18px;
+  border-left: 2px solid var(--rule-strong);
+}
+
+.article .steps > li.key {
+  border-left-color: var(--match-fill);
+}
+
+.article .step-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.step h3 {
+  margin: 2px 0 6px;
+  font-size: 17px;
+}
+
+.article .step-desc {
+  margin-bottom: 10px;
+  color: var(--ink-3);
+}
+
+.article .step-proves {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 14px;
+}
+
+.article .step-proves li {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.article .step-proves li.m {
+  color: var(--match);
+}
+
+.step .code pre {
+  padding: 10px 84px 10px 12px;
+  font-size: 13px;
+}
+
+.step-code summary {
+  color: var(--link);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-code .code {
+  margin-top: 8px;
+}
+
+.step-code pre {
+  max-height: 260px;
+}
+
+.article .step-action {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* a one-line command wraps instead of scrolling in the narrow column */
+.step > .code pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.step .step-code pre {
+  padding: 40px 12px 10px;
 }

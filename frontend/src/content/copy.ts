@@ -146,6 +146,7 @@ export const copy = {
         meta: 'Free · any laptop',
         title: 'Try the model',
         chips: [{ label: '○ Demo, checks nothing', type: 'h' }],
+        desc: 'Run the model on your own machine. It\'s fun to poke at, but it doesn\'t prove anything.',
         command: 'ollama run ryoari/openverifiablellm',
       },
       {
@@ -156,6 +157,7 @@ export const copy = {
           { label: '✓ Release matches its record', type: 'm' },
           { label: '○ No training recomputed', type: 'h' },
         ],
+        desc: 'Download the release and check it against the record we timestamped. Nothing gets retrained.',
         command: `pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \\
   "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \\
@@ -176,7 +178,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
         isKey: true,
         chips: [{ label: '✓ Recomputes a segment bit for bit', type: 'm' }],
         desc: 'Rebuilds one segment from its saved checkpoint and compares every byte with ours.',
-            action: {
+        action: {
           label: 'Open the RunPod template',
           href: 'https://console.runpod.io/deploy?template=mai1ozh35g',
         },
