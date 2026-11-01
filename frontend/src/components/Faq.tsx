@@ -6,10 +6,10 @@ export const Faq: React.FC = () => (
     <h2>{copy.faq.h2}</h2>
     <dl className="qa">
       {copy.faq.items.map(item => (
-        <React.Fragment key={item.q}>
+        <div key={item.q}>
           <dt>{item.q}</dt>
           <dd>{item.a}</dd>
-        </React.Fragment>
+        </div>
       ))}
     </dl>
     <p>

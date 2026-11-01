@@ -27,11 +27,7 @@ export const CopyButton: React.FC<CopyButtonProps> = ({
 
   return (
     <>
-      <button
-        type="button"
-        className={className}
-        onClick={handleCopy}
-      >
+      <button type="button" className={className} onClick={handleCopy}>
         {copied ? 'Copied ✓' : label}
       </button>
       <span className="sr-only" aria-live="polite">

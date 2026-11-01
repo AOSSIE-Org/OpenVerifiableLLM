@@ -184,31 +184,20 @@ header {
   background: var(--rule);
 }
 
-/* Page: contents sidebar and the article column --------------------------- */
-.page {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr) 250px;
-  gap: 28px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px 80px;
-}
-
-.side {
-  min-width: 0;
+/* Page: a contents bar under the header, then the article at full width -- */
+.tocbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
 }
 
 .toc {
-  position: sticky;
-  top: 24px;
-  padding: 12px 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
   font-size: 14px;
-}
-
-.toc h2,
-.toc-mobile summary {
-  margin-bottom: 8px;
-  font: 700 14px var(--sans);
 }
 
 .toc ol,
@@ -216,21 +205,36 @@ header {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-left: 1px solid var(--rule);
 }
 
-.toc li a,
+.toc ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 22px;
+}
+
+.toc li a {
+  display: block;
+  padding: 10px 0;
+}
+
 .toc-mobile li a {
   display: block;
-  padding: 4px 0 4px 12px;
-}
-
-.toc-n {
-  color: var(--ink-3);
+  padding: 4px 0;
 }
 
 .toc-mobile {
   display: none;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+}
+
+.article section {
+  scroll-margin-top: 48px;
 }
 
 .article {
@@ -265,7 +269,7 @@ header {
 
 .article section {
   clear: both;
-  padding-top: 40px;
+  padding-top: 32px;
 }
 
 .article h2 {
@@ -713,17 +717,18 @@ footer {
     grid-column: 1 / -1;
   }
 
-  .page {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
   .toc {
     display: none;
   }
 
+  .tocbar {
+    position: static;
+    border: 0;
+  }
+
   .toc-mobile {
     display: block;
+    margin: 12px 16px 0;
     padding: 8px 12px;
     border: 1px solid var(--rule-strong);
     background: var(--sheet);
@@ -802,11 +807,6 @@ footer {
 
 }
 
-/* the odds chart, then the hardware table under it */
-.pair .thumb {
-  max-width: 640px;
-  margin-top: 20px;
-}
 
 /* check levels sit in light boxes */
 .level {
@@ -823,21 +823,6 @@ footer {
 
 .level .code pre {
   background: var(--paper);
-}
-
-/* Docs layout: a key-facts card in the right rail on wide screens; under
-   the title on narrower ones */
-.rail {
-  min-width: 0;
-}
-
-.rail .facts-card {
-  position: sticky;
-  top: 24px;
-}
-
-.facts-inline {
-  display: none;
 }
 
 .facts-card {
@@ -923,45 +908,74 @@ footer {
   font-size: 17px;
 }
 
-@media (min-width: 901px) and (max-width: 1180px) {
-  .page {
-    grid-template-columns: 180px minmax(0, 1fr);
-  }
+/* Side by side: the lead and its key facts, and pairs of blocks in sections */
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
 }
 
-@media (max-width: 1180px) {
-  .rail {
-    display: none;
-  }
-
-  .facts-inline {
-    display: block;
-    margin-bottom: 8px;
-  }
-
-  .facts-inline .facts-card dl {
-    grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
-  }
+.top .facts-card dl {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
 }
 
-/* the sidebars sit right up against the article: a thin rule marks each edge */
-.side {
-  padding-right: 20px;
-  border-right: 1px solid var(--rule);
+.split,
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 16px;
 }
 
-.toc ol {
-  border-left: 0;
+.split .wikitable,
+.pair .thumb {
+  margin-top: 0;
 }
 
-.toc li a {
-  padding-left: 0;
+.pair-h {
+  margin-top: 0;
+}
+
+.cols.stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.levels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.levels .level {
+  margin: 0;
+}
+
+.levels .code pre {
+  max-height: 240px;
+  padding: 44px 14px 12px;
+  font-size: 13px;
+}
+
+.qa {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 32px;
+}
+
+.qa dd {
+  margin-left: 0;
 }
 
 @media (max-width: 900px) {
-  .side {
-    padding-right: 0;
-    border-right: 0;
+  .top,
+  .split,
+  .pair,
+  .levels,
+  .qa {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
-

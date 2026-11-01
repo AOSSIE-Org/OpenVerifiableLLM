@@ -151,22 +151,24 @@ export const TrainingTimeline: React.FC<TrainingTimelineProps> = ({ chain }) => 
         </figcaption>
       </figure>
 
-      <dl className="events">
-        <dt>
-          {copy.timeline.restartTitle} ({copy.timeline.restartTag.toLowerCase()})
-        </dt>
-        <dd>
-          {copy.timeline.restartDesc} <span className="res match">✓ MATCH</span>
-        </dd>
-        <dt>
-          {copy.timeline.codeChangeTitle} ({copy.timeline.codeChangeTag.toLowerCase()})
-        </dt>
-        <dd>
-          {copy.timeline.codeChangeDesc} <span className="res match">✓ MATCH</span>
-        </dd>
-      </dl>
+      <div className="split">
+        <dl className="events">
+          <dt>
+            {copy.timeline.restartTitle} ({copy.timeline.restartTag.toLowerCase()})
+          </dt>
+          <dd>
+            {copy.timeline.restartDesc} <span className="res match">✓ MATCH</span>
+          </dd>
+          <dt>
+            {copy.timeline.codeChangeTitle} ({copy.timeline.codeChangeTag.toLowerCase()})
+          </dt>
+          <dd>
+            {copy.timeline.codeChangeDesc} <span className="res match">✓ MATCH</span>
+          </dd>
+        </dl>
 
-      <p>{copy.timeline.timestampNote}</p>
+        <p className="note">{copy.timeline.timestampNote}</p>
+      </div>
 
       <table className="sr-only">
         <caption>Training boundaries sequence and timestamps</caption>

@@ -28,9 +28,8 @@ export const copy = {
     from: 'An AOSSIE project',
     kicker: 'Release v1.0.1 · 28 October 2026 · Record timestamped 20 October 2026',
     lead: [
-      'is a language model whose training anyone can recompute. It\'s small, 23 million parameters, and it was trained on a single pass over English Wikipedia, then on a short set of conversations.',
-      'We split training into 37 segments and saved a checkpoint at each of the 38 boundaries. Every checkpoint records the model\'s state, where it was in the data, and the hash of the checkpoint before it, so the checkpoints link into a chain. Training is deterministic: give someone the same code, data and type of GPU, and they get the same bytes back.',
-      'So far we\'ve recomputed all 37 segments ourselves on a second machine, and every one matched. Nobody outside the project has checked yet, and we\'d like that to change.',
+      'is a language model whose training anyone can recompute: 23 million parameters, trained on one pass over English Wikipedia and a short set of conversations.',
+      'Training ran in 37 segments between 38 hashed checkpoints that link into a chain. The same code, data and GPU type give back the same bytes.',
     ],
     factsTitle: 'Key facts',
     factsCta: 'Try checking a segment →',
@@ -74,7 +73,7 @@ export const copy = {
   },
   overview: {
     kicker: "What's proven",
-    h2: 'Here\'s what the evidence supports today, and where it stops.',
+    h2: 'What the evidence supports, and where it stops.',
     subtitle: 'Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
     facts: [
       {
@@ -98,15 +97,15 @@ export const copy = {
     ],
     shownTitle: 'What this shows',
     shownItems: [
-      'The released weights came out of the recorded run.',
-      'The training data is exactly the Wikipedia dump we say it is.',
-      'The record hasn\'t changed since it was stamped on 20 October.',
+      'The weights came from the recorded run.',
+      'The data is exactly the stated Wikipedia dump.',
+      'The record is unchanged since 20 October.',
     ],
     notShownTitle: 'What it doesn\'t show',
     notShownItems: [
-      'That the model\'s answers are right. It\'s small and often gets facts wrong.',
-      'That it reproduces on other hardware. You need the same type of GPU.',
-      'That anyone outside the project agrees. No one has checked independently yet.',
+      'That the answers are right. It\'s small and often wrong.',
+      'Results on other GPUs. You need the same type.',
+      'Outside agreement. No independent check yet.',
     ],
     counts: [
       { key: 'articles', label: 'Articles' },
@@ -117,7 +116,7 @@ export const copy = {
   },
   check: {
     kicker: 'Check it yourself',
-    h2: 'You can go as deep as you like: a two-minute demo, a ten-minute check of the release, or an hour recomputing real training.',
+    h2: 'Three ways in: a 2-minute demo, a 10-minute release check, or an hour of real recompute.',
     ladder: [
       {
         time: '2 min',
@@ -153,7 +152,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
         title: 'The actual verification',
         isKey: true,
         chips: [{ label: '✓ Recomputes a segment bit for bit', type: 'm' }],
-        desc: 'This rebuilds one segment from its saved starting point and compares every byte with what we published.',
+        desc: 'Rebuilds one segment and compares every byte with ours.',
         action: {
           label: 'Open the RunPod template',
           href: 'https://console.runpod.io/deploy?template=mai1ozh35g',
@@ -163,30 +162,30 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
   },
   verification: {
     kicker: 'Verification',
-    h2: 'Every segment matched when we recomputed it, but so far we\'re the only ones who have checked.',
-    subtitle: 'When we say "verified" we mean recomputed and matched. It doesn\'t mean the model\'s answers are right.',
-    captionNotice: 'In total there are 46 checks across 37 segments, all matching, and none of them independent.',
-    warningNotice: 'These results are self-reported and not yet signed. We plan to add signed results and to choose which segments get checked using public randomness.',
+    h2: 'Every segment matched, but only we have checked so far.',
+    subtitle: '"Verified" means recomputed and matched, not that the answers are right.',
+    captionNotice: '46 checks across 37 segments, all matching, none independent.',
+    warningNotice: 'Self-reported and not yet signed.',
     oddsTitle: 'How many independent checks would catch a bad segment?',
     oddsFormula: 'P = 1 − (36/37)^M, with N = 37',
     oddsDescription: 'Detection odds: 95% at 110 random checks, 99% at 169. Current independent checks: 0.',
     hardwareTitle: 'Which hardware reproduces the bits',
-    hardwareSubtitle: 'Bit-exact results need the same kind of GPU, so a mismatch on other hardware is expected rather than a problem.',
+    hardwareSubtitle: 'Bit-exact results need the same GPU type, so other hardware is expected to differ.',
   },
   timeline: {
     kicker: 'Training timeline',
-    h2: 'Training didn\'t run in one clean go: the machine restarted once, and the code changed partway through. Both segments still matched.',
+    h2: 'One machine restart and one code change. Both segments still matched.',
     restartTitle: 'Host restart',
     restartTag: 'Segment 10',
     restartDesc: 'Training picked up on a fresh machine from the saved checkpoint.',
     codeChangeTitle: 'Code change',
     codeChangeTag: 'Segment 19 onward',
     codeChangeDesc: 'Each segment ran the exact code recorded for it.',
-    timestampNote: 'The timestamps prove the record existed by 20 October 2026. They don\'t tell you when or how the training itself ran.',
+    timestampNote: 'The timestamps prove the record existed by 20 October 2026, not when or how training ran.',
   },
   exclusion: {
     kicker: 'Verifiable exclusion',
-    h2: 'We trained a second copy of the model with one article left out, and we can show it never saw that article.',
+    h2: 'A second copy, trained with one article left out, and proof it never saw it.',
     desc: 'The fork removed 3I/ATLAS before training reached it. Everything else is identical.',
     removedArticleLabel: 'Loss on the removed article',
     removedArticleNote: 'Higher, as you\'d expect: the fork never saw it.',
@@ -194,24 +193,24 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     controlArticlesNote: 'Barely moved.',
     whyHoldsTitle: 'Why we can say this',
     whyHoldsItems: [
-      'The first checkpoints, 0 to 30, are identical byte for byte.',
-      'The removal itself is written into the chain.',
-      'Any other gap in the data is rejected.',
-      'Every segment of the fork matched when recomputed.',
+      'Checkpoints 0 to 30 are identical byte for byte.',
+      'The removal is written into the chain.',
+      'Any other data gap is rejected.',
+      'Every fork segment matched.',
     ],
     limitsTitle: 'What it can\'t do',
     limitsItems: [
-      'It shows this model was trained without the article. Nothing more.',
-      'It can\'t make a model forget something it has already learned.',
-      'If a run has already seen the text, you have to retrain from an earlier checkpoint.',
-      'It\'s a single run, so there\'s no estimate of the variance yet.',
+      'It shows training without the article, nothing more.',
+      'It can\'t make a model forget what it learned.',
+      'Text already seen means retraining from an earlier checkpoint.',
+      'One run, so no variance estimate yet.',
     ],
     evidenceLabel: 'Evidence:',
     evidencePath: 'release/unlearning-3i-atlas/',
   },
   downloads: {
     kicker: 'Downloads',
-    h2: 'Each file is listed with its SHA-256, so you can check that what you downloaded is what we released.',
+    h2: 'Each file with its SHA-256, so you can check your download.',
     files: [
       {
         name: 'ovl-23m-chat.gguf',

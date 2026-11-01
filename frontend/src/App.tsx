@@ -72,15 +72,15 @@ export const App: React.FC = () => {
 
       <Header />
 
-      <div className="page">
-        <aside className="side">
-          <Contents />
-        </aside>
+      <div className="tocbar">
+        <Contents />
+      </div>
 
+      <div className="page">
         <main id="main" className="article">
-          <Lead />
-          <div className="facts-inline">
-            <KeyFacts evidence={evidence} idSuffix="inline" />
+          <div className="top">
+            <Lead />
+            <KeyFacts evidence={evidence} idSuffix="top" />
           </div>
           <Overview preparation={evidence.preparation} />
           <CheckLadder />
@@ -90,10 +90,6 @@ export const App: React.FC = () => {
           <Downloads releaseHashes={evidence.releaseHashes} />
           <Faq />
         </main>
-
-        <div className="rail">
-          <KeyFacts evidence={evidence} idSuffix="rail" />
-        </div>
       </div>
 
       <Footer revision={evidence.revision} />

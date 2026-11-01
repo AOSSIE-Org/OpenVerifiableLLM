@@ -16,69 +16,72 @@ export const Overview: React.FC<OverviewProps> = ({ preparation }) => {
         {o.h2} {o.subtitle}
       </InShort>
 
-      <table className="wikitable">
-        <caption>Headline results</caption>
-        <thead>
-          <tr>
-            <th scope="col">Claim</th>
-            <th scope="col">Result</th>
-            <th scope="col">Evidence</th>
-          </tr>
-        </thead>
-        <tbody>
-          {o.facts.map(fact => (
-            <tr key={fact.title}>
-              <th scope="row">{fact.title}</th>
-              <td className="num">
-                {fact.value}
-                {fact.total}
-              </td>
-              <td>{fact.chip}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="split">
+        <div>
+          <table className="wikitable">
+            <caption>Headline results</caption>
+            <thead>
+              <tr>
+                <th scope="col">Claim</th>
+                <th scope="col">Result</th>
+                <th scope="col">Evidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {o.facts.map(fact => (
+                <tr key={fact.title}>
+                  <th scope="row">{fact.title}</th>
+                  <td className="num">
+                    {fact.value}
+                    {fact.total}
+                  </td>
+                  <td>{fact.chip}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-      <div className="cols">
-        <div>
-          <h3>{o.shownTitle}</h3>
-          <ul className="ticks">
-            {o.shownItems.map(item => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          <table className="wikitable">
+            <caption>Training data</caption>
+            <tbody>
+              <tr>
+                <th scope="row">Articles</th>
+                <td className="num">{preparation.articles.toLocaleString('en-US')}</td>
+              </tr>
+              <tr>
+                <th scope="row">Wikipedia targets</th>
+                <td className="num">{preparation.wikipediaTargets.toLocaleString('en-US')}</td>
+              </tr>
+              <tr>
+                <th scope="row">Conversations</th>
+                <td className="num">{preparation.conversations.toLocaleString('en-US')}</td>
+              </tr>
+              <tr>
+                <th scope="row">Training loop</th>
+                <td className="num">{preparation.trainingLoopLines}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div>
-          <h3>{o.notShownTitle}</h3>
-          <ul className="circles">
-            {o.notShownItems.map(item => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+        <div className="cols stack">
+          <div>
+            <h3>{o.shownTitle}</h3>
+            <ul className="ticks">
+              {o.shownItems.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h3>{o.notShownTitle}</h3>
+            <ul className="circles">
+              {o.notShownItems.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       </div>
-
-      <h3>Training data</h3>
-      <table className="wikitable">
-        <tbody>
-          <tr>
-            <th scope="row">Articles</th>
-            <td className="num">{preparation.articles.toLocaleString('en-US')}</td>
-          </tr>
-          <tr>
-            <th scope="row">Wikipedia targets</th>
-            <td className="num">{preparation.wikipediaTargets.toLocaleString('en-US')}</td>
-          </tr>
-          <tr>
-            <th scope="row">Conversations</th>
-            <td className="num">{preparation.conversations.toLocaleString('en-US')}</td>
-          </tr>
-          <tr>
-            <th scope="row">Training loop</th>
-            <td className="num">{preparation.trainingLoopLines}</td>
-          </tr>
-        </tbody>
-      </table>
     </section>
   );
 };

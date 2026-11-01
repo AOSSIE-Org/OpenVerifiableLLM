@@ -23,12 +23,11 @@ export const Lead: React.FC = () => {
 
 interface KeyFactsProps {
   evidence: EvidenceData;
-  // the card is rendered twice (rail and inline), so ids need a suffix
+  // keeps the heading id unique if the card is ever rendered twice
   idSuffix: string;
 }
 
-// The key numbers, kept beside the article on wide screens and under the
-// title on narrow ones.
+// The key numbers, beside the lead on wide screens and under it on narrow ones.
 export const KeyFacts: React.FC<KeyFactsProps> = ({ evidence, idSuffix }) => {
   const titleId = `facts-title-${idSuffix}`;
   const box = copy.article.infobox;
