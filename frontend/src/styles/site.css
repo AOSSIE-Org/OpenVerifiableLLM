@@ -155,8 +155,8 @@ button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px soli
 .tile[data-result="MISMATCH"]{background:repeating-linear-gradient(45deg,var(--mismatch-tint) 0 4px,transparent 4px 8px);border-color:var(--mismatch);color:var(--mismatch)}
 /* Event marks are inset bars, so a marked tile keeps the same box, border and number position as its neighbours. */
 .tile[data-event~="restart"]{box-shadow:inset 0 4px 0 var(--stamp)}
-.tile[data-event~="code-change"]{box-shadow:inset 4px 0 0 var(--ink)}
-.tile[data-event~="restart"][data-event~="code-change"]{box-shadow:inset 0 4px 0 var(--stamp),inset 4px 0 0 var(--ink)}
+.tile[data-event~="code-change"]{box-shadow:inset 3px 0 0 var(--ink)}
+.tile[data-event~="restart"][data-event~="code-change"]{box-shadow:inset 0 4px 0 var(--stamp),inset 3px 0 0 var(--ink)}
 /* The gold ring shows only for keyboard focus or the targeted tile, drawn inside the tile so it never covers a neighbour. */
 .tiles .tile:focus{outline:none}
 .tiles .tile:focus-visible,.tiles .tile:target{outline:2px solid var(--focus-ink);outline-offset:-2px;box-shadow:inset 0 0 0 5px var(--focus);z-index:1}
