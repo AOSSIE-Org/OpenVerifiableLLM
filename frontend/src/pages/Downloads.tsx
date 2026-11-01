@@ -16,6 +16,9 @@ export default function Downloads() {
     <>
       <h1><L k="h1.downloads" /></h1>
       <p className="lead"><L k="downloads.lead" /></p>
+      <Section needs={['preparation']}>
+        <ClaimBlock id="OV-05" />
+      </Section>
       <h2><L k="h2.hf" /></h2>
       {hfFiles.map((c) => <ClaimBlock key={c.id} id={c.id} />)}
       <Section needs={['downloads']}>

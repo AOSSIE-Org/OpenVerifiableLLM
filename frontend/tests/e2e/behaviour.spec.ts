@@ -65,7 +65,7 @@ test('overview: 37-tile scoreboard and "independent: 0" under the title', async 
     return h1.compareDocumentPosition(ind) & Node.DOCUMENT_POSITION_FOLLOWING;
   });
   expect(order).toBeTruthy();
-  await expect(page.locator('[data-claim]')).toHaveCount(6);
+  await expect(page.locator('[data-claim]')).toHaveCount(3);
 });
 
 test('overview at 1440: title, independent count and the whole scoreboard are in the first screen', async ({ page }) => {

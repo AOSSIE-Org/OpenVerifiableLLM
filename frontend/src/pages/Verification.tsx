@@ -10,7 +10,7 @@ import { OVERVIEW_LIMITS } from './Overview';
 
 /** Limit claims for this page, each distinct limit once: a ledger limit whose developer line is
  *  "see X" is a duplicate of claim X and is dropped when X is already on this page. */
-export const VERIFICATION_IDS = ['VE-01', 'VE-02', 'VE-03', 'VE-04', 'VE-06', 'VE-07', 'VE-08', 'VE-09', 'VE-10', 'VE-11', 'VE-12', 'OV-07', 'OV-08'];
+export const VERIFICATION_IDS = ['VE-01', 'VE-02', 'VE-03', 'VE-04', 'VE-06', 'VE-07', 'VE-08', 'VE-09', 'VE-10', 'VE-11', 'VE-12', 'OV-07', 'OV-08', 'OV-06', 'OV-12'];
 export const duplicateOf = (id: string) => /^see ([A-Z]+-\d+)$/.exec(claim(id).developer.trim())?.[1] ?? null;
 export function distinctLimits(): string[] {
   return claimsOn('limits')
@@ -51,10 +51,15 @@ export default function Verification() {
           <Section needs={['hardware']}>
             <HardwareMap />
             {claimsOn('verification', 'VE-HW').map((c) => <ClaimBlock key={c.id} id={c.id} />)}
+            {/* The hardware limit moved here from Overview (LI-02 says it there in plain words). */}
+            <ClaimBlock id="OV-12" />
           </Section>
         </div>
       </div>
       <h2><L k="h2.trust" /></h2>
+      <Section needs={['anchor']}>
+        <ClaimBlock id="OV-06" />
+      </Section>
       <ClaimBlock id="VE-10" />
       <ClaimBlock id="VE-11" />
       <ClaimBlock id="VE-12" />

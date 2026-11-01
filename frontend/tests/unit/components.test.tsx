@@ -282,7 +282,7 @@ describe('overview and limits layout', () => {
       expect(new Set(texts).size).toBe(texts.length);
       cleanup();
     }
-    expect(distinctLimits()).toEqual(['LI-02', 'LI-05', 'LI-06']);
+    expect(distinctLimits()).toEqual(['LI-05', 'LI-06']); // LI-02 is "see OV-12", shown in Hardware
     // The same point must not appear as a claim and again as a limit: a "see X" limit is never
     // listed on a page that already shows claim X.
     for (const Page of [Overview, Verification]) {
@@ -342,17 +342,18 @@ describe('without JavaScript (prerendered HTML)', () => {
 });
 
 describe('v3 follow-up', () => {
-  it('Overview limits are the brief three, LI-01 included and not repeated on Verification', () => {
-    expect(OVERVIEW_LIMITS).toEqual(['OV-13', 'OV-12', 'LI-01']);
+  it('Overview limits are OV-13 and LI-01, LI-01 not repeated on Verification; OV-12 moved to Verification', () => {
+    expect(OVERVIEW_LIMITS).toEqual(['OV-13', 'LI-01']);
     mount(Verification);
     expect(document.querySelector('.limits-list [data-claim="LI-01"]')).toBeNull();
     expect(document.querySelector('.limits-list [data-claim="LI-04"]')).toBeNull();
     expect(document.querySelector('[data-claim="VE-10"]')).not.toBeNull();
+    for (const id of ['OV-06', 'OV-12']) expect(document.querySelector(`[data-claim="${id}"]`), id).not.toBeNull();
   });
-  it('the trained sentence is the ledger plain lines of OV-01/02/03, verbatim', () => {
+  it('the trained sentence is the ledger plain line of OV-01, verbatim; OV-02/03 are on Timeline', () => {
     mount(Overview);
     const parts = [...document.querySelectorAll<HTMLElement>('[data-trained] [data-claim-ref]')];
-    expect(parts.map((e) => e.dataset.claimRef)).toEqual(['OV-01', 'OV-02', 'OV-03']);
+    expect(parts.map((e) => e.dataset.claimRef)).toEqual(['OV-01']);
     for (const e of parts) expect(e.textContent!.trim()).toBe(claim(e.dataset.claimRef!).plain);
   });
   it('limit lines drop the "Limit" prefixes and still name the project', () => {

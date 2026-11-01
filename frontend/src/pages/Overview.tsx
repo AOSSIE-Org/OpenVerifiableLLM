@@ -5,11 +5,12 @@ import { L, V } from '../components/text';
 import { claim } from '../content/ledger';
 import { ROUTES, hrefOf } from '../routes';
 
-/** Overview: title, scoreboard with the independent count, three headline facts, three limits, links. */
-export const OVERVIEW_FACTS = ['OV-04', 'OV-05', 'OV-06'];
-export const OVERVIEW_LIMITS = ['OV-13', 'OV-12', 'LI-01'];
-/** What was trained, from ledger plain lines only (OV-01 size, OV-02 Wikipedia pass, OV-03 conversation phase). */
-export const TRAINED_IDS = ['OV-01', 'OV-02', 'OV-03'];
+/** Overview: headline, scoreboard with the independent count, one plain line per claim, links.
+ *  OV-02/OV-03 live on Timeline, OV-05 on Downloads, OV-06 on Verification; OV-12 is covered by LI-02. */
+export const OVERVIEW_FACTS = ['OV-04'];
+export const OVERVIEW_LIMITS = ['OV-13', 'LI-01'];
+/** What was trained, from the ledger plain line only (OV-01 size). */
+export const TRAINED_IDS = ['OV-01'];
 
 export default function Overview() {
   return (
@@ -44,7 +45,7 @@ export default function Overview() {
       <div className="split">
         <div>
           <h2><L k="h2.headline" /></h2>
-          <Section needs={['verifications', 'preparation', 'anchor']}>
+          <Section needs={['verifications']}>
             <div className="facts">
               {OVERVIEW_FACTS.map((id) => <ClaimBlock key={id} id={id} />)}
             </div>
