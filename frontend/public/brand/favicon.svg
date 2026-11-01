@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="OpenVerifiableLLM">
+ <title>OpenVerifiableLLM</title>
+ <defs><mask id="tile"><rect width="48" height="48" rx="11" fill="#fff"/><g transform="translate(7.5 7.5) scale(.69)"><path d="M3 24H13L18 32L33 7H44L22 44H15.5Z" fill="#000"/></g><rect x="20" y="21.4" width="22" height="2.8" fill="#fff"/></mask></defs>
+ <rect width="48" height="48" rx="11" fill="#FFCD00" mask="url(#tile)"/>
+</svg>

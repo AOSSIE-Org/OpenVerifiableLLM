@@ -1,0 +1,64 @@
+/* A soft pastel palette (Pantone Cloud Dancer, Ice Melt, Lemon Icing, Almost
+   Aqua, Raindrops on Roses, Peach Dust, Orchid Tint, Nimbus Cloud). The
+   pastels are only ever backgrounds; text, links and marks stay deep enough
+   to read on all of them. Green and red only mean MATCH and MISMATCH. Light
+   is the default; dark is opt-in. */
+:root {
+  --paper: #F0EEE9;
+  --sheet: #E8E5DE;
+  --rule: #DAD6CD;
+  --rule-strong: #A39E95;
+  --ink: #2A2826;
+  --ink-2: #2A2826;
+  --ink-3: #4F4B47;
+  --link: #2F558C;
+  --link-visited: #6A4C86;
+  --event: #7A5A00;
+  --match: #2E5E3E;
+  --match-fill: #5E8463;
+  --match-soft: #CAD3C1;
+  --miss: #8E3A3F;
+  --miss-soft: #EBD7DA;
+  --notice: #F6EBC8;
+  --notice-rule: #D9B84A;
+  --code: #E8E5DE;
+  --focus-ring: #2F558C;
+  --ice: #D2DDEA;
+  --peach: #F0D8CC;
+  --orchid: #DDD3DD;
+  --aqua: #CAD3C1;
+  --nimbus: #D5D5D8;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Lato, Helvetica, Arial, sans-serif;
+  --serif: "Linux Libertine", Georgia, Times, "Source Serif Pro", serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  color-scheme: light;
+}
+
+/* Dark keeps the same hues: deep tinted surfaces, pastel text and accents. */
+:root[data-theme="dark"] {
+  --paper: #1B1A1E;
+  --sheet: #242328;
+  --rule: #34323A;
+  --rule-strong: #5B5862;
+  --ink: #ECEAE5;
+  --ink-2: #ECEAE5;
+  --ink-3: #B8B3BB;
+  --link: #A9C1E0;
+  --link-visited: #CDB8D3;
+  --event: #F6E3A1;
+  --match: #B5CDA8;
+  --match-fill: #8FB58A;
+  --match-soft: #263126;
+  --miss: #EDB3BD;
+  --miss-soft: #3A2629;
+  --notice: #34301F;
+  --notice-rule: #CDB55A;
+  --code: #242328;
+  --focus-ring: #A9C1E0;
+  --ice: #222A35;
+  --peach: #33282A;
+  --orchid: #2B2530;
+  --aqua: #232C24;
+  --nimbus: #26262B;
+  color-scheme: dark;
+}

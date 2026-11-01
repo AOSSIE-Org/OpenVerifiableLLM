@@ -1,0 +1,1211 @@
+@import "./tokens.css";
+
+/* A study page in the style of an encyclopedia article: a contents sidebar,
+   one readable column, an infobox, plain tables and figures with captions.
+   System fonts only, and no animation of any kind. */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-padding-top: 16px;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.6 var(--sans);
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd {
+  margin: 0;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:visited {
+  color: var(--link-visited);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+  font-size: 0.875em;
+}
+
+code {
+  padding: 1px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--code);
+  overflow-wrap: anywhere;
+}
+
+.skip {
+  position: absolute;
+  left: -999px;
+  top: 8px;
+  z-index: 10;
+}
+
+.skip:focus {
+  left: 8px;
+  padding: 6px 12px;
+  background: var(--paper);
+  border: 2px solid var(--focus-ring);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+  left: 0;
+}
+
+/* tables ignore the 1px width, so pin their layout too */
+table.sr-only {
+  table-layout: fixed;
+  width: 1px;
+  max-width: 1px;
+}
+
+/* Logos: the light-theme logo by default, the dark one in dark mode */
+/* important: these must win over layout rules such as .brand img */
+.logo-d {
+  display: none !important;
+}
+
+:root[data-theme="dark"] .logo-d {
+  display: inline-block !important;
+}
+
+:root[data-theme="dark"] .logo-l {
+  display: none !important;
+}
+
+/* Header ------------------------------------------------------------------ */
+header {
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--sheet);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 24px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.brand:visited {
+  color: var(--ink);
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand img {
+  display: block;
+}
+
+.brand-name {
+  display: block;
+  font: 400 20px/1.1 var(--serif);
+}
+
+.brand-name em {
+  font-style: normal;
+}
+
+.brand-by {
+  display: block;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.top-links {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.tbtn,
+.btn,
+.copy-btn {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--sheet);
+  color: var(--ink);
+  font: 600 14px var(--sans);
+  cursor: pointer;
+}
+
+.tbtn:hover,
+.btn:hover,
+.copy-btn:hover {
+  background: var(--rule);
+}
+
+/* Page: a contents bar under the header, then the article at full width -- */
+.tocbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.toc {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  font-size: 14px;
+}
+
+.toc ol,
+.toc-mobile ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 4px;
+  margin-left: -10px;
+}
+
+.toc li a {
+  display: block;
+  padding: 12px 10px 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.toc li a:visited {
+  color: var(--ink-3);
+}
+
+.toc li a:hover {
+  border-bottom-color: var(--rule-strong);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.toc li a[aria-current] {
+  border-bottom-color: var(--link);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.toc-mobile li a {
+  display: block;
+  padding: 4px 0;
+}
+
+.toc-mobile {
+  display: none;
+}
+
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 24px 64px;
+}
+
+.article section {
+  scroll-margin-top: 48px;
+}
+
+.article {
+  min-width: 0;
+}
+
+.article p,
+.article ul,
+.article dl,
+.article table,
+.article figure,
+.article .code {
+  margin-bottom: 16px;
+}
+
+.article p {
+  max-width: none;
+}
+
+/* Title and section headings, serif with a rule underneath */
+.lead h1 {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-strong);
+  font: 400 36px/1.25 var(--serif);
+}
+
+.byline {
+  margin: 6px 0 18px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.article section {
+  clear: both;
+  padding-top: 32px;
+}
+
+.article h2 {
+  margin-bottom: 14px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-strong);
+  font: 400 28px/1.3 var(--serif);
+}
+
+.article h3 {
+  margin: 20px 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.article ul {
+  padding-left: 24px;
+}
+
+.article li + li {
+  margin-top: 4px;
+}
+
+/* Infobox on the right of the lead ---------------------------------------- */
+.infobox {
+  float: right;
+  clear: right;
+  width: 290px;
+  margin: 4px 0 16px 28px;
+  border: 1px solid var(--rule-strong);
+  border-collapse: collapse;
+  background: var(--sheet);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.infobox .ib-title {
+  padding: 8px 10px;
+  background: var(--rule);
+  font-size: 16px;
+  text-align: center;
+}
+
+.infobox th,
+.infobox td {
+  padding: 5px 10px;
+  border-top: 1px solid var(--rule);
+  vertical-align: top;
+  text-align: left;
+}
+
+.infobox th {
+  width: 42%;
+  font-weight: 700;
+}
+
+.infobox .ib-logo {
+  padding: 12px;
+  text-align: center;
+}
+
+/* Tables ------------------------------------------------------------------ */
+.wikitable {
+  width: 100%;
+  border: 1px solid var(--rule-strong);
+  border-collapse: collapse;
+  background: var(--paper);
+  font-size: 15px;
+}
+
+.wikitable tbody tr:nth-child(even) {
+  background: var(--sheet);
+}
+
+.wikitable caption {
+  padding: 6px 0;
+  font-weight: 700;
+  text-align: left;
+}
+
+.wikitable th,
+.wikitable td {
+  padding: 6px 12px;
+  border: 1px solid var(--rule-strong);
+  text-align: left;
+  vertical-align: top;
+}
+
+.wikitable thead th {
+  background: var(--rule);
+}
+
+.wikitable tbody th {
+  font-weight: 600;
+}
+
+.wikitable .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.files .hash code {
+  display: inline-block;
+  margin-bottom: 4px;
+}
+
+/* Two lists side by side */
+.cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.cols > div {
+  padding: 4px 16px 0;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--match);
+  background: var(--aqua);
+}
+
+.cols > div + div {
+  border-top-color: var(--rule-strong);
+  background: var(--nimbus);
+}
+
+.cols h3 {
+  margin-top: 10px;
+}
+
+.ticks li::marker {
+  content: "✓  ";
+  color: var(--match);
+}
+
+.circles li::marker {
+  content: "○  ";
+  color: var(--ink-3);
+}
+
+/* Results: a text label, a symbol and a colour, never colour alone */
+.res {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 2px;
+  font: 600 13px var(--mono);
+  white-space: nowrap;
+}
+
+.res.match {
+  background: var(--match-soft);
+  color: var(--match);
+}
+
+.res.mismatch {
+  background: var(--miss-soft);
+  color: var(--miss);
+}
+
+.code {
+  position: relative;
+}
+
+.code pre {
+  margin: 0;
+  padding: 12px 96px 12px 14px;
+  border: 1px solid var(--rule-strong);
+  background: var(--code);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.code .copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+/* Notice box, like an article maintenance banner */
+.ambox {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--rule-strong);
+  border-left: 8px solid var(--notice-rule);
+  background: var(--notice);
+  font-size: 15px;
+}
+
+/* Coverage map */
+.cov-sum {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 20px;
+}
+
+.legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font: 13px var(--mono);
+}
+
+.lg-p {
+  color: var(--match);
+}
+
+.lg-i {
+  color: var(--ink-3);
+}
+
+.covgrid,
+.axis {
+  display: grid;
+  grid-template-columns: 96px repeat(37, 1fr);
+  gap: 2px;
+  align-items: center;
+}
+
+.rl {
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.cell {
+  height: 22px;
+  border: 1px solid var(--rule-strong);
+}
+
+.cell.p {
+  background: var(--match-fill);
+  border-color: var(--match-fill);
+}
+
+.cell.i {
+  background: repeating-linear-gradient(135deg, transparent 0 3px, var(--rule) 3px 4px);
+}
+
+.axis {
+  margin: 4px 0 16px;
+  font: 11px var(--mono);
+  color: var(--ink-3);
+}
+
+.axis span {
+  text-align: center;
+}
+
+/* Figures with a border and caption, like article thumbnails */
+.thumb {
+  max-width: none;
+  margin: 0 0 16px;
+  padding: 8px;
+  border: 1px solid var(--rule-strong);
+  background: var(--sheet);
+}
+
+.thumb.wide {
+  max-width: none;
+}
+
+.thumb figcaption {
+  padding: 6px 4px 2px;
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.thumb .fig-title {
+  padding: 0 4px 6px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.thumb svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+svg text {
+  font-family: var(--sans);
+  fill: var(--ink-3);
+}
+
+.tlwrap {
+  overflow-x: auto;
+}
+
+/* Definition lists: timeline events and questions */
+.events dt,
+.qa dt {
+  font-weight: 700;
+}
+
+.events dd,
+.qa dd {
+  margin: 2px 0 12px 24px;
+}
+
+.note {
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+/* Footer ------------------------------------------------------------------ */
+footer {
+  border-top: 1px solid var(--rule);
+  background: var(--nimbus);
+  font-size: 14px;
+  color: var(--ink-3);
+}
+
+.foot-org {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.foot-org:visited {
+  color: var(--ink);
+}
+
+.socials {
+  display: flex;
+  gap: 4px;
+}
+
+.socials a {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--ink-3);
+}
+
+.socials svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fcols {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(3, 1fr);
+  gap: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 36px 24px 28px;
+}
+
+.fcols h2 {
+  margin: 0 0 10px;
+  font: 600 13px var(--sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.fcols ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fcols li {
+  margin-bottom: 6px;
+}
+
+.fbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 24px 20px;
+  border-top: 1px solid var(--rule);
+}
+
+/* Loading and error states */
+.page-msg {
+  max-width: 640px;
+  margin: 64px auto;
+  padding: 0 24px;
+}
+
+.page-msg h2 {
+  margin-bottom: 8px;
+  font: 400 24px var(--serif);
+}
+
+.page-msg .err {
+  margin-bottom: 16px;
+  color: var(--miss);
+}
+
+/* Narrow screens: contents become a collapsible box, the infobox stacks ---- */
+@media (max-width: 900px) {
+  .fcols {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fcol-about {
+    grid-column: 1 / -1;
+  }
+
+  .toc {
+    display: none;
+  }
+
+  .tocbar {
+    position: static;
+    border: 0;
+  }
+
+  .toc-mobile {
+    display: block;
+    margin: 12px 16px 0;
+    padding: 8px 12px;
+    border: 1px solid var(--rule-strong);
+    background: var(--sheet);
+    font-size: 14px;
+  }
+
+  .toc-mobile summary {
+    margin: 0;
+    cursor: pointer;
+  }
+
+  .toc-mobile ol {
+    margin-top: 8px;
+  }
+
+  .infobox {
+    float: none;
+    width: 100%;
+    margin: 0 0 16px;
+  }
+
+  .top-links {
+    display: none;
+  }
+
+  .tbtn {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .cols {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .covgrid,
+  .axis {
+    grid-template-columns: repeat(37, 1fr);
+    gap: 1px;
+  }
+
+  .covgrid .rl {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+
+  .axis > span:first-child {
+    display: none;
+  }
+
+  .cell {
+    height: 18px;
+  }
+
+  /* tables fit the screen instead of scrolling sideways */
+  .wikitable {
+    width: 100%;
+    font-size: 14px;
+  }
+
+  .wikitable th,
+  .wikitable td {
+    padding: 6px 8px;
+    overflow-wrap: anywhere;
+  }
+
+  .wikitable .num {
+    white-space: normal;
+  }
+
+  .code pre {
+    padding-right: 14px;
+    padding-top: 44px;
+  }
+
+}
+
+
+.facts-card {
+  padding: 12px 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--orchid);
+  font-size: 14px;
+}
+
+.fc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.facts-card .fc-head h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: 700 15px var(--sans);
+}
+
+.facts-card dl {
+  display: grid;
+  gap: 10px;
+}
+
+.facts-card dt {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+.facts-card dd {
+  margin: 0;
+}
+
+.fc-big dd {
+  font: 600 22px/1.2 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-big dd span {
+  display: block;
+  font: 400 13px var(--sans);
+  color: var(--ink-3);
+}
+
+.fc-cta {
+  display: block;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rule);
+  font-weight: 600;
+}
+
+/* one-line subtitle under a section heading */
+.article .sub {
+  margin-bottom: 16px;
+  color: var(--ink-3);
+}
+
+.lead .intro {
+  font-size: 17px;
+}
+
+/* Side by side: the lead and its key facts, and pairs of blocks in sections */
+.top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
+}
+
+/* two big numbers on one row, three small facts on the next */
+.top .facts-card dl {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.top .facts-card dl > div {
+  grid-column: span 2;
+}
+
+.top .facts-card dl > .fc-big {
+  grid-column: span 3;
+}
+
+.split,
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+
+.split .wikitable,
+.pair .thumb {
+  margin-top: 0;
+}
+
+
+.cols.stack {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* Common questions: ruled columns, like the checks */
+.qa {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 32px;
+  margin-bottom: 28px;
+}
+
+.qa > div {
+  padding: 2px 0 2px 18px;
+  border-left: 2px solid var(--rule-strong);
+}
+
+.qa dt {
+  margin-bottom: 6px;
+  font-size: 17px;
+}
+
+.qa dd {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+@media (min-width: 901px) and (max-width: 1100px) {
+  .qa {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .top,
+  .split,
+  .pair,
+  .qa {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* How it works: three numbered steps under the lead */
+.how ol {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.article .how li {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--link);
+  background: var(--ice);
+}
+
+.how h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.article .how p {
+  margin: 0;
+}
+
+/* "Explain this": a longer note folded away under a section */
+.explain {
+  margin-bottom: 16px;
+  border: 1px solid var(--rule);
+  background: var(--sheet);
+}
+
+.explain summary {
+  padding: 8px 12px;
+  color: var(--link);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.explain > div {
+  padding: 0 12px 12px;
+}
+
+@media (max-width: 900px) {
+  .how ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Check it yourself: three columns, each set off by a thin rule */
+.steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 32px;
+  list-style: none;
+  margin: 8px 0 16px;
+  padding: 0;
+}
+
+.article .steps > li {
+  margin: 0;
+  padding: 2px 0 2px 18px;
+  border-left: 2px solid var(--rule-strong);
+}
+
+.article .steps > li.key {
+  border-left-color: var(--match-fill);
+}
+
+.article .step-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.step h3 {
+  margin: 2px 0 6px;
+  font-size: 17px;
+}
+
+.article .step-desc {
+  margin-bottom: 10px;
+  color: var(--ink-3);
+}
+
+.article .step-proves {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 14px;
+}
+
+.article .step-proves li {
+  margin: 0;
+  color: var(--ink-3);
+}
+
+.article .step-proves li.m {
+  color: var(--match);
+}
+
+.step .code pre {
+  padding: 10px 84px 10px 12px;
+  font-size: 13px;
+}
+
+.step-code summary {
+  color: var(--link);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.step-code .code {
+  margin-top: 8px;
+}
+
+.step-code pre {
+  max-height: 260px;
+}
+
+.article .step-action {
+  margin: 0;
+  font-weight: 600;
+}
+
+/* a one-line command wraps instead of scrolling in the narrow column */
+.step > .code pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.step .step-code pre {
+  padding: 40px 12px 10px;
+}
+
+/* Verification: the odds chart and the hardware table as matching panels */
+.pair {
+  align-items: stretch;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.article .panel h3 {
+  margin: 0 0 4px;
+}
+
+.article .panel .note {
+  margin-bottom: 12px;
+}
+
+.article .panel .thumb,
+.article .panel .hw {
+  flex: 1;
+  margin: 0;
+}
+
+.panel .thumb {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.panel .explain {
+  margin: 8px 0 0;
+}
+
+.hw {
+  font-size: 14px;
+}
+
+.hw th,
+.hw td {
+  padding: 8px 10px;
+}
+
+/* Header buttons: Source, Evidence and the theme switch share one look */
+.top-links {
+  gap: 8px;
+}
+
+.hbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  font: 600 14px var(--sans);
+  text-decoration: none;
+}
+
+.hbtn:visited {
+  color: var(--ink);
+}
+
+.hbtn:hover {
+  border-color: var(--ink-3);
+  background: var(--sheet);
+  text-decoration: none;
+}
+
+.hicon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Exclusion: the two lists as equal ruled columns under the table */
+.cols.ruled {
+  gap: 32px;
+  margin-top: 8px;
+}
+
+.cols.ruled > div {
+  padding: 14px 18px 4px;
+  border: 0;
+  border-left: 3px solid var(--match-fill);
+  border-radius: 0 6px 6px 0;
+  background: var(--aqua);
+}
+
+.cols.ruled > div + div {
+  border-left-color: var(--notice-rule);
+  background: var(--peach);
+}
+
+.cols.ruled h3 {
+  margin-top: 0;
+}
+
+/* the evidence path as a small tinted tag */
+#exclusion .note {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--orchid);
+  color: var(--ink);
+}
+
+#exclusion .note code {
+  background: none;
+}
+
+.bar {
+  gap: 8px;
+}
+
+/* Phones: the three ways to check stack, one under another */
+@media (max-width: 900px) {
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+}

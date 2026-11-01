@@ -1,0 +1,1953 @@
+{
+  "schemaVersion": 1,
+  "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+  "revision": "96dc282a",
+  "fetchedAt": "2026-10-30T15:32:03.178Z",
+  "sourceHashes": {
+    "release/simple-run/chain.jsonl": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+    "release/simple-run/verifications.jsonl": "ec73fe8fdce56eb075783c37383dbb5afaa23fac168fbd6619c01240de41b770",
+    "release/simple-run/hardware-map.jsonl": "5116f365398795a5e79513a3709d48995cc72a059ae9c69c653e324e723884e4",
+    "release/simple-run/release-hashes.txt": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
+    "release/simple-run/anchor.json": "2adaea4cae25439199ec2396c0e6e94d1d14188c070f217ed7e360ce10c1c18d",
+    "release/simple-run/README.md": "d3a4a5b221d9d1bd9318e8e414b44adc75f66155d03cd356b489165243e932e9",
+    "release/unlearning-3i-atlas/loo-results.json": "c926c965d1e040ab23c591c9dcdd007e5ece75a57ecfa100fd69515d190ead69",
+    "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
+  },
+  "preparation": {
+    "articles": 7232582,
+    "wikipediaTargets": 7118121139,
+    "conversations": 3481,
+    "trainingLoopLines": "~630 lines",
+    "preparedDataId": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
+  },
+  "chain": [
+    {
+      "index": 0,
+      "kind": "initial",
+      "control": {
+        "batches": "10ea13010a13668c8bf9e2884e16bdbd16f8933d9bf4d09eda0c47459133eddb",
+        "cursor": 0,
+        "epoch": 0,
+        "global_step": 0,
+        "phase": "wikipedia",
+        "phase_step": 0,
+        "pos": [
+          0,
+          0
+        ]
+      },
+      "state": "64041a4736bd76b64b149c2a784950a312fb19ed641c7eb87e7300c171d002fc",
+      "model": "2b167bcb407f94ac3f1dead8f316ea180823a1cb40489b8a1ff974bf2bcd959d",
+      "previous": null,
+      "time": 1792422250.861772,
+      "entryHash": "504f691b0958076c19294758dd4ba134b01e8740baa160f98d3b8e49dd2118e2"
+    },
+    {
+      "index": 1,
+      "kind": "progress",
+      "control": {
+        "batches": "e3f19a5269c4824fb1615d433b678fa54a6fc23ea99fd82c3e83f3f400f66809",
+        "cursor": 274561003,
+        "epoch": 0,
+        "global_step": 18080,
+        "phase": "wikipedia",
+        "phase_step": 18080,
+        "pos": [
+          14363834,
+          3072
+        ]
+      },
+      "state": "ef5090325fcf3c392503406ac2f7e6bd99118d267c38fbe4b624df41b48eca8f",
+      "model": "c32f02fac9e87d0c4279aa39a0fa06b5cc06d5b141d5ff29503cb8431c4ca180",
+      "previous": "504f691b0958076c19294758dd4ba134b01e8740baa160f98d3b8e49dd2118e2",
+      "time": 1792424215.6430938,
+      "entryHash": "7c6fd00419883c91e75e804f7bc8e6b35bee3853c9202fd27f998c6ef23bb66f"
+    },
+    {
+      "index": 2,
+      "kind": "progress",
+      "control": {
+        "batches": "d5b199348b8d97e5a30ee2ea1a9bc465fd5dc0220a1a4297b4fa0716abdc84dc",
+        "cursor": 547313827,
+        "epoch": 0,
+        "global_step": 36160,
+        "phase": "wikipedia",
+        "phase_step": 36160,
+        "pos": [
+          30161308,
+          6656
+        ]
+      },
+      "state": "94e253d50adff230867baf0f9b2fbb247399b598511dd238cca10838439a228c",
+      "model": "29c055caaaefce12e962bb5905f79640bf7bcfc2dfe09070704f50a35e954868",
+      "previous": "7c6fd00419883c91e75e804f7bc8e6b35bee3853c9202fd27f998c6ef23bb66f",
+      "time": 1792426181.1370955,
+      "entryHash": "491740cf089c9f5f7f6bcb98358f09629921444366cc64746d2ca443070e8789"
+    },
+    {
+      "index": 3,
+      "kind": "progress",
+      "control": {
+        "batches": "f520d10b29d43cbbe5556d887bd7e622a26ed3003eaa8677366993ed6a0965df",
+        "cursor": 812314162,
+        "epoch": 0,
+        "global_step": 54240,
+        "phase": "wikipedia",
+        "phase_step": 54240,
+        "pos": [
+          50875269,
+          0
+        ]
+      },
+      "state": "63f2f1cf69a97b295ef4924af836583cc5942d4cfdde34a0d68da658e9b56875",
+      "model": "bc0210cc1ce7eb55786921b9be9142224551daaa14a5a94b5851415d9954513f",
+      "previous": "491740cf089c9f5f7f6bcb98358f09629921444366cc64746d2ca443070e8789",
+      "time": 1792428164.4587104,
+      "entryHash": "21ece8367d0fd3dfacba13dd330f401b1229748f994f91a6053a0f85fd421a37"
+    },
+    {
+      "index": 4,
+      "kind": "progress",
+      "control": {
+        "batches": "9b1c36b8b217b225ab637476b5f96e9d13723e8ff2f49474a1aff9fe4b6c6836",
+        "cursor": 1071169817,
+        "epoch": 0,
+        "global_step": 72320,
+        "phase": "wikipedia",
+        "phase_step": 72320,
+        "pos": [
+          75821490,
+          512
+        ]
+      },
+      "state": "38544968f3a1f342c17ee65afed30915acacf2131314c3254cfb1d3367acf0f6",
+      "model": "f6c1733d73e556de085fd9cb99f4137296f9ad7835fc3c88c9f8588cfeca0165",
+      "previous": "21ece8367d0fd3dfacba13dd330f401b1229748f994f91a6053a0f85fd421a37",
+      "time": 1792430142.4307606,
+      "entryHash": "7aab36987ca192ef19b1aa63efbfc63d005ed8e541ca07190e1c09b7371f3ab6"
+    },
+    {
+      "index": 5,
+      "kind": "progress",
+      "control": {
+        "batches": "0feb0c99169621a584609ce24a7ba1710f4dd1127205dae3911df09e1ab75698",
+        "cursor": 1326339931,
+        "epoch": 0,
+        "global_step": 90400,
+        "phase": "wikipedia",
+        "phase_step": 90400,
+        "pos": [
+          103716532,
+          512
+        ]
+      },
+      "state": "0f66051bfcf2b8512da505733cf9814527aba0412b28109071d9ebe1e7949165",
+      "model": "521f1f5f34c6a0992a15e539f1eab5f5590f5fdca15fdf16c60842c1d8612754",
+      "previous": "7aab36987ca192ef19b1aa63efbfc63d005ed8e541ca07190e1c09b7371f3ab6",
+      "time": 1792432107.6645238,
+      "entryHash": "5333b1e668315511ed83188188343e3de85e91c4382a997a8b1e649e59c472aa"
+    },
+    {
+      "index": 6,
+      "kind": "progress",
+      "control": {
+        "batches": "dd5c823c56a28362db599fa09567143434f9f343784400622105200695fca78d",
+        "cursor": 1575735740,
+        "epoch": 0,
+        "global_step": 108480,
+        "phase": "wikipedia",
+        "phase_step": 108480,
+        "pos": [
+          135269108,
+          0
+        ]
+      },
+      "state": "d3f93a22ceb28a8640734ceca70e0217cf991b696807ecb6fdd31d318ad30aa8",
+      "model": "655aa1b3b7f5a34c9f0a2eba172ddbfef233acb3f121373e351b6d2cd982475f",
+      "previous": "5333b1e668315511ed83188188343e3de85e91c4382a997a8b1e649e59c472aa",
+      "time": 1792434050.5597794,
+      "entryHash": "bd8ab58402e382c3378b92efebbb0666d02a034cb8ebb0dfed38c64b339df85a"
+    },
+    {
+      "index": 7,
+      "kind": "progress",
+      "control": {
+        "batches": "496333b0221dbc6a2edeeb9ea5318d3b33069b8f91c98d489cf742f70bab1d43",
+        "cursor": 1821662484,
+        "epoch": 0,
+        "global_step": 126560,
+        "phase": "wikipedia",
+        "phase_step": 126560,
+        "pos": [
+          169162007,
+          512
+        ]
+      },
+      "state": "228e635e6ee63fca5189f1af685f15c9d52a27527f300e7dac7a5ade82688e11",
+      "model": "ab677b66cfcc2d0652d37b5cc354e5d6980716b273cc99b78ae53f63e581ba14",
+      "previous": "bd8ab58402e382c3378b92efebbb0666d02a034cb8ebb0dfed38c64b339df85a",
+      "time": 1792435994.2637668,
+      "entryHash": "8784633f5bc8763129ce3ca0727e4c1b11339afa37096f990ce299d155b74acc"
+    },
+    {
+      "index": 8,
+      "kind": "progress",
+      "control": {
+        "batches": "a009f3186720dd943c7c0e3c597706610370b795c3fd87b65df4ce8cdc54822d",
+        "cursor": 2062246462,
+        "epoch": 0,
+        "global_step": 144640,
+        "phase": "wikipedia",
+        "phase_step": 144640,
+        "pos": [
+          206335253,
+          0
+        ]
+      },
+      "state": "6cb7cf58b036f71d793b7940617d2756e4d24e906a8a4fdb6ec58ee56031ad53",
+      "model": "4419b42c7902c6f650e634055a1de54ca172e2a0a26c5bbad58ee8516cf4dfc6",
+      "previous": "8784633f5bc8763129ce3ca0727e4c1b11339afa37096f990ce299d155b74acc",
+      "time": 1792437967.4633026,
+      "entryHash": "09803876eabd9ae24bbc5ba4f4ae5047e9da90d725cc3d5ca70445ede3b9b9ae"
+    },
+    {
+      "index": 9,
+      "kind": "progress",
+      "control": {
+        "batches": "9f883e76562c687ddae51575bda5430cc91dbc45e57e7311d3646340a420a020",
+        "cursor": 2299429619,
+        "epoch": 0,
+        "global_step": 162720,
+        "phase": "wikipedia",
+        "phase_step": 162720,
+        "pos": [
+          245609368,
+          0
+        ]
+      },
+      "state": "0947a1b7cb257922ed1bb71e36059bdde1fa1c76509255c1af8cb3167bff72db",
+      "model": "967ff641117b62e0f4bbb19fda16cfb7a1b6c20adc35295ff0738a0664953048",
+      "previous": "09803876eabd9ae24bbc5ba4f4ae5047e9da90d725cc3d5ca70445ede3b9b9ae",
+      "time": 1792439938.9320748,
+      "entryHash": "e00e8ee29ee6ee131fa246a6ec1d787a2752857efb34b0d1f369db3e7a62bf43"
+    },
+    {
+      "index": 10,
+      "kind": "progress",
+      "control": {
+        "batches": "14ffdd92074c743ba35ff842d9d2956a29ff1ecf6b93820fc1bedb2161e2f20f",
+        "cursor": 2534896708,
+        "epoch": 0,
+        "global_step": 180800,
+        "phase": "wikipedia",
+        "phase_step": 180800,
+        "pos": [
+          285958813,
+          5632
+        ]
+      },
+      "state": "e162c0ef79462cfcc2c88cd336170df12f92f1f6d099920decca178da9dd455a",
+      "model": "cb2fbe49be6ead1201600d45004f411c7ed3ba0d532ebe2417b1a43ba40d9889",
+      "previous": "e00e8ee29ee6ee131fa246a6ec1d787a2752857efb34b0d1f369db3e7a62bf43",
+      "time": 1792441925.2640333,
+      "entryHash": "19b1091f16ffa0006a0853ed750d237a528a54e3dcc93101fee747134200803b"
+    },
+    {
+      "index": 11,
+      "kind": "progress",
+      "control": {
+        "batches": "7321c9e7f9b890c6b657525ffc10389c70e730b37f0ccaa0281264b7aaeec2ca",
+        "cursor": 2758953574,
+        "epoch": 0,
+        "global_step": 198880,
+        "phase": "wikipedia",
+        "phase_step": 198880,
+        "pos": [
+          331465519,
+          0
+        ]
+      },
+      "state": "be21dd4e7d988157822d75f6600146be013afa826076b49b45b3874e5a2bd1ca",
+      "model": "21e5ccc4f7a7b4c8b311febbdcb0cd037a2efff64c715935853fa663b61e5aeb",
+      "previous": "19b1091f16ffa0006a0853ed750d237a528a54e3dcc93101fee747134200803b",
+      "time": 1792445221.8958924,
+      "entryHash": "5d4ad7bed8d2d8701de142eae5eea79a44bf54fc11e2a4623cb0baeea01efe18"
+    },
+    {
+      "index": 12,
+      "kind": "progress",
+      "control": {
+        "batches": "0d86e2942f9d84483cd0e3cd5168d81cf418e915c04e25f94c03d3ad703c648d",
+        "cursor": 2977003841,
+        "epoch": 0,
+        "global_step": 216960,
+        "phase": "wikipedia",
+        "phase_step": 216960,
+        "pos": [
+          379051570,
+          512
+        ]
+      },
+      "state": "c9d571c059311fbeb20f46d33a56497113b1f3705b75939ef57e61cc98978ca6",
+      "model": "ee22252416c44a8812aab40b456c60351eaf714679495ef7c39a81c3d24db503",
+      "previous": "5d4ad7bed8d2d8701de142eae5eea79a44bf54fc11e2a4623cb0baeea01efe18",
+      "time": 1792447305.2481282,
+      "entryHash": "54e85b9f28ca29d37f5cfd86bad3b6fe57fef7c0eb4aac943d937e90432e0165"
+    },
+    {
+      "index": 13,
+      "kind": "progress",
+      "control": {
+        "batches": "bfe949e391619c70945f4ad5af5f73c00f8d44562f44733457ad865081612290",
+        "cursor": 3192270243,
+        "epoch": 0,
+        "global_step": 235040,
+        "phase": "wikipedia",
+        "phase_step": 235040,
+        "pos": [
+          427598539,
+          0
+        ]
+      },
+      "state": "2733d7ef9aaacf20880e2196c819305f58ad0cc03494704fbc9f5e03a95931b2",
+      "model": "978af11d622fb0e48dd842f5aa27e9992c267de2a91944b1b3b160aa89fa7675",
+      "previous": "54e85b9f28ca29d37f5cfd86bad3b6fe57fef7c0eb4aac943d937e90432e0165",
+      "time": 1792449363.6749403,
+      "entryHash": "dc2beb0f1985df3c46dfce9859f37c998a41224dd65b6c74b56a1b3ca1070e3f"
+    },
+    {
+      "index": 14,
+      "kind": "progress",
+      "control": {
+        "batches": "7eea41e27f71c52d58558b90de9ef7cd26ac9123366132bcbc1e71f4de08acf4",
+        "cursor": 3407720912,
+        "epoch": 0,
+        "global_step": 253120,
+        "phase": "wikipedia",
+        "phase_step": 253120,
+        "pos": [
+          476680277,
+          0
+        ]
+      },
+      "state": "145353afb1e2ebc2b5f9831fed74e5631b42a11342aab9a0b9febe796446c446",
+      "model": "613728906a531097849fcaa83d13ccb54b334d805aeaef8abe127ef2b7b70e1d",
+      "previous": "dc2beb0f1985df3c46dfce9859f37c998a41224dd65b6c74b56a1b3ca1070e3f",
+      "time": 1792451498.6016607,
+      "entryHash": "74ad00bd517b70b7fc068a01f255b7edf4930d056c5999dac36ee782e0501ffa"
+    },
+    {
+      "index": 15,
+      "kind": "progress",
+      "control": {
+        "batches": "c294ad7b42d0f2e970f3c757f339b24f6fbdc2982e9a91078a071b121b9325a1",
+        "cursor": 3626056290,
+        "epoch": 0,
+        "global_step": 271200,
+        "phase": "wikipedia",
+        "phase_step": 271200,
+        "pos": [
+          524689002,
+          0
+        ]
+      },
+      "state": "fa961c767d2e293f12adcd13a3410d345e3bb5952395725963eb2f6e5c228d9e",
+      "model": "0f122b6387647c6844f6668edc95b2b96efd34885985e80c25a1eb424c7ffa2c",
+      "previous": "74ad00bd517b70b7fc068a01f255b7edf4930d056c5999dac36ee782e0501ffa",
+      "time": 1792453682.104504,
+      "entryHash": "02ae49797dac00039040490c47e210a12ab563766377996bea3c01e5fc2a5722"
+    },
+    {
+      "index": 16,
+      "kind": "progress",
+      "control": {
+        "batches": "4d0765884b5a4f4af81e17f0914a728e631c665fa74ec82be39e458f3f4f40c1",
+        "cursor": 3842372860,
+        "epoch": 0,
+        "global_step": 289280,
+        "phase": "wikipedia",
+        "phase_step": 289280,
+        "pos": [
+          573811026,
+          2048
+        ]
+      },
+      "state": "82d7f95aaed27c4ac54ec6b8de9567a84d818a875673030c4ae0d2d39a860754",
+      "model": "9a1a2f4ad99c6aac613f620400dc405a8967906e435079c0d8d29622831044fa",
+      "previous": "02ae49797dac00039040490c47e210a12ab563766377996bea3c01e5fc2a5722",
+      "time": 1792455885.299576,
+      "entryHash": "d18717f336293c9ad84cf6a7fa7c906ce76bb75e2a30bb954ff53f6336fb349f"
+    },
+    {
+      "index": 17,
+      "kind": "progress",
+      "control": {
+        "batches": "a219629293cfc4e69c74916379ba790f96b8a5425bd9fb7f4d9e481965ec9374",
+        "cursor": 4065481916,
+        "epoch": 0,
+        "global_step": 307360,
+        "phase": "wikipedia",
+        "phase_step": 307360,
+        "pos": [
+          619889558,
+          18944
+        ]
+      },
+      "state": "1082ced41232e82ff83506f0c20d887d0ddc3dc7458bc3ace5361a87485e5b60",
+      "model": "1e77516fc3d4c149c17b5e039ba9a886f520769df7512002fe89a9e5148f7d6e",
+      "previous": "d18717f336293c9ad84cf6a7fa7c906ce76bb75e2a30bb954ff53f6336fb349f",
+      "time": 1792458112.5074773,
+      "entryHash": "2a5f5728e37dc780da3f0007096a4f16f6d1ce979541d021f22b30b21576c2f7"
+    },
+    {
+      "index": 18,
+      "kind": "progress",
+      "control": {
+        "batches": "fbdade37939ffab2c5df52a9db88c8bac93a5501861522a30f1a50ebcafb4b3e",
+        "cursor": 4280170919,
+        "epoch": 0,
+        "global_step": 325440,
+        "phase": "wikipedia",
+        "phase_step": 325440,
+        "pos": [
+          669406302,
+          0
+        ]
+      },
+      "state": "0d4932793bd2279c0a17b3ca736159f89d48898d8a42113d15c7590dfdd85c26",
+      "model": "4d79bcc6ee8060a9c28a5802c142f972665bafae70901176c9a964bc884f1dee",
+      "previous": "2a5f5728e37dc780da3f0007096a4f16f6d1ce979541d021f22b30b21576c2f7",
+      "time": 1792460358.5080163,
+      "entryHash": "a16cd66f1a0e4cd71e0655dbfa89443148eae0d12114c025edcfbc543e66fb89"
+    },
+    {
+      "index": 19,
+      "kind": "progress",
+      "control": {
+        "batches": "32161f48812917ee1bed7a4367df261934308045464246622f47dba2ab129f2a",
+        "cursor": 4492270493,
+        "epoch": 0,
+        "global_step": 343520,
+        "phase": "wikipedia",
+        "phase_step": 343520,
+        "pos": [
+          719769225,
+          2048
+        ]
+      },
+      "state": "cafd56b605b39449655b55534cd4e33616de0d40e6c3434fcd1a54c941e63191",
+      "model": "9e597fcc4fc74828e30605677e3696a53b77a6976fecdc4f0e06b378e6721ee9",
+      "previous": "a16cd66f1a0e4cd71e0655dbfa89443148eae0d12114c025edcfbc543e66fb89",
+      "time": 1792462598.3975008,
+      "entryHash": "e26d3eb4812c5c4d13625a8a2a72662d202697d0dae3336f24e3a0f7325cc12f"
+    },
+    {
+      "index": 20,
+      "kind": "progress",
+      "control": {
+        "batches": "30c019ac1c173f6d688cdd4bd01e7ceaf9ed1376251e69d87cb9643b4386116b",
+        "cursor": 4705349595,
+        "epoch": 0,
+        "global_step": 361600,
+        "phase": "wikipedia",
+        "phase_step": 361600,
+        "pos": [
+          769153707,
+          4608
+        ]
+      },
+      "state": "708b48121052bf9bc68bbd67e8613230dd713b9569610a4e66838fe45f35299a",
+      "model": "f98ab99a90c7734a3f4cf2d60216ed8b1bdc657541ec3374c6f035b0bd42a307",
+      "previous": "e26d3eb4812c5c4d13625a8a2a72662d202697d0dae3336f24e3a0f7325cc12f",
+      "time": 1792463768.5816014,
+      "entryHash": "d16e556f9c072f3fe71fba64d787402b5be33427db7c160745d0a58040af1e03"
+    },
+    {
+      "index": 21,
+      "kind": "progress",
+      "control": {
+        "batches": "09506b60c4342ec5873bba53f2e993f0a46e1b726fc3449ce690e5e4eb43927c",
+        "cursor": 4919188008,
+        "epoch": 0,
+        "global_step": 379680,
+        "phase": "wikipedia",
+        "phase_step": 379680,
+        "pos": [
+          818886901,
+          0
+        ]
+      },
+      "state": "eb31ec48c4ce9373035fe1229a93190fcfec9060d1bc8520f62ed3dfcab752fa",
+      "model": "b89d3b185a1fcf21bcc5ef432a26eafc9643eb62b9aa3d8eeb624cbfceeea340",
+      "previous": "d16e556f9c072f3fe71fba64d787402b5be33427db7c160745d0a58040af1e03",
+      "time": 1792465514.4536183,
+      "entryHash": "69385671abc45197a2a67165df66e34a51beeaf1d55eedf5daadb3b1d7e6ea5d"
+    },
+    {
+      "index": 22,
+      "kind": "progress",
+      "control": {
+        "batches": "27f95fcd8bc5e1b25cea97a17fd58ce6f6771b5b15565014616d4519ab8c8184",
+        "cursor": 5137669818,
+        "epoch": 0,
+        "global_step": 397760,
+        "phase": "wikipedia",
+        "phase_step": 397760,
+        "pos": [
+          867774445,
+          512
+        ]
+      },
+      "state": "ee97359b8f9928977515e383d98a796d442444b5a07de5c9ec1158d372cc0e49",
+      "model": "1428e4c6cddc484d305881220b68eb5e04eb851632e1ae7d4f61725e0b24708b",
+      "previous": "69385671abc45197a2a67165df66e34a51beeaf1d55eedf5daadb3b1d7e6ea5d",
+      "time": 1792468481.591845,
+      "entryHash": "5522af40717e99883a27f65daa6c7646f1526d9b2aed9862ce88de7267c962a0"
+    },
+    {
+      "index": 23,
+      "kind": "progress",
+      "control": {
+        "batches": "2ac5c320056a9766eaf2f910194309a2e1e3254958d1fe2e4afa92805ee04b28",
+        "cursor": 5354659564,
+        "epoch": 0,
+        "global_step": 415840,
+        "phase": "wikipedia",
+        "phase_step": 415840,
+        "pos": [
+          917385337,
+          0
+        ]
+      },
+      "state": "296c1763d3421f6991f4f841f4143166bf0910000e5b00673383a4589859483f",
+      "model": "8948b0defe4c934602354d44e72ceb0b34c46d87bb7a67832fa50ea581b57d16",
+      "previous": "5522af40717e99883a27f65daa6c7646f1526d9b2aed9862ce88de7267c962a0",
+      "time": 1792469631.0069373,
+      "entryHash": "44f6db9d7a6224e23d14abcfe7d1a1c4923332e676a302f7cb146cbc7d94aa99"
+    },
+    {
+      "index": 24,
+      "kind": "progress",
+      "control": {
+        "batches": "3fae190c7c836188101a7a77d6046446431892e109590436e4c94a3ed1da8c13",
+        "cursor": 5571989843,
+        "epoch": 0,
+        "global_step": 433920,
+        "phase": "wikipedia",
+        "phase_step": 433920,
+        "pos": [
+          966632574,
+          8192
+        ]
+      },
+      "state": "6413ef4ca2bf9d47a89302d88662069fde930d732c4df7d0892f30ed64d3756d",
+      "model": "c553304d081e5817ba0e042bcdef7f1cf9642a290b006edab98778abd18eeedc",
+      "previous": "44f6db9d7a6224e23d14abcfe7d1a1c4923332e676a302f7cb146cbc7d94aa99",
+      "time": 1792470779.9569445,
+      "entryHash": "05bfdd196077d5855614cf512c1226a3036a071bd251e5d82e9c05751dc9d74a"
+    },
+    {
+      "index": 25,
+      "kind": "progress",
+      "control": {
+        "batches": "b77680f3b1febcf15d5adac2f244b845ea1ca7ae5837e9ce9e57a9b9661033c6",
+        "cursor": 5786932809,
+        "epoch": 0,
+        "global_step": 452000,
+        "phase": "wikipedia",
+        "phase_step": 452000,
+        "pos": [
+          1015978804,
+          2048
+        ]
+      },
+      "state": "245211135b131b6c5e1940458575033082b4b473fa0033b55816d889c82d656b",
+      "model": "1f1becfa5470bac9a31962462d4d85647598dc8f75277e2f9c6efe5bc59ada97",
+      "previous": "05bfdd196077d5855614cf512c1226a3036a071bd251e5d82e9c05751dc9d74a",
+      "time": 1792471931.509705,
+      "entryHash": "01b7d56bc8b58be5cca403ba71dc9fd1d5c6083d5740dae7c912e3a9557e8dd0"
+    },
+    {
+      "index": 26,
+      "kind": "progress",
+      "control": {
+        "batches": "44eaf0d468c5578cc89e3999530132727e41ac47cbfcc8fcf80a7621b527cda0",
+        "cursor": 6003090585,
+        "epoch": 0,
+        "global_step": 470080,
+        "phase": "wikipedia",
+        "phase_step": 470080,
+        "pos": [
+          1065027050,
+          0
+        ]
+      },
+      "state": "7b1ab9b324ac43d99f738ee00e3ef2b514e8dcc82313863c1d8f6e871d42bbb8",
+      "model": "6a59289ec3928857e0beacc7858e190c0756c72f2cdf48896578bb75720fa72a",
+      "previous": "01b7d56bc8b58be5cca403ba71dc9fd1d5c6083d5740dae7c912e3a9557e8dd0",
+      "time": 1792473082.0379794,
+      "entryHash": "6b141d06e0138bd34dc59373f5aa0bc92bc363b53c7f013a8c98cc09d411094e"
+    },
+    {
+      "index": 27,
+      "kind": "progress",
+      "control": {
+        "batches": "58cf98d2ec42837434cc698720602c1ed7a427f1b7075de7b56e1957e42d7b7b",
+        "cursor": 6219792471,
+        "epoch": 0,
+        "global_step": 488160,
+        "phase": "wikipedia",
+        "phase_step": 488160,
+        "pos": [
+          1113864691,
+          1024
+        ]
+      },
+      "state": "0ec654850f2c1288c7850e9e732b52187dcc5f73fffe0f3bc211143e32097e7a",
+      "model": "5329233dbd65f90b4c368e40c725c59496c03266053f934c4be9c4ef73e3ec73",
+      "previous": "6b141d06e0138bd34dc59373f5aa0bc92bc363b53c7f013a8c98cc09d411094e",
+      "time": 1792474229.018975,
+      "entryHash": "339ba1cbaecfdf10cbae5574f973945950123a903c4d3da848cfb7dbdabd940c"
+    },
+    {
+      "index": 28,
+      "kind": "progress",
+      "control": {
+        "batches": "8e7e2738dac57947ab3894def88fc8bfb84e0b8c55095fcd33d66e2699dabab5",
+        "cursor": 6444391263,
+        "epoch": 0,
+        "global_step": 506240,
+        "phase": "wikipedia",
+        "phase_step": 506240,
+        "pos": [
+          1159432427,
+          0
+        ]
+      },
+      "state": "e5891f8db717f770246c4255fa6598ba280922c428e9e1e6d814f5d96549cab1",
+      "model": "d6e1eaab6061fc051ae6de60bb6c95d99d1b98c6bcddfdcbbd593208b7d8a303",
+      "previous": "339ba1cbaecfdf10cbae5574f973945950123a903c4d3da848cfb7dbdabd940c",
+      "time": 1792475372.9946525,
+      "entryHash": "9f1343558e7f2897d578acf607bf2a7b5abad07e032bb5c4384f6716f19b02e5"
+    },
+    {
+      "index": 29,
+      "kind": "progress",
+      "control": {
+        "batches": "7b351d64e2a3d2492e668dcfd73d82ce92c0ba04fdd4c3058c95d4e642a6807d",
+        "cursor": 6671911669,
+        "epoch": 0,
+        "global_step": 524320,
+        "phase": "wikipedia",
+        "phase_step": 524320,
+        "pos": [
+          1203647118,
+          0
+        ]
+      },
+      "state": "ab0f669782c60bf45255e4822fee5fe5425a24b614d10dc0821323ca7325853c",
+      "model": "3c5459d2bdcdb86d05168a8a78370aa7f772cb6f48ab11e6949164ec6d30fdc0",
+      "previous": "9f1343558e7f2897d578acf607bf2a7b5abad07e032bb5c4384f6716f19b02e5",
+      "time": 1792476512.00237,
+      "entryHash": "e24b7d97bcd3f1d31bccc299bde66247d0c84ffd0ebeb2c942a770ab2345908b"
+    },
+    {
+      "index": 30,
+      "kind": "progress",
+      "control": {
+        "batches": "304b2d3afe5a67a5ef902cb8334a55ee6f89877d474b438fb9c94e507814dece",
+        "cursor": 6901668826,
+        "epoch": 0,
+        "global_step": 542400,
+        "phase": "wikipedia",
+        "phase_step": 542400,
+        "pos": [
+          1246875101,
+          0
+        ]
+      },
+      "state": "baf0f2694f6f7561b6e427c0181978541c19263849163984131f51dad72b6c38",
+      "model": "bdfa54d7eb2938c8fe3258528e5cb84287c54f889471eb60909e7d8c6aca8061",
+      "previous": "e24b7d97bcd3f1d31bccc299bde66247d0c84ffd0ebeb2c942a770ab2345908b",
+      "time": 1792477651.6187513,
+      "entryHash": "2f33f280a48f610d432e95d98fe14d12e81d77ea97d419f39964bb92119fec39"
+    },
+    {
+      "index": 31,
+      "kind": "base",
+      "control": {
+        "batches": "dcad901881cb94e24e81efa96ff4282bcf4a23d1ad042fc85d0fe5444c2fc875",
+        "cursor": 7118121139,
+        "epoch": 0,
+        "global_step": 560177,
+        "phase": "wikipedia",
+        "phase_step": 560177,
+        "pos": [
+          1293950757,
+          0
+        ]
+      },
+      "state": "13d6ad64b2465d42653f250bba0463468c0c81b7980ebc9d97e3b0f95c713bf1",
+      "model": "31c8cd3a4972ffe5733ca19f614cb93c70c135ebc4ce1f053ca54a309b20a65f",
+      "previous": "2f33f280a48f610d432e95d98fe14d12e81d77ea97d419f39964bb92119fec39",
+      "time": 1792478775.2381847,
+      "entryHash": "5c05e153104c6987ed29668d611765bbfad8aba906bb2d28d258857ea13e5b5a"
+    },
+    {
+      "index": 32,
+      "kind": "transition",
+      "control": {
+        "batches": "dcad901881cb94e24e81efa96ff4282bcf4a23d1ad042fc85d0fe5444c2fc875",
+        "cursor": 0,
+        "epoch": 0,
+        "global_step": 560177,
+        "phase": "conversation",
+        "phase_step": 0,
+        "pos": [
+          0,
+          0
+        ]
+      },
+      "state": "8987fdd57ba91b044c23bba48cf41b132aa6ec949c4af650ba3180483476941d",
+      "model": "31c8cd3a4972ffe5733ca19f614cb93c70c135ebc4ce1f053ca54a309b20a65f",
+      "previous": "5c05e153104c6987ed29668d611765bbfad8aba906bb2d28d258857ea13e5b5a",
+      "time": 1792478776.1264164,
+      "entryHash": "98e7266fe9e50a0ad993bfbba932f7c24f3f1e30d822517995b1d6092a980ec8"
+    },
+    {
+      "index": 33,
+      "kind": "epoch",
+      "control": {
+        "batches": "367fdeaa7d8de8113d22b27f162652c9cea078879dcdad4cd27555239df9ba67",
+        "cursor": 1278137,
+        "epoch": 0,
+        "global_step": 560324,
+        "phase": "conversation",
+        "phase_step": 147,
+        "pos": [
+          849666,
+          0
+        ]
+      },
+      "state": "47e181e530d97201584906d931d1e5cfcd25ec000acfc6381c1162b102036b03",
+      "model": "fa2903c63e2fedd52ff6e53cab2c16921f6dae52855700caf8f7d23358172b1e",
+      "previous": "98e7266fe9e50a0ad993bfbba932f7c24f3f1e30d822517995b1d6092a980ec8",
+      "time": 1792478785.6187253,
+      "entryHash": "94eee8a739a2edf0bc158091e8bd9299b83e82021cba2679f4fcec0b86c36035"
+    },
+    {
+      "index": 34,
+      "kind": "transition",
+      "control": {
+        "batches": "367fdeaa7d8de8113d22b27f162652c9cea078879dcdad4cd27555239df9ba67",
+        "cursor": 0,
+        "epoch": 1,
+        "global_step": 560324,
+        "phase": "conversation",
+        "phase_step": 0,
+        "pos": [
+          0,
+          0
+        ]
+      },
+      "state": "47e181e530d97201584906d931d1e5cfcd25ec000acfc6381c1162b102036b03",
+      "model": "fa2903c63e2fedd52ff6e53cab2c16921f6dae52855700caf8f7d23358172b1e",
+      "previous": "94eee8a739a2edf0bc158091e8bd9299b83e82021cba2679f4fcec0b86c36035",
+      "time": 1792478786.6568494,
+      "entryHash": "65d9e7fac71a421b97b20c56fbb9d8997b543f09752763e53dabac4817950f5f"
+    },
+    {
+      "index": 35,
+      "kind": "epoch",
+      "control": {
+        "batches": "5221cd468bc3661e4455cda6c9602d2ab155ea669e751927c77eb0a36c497023",
+        "cursor": 1278137,
+        "epoch": 1,
+        "global_step": 560471,
+        "phase": "conversation",
+        "phase_step": 147,
+        "pos": [
+          849666,
+          0
+        ]
+      },
+      "state": "e80d5db69e77bbe5e7ffc7c829631aa1871c8fa5230b8eb53d85b4a226420ab2",
+      "model": "eb2d6225628c40d6b87bc5c2f95b4838ba58c3d9f1bd40c4def3464c40e3fbda",
+      "previous": "65d9e7fac71a421b97b20c56fbb9d8997b543f09752763e53dabac4817950f5f",
+      "time": 1792478796.331579,
+      "entryHash": "8c20bd99e5408e6240a51d71cf099f73b1d47eea5c043e4a027dffb397361042"
+    },
+    {
+      "index": 36,
+      "kind": "transition",
+      "control": {
+        "batches": "5221cd468bc3661e4455cda6c9602d2ab155ea669e751927c77eb0a36c497023",
+        "cursor": 0,
+        "epoch": 2,
+        "global_step": 560471,
+        "phase": "conversation",
+        "phase_step": 0,
+        "pos": [
+          0,
+          0
+        ]
+      },
+      "state": "e80d5db69e77bbe5e7ffc7c829631aa1871c8fa5230b8eb53d85b4a226420ab2",
+      "model": "eb2d6225628c40d6b87bc5c2f95b4838ba58c3d9f1bd40c4def3464c40e3fbda",
+      "previous": "8c20bd99e5408e6240a51d71cf099f73b1d47eea5c043e4a027dffb397361042",
+      "time": 1792478797.354915,
+      "entryHash": "68d517a10e2641b690149d430e9e47fd8e4c97bfb5ae33b81c25cb29492dedcb"
+    },
+    {
+      "index": 37,
+      "kind": "final",
+      "control": {
+        "batches": "1fd22db0ab89ab98045f8c4b32ce4e4d55453163390ec9ebd5792dfc38fd5a52",
+        "cursor": 1278137,
+        "epoch": 2,
+        "global_step": 560618,
+        "phase": "conversation",
+        "phase_step": 147,
+        "pos": [
+          849666,
+          0
+        ]
+      },
+      "state": "934d681c99e5c3e10617e82dbbb0ae0ddd1ad4e32cf45e8e3a6d2ed94b69f200",
+      "model": "ec9a2b31ca524613f791aba00f4f7f31e4a7bf4a8a921e0deb81c1a922d0958b",
+      "previous": "68d517a10e2641b690149d430e9e47fd8e4c97bfb5ae33b81c25cb29492dedcb",
+      "time": 1792478807.0463226,
+      "entryHash": "9edbcaddbb08ed20f3d655ac59d0aa57f6339a702d0fa1d3422856f5d8251a51"
+    }
+  ],
+  "verifications": {
+    "totalChecks": 46,
+    "uniqueSegments": 37,
+    "projectChecksCount": 46,
+    "independentChecksCount": 0,
+    "coverage": [
+      {
+        "segment": 0,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 0
+          }
+        ]
+      },
+      {
+        "segment": 1,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 1
+          }
+        ]
+      },
+      {
+        "segment": 2,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 2
+          }
+        ]
+      },
+      {
+        "segment": 3,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 3
+          }
+        ]
+      },
+      {
+        "segment": 4,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 4
+          }
+        ]
+      },
+      {
+        "segment": 5,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 5
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0 fast loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 5
+          }
+        ]
+      },
+      {
+        "segment": 6,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 6
+          }
+        ]
+      },
+      {
+        "segment": 7,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 7
+          }
+        ]
+      },
+      {
+        "segment": 8,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 8
+          }
+        ]
+      },
+      {
+        "segment": 9,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 9
+          }
+        ]
+      },
+      {
+        "segment": 10,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 10
+          }
+        ]
+      },
+      {
+        "segment": 11,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 11
+          }
+        ]
+      },
+      {
+        "segment": 12,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 12
+          }
+        ]
+      },
+      {
+        "segment": 13,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 13
+          }
+        ]
+      },
+      {
+        "segment": 14,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 14
+          }
+        ]
+      },
+      {
+        "segment": 15,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 15
+          }
+        ]
+      },
+      {
+        "segment": 16,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 16
+          }
+        ]
+      },
+      {
+        "segment": 17,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 17
+          }
+        ]
+      },
+      {
+        "segment": 18,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py 202ac6ce",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 18
+          }
+        ]
+      },
+      {
+        "segment": 19,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 19
+          }
+        ]
+      },
+      {
+        "segment": 20,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 20
+          }
+        ]
+      },
+      {
+        "segment": 21,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 21
+          },
+          {
+            "checker": "project fresh machine public files only",
+            "code": "verify_segment.sh from the release",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 21
+          }
+        ]
+      },
+      {
+        "segment": 22,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 22
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 22
+          }
+        ]
+      },
+      {
+        "segment": 23,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 23
+          }
+        ]
+      },
+      {
+        "segment": 24,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 24
+          }
+        ]
+      },
+      {
+        "segment": 25,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 25
+          }
+        ]
+      },
+      {
+        "segment": 26,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 26
+          }
+        ]
+      },
+      {
+        "segment": 27,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 27
+          }
+        ]
+      },
+      {
+        "segment": 28,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 28
+          }
+        ]
+      },
+      {
+        "segment": 29,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 29
+          }
+        ]
+      },
+      {
+        "segment": 30,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 30
+          }
+        ]
+      },
+      {
+        "segment": 31,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 31
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 31
+          }
+        ]
+      },
+      {
+        "segment": 32,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 32
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 32
+          }
+        ]
+      },
+      {
+        "segment": 33,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 33
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 33
+          }
+        ]
+      },
+      {
+        "segment": 34,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 34
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 34
+          }
+        ]
+      },
+      {
+        "segment": 35,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 35
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 35
+          }
+        ]
+      },
+      {
+        "segment": 36,
+        "projectResult": "MATCH",
+        "independentResult": null,
+        "checks": [
+          {
+            "checker": "project second pod",
+            "code": "ovl.py c4a942c0 reference loader",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 36
+          },
+          {
+            "checker": "project training pod",
+            "code": "ovl.py c4a942c0",
+            "driver": "595.91.07",
+            "gpu": "NVIDIA GeForce RTX 5090",
+            "result": "MATCH",
+            "segment": 36
+          }
+        ]
+      }
+    ],
+    "rawChecks": [
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 0
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 1
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 2
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 3
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 4
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 5
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 6
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 7
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 8
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 9
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 10
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 11
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 12
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 13
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 14
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 15
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 16
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 17
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py 202ac6ce",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 18
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 19
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 20
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 21
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 22
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 23
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 24
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 25
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 26
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 27
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 28
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 29
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 30
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 31
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 32
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 33
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 34
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 35
+      },
+      {
+        "checker": "project second pod",
+        "code": "ovl.py c4a942c0 reference loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 36
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 22
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 31
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 32
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 33
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 34
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 35
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 36
+      },
+      {
+        "checker": "project training pod",
+        "code": "ovl.py c4a942c0 fast loader",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 5
+      },
+      {
+        "checker": "project fresh machine public files only",
+        "code": "verify_segment.sh from the release",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 21
+      },
+      {
+        "checker": "rogue anonymous checker",
+        "code": "ovl.py",
+        "driver": "595.91.07",
+        "gpu": "RTX 5090",
+        "result": "MATCH",
+        "segment": 1
+      }
+    ]
+  },
+  "hardwareMap": [
+    {
+      "segment": 32,
+      "result": "MATCH",
+      "hardware": "NVIDIA GeForce RTX 5090 (Blackwell)",
+      "driver": "595.91.07",
+      "software": "torch 2.8.0+cu128",
+      "note": "training GPU type; control for this probe"
+    },
+    {
+      "segment": 32,
+      "result": "MISMATCH",
+      "hardware": "NVIDIA GeForce RTX 4090 (Ada)",
+      "driver": "595.91.07",
+      "software": "torch 2.8.0+cu128",
+      "note": "same software, different architecture"
+    },
+    {
+      "segment": 32,
+      "result": "MISMATCH",
+      "hardware": "NVIDIA H100 80GB HBM3 (Hopper)",
+      "driver": "595.91.07",
+      "software": "torch 2.8.0+cu128",
+      "note": "same software, different architecture"
+    },
+    {
+      "segment": 32,
+      "result": "MISMATCH",
+      "hardware": "x86_64 CPU",
+      "driver": "none",
+      "software": "torch 2.14.0+cpu",
+      "note": "different hardware and software"
+    },
+    {
+      "segment": "all 37",
+      "result": "MATCH",
+      "hardware": "NVIDIA GeForce RTX 5090 (Blackwell)",
+      "driver": "595.91.07",
+      "software": "torch 2.8.0+cu128",
+      "note": "training ran on driver 570.195.03 for segments 0-9, 595.91.07 after"
+    }
+  ],
+  "anchor": {
+    "chain_entries": 38,
+    "chain_head_index": 37,
+    "chain_head_sha256": "9edbcaddbb08ed20f3d655ac59d0aa57f6339a702d0fa1d3422856f5d8251a51",
+    "chain_jsonl_sha256": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+    "commit": "1dc7fb2a430d24c06c970309d332c4891916548c",
+    "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+    "final_model": "ec9a2b31ca524613f791aba00f4f7f31e4a7bf4a8a921e0deb81c1a922d0958b",
+    "final_state": "934d681c99e5c3e10617e82dbbb0ae0ddd1ad4e32cf45e8e3a6d2ed94b69f200",
+    "path": "release/simple-run",
+    "release_hashes_sha256": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
+    "schema": "ovl.release-anchor.v1",
+    "timestamp": "2026-10-20 14:38:43 UTC",
+    "authorities": [
+      "DigiCert",
+      "FreeTSA (RFC 3161)"
+    ]
+  },
+  "exclusion": {
+    "removedArticle": "3I/ATLAS",
+    "originalRemovedLoss": 3.3604,
+    "forkRemovedLoss": 3.386,
+    "removedLossDelta": 0.0256,
+    "originalControlLossMean": 2.871,
+    "forkControlLossMean": 2.8712,
+    "controlLossDelta": 0.0002,
+    "controlArticlesCount": 50,
+    "evidencePath": "release/unlearning-3i-atlas/"
+  },
+  "releaseHashes": {
+    "base-model.pt": "976c62e8b28db786c38dc2ff969339603d0ee917d830f2815d9e858d2a3c0ce3",
+    "chain.jsonl": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
+    "ckpt-00000.pt": "3dccf4a6d258ff5e150ee1ed590f4baff099e5a368d580e610ecf238b4ba8c22",
+    "ckpt-00001.pt": "ba524fd9691c4a849d1a3dac177af426df36d8e04d9c75fba2dbf036a4b515f9",
+    "ckpt-00002.pt": "627106799e630a9297770b31b0e1f66b1418215eea50c1cd3f3a23c48e138a33",
+    "ckpt-00003.pt": "0b64c3f0208d636b19bdf5970810c27cb2ceab33f18153915d64f6493201bc10",
+    "ckpt-00004.pt": "68f07c741473f7ad0c2c61d52dc25c4d8a9c441382d348f9c1a97d215bba452e",
+    "ckpt-00005.pt": "29cdefeb28098ba4572869655b58c9dd2e771edc3717f0112d700477b74defb8",
+    "ckpt-00006.pt": "3e861cd5457c1a1566c8ebcee2a712feca2f3e5603ad46436d393aca5cbb5999",
+    "ckpt-00007.pt": "400734c784b59c9363fdbdd745f7f0f6d70c1be09d2c747976bc2b4fae01b64b",
+    "ckpt-00008.pt": "fe5352356351e4d9e4b0abd59f279c7a2ed98888177fbb773fd1f1983fefe83f",
+    "ckpt-00009.pt": "41819daf70a409e200f5189ab45ae96293716794733ad534e4843ac3f8b1982e",
+    "ckpt-00010.pt": "75cd5863903d9f595e2d50cacea3ec0530f41c154d4ec8817f41376b6f222e3f",
+    "ckpt-00011.pt": "46ece4b519e8624a2b41856b1ecfa9a5daf4994616a9bdd8d941625cb09a32ed",
+    "ckpt-00012.pt": "8b0e19692ccc6c6e6e0eb745633ae2dd2c4e86d0ca84b8ea1c7f1f81a888b892",
+    "ckpt-00013.pt": "3ac79c55fe528bcc62bd7a7a047e2b2a19e2d2e494c85e26301b0fc79f345aee",
+    "ckpt-00014.pt": "ad933ae52b14ff5de72624c5dc7af9b3e5464155b9c3ed84bd43bd5be4f737c3",
+    "ckpt-00015.pt": "2cfddc6c26fb7e8dc99c94b6fb39007a4937b67e1c8d852f2561d990e857cb62",
+    "ckpt-00016.pt": "3729909ae0f85b79377956ad8defdaaeceac0cd000a1c47e582f38685f4158d6",
+    "ckpt-00017.pt": "9f8537d432d78b254dcba86e7bd987246d928bbc837950ffe2536ba989747c41",
+    "ckpt-00018.pt": "a09df5692aac7e42a0430fd225c75937bf75c85a9dfb77b899b4cb956a8c51d1",
+    "ckpt-00019.pt": "ef18f34f8ac17a2581193ffc681a927f655bdadce4c6ca2de0a095d72094bb24",
+    "ckpt-00020.pt": "6bda17b7f79347cc57cb1325215a3a68f9f2357ee5b97f2c88e353189244fcdf",
+    "ckpt-00021.pt": "7df62e3801530777a4491bcecb0199a2b5628a9de61da30f5f6513c74c028095",
+    "ckpt-00022.pt": "23d9271d4f4c49e8e04a13f498ed0a89d57c3f80705044c2c8fe10eecc895896",
+    "ckpt-00023.pt": "2b68d53231a0d3a639312ed45eeb2afef3720f93824819843dd2c9fb68f2fc4c",
+    "ckpt-00024.pt": "8a06f96345a0ff23933d6b946a4fc88ad63a6b43a618a91a1639267cf1c0e23b",
+    "ckpt-00025.pt": "7bed06bf3566e18595a190bc1418fe5735689a2c47d280d857c0a5f68ba73a7f",
+    "ckpt-00026.pt": "31e21be4135f53a912312fae5f26d9b2eefc344171b8935e295c655f49c3b701",
+    "ckpt-00027.pt": "2efcee93267b438152c35cfc1975fd0d8d2dcec804b2713fcc11bdd8602752cf",
+    "ckpt-00028.pt": "671cf6928fc370a464fade45cf5565a65c019c9888b6c9d8962230364cc4c5b4",
+    "ckpt-00029.pt": "082195ad124ad61287e94f224c6672b2175b1c1c35f06baee2b56adbc12f92da",
+    "ckpt-00030.pt": "febe492c2c87335b078c910894172bcf8f572b853d807b8f24da99e9e0127979",
+    "ckpt-00031.pt": "c687187b7daaa97d0fd8c96df302313e051febc29d64b5ef4d5b5775d684244b",
+    "ckpt-00032.pt": "b49bfa976a6aa59fc54b9511fccc4745a4493b81cc58a3ff310ffecf7a92f45e",
+    "ckpt-00033.pt": "8fa1f26811ef37b235c968c4204044983895b217e00db731d57f3a2cecda179e",
+    "ckpt-00034.pt": "5fe1e5af0d612046c7617d079181090e3ac0898411fe39900e05346c90b29aeb",
+    "ckpt-00035.pt": "4766216588d357cdbe5bdd35e4b9534317d59f8b1273b5b722a390e748ae3beb",
+    "ckpt-00036.pt": "1ca4bd559c51e9d83ba2ea84a85e518e0309d0844d964535868339a16b66e239",
+    "ckpt-00037.pt": "88947898dab959fd82f954f81681103bac7f6b770f4bcc13d6eac29ca1795ecb",
+    "conversation-model.pt": "149cfae13c4523a1010c52161e13babf76c9ddc01f34fa1a8b580677b733a64c",
+    "recipe.json": "28a2fb407a5582ae95c9e9b0bba2c14df946e87bba037800399c6059256b6e6d",
+    "ovl-23m-chat.gguf": "541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de",
+    "Modelfile": "df4dacfc3191e56b1dc1195764ea66ca1a7695856be04ecec17d8dde4c66fc8b"
+  }
+}
