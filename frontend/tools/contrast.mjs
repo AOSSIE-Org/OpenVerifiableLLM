@@ -16,7 +16,7 @@ export const ratio = (a, b) => {
   const [x, y] = [L(a), L(b)].sort((p, q) => q - p);
   return (x + 0.05) / (y + 0.05);
 };
-let fails = 0, n = 0;
+let fails = 0, n = 0, exceptions = 0;
 const check = (mode, name, fg, bg, need) => {
   const r = ratio(fg, bg);
   n++;
@@ -36,11 +36,24 @@ for (const [mode, T] of [['light', light], ['dark', dark]]) {
   check(mode, 'targeted row edge (match) on surface', T.match, T.surface, 3);
   check(mode, 'project tile border on surface', T.project, T.surface, 3);
   check(mode, 'pending dashed border on bg', T.pending, T.bg, 3);
+  // Restored after de8dc82: tile edges and dashed pending borders as non-text indicators (3:1).
+  check(mode, 'independent tile edge on surface', T.independent, T.surface, 3);
+  check(mode, 'independent tile edge on bg', T.independent, T.bg, 3);
+  check(mode, 'pending dashed border on surface (pills)', T.pending, T.surface, 3);
+  check(mode, 'pending tile dashed edge (project) on bg', T.project, T.bg, 3);
+  // Documented logo exception (not counted, never fails): the AOSSIE gold "LLM" in the wordmark is
+  // part of the logo, and WCAG 1.4.3 exempts text that is part of a logo or brand name. The owner
+  // chose to keep the AOSSIE colour, so its ratio is listed here for visibility only.
+  for (const bg of ['surface', 'bg']) {
+    const r = ratio(T['brand-gold'], T[bg]);
+    exceptions++;
+    console.log(`EXEMPT ${mode.padEnd(5)} ${`logo: wordmark LLM ${T['brand-gold']} on ${bg}`.padEnd(42)} ${r.toFixed(2)}:1 (WCAG 1.4.3 logo exception, not counted)`);
+  }
   const best = Math.max(ratio(T.focus, T.bg), ratio(T['focus-ink'], T.bg));
   n++;
   const ok = best >= 3 && ratio(T['focus-ink'], T.focus) >= 3;
   if (!ok) fails++;
   console.log(`${ok ? 'PASS' : 'FAIL'} ${mode.padEnd(5)} ${'two-layer focus ring (best layer on bg)'.padEnd(42)} ${best.toFixed(2)}:1 (need 3)`);
 }
-console.log(`${n - fails}/${n} pairs pass`);
+console.log(`${n - fails}/${n} pairs pass; ${exceptions} documented logo exceptions listed (not counted)`);
 if (fails) process.exit(1);
