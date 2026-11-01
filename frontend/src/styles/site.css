@@ -166,7 +166,8 @@ button.tile[aria-pressed="true"]{background:var(--project-tint);outline:2px soli
 table{border-collapse:collapse;width:100%;font-size:var(--fs-label)}
 th,td{text-align:left;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--line);vertical-align:top}
 thead th{color:var(--muted);font-weight:600}
-.scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+/* position:relative keeps absolutely positioned screen-reader text inside the scroller, so it cannot widen the page. */
+.scroll{position:relative;overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
 .table-fallback>summary{cursor:pointer;color:var(--link);margin:var(--space-2) 0}
 .cell-item{display:inline-block}
 .group h3 .count{font-family:var(--font-sans);font-variant-numeric:tabular-nums;color:var(--muted);font-size:var(--fs-label)}
