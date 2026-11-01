@@ -7,5 +7,5 @@
   h.setAttribute('data-theme', t);
   h.style.colorScheme = t;
   var m = document.querySelector('meta[name="theme-color"]');
-  if (m) m.setAttribute('content', t === 'dark' ? '#1A1816' : '#F0EEE9');
+  if (m) m.setAttribute('content', t === 'dark' ? '#0F1115' : '#FBFAF7');
 })();

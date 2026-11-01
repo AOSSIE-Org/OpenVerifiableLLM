@@ -10,7 +10,7 @@ test('header uses the approved C-gate mark and lockup', async ({ page, request }
   await expect(page.locator('.wordmark-by')).toHaveText(label('site.by'));
   await expect(page.locator('footer .foot-by [data-label="site.by"]')).toHaveText(label('site.by'));
   const llm = page.locator('.wordmark [data-label="site.title.llm"]');
-  await expect(llm).toHaveCSS('color', 'rgb(122, 96, 0)'); // #7A6000 in light; dark keeps #FFCD00
+  await expect(llm).toHaveCSS('color', 'rgb(255, 205, 0)');
   const svg = await (await request.get('logo.svg')).text();
   expect(svg).toContain('M8 2H24A6 6 0 0 1 30 8V17.25H23.5V10.45');
   expect(svg).toContain('#FFCD00');
@@ -197,12 +197,12 @@ test('an injected MISMATCH never shows "37 of 37" and causes no hydration error'
 test('background is light by default; the toggle switches to dark and keeps it across pages', async ({ page }) => {
   await page.goto('');
   await ready(page);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(240, 238, 233)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
   const toggle = page.locator('[data-theme-toggle]');
   await expect(toggle).toHaveText(label('theme.toDark'));
   await toggle.click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(26, 24, 22)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(15, 17, 21)');
   await page.getByRole('navigation').getByRole('link', { name: label('nav.check') }).click();
   await ready(page);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -222,7 +222,7 @@ test('a hostile theme value in storage is ignored and the page stays light', asy
   await page.goto('');
   await ready(page);
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(240, 238, 233)');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(251, 250, 247)');
 });
 
 test('every source chip on every page opens to a quoted panel', async ({ page }) => {
@@ -269,6 +269,6 @@ test('a stored dark theme applies before any app script runs (no light flash)', 
   await page.route(/\/assets\/.*\.js$/, (r) => r.abort());
   await page.goto('');
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(26, 24, 22)');
-  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#1A1816');
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(15, 17, 21)');
+  expect(await page.locator('meta[name="theme-color"]').getAttribute('content')).toBe('#0F1115');
 });
