@@ -28,18 +28,18 @@ export const copy = {
     from: 'An AOSSIE project',
     kicker: 'Release v1.0.1 · 28 October 2026 · Record timestamped 20 October 2026',
     lead: [
-      'is a language model whose training anyone can recompute. It\'s a small one, 23 million parameters, trained on English Wikipedia and then on a short set of conversations. The point isn\'t how clever it is. The point is that you don\'t have to take our word for how it was made.',
+      'is a language model whose training anyone can recompute. It\'s small, 23 million parameters, trained on English Wikipedia and a few conversations. You don\'t have to take our word for how it was made.',
     ],
     factsTitle: 'Key facts',
     factsCta: 'Try checking a segment →',
     infobox: {
       caption: 'OpenVerifiableLLM',
-      release: 'v1.0.1 (28 October 2026)',
+      release: 'v1.0.1, 28 Oct',
       parameters: '23 million',
       data: 'English Wikipedia, one exact pass',
       checked: 'by the project',
       independent: 'none yet',
-      stamped: '20 October 2026 (DigiCert, FreeTSA)',
+      stamped: '20 Oct 2026',
       license: 'GPL-3.0',
       source: 'GitHub',
     },
@@ -49,15 +49,15 @@ export const copy = {
     steps: [
       {
         title: '1. Training is cut into pieces',
-        text: 'We trained the model in 37 segments and saved a checkpoint after each one, so there are 38 snapshots of the model along the way.',
+        text: 'Training ran in 37 segments, with a checkpoint saved after each.',
       },
       {
         title: '2. Each checkpoint points back',
-        text: 'Every checkpoint stores the hash of the one before it. Change any of them and the chain no longer adds up.',
+        text: 'Each checkpoint stores the hash of the one before, so any change breaks the chain.',
       },
       {
         title: '3. Anyone can redo a piece',
-        text: 'Start from a saved checkpoint, run the same code and data on the same kind of GPU, and you should get the exact same bytes we did.',
+        text: 'Rerun a segment on the same GPU type and you get our exact bytes.',
       },
     ],
   },
@@ -70,34 +70,34 @@ export const copy = {
     items: [
       {
         q: 'What does "verified" mean here?',
-        a: 'Someone recomputed a segment and got exactly the bytes we published. It doesn\'t say anything about whether the model\'s answers are any good.',
+        a: 'Someone recomputed a segment and got exactly our bytes. It says nothing about answer quality.',
       },
       {
         q: 'Who has checked it so far?',
-        a: 'Only us so far. We\'ve recomputed every segment on a second machine, but nobody outside the project has sent in a result yet.',
+        a: 'Only us. Nobody outside the project has sent a result yet.',
       },
       {
         q: 'What does the 10-minute check prove?',
-        a: 'That the files you downloaded match the record we timestamped on 20 October. It doesn\'t redo any training. The one-hour check does that.',
+        a: 'That your files match the record stamped on 20 October. It doesn\'t redo training.',
       },
       {
         q: 'Why does it need the same GPU type?',
-        a: 'Different GPUs round floating-point numbers in slightly different ways, so the bits drift. On an RTX 5090 they match exactly. On a 4090, an H100 or a CPU they won\'t, and that\'s normal.',
+        a: 'GPUs round numbers slightly differently. On an RTX 5090 the bits match; on other hardware they drift, and that is normal.',
       },
       {
         q: 'Are its answers any good?',
-        a: 'Not especially. It\'s tiny and gets facts wrong a lot. This project is about proving how a model was trained, not about building a smart one.',
+        a: 'Not really. It\'s tiny and often wrong. The project is about how it was trained.',
       },
       {
         q: "Why should I check if you already did?",
-        a: 'Because a project checking its own work doesn\'t count for much. One result from someone outside would mean more than all 46 of ours.',
+        a: 'One outside result would mean more than all 46 of ours.',
       },
     ],
   },
   overview: {
     kicker: "What's proven",
     subtitle: 'Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
-    explain: 'A segment is about a thirty-seventh of the training run. To recompute one, you start from the checkpoint before it, run the same code on the same data, and compare the checkpoint you end up with against ours. If a single bit is different, it counts as a mismatch.',
+    explain: 'A segment is one of 37 slices of training. Start from the checkpoint before it, rerun it, and compare the result with ours. One different bit is a mismatch.',
     facts: [
       {
         value: '37',
@@ -139,14 +139,14 @@ export const copy = {
   },
   check: {
     kicker: 'Check it yourself',
-    intro: 'Pick how much time you have. The first two run on any laptop. Only the last one actually redoes training, and for that you rent an RTX 5090 for about an hour.',
+    intro: 'Pick how much time you have. Only the last one redoes training.',
     ladder: [
       {
         time: '2 min',
         meta: 'Free · any laptop',
         title: 'Try the model',
         chips: [{ label: '○ Demo, checks nothing', type: 'h' }],
-        desc: 'Run the model on your own machine. It\'s fun to poke at, but it doesn\'t prove anything.',
+        desc: 'Chat with it on your own machine.',
         command: 'ollama run ryoari/openverifiablellm',
       },
       {
@@ -157,7 +157,7 @@ export const copy = {
           { label: '✓ Release matches its record', type: 'm' },
           { label: '○ No training recomputed', type: 'h' },
         ],
-        desc: 'Download the release and check it against the record we timestamped. Nothing gets retrained.',
+        desc: 'Check the release against the stamped record.',
         command: `pip install huggingface_hub torch numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 \\
   "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \\
@@ -177,7 +177,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
         title: 'The actual verification',
         isKey: true,
         chips: [{ label: '✓ Recomputes a segment bit for bit', type: 'm' }],
-        desc: 'Rebuilds one segment from its saved checkpoint and compares every byte with ours.',
+        desc: 'Rebuild one segment and compare every byte with ours.',
         action: {
           label: 'Open the RunPod template',
           href: 'https://console.runpod.io/deploy?template=mai1ozh35g',
@@ -187,8 +187,8 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
   },
   verification: {
     kicker: 'Verification',
-    intro: 'Every segment matched when we recomputed it. The gap is that we\'re the only ones who have checked so far, and that\'s the part we most want help with.',
-    explain: 'Say someone had tampered with one of the 37 segments. If people check segments at random, 110 checks give a 95% chance of landing on the bad one, and 169 checks give 99%. Right now there are no independent checks, which is why the curve starts at zero.',
+    intro: 'Every segment matched, but only we have checked so far. That\'s where we need help.',
+    explain: 'If one segment had been tampered with, 110 random checks would catch it 95% of the time and 169 would catch it 99%. There are no independent checks yet, so the curve starts at zero.',
     captionNotice: '46 checks across 37 segments, all matching, none independent.',
     warningNotice: 'Self-reported and not yet signed.',
     oddsTitle: 'How many checks would catch a bad segment',
@@ -199,7 +199,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
   },
   timeline: {
     kicker: 'Training timeline',
-    intro: 'Training didn\'t run in one go. The machine restarted once, and the code was updated partway through. We recomputed the segments around both, and they still matched.',
+    intro: 'The machine restarted once and the code changed once. Both segments still matched.',
     h2: 'One machine restart and one code change. Both segments still matched.',
     restartTitle: 'Host restart',
     restartTag: 'Segment 10',
@@ -230,12 +230,12 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
       'It\'s one run, so there\'s no variance estimate yet.',
     ],
     evidenceLabel: 'Evidence:',
-    explain: 'People often ask whether a model can be made to forget something. This doesn\'t do that. It shows something narrower: if you know early enough that a text shouldn\'t be in training, you can leave it out and prove that you did.',
+    explain: 'This doesn\'t make a model forget anything. It shows that if you leave a text out early enough, you can prove you did.',
     evidencePath: 'release/unlearning-3i-atlas/',
   },
   downloads: {
     kicker: 'Downloads',
-    intro: 'Each file comes with its SHA-256 hash. After downloading, run sha256sum on it and check the result matches the hash below.',
+    intro: 'Run sha256sum on each file and compare it with the hash below.',
     files: [
       {
         name: 'ovl-23m-chat.gguf',

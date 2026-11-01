@@ -60,26 +60,14 @@ export const KeyFacts: React.FC<KeyFactsProps> = ({ evidence, idSuffix }) => {
           <dd>{box.release}</dd>
         </div>
         <div>
-          <dt>Parameters</dt>
-          <dd>{box.parameters}</dd>
-        </div>
-        <div>
-          <dt>Training data</dt>
-          <dd>{box.data}</dd>
-        </div>
-        <div>
-          <dt>Record stamped</dt>
+          <dt>Stamped</dt>
           <dd>{box.stamped}</dd>
-        </div>
-        <div>
-          <dt>Licence</dt>
-          <dd>{box.license}</dd>
         </div>
         <div>
           <dt>Evidence</dt>
           <dd>
             <a href={copy.header.links[1].href}>
-              revision <code>{revision}</code>
+              <code>{revision}</code>
             </a>
           </dd>
         </div>
