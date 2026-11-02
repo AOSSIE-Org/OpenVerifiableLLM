@@ -10,5 +10,5 @@ rfc8785==0.1.4
 torch==2.14.0+cpu
 sigstore==4.5.0
 # Preserve versions already exercised by the local fixture environment.
-filelock==3.32.3
+filelock==4.2.4
 setuptools==78.1.0
