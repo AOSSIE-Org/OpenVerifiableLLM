@@ -18,7 +18,19 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`).
+
+### Windows
+
+On Windows, install Python 3.12 or newer, Git for Windows, and ensure OpenSSL is available. The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+
+From PowerShell, download `release/simple-run/` and run the same verification command shown below. If OpenSSL is installed with Git for Windows but is not on `PATH`, add the Git OpenSSL directory to `PATH` for the current PowerShell session:
+
+```powershell
+$env:Path = "C:\Program Files\Git\mingw64\bin;$env:Path"
+```
+
+The normal verification process checks the DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification. Download `release/simple-run/`
 without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
