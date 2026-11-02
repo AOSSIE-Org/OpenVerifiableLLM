@@ -11,4 +11,4 @@ torch==2.14.0+cpu
 sigstore==4.5.0
 # Preserve versions already exercised by the local fixture environment.
 filelock==3.32.3
-setuptools==78.1.0
+setuptools==84.2.1
