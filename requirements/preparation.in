@@ -5,7 +5,7 @@ numpy==2.5.3
 tokenizers==0.23.2
 mwparserfromhell==0.7.2
 defusedxml==0.7.1
-pyarrow==25.0.1
+pyarrow==26.0.0
 rfc8785==0.1.4
 torch==2.14.0+cpu
 sigstore==4.5.0
