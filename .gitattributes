@@ -3,3 +3,9 @@
 # Raw receipts/test output are byte-preserved evidence, including HTTP CRLF and
 # captured diagnostic whitespace. Source code retains ordinary whitespace checks.
 project/evidence/** -text -whitespace
+
+# Frontend evidence copies are hashed. A Windows autocrlf checkout must not
+# rewrite them or `npm run data:check` fails.
+frontend/data/raw/** -text
+frontend/data/upstream/** -text
+frontend/public/data/** -text
