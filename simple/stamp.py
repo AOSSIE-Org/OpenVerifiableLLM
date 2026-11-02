@@ -19,6 +19,7 @@ import tempfile
 import threading
 import time
 import urllib.request
+import certifi
 
 TSA = {"freetsa": "https://freetsa.org/tsr", "digicert": "http://timestamp.digicert.com"}
 FREETSA_CERTS = ("https://freetsa.org/files/cacert.pem", "https://freetsa.org/files/tsa.crt")
@@ -75,10 +76,13 @@ def stamp_async(run, entry):
 
 
 def system_ca():
-    """The system CA bundle that holds DigiCert's root: Linux, then macOS."""
-    return next((p for p in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
-                             "/etc/ssl/cert.pem") if Path(p).exists()), None)
-
+    """Return a CA bundle that can verify the DigiCert timestamp."""
+    paths = (
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/cert.pem",
+    )
+    return next((p for p in paths if Path(p).is_file()), certifi.where())
 
 def freetsa_certs(d):
     ca, tsa = (Path(d) / "cacert.pem", Path(d) / "tsa.crt")
