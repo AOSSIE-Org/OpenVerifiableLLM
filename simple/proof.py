@@ -5,8 +5,8 @@ trained on it, or proves that an exclusion fork never saw it, tied to the
 cryptographic chain commitments.
 
 Usage:
-    python scratch/membership_proof.py --data PREP --run RUN --article "Albert Einstein"
-    python scratch/membership_proof.py --data PREP --run RUN --article 736
+    python simple/proof.py --data PREP --run RUN --article "Albert Einstein"
+    python simple/proof.py --data PREP --run RUN --article 736
 """
 
 import argparse
@@ -72,13 +72,17 @@ def find_article(data_dir, query):
 
 def verify_data_commitment(data_dir, chain_entry_0):
     """Check that stream.json matches genesis commitment in chain.jsonl entry 0."""
+    if chain_entry_0.get("kind") != "initial":
+        return False, "chain genesis entry kind is not 'initial'"
     stream_path = Path(data_dir) / "wikipedia" / "stream.json"
     if not stream_path.is_file():
         return False, "stream.json not found"
     stream_bytes = stream_path.read_bytes()
     stream_hash = hashlib.sha256(stream_bytes).hexdigest()
     expected = chain_entry_0.get("data", {}).get("wikipedia")
-    if expected and stream_hash != expected:
+    if not expected:
+        return False, "chain genesis entry has no wikipedia data commitment"
+    if stream_hash != expected:
         return (
             False,
             f"stream.json hash {stream_hash} differs from chain genesis {expected}",
@@ -92,16 +96,17 @@ def verify_data_commitment(data_dir, chain_entry_0):
             for f in stream_meta.get("files", [])
             if f.get("path") == "documents.jsonl" or f.get("name") == "documents.jsonl"
         ]
-        if doc_files:
-            expected_doc_hash = doc_files[0]["sha256"]
-            actual_doc_hash = hashlib.sha256(
-                (Path(data_dir) / "wikipedia" / "documents.jsonl").read_bytes()
-            ).hexdigest()
-            if actual_doc_hash != expected_doc_hash:
-                return (
-                    False,
-                    f"documents.jsonl hash {actual_doc_hash} differs from stream.json {expected_doc_hash}",
-                )
+        if not doc_files:
+            return False, "documents.jsonl not listed in stream.json files table"
+        expected_doc_hash = doc_files[0]["sha256"]
+        actual_doc_hash = hashlib.sha256(
+            (Path(data_dir) / "wikipedia" / "documents.jsonl").read_bytes()
+        ).hexdigest()
+        if actual_doc_hash != expected_doc_hash:
+            return (
+                False,
+                f"documents.jsonl hash {actual_doc_hash} differs from stream.json {expected_doc_hash}",
+            )
     except Exception as e:
         return False, f"failed checking stream.json file table: {e}"
 
@@ -119,6 +124,20 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
     is_excluded = False
     exclusion_detail = None
 
+    # Scan every entry for exclusions (including if the fork entry is the last entry)
+    for k, entry in enumerate(chain):
+        exclude_ranges = (
+            entry.get("control", {}).get("exclude", {}).get("wikipedia", [])
+        )
+        for ex_start, ex_len in exclude_ranges:
+            if ex_start == target_start and ex_len == target_count and not is_excluded:
+                is_excluded = True
+                exclusion_detail = {
+                    "at_boundary": k,
+                    "excluded_range": [ex_start, ex_start + ex_len],
+                    "fork_entry_state": entry.get("state"),
+                }
+
     for k in range(len(chain) - 1):
         c_k = chain[k].get("control", {})
         c_next = chain[k + 1].get("control", {})
@@ -128,17 +147,6 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
 
         cur_start = c_k.get("cursor", 0)
         cur_end = c_next.get("cursor", cur_start)
-
-        # Check if the fork explicitly excluded this article range
-        exclude_ranges = c_k.get("exclude", {}).get("wikipedia", [])
-        for ex_start, ex_len in exclude_ranges:
-            if ex_start == target_start and ex_len == target_count:
-                is_excluded = True
-                exclusion_detail = {
-                    "at_boundary": k,
-                    "excluded_range": [ex_start, ex_start + ex_len],
-                    "fork_entry_state": chain[k].get("state"),
-                }
 
         # Check interval overlap
         overlap_start = max(target_start, cur_start)
@@ -175,8 +183,8 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
             "bound_to_chain": data_bound,
             "stream_genesis_hash": data_hash,
         },
-        "segments": [s["segment"] for s in segments],
-        "segment_details": segments,
+        "segments": [] if is_excluded else [s["segment"] for s in segments],
+        "segment_details": [] if is_excluded else segments,
     }
 
     if is_excluded:
@@ -210,6 +218,8 @@ def main():
         )
 
     bound, data_hash = verify_data_commitment(a.data, chain[0])
+    if not bound:
+        sys.exit(f"data commitment check failed: {data_hash}")
     proof = build_membership_proof(doc, chain, bound, data_hash)
 
     print(json.dumps(proof, indent=2, ensure_ascii=False))
