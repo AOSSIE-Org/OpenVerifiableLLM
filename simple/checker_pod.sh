@@ -37,7 +37,7 @@ python3 - "$WORK/hf/$RUN_PATH" "$WORK/pub/$RUN_PATH" "$GPU" "$REV" <<'PY'
 import hashlib, json, os, shutil, subprocess, sys, time
 run, pub, gpu, rev = sys.argv[1:]
 try:
-    r = json.loads(open(f"{run}/verifications.jsonl").read().splitlines()[-1])
+    r = json.loads(open(f"{run}/local-verifications.jsonl").read().splitlines()[-1])
 except (OSError, IndexError):
     sys.exit("\nno result recorded; see the log above")
 
