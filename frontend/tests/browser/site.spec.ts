@@ -137,6 +137,55 @@ test.describe('OpenVerifiableLLM Site', () => {
     }
   }
 
+  for (const width of [1440, 768, 390, 320]) {
+    test(`evidence figures stay aligned at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      await page.getByRole('heading', { level: 1 }).waitFor();
+
+      const figures = await page.evaluate(() =>
+        [...document.querySelectorAll('.figures dd')].map(dd => {
+          const box = dd.getBoundingClientRect();
+          const text = document.createRange();
+          text.selectNodeContents(dd);
+          return {
+            block: [...document.querySelectorAll('.figures')].indexOf(dd.closest('.figures')!),
+            value: dd.textContent,
+            top: Math.round(box.top),
+            lines: text.getClientRects().length,
+            spill: text.getBoundingClientRect().right - dd.parentElement!.getBoundingClientRect().right,
+            font: getComputedStyle(dd).fontFamily,
+          };
+        })
+      );
+
+      expect(figures.length).toBeGreaterThan(0);
+      for (const f of figures) {
+        expect(f.font, `${f.value} must not use the old-style serif numerals`).not.toContain('Georgia');
+        expect(f.spill, `${f.value} must fit its column`).toBeLessThanOrEqual(0);
+      }
+      // Values on one visual row share one top edge, however long their labels are.
+      const rows = new Map<string, Set<number>>();
+      const tops = await page.evaluate(() =>
+        [...document.querySelectorAll('.figures > div')].map(cell => ({
+          block: [...document.querySelectorAll('.figures')].indexOf(cell.parentElement!),
+          row: Math.round(cell.getBoundingClientRect().top),
+          top: Math.round(cell.querySelector('dd')!.getBoundingClientRect().top),
+        }))
+      );
+      for (const t of tops) {
+        const key = `${t.block}:${t.row}`;
+        rows.set(key, (rows.get(key) ?? new Set<number>()).add(t.top));
+      }
+      for (const [row, seen] of rows) {
+        expect(seen.size, `values in row ${row} must share a top edge`).toBe(1);
+      }
+
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow).toBeLessThanOrEqual(0);
+    });
+  }
+
   test('respects prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');

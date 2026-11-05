@@ -328,10 +328,11 @@ table.sr-only {
   border-top: 1px solid var(--ink);
 }
 
+/* Value on the first row, label on the second, so a long label can't move a value */
 .figures > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 4px;
   padding: 14px 16px 14px 0;
 }
 
@@ -340,9 +341,20 @@ table.sr-only {
   border-left: 1px solid var(--rule);
 }
 
+/* The serif falls back to Georgia, whose old-style numerals rise and drop around
+   the baseline and have no lining form, so figures use the sans. */
+.figures dd,
+.loss dd {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
 .figures dd {
-  font: 400 clamp(26px, 3.2vw, 36px)/1.1 var(--serif);
-  font-variant-numeric: tabular-nums;
+  font-size: clamp(22px, 3vw, 34px);
+  line-height: 1.15;
 }
 
 .figures dt {
@@ -360,7 +372,7 @@ table.sr-only {
 }
 
 .figures.small dd {
-  font-size: 24px;
+  font-size: clamp(18px, 2vw, 24px);
 }
 
 .figures.data {
@@ -686,8 +698,8 @@ table.sr-only {
 }
 
 .loss dd {
-  font: 400 21px/1.2 var(--serif);
-  font-variant-numeric: tabular-nums;
+  font-size: 20px;
+  line-height: 1.2;
 }
 
 .meter {
@@ -1049,6 +1061,10 @@ table.sr-only {
     border-top: 1px solid var(--rule);
   }
 
+  .figures.small dd {
+    font-size: clamp(18px, 5.6vw, 24px);
+  }
+
   .figures.small:not(.data) {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1151,6 +1167,16 @@ table.sr-only {
 
   .hbtn {
     padding-inline: 6px;
+  }
+}
+
+@media (max-width: 360px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    width: 100%;
   }
 }
 
