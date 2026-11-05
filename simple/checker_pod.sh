@@ -36,8 +36,10 @@ command -v openssl >/dev/null && [ -f /etc/ssl/certs/ca-certificates.crt ] || { 
 python3 - "$WORK/hf/$RUN_PATH" "$WORK/pub/$RUN_PATH" "$GPU" "$REV" <<'PY'
 import hashlib, json, os, shutil, subprocess, sys, time
 run, pub, gpu, rev = sys.argv[1:]
+# Pinned release verifiers write to verifications.jsonl; the repository verifier writes to local-verifications.jsonl.
+results_file = f"{run}/local-verifications.jsonl" if os.path.exists(f"{run}/local-verifications.jsonl") else f"{run}/verifications.jsonl"
 try:
-    r = json.loads(open(f"{run}/verifications.jsonl").read().splitlines()[-1])
+    r = json.loads(open(results_file).read().splitlines()[-1])
 except (OSError, IndexError):
     sys.exit("\nno result recorded; see the log above")
 
