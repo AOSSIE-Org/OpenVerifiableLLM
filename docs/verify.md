@@ -22,20 +22,33 @@ Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On
 
 ### Windows
 
-On Windows, install Python 3.12 or newer, Git for Windows, and ensure OpenSSL is available. The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+On Windows, install Python 3.12 or newer and Git for Windows. OpenSSL must also be available on your `PATH`.
 
-From PowerShell, download `release/simple-run/` and run the same verification command shown below. If OpenSSL is installed with Git for Windows but is not on `PATH`, add the Git OpenSSL directory to `PATH` for the current PowerShell session:
+Use **Git Bash** to run the verification commands below. Do not run the Bash commands directly in PowerShell or CMD.
 
-```powershell
-$env:Path = "C:\Program Files\Git\mingw64\bin;$env:Path"
-```
-
-The normal verification process checks the DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification. Download `release/simple-run/`
-without the `ckpt-*.pt` files, then from that folder:
+If OpenSSL is installed with Git for Windows but is not available in Git Bash, add its directory to `PATH`:
 
 ```bash
+export PATH="/mingw64/bin:$PATH"
+```
+
+The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+
+The normal verification process checks both DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification.
+
+Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
+```bash
 pip install huggingface_hub torch numpy
-sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
+
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c --ignore-missing release-hashes.txt
+elif command -v gsha256sum >/dev/null 2>&1; then
+    gsha256sum -c --ignore-missing release-hashes.txt
+else
+    echo "Install GNU coreutils to verify release hashes." >&2
+    exit 1
+fi
+
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -43,7 +56,6 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
-
 `verify` checks four things:
 
 1. Every chain entry links to the hash of the previous one.
