@@ -207,7 +207,7 @@ class WeightsMatchTests(unittest.TestCase):
         a = argparse.Namespace(run=str(self.run), data=None, weights=str(path), segment=None, random=0, all=False, anchor=None,
                                no_anchor=True)
         ovl.cmd_verify(a)
-        return json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        return json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
 
     def test_final_and_base_weights_match_their_entries(self):
         self.assertEqual(self.verify(self.states[3])["checks"][0]["chain_entry"], 3)
@@ -257,7 +257,7 @@ class WeightsMatchTests(unittest.TestCase):
         sd["b"][0] += 1e-6
         with self.assertRaises(SystemExit):
             self.verify(sd)
-        report = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        report = json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
         self.assertEqual(report["result"], "FAIL")
         self.assertIsNone(report["checks"][0]["chain_entry"])
 
