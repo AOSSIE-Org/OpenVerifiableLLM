@@ -185,6 +185,19 @@ class CoverageTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "coverage error"):
                 ovl.step(self.model, self.opt, self.batch(ids), self.ctl(10, exclude))
 
+    def test_middle_duplicate_fails(self):
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 11, 11, 13]), self.ctl(10))
+
+    def test_middle_reorder_fails(self):
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 12, 11, 13]), self.ctl(10))
+
+    def test_wrong_excluded_middle_range_fails(self):
+        # 12 is excluded but trained, while 11 (not excluded) is skipped; endpoints still match.
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 12, 13, 14]), self.ctl(10, [[12, 1]]))
+
     def test_exclusion_only_applies_to_its_phase(self):
         c = {"phase": "conversation", "global_step": 0, "cursor": 10, "exclude": {"wikipedia": [[12, 3]]}}
         with self.assertRaisesRegex(SystemExit, "coverage error"):
