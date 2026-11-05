@@ -35,6 +35,7 @@ test.describe('OpenVerifiableLLM Site', () => {
 
     // Check Downloads
     await expect(page.getByText('ovl-23m-chat.gguf')).toBeVisible();
+    await page.locator('#downloads summary').first().click();
     await expect(page.getByText('541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de')).toBeVisible();
   });
 
@@ -68,7 +69,7 @@ test.describe('OpenVerifiableLLM Site', () => {
     await page.goto('/');
     const toc = page.getByRole('navigation', { name: 'Contents' });
     const links = toc.getByRole('link');
-    await expect(links).toHaveCount(8);
+    await expect(links).toHaveCount(6);
     for (const href of await links.evaluateAll(els => els.map(e => e.getAttribute('href')))) {
       await expect(page.locator(href as string)).toHaveCount(1);
     }

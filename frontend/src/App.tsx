@@ -3,16 +3,14 @@ import type { EvidenceData } from './data/contracts';
 import { validateEvidence, SnapshotError } from './data/validate';
 import { Header } from './components/Header';
 import { Contents } from './components/Contents';
-import { Lead, KeyFacts } from './components/Lead';
-import { Overview } from './components/Overview';
+import { Hero } from './components/Hero';
+import { HowItWorks } from './components/HowItWorks';
+import { Results } from './components/Results';
+import { TrainingHistory } from './components/TrainingHistory';
 import { CheckLadder } from './components/CheckLadder';
-import { Verification } from './components/Verification';
-import { TrainingTimeline } from './components/TrainingTimeline';
-import { VerifiableExclusion } from './components/VerifiableExclusion';
 import { Downloads } from './components/Downloads';
 import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
-import { HowItWorks } from './components/HowItWorks';
 
 export const App: React.FC = () => {
   const [evidence, setEvidence] = useState<EvidenceData | null>(null);
@@ -72,27 +70,21 @@ export const App: React.FC = () => {
       </a>
 
       <Header />
+      <Contents />
 
-      <div className="tocbar">
-        <Contents />
-      </div>
-
-      <div className="page">
-        <main id="main" className="article">
-          <div className="top">
-            <Lead />
-            <KeyFacts evidence={evidence} idSuffix="top" />
-          </div>
-          <HowItWorks />
-          <Overview preparation={evidence.preparation} />
-          <CheckLadder />
-          <Verification verifications={evidence.verifications} hardwareMap={evidence.hardwareMap} />
-          <TrainingTimeline chain={evidence.chain} />
-          <VerifiableExclusion exclusion={evidence.exclusion} />
-          <Downloads releaseHashes={evidence.releaseHashes} />
-          <Faq />
-        </main>
-      </div>
+      <main id="main" className="page">
+        <Hero evidence={evidence} />
+        <HowItWorks />
+        <Results
+          verifications={evidence.verifications}
+          hardwareMap={evidence.hardwareMap}
+          preparation={evidence.preparation}
+        />
+        <TrainingHistory chain={evidence.chain} exclusion={evidence.exclusion} />
+        <CheckLadder />
+        <Downloads releaseHashes={evidence.releaseHashes} />
+        <Faq />
+      </main>
 
       <Footer revision={evidence.revision} />
     </>

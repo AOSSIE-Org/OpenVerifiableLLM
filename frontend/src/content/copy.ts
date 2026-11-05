@@ -13,14 +13,12 @@ export const copy = {
   contents: {
     title: 'Contents',
     items: [
-      { label: "What's proven", href: '#overview' },
-      { label: 'Check it yourself', href: '#check' },
-      { label: 'Verification', href: '#verification' },
-      { label: 'Training timeline', href: '#timeline' },
-      { label: 'Verifiable exclusion', href: '#exclusion' },
-      { label: 'Downloads', href: '#downloads' },
-      { label: 'Common questions', href: '#faq' },
-      { label: 'External links', href: '#links' },
+      { label: 'How it works', href: '#how' },
+      { label: 'Results', href: '#overview' },
+      { label: 'Training', href: '#timeline' },
+      { label: 'Reproduce', href: '#check' },
+      { label: 'Release', href: '#downloads' },
+      { label: 'FAQ', href: '#faq' },
     ],
   },
   article: {
@@ -28,37 +26,30 @@ export const copy = {
     from: 'An AOSSIE project',
     kicker: 'Release v1.0.1 · 28 October 2026 · Record timestamped 20 October 2026',
     lead: [
-      'is a language model whose training anyone can recompute. It\'s small, 23 million parameters, trained on English Wikipedia and a few conversations. You don\'t have to take our word for how it was made.',
+      'is a language model whose training anyone can recompute.',
+      "It's small, 23 million parameters, trained on English Wikipedia and a few conversations. You don't have to take our word for how it was made.",
     ],
     factsTitle: 'Key facts',
-    factsCta: 'Try checking a segment →',
-    infobox: {
-      caption: 'OpenVerifiableLLM',
-      release: 'v1.0.1, 28 Oct',
-      parameters: '23 million',
-      data: 'English Wikipedia, one exact pass',
-      checked: 'by the project',
-      independent: 'none yet',
+    primaryAction: 'Explore the results',
+    secondaryAction: 'Source on GitHub',
+    figures: {
+      recomputed: 'segments recomputed, by the project',
+      independent: 'independent checks so far',
+      checks: 'project checks, all matching',
       stamped: '20 Oct 2026',
-      license: 'GPL-3.0',
-      source: 'GitHub',
+      stampedLabel: 'record timestamped by DigiCert and FreeTSA',
     },
+    evidenceLine: 'Evidence pinned to Hugging Face revision',
   },
   how: {
     title: 'How it works',
+    intro: 'Training is cut into pieces that anyone can rerun and compare.',
     steps: [
-      {
-        title: '1. Training is cut into pieces',
-        text: 'Training ran in 37 segments, with a checkpoint saved after each.',
-      },
-      {
-        title: '2. Each checkpoint points back',
-        text: 'Each checkpoint stores the hash of the one before, so any change breaks the chain.',
-      },
-      {
-        title: '3. Anyone can redo a piece',
-        text: 'Rerun a segment on the same GPU type and you get our exact bytes.',
-      },
+      { title: 'Data', text: 'The exact Wikipedia dump, which rebuilds byte for byte.' },
+      { title: 'Training', text: 'Run in 37 segments, with a checkpoint saved after each.' },
+      { title: 'Chain', text: 'Each record links to the hash of the one before, so any change breaks it.' },
+      { title: 'Timestamp', text: 'Two authorities stamped the record on 20 October.' },
+      { title: 'Recompute', text: 'Rerun a segment on an RTX 5090 and compare the bytes.' },
     ],
   },
   faq: {
@@ -95,29 +86,11 @@ export const copy = {
     ],
   },
   overview: {
-    kicker: "What's proven",
+    kicker: 'Results',
     subtitle: 'Recomputed bit for bit on a second RTX 5090 by the project; 0 independent checks so far.',
     explain: 'A segment is one of 37 slices of training. Start from the checkpoint before it, rerun it, and compare the result with ours. One different bit is a mismatch.',
-    facts: [
-      {
-        value: '37',
-        total: ' / 37',
-        title: 'Training segments recomputed bit for bit',
-        chip: 'Checked by the project',
-      },
-      {
-        value: 'Exact',
-        total: '',
-        title: 'Training data rebuilt from the Wikipedia dump',
-        chip: '8de1d600…',
-      },
-      {
-        value: '20 Oct',
-        total: '',
-        title: 'Release record timestamped',
-        chip: 'DigiCert · FreeTSA',
-      },
-    ],
+    dataTitle: 'Training data',
+    dataRebuilt: 'Rebuilt exactly from the Wikipedia dump. Prepared data',
     shownTitle: 'What this shows',
     shownItems: [
       'The weights came from the recorded run.',
@@ -129,12 +102,6 @@ export const copy = {
       'That the answers are right. It\'s small and often wrong.',
       'That it matches on other kinds of GPU.',
       'That anyone outside the project agrees yet.',
-    ],
-    counts: [
-      { key: 'articles', label: 'Articles' },
-      { key: 'targets', label: 'Wikipedia targets' },
-      { key: 'conversations', label: 'Conversations' },
-      { key: 'loopLines', label: 'Training loop', value: '~630 lines' },
     ],
   },
   check: {
@@ -166,7 +133,7 @@ cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
 openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
 # Verification: OK   (DigiCert stamped anchor.json on 2026-10-20)
-git clone -q --depth 1 --branch v1.0.1 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # weights conversation-model.pt: MATCH chain entry 37`,
@@ -186,7 +153,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     ],
   },
   verification: {
-    kicker: 'Verification',
+    coverageTitle: 'Who has checked each segment',
     intro: 'Every segment matched, but only we have checked so far. That\'s where we need help.',
     explain: 'If one segment had been tampered with, 110 random checks would catch it 95% of the time and 169 would catch it 99%. There are no independent checks yet, so the curve starts at zero.',
     captionNotice: '46 checks across 37 segments, all matching, none independent.',
@@ -198,9 +165,11 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     hardwareNote: 'Only the same GPU model gives identical bits; a mismatch elsewhere is normal.',
   },
   timeline: {
-    kicker: 'Training timeline',
+    kicker: 'Training history',
     intro: 'The machine restarted once and the code changed once. Both segments still matched.',
     h2: 'One machine restart and one code change. Both segments still matched.',
+    baseTitle: 'Base model finished',
+    finalTitle: 'Final model',
     restartTitle: 'Host restart',
     restartTag: 'Segment 10',
     codeChangeTitle: 'Code change',
@@ -234,7 +203,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     evidencePath: 'release/unlearning-3i-atlas/',
   },
   downloads: {
-    kicker: 'Downloads',
+    kicker: 'Release',
     intro: 'Run sha256sum on each file and compare it with the hash below.',
     files: [
       {
