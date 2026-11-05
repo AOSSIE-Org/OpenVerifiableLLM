@@ -18,12 +18,44 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
-without the `ckpt-*.pt` files, then from that folder:
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`).
+
+### Windows
+
+On Windows, install Python 3.12 or newer and Git for Windows. OpenSSL must also be available on your `PATH`.
+
+Use **Git Bash** to run the verification commands below. Do not run the Bash commands directly in PowerShell or CMD.
+
+If OpenSSL is installed with Git for Windows but is not available in Git Bash, add its directory to `PATH`:
 
 ```bash
-pip install huggingface_hub torch numpy
-sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
+for dir in /mingw64/bin /ucrt64/bin; do
+    if [ -f "$dir/openssl.exe" ]; then
+        export PATH="$dir:$PATH"
+        break
+    fi
+done
+
+command -v openssl
+```
+
+The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+
+The normal verification process checks both DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification.
+
+Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
+```bash
+pip install huggingface_hub torch numpy "certifi>=2026.2.2"
+
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c --ignore-missing release-hashes.txt
+elif command -v gsha256sum >/dev/null 2>&1; then
+    gsha256sum -c --ignore-missing release-hashes.txt
+else
+    echo "Install GNU coreutils to verify release hashes." >&2
+    exit 1
+fi
+
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -31,14 +63,14 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
-
 `verify` checks four things:
 
 1. Every chain entry links to the hash of the previous one.
 2. The chain ends at the head recorded in `anchor.json`.
 3. Both timestamps on `anchor.json` verify, for the exact bytes of `anchor.json`. DigiCert is checked
    against the system CA bundle (`/etc/ssl/certs/ca-certificates.crt` on Linux, `/etc/ssl/cert.pem`
-   on macOS). FreeTSA's certificates are downloaded from freetsa.org.
+   on macOS). If neither standard system CA-bundle path is available, the verifier uses the `certifi`
+   CA bundle. FreeTSA's certificates are downloaded from freetsa.org.
 4. The weights file is exactly the state at a released entry. `base-model.pt` gives
    `MATCH chain entry 31`; `conversation-model.pt` gives `MATCH chain entry 37`. A `.safetensors`
    copy of either model, from
