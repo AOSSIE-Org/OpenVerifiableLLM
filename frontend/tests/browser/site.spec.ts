@@ -367,6 +367,19 @@ test.describe('OpenVerifiableLLM Site', () => {
     });
   }
 
+  test('folded sections have a target at least 24px tall', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('heading', { level: 1 }).waitFor();
+    const heights = await page.locator('summary').evaluateAll(all => all.map(s => s.getBoundingClientRect().height));
+    expect(heights.length).toBeGreaterThan(0);
+    for (const height of heights) expect(height).toBeGreaterThanOrEqual(24);
+  });
+
+  test('links the document behind the event positions', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('link', { name: 'docs/how-it-works.md' })).toHaveAttribute('href', /\/blob\/v1\.1\.0\/docs\/how-it-works\.md$/);
+  });
+
   test('headings step down one level at a time', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('heading', { level: 1 }).waitFor();

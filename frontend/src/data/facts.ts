@@ -63,7 +63,6 @@ export const shortDate = (iso: string): string => dateFormat('short').format(new
 
 export interface Facts {
   segments: number;
-  boundaries: number;
   // Segments, by who checked and what they found
   projectMatched: number;
   projectMismatched: number;
@@ -93,8 +92,13 @@ export interface Facts {
   authorities: string[];
   modelMillions: number;
   checkGpu: string;
-  // The exclusion fork: where it split, and its own checks
+  // Training's two unplanned events, and the document that records them
+  hostFailureSegment: number;
+  codeChangeBoundary: number;
+  eventsSourceUrl: string;
+  // The exclusion fork: where it split, and the project's own checks on it
   forkFromEntry: number;
+  forkAnchored: boolean;
   forkSegments: number;
   forkSegmentsMatched: number;
 }
@@ -111,13 +115,13 @@ export function summarize(evidence: EvidenceData): Facts {
   const independentMismatched = countOf(coverage, 'independentResult', 'MISMATCH');
   const stampTime = anchor.timestamps.map(t => t.time).sort().at(-1) ?? '';
   const { fromEntry, entries } = exclusion.fork;
+  const forkProjectChecks = exclusion.forkChecks.filter(c => !isIndependent(c));
   // Counted from the fork's chain, so a segment with no check can't drop out of the total.
   const forkSegmentIds = Array.from({ length: entries - 1 - fromEntry }, (_, i) => fromEntry + i);
   const gpus = [...new Set(rawChecks.map(c => c.gpu.replace(/^NVIDIA GeForce /, '')))];
 
   return {
     segments,
-    boundaries: chain.length,
     projectMatched,
     projectMismatched: countOf(coverage, 'projectResult', 'MISMATCH'),
     projectUnchecked: countOf(coverage, 'projectResult', null),
@@ -143,10 +147,14 @@ export function summarize(evidence: EvidenceData): Facts {
     authorities: anchor.timestamps.map(t => t.authority),
     modelMillions: evidence.preparation.modelParametersMillions,
     checkGpu: gpus.join(' / '),
+    hostFailureSegment: evidence.trainingEvents.hostFailureSegment,
+    codeChangeBoundary: evidence.trainingEvents.codeChangeBoundary,
+    eventsSourceUrl: `https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/${release.tag}/docs/how-it-works.md`,
     forkFromEntry: fromEntry,
+    forkAnchored: exclusion.fork.anchored,
     forkSegments: forkSegmentIds.length,
     forkSegmentsMatched: forkSegmentIds.filter(
-      s => verdict(exclusion.forkChecks.filter(c => c.segment === s)) === 'MATCH',
+      s => verdict(forkProjectChecks.filter(c => c.segment === s)) === 'MATCH',
     ).length,
   };
 }

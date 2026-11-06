@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
   "revision": "96dc282a",
   "revisionFull": "96dc282a9803616c6b30bb31bfc3a0b91a7191e6",
@@ -17,7 +17,8 @@
     "release/unlearning-3i-atlas/verifications.jsonl": "6f23946c7bcb7413a7f8b7fa322f5fa6b3240caa93c6d4d63c5a7133cbc9e7ec",
     "release/unlearning-3i-atlas/chain.jsonl": "98ffe339f9a0e20458b2615597fdb9ca23b0b12a5bac3873c9327893e724e6c1",
     "release/unlearning-3i-atlas/README.md": "499eb00a91699fa785c94fcbf3d8e96f0ad71d390752ee4523d2b019a010f560",
-    "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
+    "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68",
+    "github:v1.1.0/docs/how-it-works.md": "b60855f9af33aabaf90ca8142b161128f817f9a74d9f35c07efb254bcf38d849"
   },
   "release": {
     "tag": "v1.1.0",
@@ -30,6 +31,10 @@
     "modelParametersMillions": 23,
     "trainingCodeLines": 529,
     "preparedDataId": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
+  },
+  "trainingEvents": {
+    "hostFailureSegment": 10,
+    "codeChangeBoundary": 19
   },
   "chain": [
     {
@@ -1957,7 +1962,16 @@
       "entries": 39,
       "sharedEntries": 31,
       "previous": "2f33f280a48f610d432e95d98fe14d12e81d77ea97d419f39964bb92119fec39",
-      "state": "baf0f2694f6f7561b6e427c0181978541c19263849163984131f51dad72b6c38"
+      "state": "baf0f2694f6f7561b6e427c0181978541c19263849163984131f51dad72b6c38",
+      "excluded": {
+        "wikipedia": [
+          [
+            6915731634,
+            10395
+          ]
+        ]
+      },
+      "anchored": false
     },
     "forkChecks": [
       {

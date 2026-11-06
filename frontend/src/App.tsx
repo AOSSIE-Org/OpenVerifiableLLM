@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { EvidenceData } from './data/contracts';
 import { type Facts, summarize } from './data/facts';
 import { validateEvidence, SnapshotError } from './data/validate';
+import { ErrorBoundary, SnapshotProblem } from './components/ErrorBoundary';
 import { Header } from './components/Header';
 import { Contents } from './components/Contents';
 import { Hero } from './components/Hero';
@@ -45,15 +46,7 @@ export const App: React.FC = () => {
   }, []);
 
   if (error) {
-    return (
-      <main className="page-msg" role="alert">
-        <h1>Snapshot unavailable or invalid</h1>
-        <p className="err">{error}</p>
-        <button type="button" className="btn" onClick={() => window.location.reload()}>
-          Retry loading snapshot
-        </button>
-      </main>
-    );
+    return <SnapshotProblem message={error} />;
   }
 
   if (!loaded) {
@@ -67,7 +60,7 @@ export const App: React.FC = () => {
   const { evidence, facts } = loaded;
 
   return (
-    <>
+    <ErrorBoundary>
       <a className="skip" href="#main">
         Skip to content
       </a>
@@ -96,7 +89,7 @@ export const App: React.FC = () => {
       </main>
 
       <Footer facts={facts} />
-    </>
+    </ErrorBoundary>
   );
 };
 export default App;

@@ -46,6 +46,7 @@ export const CheckLadder: React.FC<{ facts: Facts }> = ({ facts }) => (
                 </pre>
                 <CopyButton textToCopy={step.command} />
               </div>
+              {step.needs && <p className="note step-needs">{step.needs}</p>}
             </details>
           )}
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { claimsFor, timelineClaims, TRAINING_EVENTS } from '../src/content/claims';
+import { claimsFor, timelineClaims } from '../src/content/claims';
 import type { RawVerificationCheck } from '../src/data/contracts';
 import { sha256Hex } from '../src/data/sha256';
 import { checksForOdds, combine, datasetUrl, deriveCoverage, detectionOdds, summarize, verdict } from '../src/data/facts';
@@ -24,6 +24,12 @@ describe('sha256Hex', () => {
     expect(sha256Hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq')).toBe(
       '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
     );
+  });
+
+  it('handles long input and the multi-block vector', () => {
+    expect(sha256Hex('a'.repeat(1_000_000))).toBe('cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0');
+    const long = 'abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu';
+    expect(sha256Hex(long)).toBe('cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1');
   });
 
   it('agrees with node:crypto across block boundaries and non-ASCII text', () => {
@@ -87,7 +93,6 @@ describe('summary of the real snapshot', () => {
   it('counts from the records', () => {
     expect(facts).toMatchObject({
       segments: 37,
-      boundaries: 38,
       projectMatched: 37,
       projectMismatched: 0,
       projectUnchecked: 0,
@@ -144,6 +149,48 @@ describe('facts that come from the snapshot', () => {
     expect(claimsFor(facts).forkWhy[2]).toContain('7 of the 8');
   });
 
+  it('links the event positions to the document at the release tag', () => {
+    expect(summarize(loadEvidence()).eventsSourceUrl).toBe('https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/v1.1.0/docs/how-it-works.md');
+  });
+
+  it('counts a mismatching fork check as not matched, even beside a matching one', () => {
+    const evidence = loadEvidence();
+    const twice = evidence.exclusion.forkChecks.find(c => c.checker === 'project fresh machine public files only');
+    if (!twice) throw new Error('no second check on a fork segment');
+    twice.result = 'MISMATCH';
+    const facts = summarize(evidence);
+    expect(facts.forkSegmentsMatched).toBe(7);
+    expect(claimsFor(facts).forkWhy[2]).toContain('7 of the 8');
+  });
+
+  it('says when the fork has no timestamp of its own', () => {
+    const evidence = loadEvidence();
+    expect(evidence.exclusion.fork.anchored).toBe(false);
+    expect(claimsFor(summarize(evidence)).forkLimits).toHaveLength(1);
+    evidence.exclusion.fork.anchored = true;
+    expect(claimsFor(summarize(evidence)).forkLimits).toHaveLength(0);
+  });
+
+  it('never claims a matched run when a segment has no match', () => {
+    const claims = claimsFor(summarize(withoutChecks(4)));
+    const text = [...claims.results.shown, claims.results.notice, claims.results.noticeClose].join(' ');
+    expect(text).not.toContain('reran all');
+    expect(text).not.toContain('Every segment matched');
+  });
+
+  it('does not say the record is unchanged, or that the page verifies it', () => {
+    const claims = claimsFor(summarize(loadEvidence()));
+    expect(JSON.stringify(claims)).not.toMatch(/unchanged since/i);
+    expect(claims.snapshotNote).toContain('not that it is authentic');
+    expect(claims.results.noticeClose).toContain("project's own checks");
+  });
+
+  it('prints no sample output in the published command', () => {
+    const command = claimsFor(summarize(loadEvidence())).ladder.map(s => s.command ?? '').join('\n');
+    expect(command).not.toMatch(/^#/m);
+    expect(command).not.toContain('MATCH');
+  });
+
   it('moves the model size and GPU with the evidence', () => {
     const evidence = loadEvidence();
     evidence.preparation.modelParametersMillions = 116;
@@ -158,9 +205,9 @@ describe('facts that come from the snapshot', () => {
     const evidence = loadEvidence();
     const second = evidence.verifications.rawChecks.filter(c => c.checker === 'project second pod');
     const firstNewCode = second.find(c => c.code !== second[0].code);
-    expect(firstNewCode?.segment).toBe(TRAINING_EVENTS.codeChangeBoundary);
+    expect(firstNewCode?.segment).toBe(evidence.trainingEvents.codeChangeBoundary);
     const allSegments = evidence.hardwareMap.find(p => typeof p.segment === 'string');
-    expect(allSegments?.note).toContain(`segments 0-${TRAINING_EVENTS.hostFailureSegment - 1}`);
+    expect(allSegments?.note).toContain(`segments 0-${evidence.trainingEvents.hostFailureSegment - 1}`);
   });
 });
 

@@ -13,6 +13,7 @@ export interface LadderStep {
   chips: { label: string; type: 'm' | 'h' }[];
   isKey?: boolean;
   command?: string;
+  needs?: string;
   action?: { label: string; href: string };
 }
 
@@ -39,7 +40,7 @@ export function claimsFor(f: Facts) {
       stampedLabel: `record timestamped by ${f.authorities.join(' and ')}`,
     },
     how: [
-      { title: 'Data', text: 'The exact Wikipedia dump, which rebuilds byte for byte.' },
+      { title: 'Data', text: 'An exact Wikipedia dump. The project rebuilt the training data from it, byte for byte.' },
       { title: 'Training', text: `Run in ${f.segments} segments, with a checkpoint saved after each.` },
       { title: 'Chain', text: 'Each record links to the hash of the one before, so any change breaks it.' },
       { title: 'Timestamp', text: `${f.authorities.join(' and ')} stamped the record on ${f.stampDate}.` },
@@ -68,14 +69,14 @@ export function claimsFor(f: Facts) {
         unmatched > 0
           ? `${unmatched === 1 ? '1 segment has' : `${unmatched} segments have`} no matching result. The map shows which.`
           : noneIndependent
-            ? "Every segment matched, but only we have checked so far. That's where we need help."
+            ? "Every segment matched in the project's own checks, but nobody outside has checked. That's where we need help."
             : 'Every project check matched, and outside checks have started. More are needed.',
       shown: [
         f.allProjectMatched
-          ? 'The weights came from the recorded run.'
+          ? `The project reran all ${f.segments} segments and got the recorded bytes.`
           : `Not all of it: ${unmatched === 1 ? '1 segment has' : `${unmatched} segments have`} no matching result.`,
-        'The data is exactly the stated Wikipedia dump.',
-        `The record is unchanged since ${f.stampDate}.`,
+        'The project rebuilt the training data from the Wikipedia dump and got the same bytes.',
+        `${f.authorities.join(' and ')} timestamped the record on ${f.stampDate}, so it existed by then.`,
       ],
       notShown: [
         "That the answers are right. It's small and often wrong.",
@@ -85,7 +86,7 @@ export function claimsFor(f: Facts) {
     },
     odds: {
       checksToday: `${f.independentChecks === 1 ? 'check' : 'checks'} today`,
-      explain: `If one segment had been tampered with, ${f.checksFor95} random checks would catch it 95% of the time and ${f.checksFor99} would catch it 99%. ${
+      explain: `If one segment had been tampered with, ${f.checksFor95} independent checks would catch it 95% of the time and ${f.checksFor99} would catch it 99%. That assumes each checker picks a segment at random and reports honestly. ${
         noneIndependent
           ? 'There are no independent checks yet, so the curve starts at zero.'
           : `There ${f.independentChecks === 1 ? 'is' : 'are'} ${plural(f.independentChecks, 'independent check')} so far.`
@@ -124,16 +125,17 @@ export function claimsFor(f: Facts) {
           : `Each outside result means more than any of our ${f.projectChecks}.`,
       },
     ],
-    snapshotNote: 'This page checks that its snapshot is consistent with itself. To verify the evidence, run the checks below.',
+    snapshotNote: 'This page checks that its snapshot is consistent with itself, not that it is authentic. To verify the evidence, run the checks below.',
     timestampNote: `Timestamps prove the record existed by ${f.stampDate}, not when training ran.`,
     ladder: ladderFor(f),
     forkWhy: [
       `Entries 0 to ${f.forkFromEntry} of its record are identical to the original.`,
       'The removal is recorded in the chain.',
       f.forkSegmentsMatched === f.forkSegments
-        ? `All ${f.forkSegments} segments after the split matched, recomputed by the project.`
-        : `${f.forkSegmentsMatched} of the ${f.forkSegments} segments after the split matched, recomputed by the project.`,
+        ? `All ${f.forkSegments} segments from the split onward matched, recomputed by the project.`
+        : `${f.forkSegmentsMatched} of the ${f.forkSegments} segments from the split onward matched, recomputed by the project.`,
     ],
+    forkLimits: f.forkAnchored ? [] : ['Its record has no timestamp of its own at this revision.'],
     downloads: [
       {
         name: 'ovl-23m-chat.gguf',
@@ -193,11 +195,8 @@ hf download ${f.dataset} \\
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
 git clone -q --depth 1 --branch ${f.releaseTag} https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
-OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
-# anchor anchor.json: chain head MATCH (${f.boundaries} entries)
-# anchor timestamp freetsa: OK
-# anchor timestamp digicert: OK
-# weights conversation-model.pt: MATCH chain entry ${f.segments}`,
+OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt`,
+      needs: 'Needs Python 3.12 or newer, git, openssl and sha256sum. It passes only if the last line starts with verify PASS. On Windows, verify finds no CA bundle for the timestamps, so use Linux or macOS.',
     },
     {
       time: '1 hour',
@@ -213,13 +212,6 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     },
   ];
 }
-
-// The two unplanned events in training. Their positions come from the project's
-// write-up (docs/how-it-works.md); their results always come from the checks.
-export const TRAINING_EVENTS = {
-  hostFailureSegment: 10,
-  codeChangeBoundary: 19,
-};
 
 export function timelineClaims(f: Facts, outcomes: { failure: CheckOutcome; codeChange: CheckOutcome }) {
   const bothMatched = outcomes.failure === 'MATCH' && outcomes.codeChange === 'MATCH';

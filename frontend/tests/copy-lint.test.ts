@@ -31,7 +31,7 @@ describe('Copy Rules Lint', () => {
 
     // These all come from the snapshot. Typing one here would let the page disagree with it.
     it(`does not type evidence values by hand in ${name}`, () => {
-      for (const value of [/\b37\b/, /\b38\b/, /\b46\b/, /\b110\b/, /\b169\b/, /\b30\b/, /\b23\b/, /96dc282a/, /20 Oct/, /28 Oct/, /31 Oct/, /v1\.\d+\.\d+/, /RTX \d+/]) {
+      for (const value of [/\b37\b/, /\b38\b/, /\b46\b/, /\b110\b/, /\b169\b/, /\b30\b/, /\b23\b/, /\b19\b/, /96dc282a/, /20 Oct/, /28 Oct/, /31 Oct/, /v1\.\d+\.\d+/, /RTX \d+/]) {
         expect(content.match(value), `${value} is typed into ${name}`).toBeNull();
       }
     });

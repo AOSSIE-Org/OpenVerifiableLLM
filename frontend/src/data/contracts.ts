@@ -96,6 +96,14 @@ export interface ForkPoint {
   sharedEntries: number;
   previous: string;
   state: string;
+  excluded: Record<string, [number, number][]>;
+  anchored: boolean;
+}
+
+// Where training's two unplanned events happened, read from docs/how-it-works.md
+export interface TrainingEvents {
+  hostFailureSegment: number;
+  codeChangeBoundary: number;
 }
 
 export interface ExclusionData {
@@ -134,6 +142,7 @@ export interface EvidenceData {
   sourceHashes: Record<string, string>;
   release: ReleaseInfo;
   preparation: PreparationData;
+  trainingEvents: TrainingEvents;
   chain: ChainBoundary[];
   verifications: VerificationsData;
   hardwareMap: HardwareProbe[];

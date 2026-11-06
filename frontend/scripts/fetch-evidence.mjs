@@ -91,7 +91,16 @@ function readFork(runLines, forkLines) {
   let sharedEntries = 0;
   while (sharedEntries < forkLines.length && forkLines[sharedEntries] === runLines[sharedEntries]) sharedEntries++;
   must(sharedEntries === fromEntry + 1, `The fork shares ${sharedEntries} entries with the run, but says it split from entry ${fromEntry}`);
-  return { fromEntry, entryIndex: entry.index, entries: entries.length, sharedEntries, previous: entry.previous, state: entry.state };
+  must(entry.control?.exclude, 'The fork entry does not record what it excludes');
+  return {
+    fromEntry,
+    entryIndex: entry.index,
+    entries: entries.length,
+    sharedEntries,
+    previous: entry.previous,
+    state: entry.state,
+    excluded: entry.control.exclude,
+  };
 }
 
 // A segment passes only if every check on it matched. No checks means no result.
@@ -118,6 +127,22 @@ export async function buildEvidenceData() {
     fetched[relPath] = file;
     console.log(`OK (${file.sha256.slice(0, 8)})`);
   }
+  // The fork at this revision may or may not carry its own anchor
+  const forkAnchor = await fetch(`https://huggingface.co/datasets/${DATASET}/resolve/${REVISION}/${FORK}/anchor.json`, { method: 'HEAD' });
+  // The training events are only written down in the project's document, at the release tag
+  const docsUrl = `https://raw.githubusercontent.com/${REPOSITORY}/${RELEASE_TAG}/docs/how-it-works.md`;
+  const docsRes = await fetch(docsUrl);
+  must(docsRes.ok, `Failed to fetch ${docsUrl}: HTTP ${docsRes.status}`);
+  const docs = await docsRes.text();
+  const eventNumber = (pattern, name) => {
+    const found = pattern.exec(docs)?.[1];
+    must(found, `Could not read the ${name} from docs/how-it-works.md at ${RELEASE_TAG}`);
+    return Number(found);
+  };
+  const trainingEvents = {
+    hostFailureSegment: eventNumber(/Training host fails;[^|]*resumed from checkpoint (\d+)/, 'host failure'),
+    codeChangeBoundary: eventNumber(/\| From boundary (\d+),/, 'code change'),
+  };
   const revisionInfo = await fetchJson(`https://huggingface.co/api/datasets/${DATASET}/revision/${REVISION}`);
   must(revisionInfo.sha.startsWith(REVISION), `Revision ${REVISION} resolved to ${revisionInfo.sha}`);
 
@@ -215,18 +240,22 @@ export async function buildEvidenceData() {
     controlLossDelta: Number((loo.fork_base.control_loss_mean - loo.original_base.control_loss_mean).toFixed(4)),
     controlArticlesCount: loo.control_documents,
     evidencePath: `${FORK}/`,
-    fork: readFork(runChainLines, textLines(fetched[`${FORK}/chain.jsonl`].text)),
+    fork: { ...readFork(runChainLines, textLines(fetched[`${FORK}/chain.jsonl`].text)), anchored: forkAnchor.ok },
     forkChecks,
   };
 
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     dataset: DATASET,
     revision: REVISION,
     revisionFull: revisionInfo.sha,
-    sourceHashes: Object.fromEntries(Object.entries(fetched).map(([path, f]) => [path, f.sha256])),
+    sourceHashes: {
+      ...Object.fromEntries(Object.entries(fetched).map(([path, f]) => [path, f.sha256])),
+      [`github:${RELEASE_TAG}/docs/how-it-works.md`]: sha256(docs),
+    },
     release: { tag: RELEASE_TAG, publishedAt: release.published_at },
     preparation,
+    trainingEvents,
     chain,
     verifications: {
       totalChecks: rawChecks.length,

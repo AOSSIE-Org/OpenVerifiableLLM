@@ -153,6 +153,49 @@ describe('Evidence Validator', () => {
     });
   });
 
+  describe('malformed values', () => {
+    it('rejects a record that was damaged in encoding', () => {
+      rejects(e => { e.chain[2].record = `${e.chain[2].record.slice(0, 40)}\uD800${e.chain[2].record.slice(41)}`; }, /Entry hash at boundary 2 does not match its record/);
+    });
+
+    it('rejects timestamps that are not real dates in the source format', () => {
+      for (const time of ['2026', 'Oct 20 2026', '2026-10-20', '2026-02-30T10:00:00Z', '2026-13-01T10:00:00Z', '2026-10-20T14:38:43+00:00', '2026-10-20T14:38:43Z\n', 42, null]) {
+        rejects(e => { e.anchor.timestamps[0].time = time; }, /Anchor timestamp 0 has an invalid time/);
+        rejects(e => { e.release.publishedAt = time; }, /Invalid release date/);
+      }
+    });
+
+    it('rejects a boundary time the page could not print', () => {
+      rejects(e => { e.chain[0].time = 1e20; }, /Invalid time at boundary 0/);
+      rejects(e => { e.chain[0].time = -1; }, /Invalid time at boundary 0/);
+    });
+
+    it('rejects an unexpected schema, so an old snapshot cannot be misread', () => {
+      rejects(e => { e.schemaVersion = 3; }, /Unsupported schemaVersion 3, expected 4/);
+      rejects(e => { delete e.schemaVersion; }, /Unsupported schemaVersion/);
+    });
+
+    it('rejects coverage that lists different checks from the raw rows', () => {
+      rejects(e => { e.verifications.coverage[6].checks[0].gpu = 'something else'; }, /segment 6 lists different checks/);
+      rejects(e => { e.verifications.coverage[6].checks = []; }, /segment 6 lists a different number of checks/);
+    });
+
+    it('rejects training events outside the run', () => {
+      rejects(e => { delete e.trainingEvents; }, /Missing trainingEvents section/);
+      rejects(e => { e.trainingEvents.hostFailureSegment = 37; }, /Invalid host failure segment: 37/);
+      rejects(e => { e.trainingEvents.codeChangeBoundary = -1; }, /Invalid code change boundary: -1/);
+    });
+
+    it('rejects a fork that records no exclusion, or a broken anchored flag', () => {
+      rejects(e => { e.exclusion.fork.excluded = {}; }, /does not record what it excludes/);
+      rejects(e => { delete e.exclusion.fork.anchored; }, /Invalid fork anchored flag/);
+    });
+
+    it('rejects loss changes that are off by more than rounding', () => {
+      rejects(e => { e.exclusion.removedLossDelta += 0.001; }, /removed loss delta inconsistent/);
+    });
+  });
+
   describe('values that reach links and commands', () => {
     const badDatasets = [
       'owner/name; rm -rf /',

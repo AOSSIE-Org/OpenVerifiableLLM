@@ -1,5 +1,5 @@
 import React from 'react';
-import { claimsFor, controlLossNote, removedLossNote, timelineClaims, TRAINING_EVENTS } from '../content/claims';
+import { claimsFor, controlLossNote, removedLossNote, timelineClaims } from '../content/claims';
 import { copy } from '../content/copy';
 import type { ChainBoundary, CheckOutcome, ExclusionData, SegmentCoverage } from '../data/contracts';
 import { combine, type Facts } from '../data/facts';
@@ -21,7 +21,7 @@ export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ facts, chain, 
   const baseIndex = chain.findIndex(b => b.kind === 'base');
   const last = chain.length - 1;
   const convSeconds = baseIndex > 0 ? Math.round(chain[last].time - chain[baseIndex].time) : 0;
-  const { hostFailureSegment, codeChangeBoundary } = TRAINING_EVENTS;
+  const { hostFailureSegment, codeChangeBoundary } = facts;
 
   // Each event's mark is the result of the segments it touched, never assumed.
   const failure = coverage[hostFailureSegment]?.projectResult ?? null;
@@ -37,7 +37,7 @@ export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ facts, chain, 
 
       <div className="sec-body">
         <figure className="timeline">
-          <TimelineChart chain={chain} coverage={coverage} baseIndex={baseIndex} description={`${claims.intro} ${claims.caption}`} />
+          <TimelineChart facts={facts} chain={chain} coverage={coverage} baseIndex={baseIndex} description={`${claims.intro} ${claims.caption}`} />
           <figcaption>{claims.caption}</figcaption>
           <ol className="milestones">
             <li>
@@ -66,7 +66,13 @@ export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ facts, chain, 
             </li>
           </ol>
         </figure>
-        <p className="note">{claimsFor(facts).timestampNote}</p>
+        <p className="note">
+          {claimsFor(facts).timestampNote} {t.sourceLabel}{' '}
+          <a href={facts.eventsSourceUrl}>
+            <code>docs/how-it-works.md</code>
+          </a>{' '}
+          at {facts.releaseTag}.
+        </p>
 
         <table className="sr-only">
           <caption>Training boundaries sequence and timestamps</caption>
@@ -102,25 +108,29 @@ const segmentFill = (result: CheckOutcome) =>
   result === 'MATCH' ? 'var(--match-fill)' : result === 'MISMATCH' ? 'var(--miss)' : 'none';
 
 const TimelineChart: React.FC<{
+  facts: Facts;
   chain: ChainBoundary[];
   coverage: SegmentCoverage[];
   baseIndex: number;
   description: string;
-}> = ({ chain, coverage, baseIndex, description }) => {
+}> = ({ facts, chain, coverage, baseIndex, description }) => {
   // Drawn near its usual width, so the labels stay near their stated size.
   const W = 760;
   const L = 8;
   const R = 8;
   const yy = 58;
   const segments = chain.length - 1;
-  const { hostFailureSegment, codeChangeBoundary } = TRAINING_EVENTS;
+  const { hostFailureSegment, codeChangeBoundary } = facts;
   const x = (i: number): number => L + (i * (W - L - R)) / segments;
   const events = [
     { at: (x(hostFailureSegment) + x(hostFailureSegment + 1)) / 2, label: copy.timeline.restartTitle, event: true },
     { at: x(codeChangeBoundary), label: copy.timeline.codeChangeTitle, event: true },
     ...(baseIndex > 0 ? [{ at: x(baseIndex), label: 'Base model', event: false }] : []),
   ];
-  const ticks = [...Array.from({ length: Math.floor((segments - 1) / 5) + 1 }, (_, i) => i * 5), segments];
+  const ticks = [
+    ...Array.from({ length: Math.floor((segments - 1) / 5) + 1 }, (_, i) => i * 5).filter(i => segments - i > 2),
+    segments,
+  ];
 
   return (
     <svg viewBox={`0 0 ${W} 110`} width="100%" className="tl-chart" role="img" aria-labelledby="tl-title tl-desc">
@@ -230,7 +240,7 @@ const Exclusion: React.FC<{ facts: Facts; exclusion: ExclusionData }> = ({ facts
         <div>
           <h4>{c.limitsTitle}</h4>
           <ul className="circles">
-            {c.limitsItems.map(item => (
+            {[...c.limitsItems, ...claimsFor(facts).forkLimits].map(item => (
               <li key={item}>{item}</li>
             ))}
           </ul>

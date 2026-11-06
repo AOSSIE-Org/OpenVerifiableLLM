@@ -42,8 +42,8 @@ export const copy = {
   overview: {
     kicker: 'Results',
     dataTitle: 'Training data',
-    dataRebuilt: 'Rebuilt exactly from the Wikipedia dump. Prepared data',
-    shownTitle: 'What this shows',
+    dataRebuilt: 'The project rebuilt this from the Wikipedia dump and got the same bytes. Prepared data',
+    shownTitle: "What the project's evidence shows",
     notShownTitle: "What it doesn't show",
   },
   check: {
@@ -55,10 +55,11 @@ export const copy = {
     warningNotice: 'Self-reported and not yet signed.',
     oddsTitle: 'How many checks would catch a bad segment',
     hardwareTitle: 'Which hardware reproduces the bits',
-    hardwareNote: 'Only the same GPU model gives identical bits; a mismatch elsewhere is normal.',
+    hardwareNote: 'In these probes, only the training GPU type gave identical bits; a mismatch elsewhere is expected.',
   },
   timeline: {
     kicker: 'Training history',
+    sourceLabel: 'Event positions from',
     baseTitle: 'Base model finished',
     finalTitle: 'Final model',
     restartTitle: 'Host failure',
@@ -68,7 +69,7 @@ export const copy = {
   },
   exclusion: {
     kicker: 'Verifiable exclusion',
-    h2: 'We trained a second copy of the model with one article taken out, and we can show it never saw it.',
+    h2: 'We trained a second copy of the model with one article taken out. Its record shows the article was never used, and you can check that.',
     removedArticleLabel: 'Loss on the removed article',
     whyHoldsTitle: 'Why we can say this',
     limitsTitle: "What it can't do",

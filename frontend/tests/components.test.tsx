@@ -1,5 +1,7 @@
+import type React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { Header } from '../src/components/Header';
 import { Hero } from '../src/components/Hero';
 import { CopyButton } from '../src/components/CopyButton';
@@ -140,6 +142,23 @@ describe('Hero', () => {
   });
 });
 
+describe('ErrorBoundary', () => {
+  it('shows the problem instead of a blank page if rendering fails', () => {
+    const Broken = (): React.ReactNode => {
+      throw new Error('bad field');
+    };
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(
+      <ErrorBoundary>
+        <Broken />
+      </ErrorBoundary>,
+    );
+    quiet.mockRestore();
+    expect(screen.getByRole('alert')).toHaveTextContent('bad field');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Snapshot unavailable or invalid');
+  });
+});
+
 describe('Hero honesty', () => {
   it('says the page checks consistency, and points to the real checks', () => {
     render(<Hero facts={summarize(loadEvidence())} />);
@@ -258,13 +277,18 @@ describe('Training history', () => {
   it('reports the exclusion from its own checks and counts', () => {
     renderHistory(loadEvidence());
     expect(screen.getByText('Loss on 50 control articles')).toBeInTheDocument();
-    expect(screen.getByText(/All 8 segments after the split matched, recomputed by the project/)).toBeInTheDocument();
+    expect(screen.getByText(/All 8 segments from the split onward matched, recomputed by the project/)).toBeInTheDocument();
+    expect(screen.getByText(/no timestamp of its own/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'docs/how-it-works.md' })).toHaveAttribute(
+      'href',
+      'https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/v1.1.0/docs/how-it-works.md',
+    );
   });
 
   it('does not claim the fork matched when one of its checks did not', () => {
     const evidence = loadEvidence();
     evidence.exclusion.forkChecks[2].result = 'MISMATCH';
     renderHistory(evidence);
-    expect(screen.getByText(/7 of the 8 segments after the split matched/)).toBeInTheDocument();
+    expect(screen.getByText(/7 of the 8 segments from the split onward matched/)).toBeInTheDocument();
   });
 });

@@ -25,6 +25,7 @@ function assert(condition: boolean, message: string): asserts condition {
 
 type Fields = Record<string, unknown>;
 
+const SCHEMA_VERSION = 4;
 const HEX_64_REGEX = /^[0-9a-f]{64}$/i;
 const CHAIN_KINDS = new Set(['initial', 'progress', 'base', 'transition', 'epoch', 'final']);
 const RUN_CHAIN = 'release/simple-run/chain.jsonl';
@@ -43,7 +44,15 @@ const isCount = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 0;
 const isPositive = (value: unknown): value is number => isCount(value) && value > 0;
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
-const isDate = (value: unknown): value is string => isText(value) && !Number.isNaN(Date.parse(value));
+// The exact form the sources use, and a real date: Date.parse alone accepts almost anything.
+const isDate = (value: unknown): value is string => {
+  if (!isText(value) || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(value)) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 19) === value.slice(0, 19);
+};
+// In seconds, and still a date the page can print
+const isBoundaryTime = (value: unknown): value is number =>
+  isFiniteNumber(value) && value > 0 && value * 1000 <= 8.64e15;
 
 function fields(value: unknown, name: string): Fields {
   assert(isFields(value), `Missing ${name} section`);
@@ -96,7 +105,7 @@ function validateChain(root: Fields): Fields[] {
     assert(isHash(entry.state), `Invalid state hash at boundary ${i}`);
     assert(isHash(entry.model), `Invalid model hash at boundary ${i}`);
     assert(isHash(entry.entryHash), `Invalid entryHash at boundary ${i}`);
-    assert(isFiniteNumber(entry.time) && entry.time > 0, `Invalid time at boundary ${i}: ${entry.time}`);
+    assert(isBoundaryTime(entry.time), `Invalid time at boundary ${i}: ${entry.time}`);
 
     const control = fields(entry.control, `control at boundary ${i}`);
     assert(isCount(control.global_step), `Invalid global_step at boundary ${i}: ${control.global_step}`);
@@ -171,6 +180,7 @@ function validateVerifications(root: Fields, segmentCount: number, boundaries: n
       Array.isArray(seg.checks) && seg.checks.length === want.checks.length,
       `Coverage disagrees with raw checks: segment ${s} lists a different number of checks`,
     );
+    assert(sameJson(seg.checks, want.checks), `Coverage disagrees with raw checks: segment ${s} lists different checks`);
   });
 
   const independent = rows.filter(c => KNOWN_CHECKER_MAP[c.checker] === 'independent').length;
@@ -268,7 +278,16 @@ function validateFork(excl: Fields, chain: Fields[]): { first: number; last: num
   const parent = chain[fromEntry];
   assert(previous === parent.entryHash, `Fork does not link to entry ${fromEntry} of the run`);
   assert(state === parent.state, `Fork entry changes the state of entry ${fromEntry}`);
+  assert(isFields(fork.excluded) && Object.keys(fork.excluded).length > 0, 'Fork entry does not record what it excludes');
+  assert(typeof fork.anchored === 'boolean', `Invalid fork anchored flag: ${fork.anchored}`);
   return { first: fromEntry, last: entries - 2 };
+}
+
+function validateTrainingEvents(root: Fields, segmentCount: number): void {
+  const events = fields(root.trainingEvents, 'trainingEvents');
+  const { hostFailureSegment, codeChangeBoundary } = events;
+  assert(isCount(hostFailureSegment) && hostFailureSegment < segmentCount, `Invalid host failure segment: ${hostFailureSegment}`);
+  assert(isCount(codeChangeBoundary) && codeChangeBoundary < segmentCount, `Invalid code change boundary: ${codeChangeBoundary}`);
 }
 
 function validateExclusion(root: Fields, chain: Fields[]): void {
@@ -278,7 +297,7 @@ function validateExclusion(root: Fields, chain: Fields[]): void {
   assert(isFiniteNumber(excl.forkRemovedLoss) && excl.forkRemovedLoss > 0, 'Invalid forkRemovedLoss');
   assert(isFiniteNumber(excl.removedLossDelta), 'Invalid removedLossDelta');
   assert(
-    Math.abs(excl.removedLossDelta - (excl.forkRemovedLoss - excl.originalRemovedLoss)) < 0.001,
+    Math.abs(excl.removedLossDelta - (excl.forkRemovedLoss - excl.originalRemovedLoss)) < 0.0002,
     `Exclusion removed loss delta inconsistent: ${excl.removedLossDelta} !== ${excl.forkRemovedLoss} - ${excl.originalRemovedLoss}`,
   );
   assert(isPositive(excl.controlArticlesCount), `controlArticlesCount must be a positive integer, got ${excl.controlArticlesCount}`);
@@ -286,7 +305,7 @@ function validateExclusion(root: Fields, chain: Fields[]): void {
   assert(isFiniteNumber(excl.forkControlLossMean) && excl.forkControlLossMean > 0, 'Invalid forkControlLossMean');
   assert(isFiniteNumber(excl.controlLossDelta), 'Invalid controlLossDelta');
   assert(
-    Math.abs(excl.controlLossDelta - (excl.forkControlLossMean - excl.originalControlLossMean)) < 0.001,
+    Math.abs(excl.controlLossDelta - (excl.forkControlLossMean - excl.originalControlLossMean)) < 0.0002,
     `Exclusion control loss delta inconsistent: ${excl.controlLossDelta} !== ${excl.forkControlLossMean} - ${excl.originalControlLossMean}`,
   );
   assert(excl.evidencePath === 'release/unlearning-3i-atlas/', `Invalid exclusion evidencePath: ${excl.evidencePath}`);
@@ -302,7 +321,7 @@ export function validateEvidence(data: unknown): EvidenceData {
   assert(isFields(data), 'Evidence data must be a non-null object');
   const root = data;
 
-  assert(isPositive(root.schemaVersion), `Invalid schemaVersion: ${root.schemaVersion}`);
+  assert(root.schemaVersion === SCHEMA_VERSION, `Unsupported schemaVersion ${root.schemaVersion}, expected ${SCHEMA_VERSION}`);
   assert(
     typeof root.dataset === 'string' && DATASET_ID_REGEX.test(root.dataset) && !/\.\.|--/.test(root.dataset),
     `Invalid dataset identifier, expected owner/name: ${JSON.stringify(root.dataset)}`,
@@ -329,6 +348,7 @@ export function validateEvidence(data: unknown): EvidenceData {
   validateAnchor(root, chain, source);
   validateHardware(root, segmentCount);
   validatePreparation(root, source);
+  validateTrainingEvents(root, segmentCount);
   validateExclusion(root, chain);
 
   return data as unknown as EvidenceData;

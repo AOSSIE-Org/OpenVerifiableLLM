@@ -444,8 +444,10 @@ table.sr-only {
   font-size: var(--fs-sm);
 }
 
+/* 24px tall, the smallest target WCAG 2.2 AA allows */
 .explain summary,
 .more summary {
+  padding-block: 1px;
   color: var(--link);
   font-weight: 600;
   cursor: pointer;
@@ -841,6 +843,10 @@ table.sr-only {
 
 .step-proves li.m {
   color: var(--match);
+}
+
+.step-needs {
+  margin: 8px 0 0;
 }
 
 .step-action {
