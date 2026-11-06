@@ -346,6 +346,27 @@ test.describe('OpenVerifiableLLM Site', () => {
     expect(moving).toBe(0);
   });
 
+  for (const width of [390, 320]) {
+    test(`the phone footer lines up its columns at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto('/');
+      await page.getByRole('heading', { level: 1 }).waitFor();
+      const box = async (selector: string) => (await page.locator(selector).boundingBox())!;
+
+      const org = await box('.fcol-about');
+      const project = await box('nav[aria-label="Project"]');
+      const community = await box('nav[aria-label="Community"]');
+      const help = await box('nav[aria-label="Get help"]');
+
+      // The organisation sits above the link columns, not beside one of them
+      expect(org.y + org.height).toBeLessThanOrEqual(project.y);
+      expect(community.y).toBe(project.y);
+      expect(community.x).toBeGreaterThan(project.x);
+      expect(help.y).toBeGreaterThanOrEqual(Math.max(project.y + project.height, community.y + community.height));
+      expect(help.x).toBe(project.x);
+    });
+  }
+
   test('headings step down one level at a time', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('heading', { level: 1 }).waitFor();

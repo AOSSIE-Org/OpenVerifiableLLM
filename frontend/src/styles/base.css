@@ -1232,8 +1232,36 @@ table.sr-only {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* The organisation gets its own row, so the link columns line up under it */
   .fcols {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 16px;
+  }
+
+  .fcol-about,
+  .fcols nav:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .fcols nav:last-child ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  .fcols nav:last-child li {
+    margin-bottom: 0;
+  }
+
+  .fbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+
+  .fbar-rev {
+    display: block;
   }
 
   .hbtn {

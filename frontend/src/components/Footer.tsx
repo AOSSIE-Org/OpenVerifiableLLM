@@ -22,11 +22,14 @@ export const Footer: React.FC<{ facts: Facts }> = ({ facts }) => (
     </div>
     <div className="fbar">
       <span>
-        {footer.license} Evidence revision{' '}
-        <a href={facts.evidenceUrl}>
-          <code>{facts.revision}</code>
-        </a>
-        .
+        {footer.license}{' '}
+        <span className="fbar-rev">
+          Evidence revision{' '}
+          <a href={facts.evidenceUrl}>
+            <code>{facts.revision}</code>
+          </a>
+          .
+        </span>
       </span>
       <Socials />
     </div>
