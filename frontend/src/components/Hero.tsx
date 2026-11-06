@@ -1,22 +1,17 @@
 import React from 'react';
+import { claimsFor } from '../content/claims';
 import { copy } from '../content/copy';
-import type { EvidenceData } from '../data/contracts';
-
-interface HeroProps {
-  evidence: EvidenceData;
-}
+import type { Facts } from '../data/facts';
 
 // What the project is, the two actions, and the numbers that matter most.
-export const Hero: React.FC<HeroProps> = ({ evidence }) => {
+export const Hero: React.FC<{ facts: Facts }> = ({ facts }) => {
   const a = copy.article;
-  const { verifications, revision } = evidence;
-  const segments = verifications.coverage.length;
-  const matched = verifications.coverage.filter(c => c.projectResult === 'MATCH').length;
+  const c = claimsFor(facts).hero;
 
   return (
     <div className="hero" id="top">
       <p className="byline">
-        {a.from} · {a.kicker}
+        {a.from} · {c.kicker}
       </p>
       <h1>{a.title}</h1>
       <p className="intro">
@@ -27,7 +22,7 @@ export const Hero: React.FC<HeroProps> = ({ evidence }) => {
         <a className="action primary" href="#overview">
           {a.primaryAction}
         </a>
-        <a className="action" href={copy.header.links[0].href}>
+        <a className="action" href={copy.header.source}>
           {a.secondaryAction}
         </a>
       </p>
@@ -37,29 +32,29 @@ export const Hero: React.FC<HeroProps> = ({ evidence }) => {
           {a.factsTitle}
         </h2>
         <dl className="figures">
-          <div>
+          <div className={facts.allProjectMatched ? undefined : 'caveat'}>
+            <dt>{c.recomputed}</dt>
             <dd>
-              {matched} / {segments}
+              {facts.projectMatched} / {facts.segments}
             </dd>
-            <dt>{a.figures.recomputed}</dt>
           </div>
           <div className="caveat">
-            <dd>{verifications.independentChecksCount}</dd>
-            <dt>{a.figures.independent}</dt>
+            <dt>{c.independent}</dt>
+            <dd>{facts.independentChecks}</dd>
+          </div>
+          <div className={facts.projectChecksMismatched === 0 ? undefined : 'caveat'}>
+            <dt>{c.checks}</dt>
+            <dd>{facts.projectChecks}</dd>
           </div>
           <div>
-            <dd>{verifications.projectChecksCount}</dd>
-            <dt>{a.figures.checks}</dt>
-          </div>
-          <div>
-            <dd>{a.figures.stamped}</dd>
-            <dt>{a.figures.stampedLabel}</dt>
+            <dt>{c.stampedLabel}</dt>
+            <dd>{facts.stampDateShort}</dd>
           </div>
         </dl>
         <p className="note">
           {a.evidenceLine}{' '}
-          <a href={copy.header.links[1].href}>
-            <code>{revision}</code>
+          <a href={facts.evidenceUrl}>
+            <code>{facts.revision}</code>
           </a>
           .
         </p>

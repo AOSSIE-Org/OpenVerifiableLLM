@@ -1,47 +1,56 @@
 import React from 'react';
+import { claimsFor, controlLossNote, removedLossNote, timelineClaims, TRAINING_EVENTS } from '../content/claims';
 import { copy } from '../content/copy';
+import type { ChainBoundary, CheckOutcome, ExclusionData, SegmentCoverage } from '../data/contracts';
+import { combine, type Facts } from '../data/facts';
 import { Explain } from './Explain';
-import type { ChainBoundary, ExclusionData } from '../data/contracts';
+import { Outcome } from './Outcome';
 
 interface TrainingHistoryProps {
+  facts: Facts;
   chain: ChainBoundary[];
+  coverage: SegmentCoverage[];
   exclusion: ExclusionData;
 }
 
 const signed = (n: number) => (n > 0 ? `+${n.toFixed(4)}` : n.toFixed(4));
 
 // What happened during training, and the fork that left one article out.
-export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ chain, exclusion }) => {
+export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ facts, chain, coverage, exclusion }) => {
   const t = copy.timeline;
   const baseIndex = chain.findIndex(b => b.kind === 'base');
   const last = chain.length - 1;
   const convSeconds = baseIndex > 0 ? Math.round(chain[last].time - chain[baseIndex].time) : 0;
+  const { hostFailureSegment, codeChangeBoundary } = TRAINING_EVENTS;
+
+  // Each event's mark is the result of the segments it touched, never assumed.
+  const failure = coverage[hostFailureSegment]?.projectResult ?? null;
+  const codeChange = combine(coverage.slice(codeChangeBoundary).map(c => c.projectResult));
+  const claims = timelineClaims(facts, { failure, codeChange });
 
   return (
     <section id="timeline" className="sec">
       <div className="sec-head">
         <h2>{t.kicker}</h2>
-        <p className="sub">{t.intro}</p>
+        <p className="sub">{claims.intro}</p>
       </div>
 
       <div className="sec-body">
         <figure className="timeline">
-          <TimelineChart chain={chain} baseIndex={baseIndex} />
-          <figcaption>{chain.length - 1} segments, all matched. Evenly spaced, not to time.</figcaption>
+          <TimelineChart chain={chain} coverage={coverage} baseIndex={baseIndex} description={`${claims.intro} ${claims.caption}`} />
+          <figcaption>{claims.caption}</figcaption>
           <ol className="milestones">
             <li>
-              <span className="when">{t.restartTag}</span>
+              <span className="when">Segment {hostFailureSegment}</span>
               <b>{t.restartTitle}</b>
-              <p>
-                {t.restartDesc} <span className="res match">✓ MATCH</span>
-              </p>
+              <p>{t.restartDesc}</p>
+              <Outcome result={failure} />
             </li>
             <li>
-              <span className="when">{t.codeChangeTag}</span>
+              <span className="when">Boundary {codeChangeBoundary} onward</span>
               <b>{t.codeChangeTitle}</b>
-              <p>
-                {t.codeChangeDesc} <span className="res match">✓ MATCH</span>
-              </p>
+              <p>{t.codeChangeDesc}</p>
+              <Outcome result={codeChange} />
             </li>
             {baseIndex > 0 && (
               <li>
@@ -57,7 +66,7 @@ export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ chain, exclusi
             </li>
           </ol>
         </figure>
-        <p className="note">{t.timestampNote}</p>
+        <p className="note">{claimsFor(facts).timestampNote}</p>
 
         <table className="sr-only">
           <caption>Training boundaries sequence and timestamps</caption>
@@ -83,50 +92,71 @@ export const TrainingHistory: React.FC<TrainingHistoryProps> = ({ chain, exclusi
           </tbody>
         </table>
 
-        <Exclusion exclusion={exclusion} />
+        <Exclusion facts={facts} exclusion={exclusion} />
       </div>
     </section>
   );
 };
 
-const TimelineChart: React.FC<{ chain: ChainBoundary[]; baseIndex: number }> = ({ chain, baseIndex }) => {
-  const W = 900;
+const segmentFill = (result: CheckOutcome) =>
+  result === 'MATCH' ? 'var(--match-fill)' : result === 'MISMATCH' ? 'var(--miss)' : 'none';
+
+const TimelineChart: React.FC<{
+  chain: ChainBoundary[];
+  coverage: SegmentCoverage[];
+  baseIndex: number;
+  description: string;
+}> = ({ chain, coverage, baseIndex, description }) => {
+  // Drawn near its usual width, so the labels stay near their stated size.
+  const W = 760;
   const L = 8;
   const R = 8;
   const yy = 58;
   const segments = chain.length - 1;
+  const { hostFailureSegment, codeChangeBoundary } = TRAINING_EVENTS;
   const x = (i: number): number => L + (i * (W - L - R)) / segments;
-  const rx = (x(10) + x(11)) / 2;
+  const events = [
+    { at: (x(hostFailureSegment) + x(hostFailureSegment + 1)) / 2, label: copy.timeline.restartTitle, event: true },
+    { at: x(codeChangeBoundary), label: copy.timeline.codeChangeTitle, event: true },
+    ...(baseIndex > 0 ? [{ at: x(baseIndex), label: 'Base model', event: false }] : []),
+  ];
+  const ticks = [...Array.from({ length: Math.floor((segments - 1) / 5) + 1 }, (_, i) => i * 5), segments];
 
   return (
     <svg viewBox={`0 0 ${W} 110`} width="100%" className="tl-chart" role="img" aria-labelledby="tl-title tl-desc">
       <title id="tl-title">Training timeline: {chain.length} boundaries, evenly spaced</title>
-      <desc id="tl-desc">{copy.timeline.h2} Host restart at segment 10. Code change from segment 19 onward.</desc>
+      <desc id="tl-desc">
+        {description} {copy.timeline.restartTitle} in segment {hostFailureSegment}. {copy.timeline.codeChangeTitle} from boundary {codeChangeBoundary} onward.
+      </desc>
 
-      {Array.from({ length: segments }).map((_, k) => (
-        <rect key={k} x={x(k) + 2} y={yy - 6} width={x(k + 1) - x(k) - 4} height={12} fill="var(--match-fill)">
-          <title>{`Segment ${k}: MATCH`}</title>
-        </rect>
+      {coverage.map(({ segment, projectResult }) => {
+        // A mismatch is taller as well as red, so it doesn't rest on colour.
+        const half = projectResult === 'MISMATCH' ? 11 : 6;
+        return (
+          <rect
+            key={segment}
+            x={x(segment) + 2}
+            y={yy - half}
+            width={x(segment + 1) - x(segment) - 4}
+            height={half * 2}
+            fill={segmentFill(projectResult)}
+            stroke={projectResult === null ? 'var(--rule-strong)' : 'none'}
+          >
+            <title>{`Segment ${segment}: ${projectResult ?? 'not checked'}, by the project`}</title>
+          </rect>
+        );
+      })}
+
+      {events.map(({ at, label, event }) => (
+        <g key={label}>
+          <line x1={at} x2={at} y1={yy - 34} y2={yy + 12} stroke={event ? 'var(--event)' : 'var(--ink-3)'} strokeWidth={1.5} />
+          <text x={at} y={yy - 40} fontSize="13" textAnchor="middle" className={event ? 'event' : undefined}>
+            {label}
+          </text>
+        </g>
       ))}
 
-      <line x1={rx} x2={rx} y1={yy - 34} y2={yy + 12} stroke="var(--event)" strokeWidth={1.5} />
-      <text x={rx} y={yy - 40} fontSize="13" textAnchor="middle" className="event">
-        Host restart
-      </text>
-      <line x1={x(19)} x2={x(19)} y1={yy - 34} y2={yy + 12} stroke="var(--event)" strokeWidth={1.5} />
-      <text x={x(19)} y={yy - 40} fontSize="13" textAnchor="middle" className="event">
-        Code change
-      </text>
-      {baseIndex > 0 && (
-        <>
-          <line x1={x(baseIndex)} x2={x(baseIndex)} y1={yy - 34} y2={yy + 12} stroke="var(--ink-3)" strokeWidth={1.5} />
-          <text x={x(baseIndex)} y={yy - 40} fontSize="13" textAnchor="middle">
-            Base model
-          </text>
-        </>
-      )}
-
-      {[0, 5, 10, 15, 20, 25, 30, segments].map(i => (
+      {ticks.map(i => (
         <text key={i} x={x(i)} y={yy + 32} fontSize="12" textAnchor={i === 0 ? 'start' : i === segments ? 'end' : 'middle'}>
           {i}
         </text>
@@ -135,7 +165,7 @@ const TimelineChart: React.FC<{ chain: ChainBoundary[]; baseIndex: number }> = (
   );
 };
 
-const Exclusion: React.FC<{ exclusion: ExclusionData }> = ({ exclusion }) => {
+const Exclusion: React.FC<{ facts: Facts; exclusion: ExclusionData }> = ({ facts, exclusion }) => {
   const c = copy.exclusion;
   // Both bars share one scale, so the two changes can be compared directly.
   const scale = Math.max(Math.abs(exclusion.removedLossDelta), Math.abs(exclusion.controlLossDelta));
@@ -145,14 +175,14 @@ const Exclusion: React.FC<{ exclusion: ExclusionData }> = ({ exclusion }) => {
       original: exclusion.originalRemovedLoss,
       fork: exclusion.forkRemovedLoss,
       delta: exclusion.removedLossDelta,
-      note: c.removedArticleNote,
+      note: removedLossNote(exclusion.removedLossDelta),
     },
     {
-      label: c.controlArticlesLabel,
+      label: `Loss on ${exclusion.controlArticlesCount} control articles`,
       original: exclusion.originalControlLossMean,
       fork: exclusion.forkControlLossMean,
       delta: exclusion.controlLossDelta,
-      note: c.controlArticlesNote,
+      note: controlLossNote(exclusion.controlLossDelta, exclusion.removedLossDelta),
     },
   ];
 
@@ -181,7 +211,7 @@ const Exclusion: React.FC<{ exclusion: ExclusionData }> = ({ exclusion }) => {
               </div>
             </dl>
             <div className="meter" aria-hidden="true">
-              <span style={{ width: `${(Math.abs(row.delta) / scale) * 100}%` }} />
+              <span style={{ width: `${scale > 0 ? (Math.abs(row.delta) / scale) * 100 : 0}%` }} />
             </div>
             <p className="note">{row.note}</p>
           </div>
@@ -192,7 +222,7 @@ const Exclusion: React.FC<{ exclusion: ExclusionData }> = ({ exclusion }) => {
         <div>
           <h4>{c.whyHoldsTitle}</h4>
           <ul className="ticks">
-            {c.whyHoldsItems.map(item => (
+            {claimsFor(facts).forkWhy.map(item => (
               <li key={item}>{item}</li>
             ))}
           </ul>

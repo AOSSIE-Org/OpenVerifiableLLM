@@ -1,43 +1,76 @@
 import React from 'react';
+import { claimsFor } from '../content/claims';
 import { copy } from '../content/copy';
+import type { CheckOutcome, HardwareProbe, PreparationData, SegmentCoverage } from '../data/contracts';
+import { detectionOdds, type Facts } from '../data/facts';
 import { Explain } from './Explain';
-import type { HardwareProbe, PreparationData, VerificationsData } from '../data/contracts';
+import { Outcome } from './Outcome';
 
 interface ResultsProps {
-  verifications: VerificationsData;
+  facts: Facts;
+  coverage: SegmentCoverage[];
   hardwareMap: HardwareProbe[];
   preparation: PreparationData;
 }
 
 const count = (n: number) => n.toLocaleString('en-US');
 
+const probeLabel = (segment: number | string) =>
+  typeof segment === 'number' ? `Segment ${segment}` : `${segment.charAt(0).toUpperCase()}${segment.slice(1)} segments`;
+
+const outcomeWords = (result: CheckOutcome) =>
+  result === 'MATCH' ? 'MATCH' : result === 'MISMATCH' ? 'MISMATCH' : 'not checked';
+
+const cellClass = (result: CheckOutcome) =>
+  result === 'MATCH' ? 'cell match' : result === 'MISMATCH' ? 'cell mismatch' : 'cell none';
+
 // What was reproduced, who checked it, and what that does and doesn't show.
-export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, preparation }) => {
+export const Results: React.FC<ResultsProps> = ({ facts, coverage, hardwareMap, preparation }) => {
   const o = copy.overview;
   const v = copy.verification;
+  const claims = claimsFor(facts);
+  const r = claims.results;
+  const showMismatchKey = facts.projectMismatched + facts.independentMismatched > 0;
+
   return (
     <section id="overview" className="sec">
       <div className="sec-head">
         <h2>{o.kicker}</h2>
-        <p className="sub">{o.subtitle}</p>
-        <Explain>{o.explain}</Explain>
+        <p className="sub">{r.subtitle}</p>
+        <Explain>{r.explain}</Explain>
       </div>
 
       <div className="sec-body">
         <div id="verification">
           <h3>{v.coverageTitle}</h3>
           <p className="cov-sum">
-            <b>
-              {verifications.uniqueSegments} / {verifications.uniqueSegments} matched
-            </b>
-            <span className="legend">
-              <span className="lg lg-p">■ Project: {verifications.uniqueSegments}</span>
-              <span className="lg lg-i">▨ Independent: {verifications.independentChecksCount}</span>
+            <span className="cov-counts">
+              <b>
+                {r.projectSummary}
+                {r.projectExtra}
+              </b>
+              <span className="lg-i">
+                {r.independentSummary}
+                {r.independentExtra}
+              </span>
+            </span>
+            <span className="legend" aria-hidden="true">
+              <span className="lg">
+                <span className="swatch cell match" /> Match
+              </span>
+              {showMismatchKey && (
+                <span className="lg">
+                  <span className="swatch cell mismatch" /> Mismatch
+                </span>
+              )}
+              <span className="lg">
+                <span className="swatch cell none" /> Not checked
+              </span>
             </span>
           </p>
-          <CoverageMap verifications={verifications} />
+          <CoverageMap coverage={coverage} label={r.mapLabel} />
           <p className="notice" role="note">
-            <b>{v.warningNotice}</b> {v.captionNotice} {v.intro}
+            <b>{v.warningNotice}</b> {r.notice} {r.noticeClose}
           </p>
         </div>
 
@@ -45,7 +78,7 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
           <div>
             <h3>{o.shownTitle}</h3>
             <ul className="ticks">
-              {o.shownItems.map(item => (
+              {r.shown.map(item => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -53,7 +86,7 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
           <div>
             <h3>{o.notShownTitle}</h3>
             <ul className="circles">
-              {o.notShownItems.map(item => (
+              {r.notShown.map(item => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -73,14 +106,12 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
                 </tr>
               </thead>
               <tbody>
-                {hardwareMap.map((probe, i) => (
-                  <tr key={i}>
+                {hardwareMap.map(probe => (
+                  <tr key={`${probe.hardware}-${probe.segment}`}>
                     <th scope="row">{probe.hardware}</th>
-                    <td>{probe.segment === 'all 37' ? 'All 37 segments' : `Segment ${probe.segment}`}</td>
+                    <td>{probeLabel(probe.segment)}</td>
                     <td>
-                      <span className={`res ${probe.result === 'MATCH' ? 'match' : 'mismatch'}`}>
-                        {probe.result === 'MATCH' ? '✓ MATCH' : '✕ MISMATCH'}
-                      </span>
+                      <Outcome result={probe.result} />
                     </td>
                   </tr>
                 ))}
@@ -91,24 +122,24 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
             <h3>{v.oddsTitle}</h3>
             <dl className="figures small">
               <div className="caveat">
-                <dd>{verifications.independentChecksCount}</dd>
-                <dt>checks today</dt>
+                <dt>{claims.odds.checksToday}</dt>
+                <dd>{facts.independentChecks}</dd>
               </div>
               <div>
-                <dd>110</dd>
                 <dt>checks for 95% odds</dt>
+                <dd>{facts.checksFor95}</dd>
               </div>
               <div>
-                <dd>169</dd>
                 <dt>checks for 99% odds</dt>
+                <dd>{facts.checksFor99}</dd>
               </div>
             </dl>
             <Explain label="Show the curve">
-              <p>{v.explain}</p>
+              <p>{claims.odds.explain}</p>
               <p className="note">
-                <code>{v.oddsFormula}</code>
+                <code>{claims.odds.formula}</code>
               </p>
-              <OddsChart />
+              <OddsChart facts={facts} description={claims.odds.description} today={claims.odds.today} />
             </Explain>
           </div>
         </div>
@@ -117,20 +148,20 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
           <h3>{o.dataTitle}</h3>
           <dl className="figures small data">
             <div>
-              <dd>{count(preparation.articles)}</dd>
               <dt>Articles</dt>
+              <dd>{count(preparation.articles)}</dd>
             </div>
             <div>
-              <dd>{count(preparation.wikipediaTargets)}</dd>
               <dt>Wikipedia targets</dt>
+              <dd>{count(preparation.wikipediaTargets)}</dd>
             </div>
             <div>
-              <dd>{count(preparation.conversations)}</dd>
               <dt>Conversations</dt>
+              <dd>{count(preparation.conversations)}</dd>
             </div>
             <div>
-              <dd>{preparation.trainingLoopLines}</dd>
-              <dt>Training loop</dt>
+              <dt>Training code, ovl.py</dt>
+              <dd>{count(preparation.trainingCodeLines)} lines</dd>
             </div>
           </dl>
           <p className="note">
@@ -142,66 +173,85 @@ export const Results: React.FC<ResultsProps> = ({ verifications, hardwareMap, pr
   );
 };
 
-const CoverageMap: React.FC<{ verifications: VerificationsData }> = ({ verifications }) => {
-  const n = verifications.uniqueSegments;
+// The two rows are drawn separately, so a project check can never read as an independent one.
+const CoverageMap: React.FC<{ coverage: SegmentCoverage[]; label: string }> = ({ coverage, label }) => {
+  const rows = [
+    { name: 'Project', key: 'projectResult', who: 'the project' },
+    { name: 'Independent', key: 'independentResult', who: 'anyone independent' },
+  ] as const;
+
   return (
-    <div
-      className="covgrid"
-      role="img"
-      aria-label={`${n} segments. Project checks: ${n} of ${n} MATCH. Independent checks: ${verifications.independentChecksCount} of ${n}.`}
-    >
-      <span className="rl">Project</span>
-      <div className="cells">
-        {verifications.coverage.map(seg => (
-          <span
-            key={`p-${seg.segment}`}
-            className="cell p"
-            title={`Segment ${seg.segment}: MATCH, checked by the project`}
-          />
+    <>
+      <div className="covgrid" role="img" aria-label={label}>
+        {rows.map(row => (
+          <React.Fragment key={row.key}>
+            <span className="rl">{row.name}</span>
+            <div className="cells" style={{ gridTemplateColumns: `repeat(${coverage.length}, minmax(0, 1fr))` }}>
+              {coverage.map(seg => (
+                <span
+                  key={seg.segment}
+                  className={cellClass(seg[row.key])}
+                  title={`Segment ${seg.segment}: ${outcomeWords(seg[row.key])}, by ${row.who}`}
+                />
+              ))}
+            </div>
+          </React.Fragment>
         ))}
+        <span className="rl" aria-hidden="true" />
+        <div className="cells axis" aria-hidden="true" style={{ gridTemplateColumns: `repeat(${coverage.length}, minmax(0, 1fr))` }}>
+          {coverage.map(seg => (
+            <span key={seg.segment}>{seg.segment % 6 === 0 ? seg.segment : ''}</span>
+          ))}
+        </div>
       </div>
-      <span className="rl">Independent</span>
-      <div className="cells">
-        {verifications.coverage.map(seg => (
-          <span
-            key={`i-${seg.segment}`}
-            className="cell i"
-            title={`Segment ${seg.segment}: not checked independently yet`}
-          />
-        ))}
-      </div>
-      <span className="rl" aria-hidden="true" />
-      <div className="cells axis" aria-hidden="true">
-        {verifications.coverage.map(seg => (
-          <span key={seg.segment}>{seg.segment % 6 === 0 ? seg.segment : ''}</span>
-        ))}
-      </div>
-    </div>
+      <table className="sr-only">
+        <caption>Result of each segment, by who checked it</caption>
+        <thead>
+          <tr>
+            <th scope="col">Segment</th>
+            <th scope="col">Project</th>
+            <th scope="col">Independent</th>
+          </tr>
+        </thead>
+        <tbody>
+          {coverage.map(seg => (
+            <tr key={seg.segment}>
+              <td>{seg.segment}</td>
+              <td>{outcomeWords(seg.projectResult)}</td>
+              <td>{outcomeWords(seg.independentResult)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   );
 };
 
-const OddsChart: React.FC = () => {
+const OddsChart: React.FC<{ facts: Facts; description: string; today: string }> = ({ facts, description, today }) => {
   const W = 520;
   const H = 230;
   const L = 44;
   const R = 16;
   const T = 24;
   const B = 34;
-  const max = 200;
+  const { segments, independentChecks, checksFor95, checksFor99 } = facts;
+  const max = Math.max(50, Math.ceil(Math.max(checksFor99, independentChecks) / 50) * 50 + 50);
   const getX = (m: number) => L + (m / max) * (W - L - R);
   const getY = (p: number) => T + (1 - p) * (H - T - B);
-  const getOdds = (m: number) => 1 - Math.pow(36 / 37, m);
+  const getOdds = (m: number) => detectionOdds(m, segments);
+  const percent = (m: number) => `${(getOdds(m) * 100).toFixed(1)}%`;
 
   let linePath = '';
   for (let m = 0; m <= max; m += 2) {
     linePath += `${m === 0 ? 'M' : 'L'}${getX(m).toFixed(1)},${getY(getOdds(m)).toFixed(1)}`;
   }
+  const ticks = Array.from({ length: max / 50 + 1 }, (_, i) => i * 50);
 
   return (
     <figure className="chart">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-labelledby="odds-title odds-desc">
-        <title id="odds-title">Detection odds curve for 37 segments</title>
-        <desc id="odds-desc">{copy.verification.oddsDescription}</desc>
+        <title id="odds-title">Detection odds curve for {segments} segments</title>
+        <desc id="odds-desc">{description}</desc>
         {[0, 0.5, 1].map(p => (
           <g key={p}>
             <line x1={L} x2={W - R} y1={getY(p)} y2={getY(p)} stroke="var(--rule)" />
@@ -210,26 +260,26 @@ const OddsChart: React.FC = () => {
             </text>
           </g>
         ))}
-        {[0, 50, 100, 150, 200].map(m => (
+        {ticks.map(m => (
           <text key={m} x={getX(m)} y={H - 12} fontSize="11" textAnchor="middle">
             {m}
           </text>
         ))}
         <path d={linePath} fill="none" stroke="var(--ink)" strokeWidth={2} />
         {[
-          { m: 110, label: '110: 95%', dy: 22 },
-          { m: 169, label: '169: 99%', dy: 22 },
-        ].map(({ m, label, dy }) => (
+          { m: checksFor95, label: `${checksFor95}: 95%` },
+          { m: checksFor99, label: `${checksFor99}: 99%` },
+        ].map(({ m, label }) => (
           <g key={m}>
             <circle cx={getX(m)} cy={getY(getOdds(m))} r={4} fill="var(--paper)" stroke="var(--ink)" strokeWidth={2} />
-            <text x={getX(m)} y={getY(getOdds(m)) + dy} fontSize="12" textAnchor="middle" className="strong">
+            <text x={getX(m)} y={getY(getOdds(m)) + 22} fontSize="12" textAnchor="middle" className="strong">
               {label}
             </text>
           </g>
         ))}
-        <circle cx={getX(0)} cy={getY(0)} r={6} fill="var(--event)" />
-        <text x={getX(0) + 12} y={getY(0) - 8} fontSize="12" className="strong">
-          Today: 0 independent checks
+        <circle cx={getX(independentChecks)} cy={getY(getOdds(independentChecks))} r={6} fill="var(--event)" />
+        <text x={getX(independentChecks) + 12} y={getY(getOdds(independentChecks)) - 8} fontSize="12" className="strong">
+          {today}
         </text>
       </svg>
       <table className="sr-only">
@@ -242,16 +292,16 @@ const OddsChart: React.FC = () => {
         </thead>
         <tbody>
           <tr>
-            <td>0</td>
-            <td>0% (current)</td>
+            <td>{independentChecks}</td>
+            <td>{percent(independentChecks)} (current)</td>
           </tr>
           <tr>
-            <td>110</td>
-            <td>95.0%</td>
+            <td>{checksFor95}</td>
+            <td>{percent(checksFor95)}</td>
           </tr>
           <tr>
-            <td>169</td>
-            <td>99.0%</td>
+            <td>{checksFor99}</td>
+            <td>{percent(checksFor99)}</td>
           </tr>
         </tbody>
       </table>

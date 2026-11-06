@@ -1,13 +1,16 @@
 import React from 'react';
+import { claimsFor } from '../content/claims';
 import { copy } from '../content/copy';
+import type { Facts } from '../data/facts';
 import { CopyButton } from './CopyButton';
 
 interface DownloadsProps {
+  facts: Facts;
   releaseHashes: Record<string, string>;
 }
 
 // The release files, each with its hash folded underneath.
-export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => (
+export const Downloads: React.FC<DownloadsProps> = ({ facts, releaseHashes }) => (
   <section id="downloads" className="sec">
     <div className="sec-head">
       <h2>{copy.downloads.kicker}</h2>
@@ -15,7 +18,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => (
     </div>
 
     <ul className="files">
-      {copy.downloads.files.map(file => {
+      {claimsFor(facts).downloads.map(file => {
         const hash = releaseHashes[file.name];
         return (
           <li key={file.name}>
@@ -31,7 +34,7 @@ export const Downloads: React.FC<DownloadsProps> = ({ releaseHashes }) => (
                 </p>
               </details>
             ) : (
-              <span className="source">{'note' in file && file.note}</span>
+              file.note && <span className="source">{file.note}</span>
             )}
           </li>
         );

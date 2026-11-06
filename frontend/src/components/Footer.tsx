@@ -1,15 +1,13 @@
 import React from 'react';
+import { claimsFor } from '../content/claims';
 import { copy } from '../content/copy';
+import type { Facts } from '../data/facts';
 
 const { footer } = copy;
 
-interface FooterProps {
-  revision: string;
-}
-
 // The page footer: a short line about the project, the outside links in
 // three columns, then a bar with the licence, evidence revision and socials.
-export const Footer: React.FC<FooterProps> = ({ revision }) => (
+export const Footer: React.FC<{ facts: Facts }> = ({ facts }) => (
   <footer id="footer">
     <div className="fcols" id="links">
       <div className="fcol-about">
@@ -18,13 +16,17 @@ export const Footer: React.FC<FooterProps> = ({ revision }) => (
           <span>{footer.org}</span>
         </a>
       </div>
-      <LinkColumn title={footer.projectHeading} links={footer.projectLinks} />
+      <LinkColumn title={footer.projectHeading} links={claimsFor(facts).footerLinks} />
       <LinkColumn title={footer.communityHeading} links={footer.communityLinks} />
       <LinkColumn title={footer.helpHeading} links={helpLinks} />
     </div>
     <div className="fbar">
       <span>
-        {footer.license} Evidence revision <code>{revision}</code>.
+        {footer.license} Evidence revision{' '}
+        <a href={facts.evidenceUrl}>
+          <code>{facts.revision}</code>
+        </a>
+        .
       </span>
       <Socials />
     </div>
@@ -32,7 +34,7 @@ export const Footer: React.FC<FooterProps> = ({ revision }) => (
 );
 
 const helpLinks = [
-  { label: copy.faq.discord, href: 'https://discord.gg/hjUhu33uAn' },
+  { label: copy.faq.discord, href: copy.faq.discordHref },
   { label: copy.faq.issue, href: copy.faq.issueHref },
   { label: footer.contactEmail, href: `mailto:${footer.contactEmail}` },
 ];
@@ -62,7 +64,7 @@ const Socials: React.FC = () => (
       </svg>
     </a>
 
-    <a href="https://discord.gg/hjUhu33uAn" aria-label="AOSSIE on Discord">
+    <a href={copy.faq.discordHref} aria-label="AOSSIE on Discord">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="9" cy="12" r="1" />
         <circle cx="15" cy="12" r="1" />

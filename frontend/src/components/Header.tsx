@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { copy } from '../content/copy';
-
-type Theme = 'light' | 'dark';
+import { applyTheme, initialTheme, saveTheme, type Theme } from '../theme';
 
 // Small line icons for the header buttons, drawn with the text colour.
 const icons: Record<string, React.ReactNode> = {
@@ -33,32 +32,19 @@ const Icon: React.FC<{ name: string }> = ({ name }) => (
   </svg>
 );
 
-// Light by default, like a reference page; the reader's choice is remembered.
-function initialTheme(): Theme {
-  try {
-    const stored = localStorage.getItem('ovl-theme');
-    if (stored === 'light' || stored === 'dark') return stored;
-  } catch {
-    // localStorage unavailable
-  }
-  return 'light';
-}
-
-export const Header: React.FC = () => {
+export const Header: React.FC<{ evidenceHref: string }> = ({ evidenceHref }) => {
   const [theme, setTheme] = useState<Theme>(initialTheme);
 
   useEffect(() => {
-    try {
-      if (theme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-      localStorage.setItem('ovl-theme', theme);
-    } catch {
-      // ignore localStorage errors
-    }
+    applyTheme(theme);
+    saveTheme(theme);
   }, [theme]);
+
+  const links = [
+    { label: 'Source', href: copy.header.source },
+    { label: 'Evidence', href: evidenceHref },
+  ];
+  const nextTheme: Theme = theme === 'dark' ? 'light' : 'dark';
 
   return (
     <header>
@@ -76,7 +62,7 @@ export const Header: React.FC = () => {
         </a>
 
         <nav aria-label="Project links" className="top-links">
-          {copy.header.links.map(link => (
+          {links.map(link => (
             <a key={link.href} href={link.href} className="hbtn">
               <Icon name={link.label} />
               {link.label}
@@ -87,12 +73,11 @@ export const Header: React.FC = () => {
         <button
           className="tbtn hbtn"
           type="button"
-          onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}
-          aria-label={copy.header.themeToggleAria}
-          aria-pressed={theme === 'dark'}
+          onClick={() => setTheme(nextTheme)}
+          aria-label={`Switch to ${nextTheme} theme`}
         >
-          <Icon name={theme === 'dark' ? 'light' : 'dark'} />
-          {theme === 'dark' ? 'Light' : 'Dark'}
+          <Icon name={nextTheme} />
+          {nextTheme === 'dark' ? 'Dark' : 'Light'}
         </button>
       </div>
     </header>

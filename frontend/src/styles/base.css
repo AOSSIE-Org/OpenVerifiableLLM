@@ -7,8 +7,10 @@
   box-sizing: border-box;
 }
 
+/* The contents bar is sticky: keep it from covering a link target or a focused control */
 html {
   scroll-behavior: auto;
+  scroll-padding-top: 56px;
 }
 
 body {
@@ -36,12 +38,12 @@ h4 {
 
 h3 {
   margin: 0 0 8px;
-  font-size: 17px;
+  font-size: var(--fs-lg);
 }
 
 h4 {
   margin: 0 0 6px;
-  font-size: 15px;
+  font-size: var(--fs-md);
 }
 
 p {
@@ -57,6 +59,14 @@ a:visited {
   color: var(--link-visited);
 }
 
+main:focus {
+  outline: none;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
 a:focus-visible,
 button:focus-visible,
 summary:focus-visible,
@@ -68,7 +78,7 @@ pre:focus-visible {
 code,
 pre {
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: var(--fs-xs);
 }
 
 code {
@@ -132,7 +142,7 @@ table.sr-only {
 
 .note {
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
@@ -179,7 +189,7 @@ table.sr-only {
 
 .brand-by {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   line-height: 1.2;
   color: var(--ink-3);
 }
@@ -242,9 +252,14 @@ table.sr-only {
   padding: 10px 0 8px;
   border-bottom: 2px solid transparent;
   color: var(--ink-3);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   text-decoration: none;
   white-space: nowrap;
+}
+
+/* The bar clips anything outside it, so the ring sits inside the link */
+.toc a:focus-visible {
+  outline-offset: -2px;
 }
 
 .toc a:hover {
@@ -264,12 +279,14 @@ table.sr-only {
 
 .byline {
   margin-bottom: 16px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
+/* Sized so the project name, one long word, never breaks */
 .hero h1 {
-  font-size: clamp(38px, 6vw, 64px);
+  font-size: clamp(32px, 10vw, 64px);
+  overflow-wrap: normal;
 }
 
 .intro {
@@ -328,7 +345,8 @@ table.sr-only {
   border-top: 1px solid var(--ink);
 }
 
-/* Value on the first row, label on the second, so a long label can't move a value */
+/* Value on the first row, label on the second, so a long label can't move a value.
+   The markup keeps the label first, which is the order screen readers need. */
 .figures > div {
   display: grid;
   grid-template-rows: auto 1fr;
@@ -357,8 +375,13 @@ table.sr-only {
   line-height: 1.15;
 }
 
+.figures dd {
+  grid-row: 1;
+}
+
 .figures dt {
-  font-size: 14px;
+  grid-row: 2;
+  font-size: var(--fs-sm);
   line-height: 1.35;
   color: var(--ink-3);
 }
@@ -390,7 +413,6 @@ table.sr-only {
   gap: 40px;
   padding-block: 48px;
   border-top: 1px solid var(--rule);
-  scroll-margin-top: 44px;
 }
 
 .sec h2 {
@@ -399,7 +421,7 @@ table.sr-only {
 
 .sub {
   margin: 10px 0 0;
-  font-size: 15px;
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
@@ -407,11 +429,6 @@ table.sr-only {
   display: grid;
   gap: 40px;
   min-width: 0;
-}
-
-#verification,
-#exclusion {
-  scroll-margin-top: 56px;
 }
 
 .cols {
@@ -424,7 +441,7 @@ table.sr-only {
 .explain,
 .more {
   margin-top: 10px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 
 .explain summary,
@@ -432,6 +449,11 @@ table.sr-only {
   color: var(--link);
   font-weight: 600;
   cursor: pointer;
+}
+
+.explain summary:hover,
+.more summary:hover {
+  text-decoration: underline;
 }
 
 .explain > div {
@@ -479,12 +501,12 @@ table.sr-only {
 
 .flow h3 {
   margin-bottom: 4px;
-  font-size: 15px;
+  font-size: var(--fs-sm);
 }
 
 .flow p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--ink-3);
 }
@@ -499,17 +521,27 @@ table.sr-only {
   margin-bottom: 12px;
 }
 
-.legend {
-  display: flex;
-  gap: 16px;
-  font-size: 14px;
+.cov-counts {
+  display: grid;
+  gap: 2px;
 }
 
-.lg-p {
-  color: var(--match);
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: var(--fs-xs);
+  color: var(--ink-3);
+}
+
+.lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .lg-i {
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
@@ -521,13 +553,12 @@ table.sr-only {
 }
 
 .rl {
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
 .cells {
   display: grid;
-  grid-template-columns: repeat(37, minmax(0, 1fr));
   gap: 2px;
 }
 
@@ -535,17 +566,38 @@ table.sr-only {
   height: 24px;
 }
 
-.cell.p {
+.cell.match {
   background: var(--match-fill);
 }
 
-.cell.i {
+/* A cross as well as red, so a mismatch doesn't rest on colour */
+.cell.mismatch {
+  background:
+    linear-gradient(45deg, transparent 40%, var(--paper) 40% 60%, transparent 60%),
+    linear-gradient(-45deg, transparent 40%, var(--paper) 40% 60%, transparent 60%),
+    var(--miss);
+}
+
+.cell.none {
   border: 1px solid var(--rule-strong);
+}
+
+.swatch.cell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+}
+
+/* Forced colours would remove these fills, and the results with them */
+@media (forced-colors: active) {
+  .cell {
+    forced-color-adjust: none;
+  }
 }
 
 .axis span {
   overflow: visible;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
   white-space: nowrap;
 }
@@ -590,7 +642,7 @@ table.sr-only {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 
 .table th,
@@ -623,6 +675,10 @@ table.sr-only {
   color: var(--miss);
 }
 
+.res.none {
+  color: var(--ink-3);
+}
+
 /* Charts */
 .chart text,
 .tl-chart text {
@@ -645,7 +701,7 @@ table.sr-only {
 
 .timeline figcaption {
   margin: 4px 0 16px;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
@@ -658,17 +714,23 @@ table.sr-only {
 
 .milestones .when {
   display: block;
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
 .milestones b {
-  font-size: 15px;
+  font-size: var(--fs-sm);
+}
+
+.milestones .res {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-sm);
 }
 
 .milestones p {
   margin: 2px 0 0;
-  font-size: 14px;
+  font-size: var(--fs-sm);
   line-height: 1.45;
   color: var(--ink-3);
 }
@@ -693,7 +755,7 @@ table.sr-only {
 }
 
 .loss dt {
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
@@ -735,12 +797,14 @@ table.sr-only {
 
 .step-time {
   margin: 0;
-  font: 400 28px/1.1 var(--serif);
+  font: 600 26px/1.15 var(--sans);
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.01em;
 }
 
 .step-meta {
   margin: 2px 0 12px;
-  font-size: 13px;
+  font-size: var(--fs-xs);
   color: var(--ink-3);
 }
 
@@ -749,21 +813,21 @@ table.sr-only {
 }
 
 .step p {
-  font-size: 15px;
+  font-size: var(--fs-sm);
 }
 
 .step .step-meta {
-  font-size: 13px;
+  font-size: var(--fs-xs);
 }
 
 .step .step-time {
-  font-size: 28px;
+  font-size: 26px;
 }
 
 .step-proves {
   margin-bottom: 12px;
   list-style: none;
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 
 .step-proves li {
@@ -793,9 +857,7 @@ table.sr-only {
 }
 
 .step > .code pre {
-  padding: 10px 76px 10px 12px;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .btn,
@@ -841,7 +903,7 @@ table.sr-only {
 }
 
 .source {
-  font-size: 14px;
+  font-size: var(--fs-sm);
   color: var(--ink-3);
 }
 
@@ -877,14 +939,14 @@ table.sr-only {
 }
 
 .qa dd {
-  font-size: 15px;
+  font-size: var(--fs-md);
   color: var(--ink-3);
 }
 
 /* Footer */
 #footer {
   border-top: 1px solid var(--ink);
-  font-size: 14px;
+  font-size: var(--fs-sm);
 }
 
 .fcols {
@@ -941,6 +1003,10 @@ table.sr-only {
   color: var(--ink-3);
 }
 
+.socials a:hover {
+  color: var(--ink);
+}
+
 .socials svg {
   display: block;
   width: 20px;
@@ -959,7 +1025,7 @@ table.sr-only {
   padding-inline: 24px;
 }
 
-.page-msg h2 {
+.page-msg h1 {
   margin-bottom: 12px;
   font-size: 28px;
 }
@@ -1023,7 +1089,7 @@ table.sr-only {
 
   .step-time,
   .step .step-time {
-    font-size: 24px;
+    font-size: 22px;
   }
 
   .step-meta,
@@ -1131,7 +1197,7 @@ table.sr-only {
   }
 
   .axis span {
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
 
   /* The milestones say what the chart says, so the chart gives way */
@@ -1168,15 +1234,9 @@ table.sr-only {
   .hbtn {
     padding-inline: 6px;
   }
-}
 
-@media (max-width: 360px) {
-  .bar {
-    flex-wrap: wrap;
-  }
-
-  .brand {
-    width: 100%;
+  .toc ol {
+    gap: 16px;
   }
 }
 
@@ -1196,7 +1256,7 @@ table.sr-only {
 
   .hbtn {
     padding-inline: 5px;
-    font-size: 13px;
+    font-size: var(--fs-xs);
   }
 
   .brand {
@@ -1204,6 +1264,16 @@ table.sr-only {
   }
 
   .brand-name {
-    font-size: 14px;
+    font-size: var(--fs-sm);
+  }
+}
+
+@media (max-width: 360px) {
+  .bar {
+    flex-wrap: wrap;
+  }
+
+  .brand {
+    width: 100%;
   }
 }

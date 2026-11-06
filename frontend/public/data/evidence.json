@@ -1,8 +1,9 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
   "revision": "96dc282a",
-  "fetchedAt": "2026-10-30T15:32:03.178Z",
+  "revisionFull": "96dc282a9803616c6b30bb31bfc3a0b91a7191e6",
+  "fetchedAt": "2026-11-06T10:29:58.040Z",
   "sourceHashes": {
     "release/simple-run/chain.jsonl": "c1f867e16d0660c611186183863cc5626e3510b046d52e617c3953beb8f8a327",
     "release/simple-run/verifications.jsonl": "ec73fe8fdce56eb075783c37383dbb5afaa23fac168fbd6619c01240de41b770",
@@ -10,14 +11,23 @@
     "release/simple-run/release-hashes.txt": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
     "release/simple-run/anchor.json": "2adaea4cae25439199ec2396c0e6e94d1d14188c070f217ed7e360ce10c1c18d",
     "release/simple-run/README.md": "d3a4a5b221d9d1bd9318e8e414b44adc75f66155d03cd356b489165243e932e9",
+    "release/simple-run/code/simple/ovl.py": "c4a942c0bf7c4fa5305eee5637d0550cde5559ffc0bfa3ea4b7184996a356e1b",
+    "release/simple-run/anchor.digicert.tsr": "26a643321802ec92eb67f842d770c1d0b69aee66d3e9c3b58f84380a65d08564",
+    "release/simple-run/anchor.freetsa.tsr": "4c1cc74f8596fff22125f285899d50b3ab50b69a6a1023baf3d68139f32cba6f",
     "release/unlearning-3i-atlas/loo-results.json": "c926c965d1e040ab23c591c9dcdd007e5ece75a57ecfa100fd69515d190ead69",
+    "release/unlearning-3i-atlas/verifications.jsonl": "6f23946c7bcb7413a7f8b7fa322f5fa6b3240caa93c6d4d63c5a7133cbc9e7ec",
+    "release/unlearning-3i-atlas/README.md": "499eb00a91699fa785c94fcbf3d8e96f0ad71d390752ee4523d2b019a010f560",
     "prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
+  },
+  "release": {
+    "tag": "v1.1.0",
+    "publishedAt": "2026-10-31T16:21:50Z"
   },
   "preparation": {
     "articles": 7232582,
     "wikipediaTargets": 7118121139,
     "conversations": 3481,
-    "trainingLoopLines": "~630 lines",
+    "trainingCodeLines": 529,
     "preparedDataId": "8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68"
   },
   "chain": [
@@ -1879,10 +1889,17 @@
     "path": "release/simple-run",
     "release_hashes_sha256": "479ce030fa8022f0f92262849f88dfde4c9cf2a0748b8830357f3aa277080e8d",
     "schema": "ovl.release-anchor.v1",
-    "timestamp": "2026-10-20 14:38:43 UTC",
-    "authorities": [
-      "DigiCert",
-      "FreeTSA (RFC 3161)"
+    "timestamps": [
+      {
+        "authority": "DigiCert",
+        "file": "anchor.digicert.tsr",
+        "time": "2026-10-20T14:38:43Z"
+      },
+      {
+        "authority": "FreeTSA",
+        "file": "anchor.freetsa.tsr",
+        "time": "2026-10-20T14:38:43Z"
+      }
     ]
   },
   "exclusion": {
@@ -1894,7 +1911,89 @@
     "forkControlLossMean": 2.8712,
     "controlLossDelta": 0.0002,
     "controlArticlesCount": 50,
-    "evidencePath": "release/unlearning-3i-atlas/"
+    "evidencePath": "release/unlearning-3i-atlas/",
+    "forkChecks": [
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 30
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 31
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 32
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 33
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 34
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 35
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 36
+      },
+      {
+        "checker": "project fork pod",
+        "code": "ovl.py fork-capable (code/simple/ovl.py)",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 37
+      },
+      {
+        "checker": "project fresh machine public files only",
+        "code": "code/simple/ovl.py from this release",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 30
+      },
+      {
+        "checker": "project fresh machine public files only",
+        "code": "code/simple/ovl.py from this release",
+        "driver": "595.91.07",
+        "gpu": "NVIDIA GeForce RTX 5090",
+        "result": "MATCH",
+        "segment": 31
+      }
+    ]
   },
   "releaseHashes": {
     "base-model.pt": "976c62e8b28db786c38dc2ff969339603d0ee917d830f2815d9e858d2a3c0ce3",

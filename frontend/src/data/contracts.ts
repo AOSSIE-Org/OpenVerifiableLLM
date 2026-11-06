@@ -1,13 +1,14 @@
 // Contracts and schemas for OpenVerifiableLLM evidence data
+import checkers from './checkers.json' with { type: 'json' };
 
 export type CanonicalCheckerCategory = 'project' | 'independent';
+export type CheckResult = 'MATCH' | 'MISMATCH';
+// null means nobody has checked it: never a pass, never a failure.
+export type CheckOutcome = CheckResult | null;
 
-// Explicit whitelist mapping for recognized checker strings in evidence
-export const KNOWN_CHECKER_MAP: Readonly<Record<string, CanonicalCheckerCategory>> = Object.freeze({
-  'project second pod': 'project',
-  'project training pod': 'project',
-  'project fresh machine public files only': 'project',
-});
+// Every checker string in the evidence must be classified before it can be shown.
+// The list is shared with scripts/fetch-evidence.mjs.
+export const KNOWN_CHECKER_MAP = Object.freeze(checkers) as Readonly<Record<string, CanonicalCheckerCategory>>;
 
 export interface ChainControl {
   batches?: string;
@@ -35,14 +36,14 @@ export interface RawVerificationCheck {
   code: string;
   driver: string;
   gpu: string;
-  result: 'MATCH' | 'MISMATCH';
+  result: CheckResult;
   segment: number;
 }
 
 export interface SegmentCoverage {
   segment: number;
-  projectResult: 'MATCH' | 'MISMATCH';
-  independentResult: 'MATCH' | 'MISMATCH' | null;
+  projectResult: CheckOutcome;
+  independentResult: CheckOutcome;
   checks: RawVerificationCheck[];
 }
 
@@ -57,11 +58,17 @@ export interface VerificationsData {
 
 export interface HardwareProbe {
   segment: number | string;
-  result: 'MATCH' | 'MISMATCH';
+  result: CheckResult;
   hardware: string;
   driver: string;
   software: string;
   note: string;
+}
+
+export interface AnchorTimestamp {
+  authority: string;
+  file: string;
+  time: string;
 }
 
 export interface ReleaseAnchor {
@@ -76,8 +83,7 @@ export interface ReleaseAnchor {
   path: string;
   release_hashes_sha256: string;
   schema: string;
-  timestamp: string;
-  authorities: string[];
+  timestamps: AnchorTimestamp[];
 }
 
 export interface ExclusionData {
@@ -90,22 +96,30 @@ export interface ExclusionData {
   controlLossDelta: number;
   controlArticlesCount: number;
   evidencePath: string;
+  forkChecks: RawVerificationCheck[];
 }
 
 export interface PreparationData {
   articles: number;
   wikipediaTargets: number;
   conversations: number;
-  trainingLoopLines: string;
+  trainingCodeLines: number;
   preparedDataId: string;
+}
+
+export interface ReleaseInfo {
+  tag: string;
+  publishedAt: string;
 }
 
 export interface EvidenceData {
   schemaVersion: number;
   dataset: string;
   revision: string;
+  revisionFull: string;
   fetchedAt: string;
   sourceHashes: Record<string, string>;
+  release: ReleaseInfo;
   preparation: PreparationData;
   chain: ChainBoundary[];
   verifications: VerificationsData;

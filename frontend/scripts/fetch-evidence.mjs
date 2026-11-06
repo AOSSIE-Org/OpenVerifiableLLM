@@ -1,47 +1,83 @@
 // Manual script: node scripts/fetch-evidence.mjs
-// Pinned to Hugging Face dataset revision 96dc282a.
-// Writes public/data/evidence.json with source hashes and validated numbers.
+// Builds public/data/evidence.json from the pinned Hugging Face revision and the
+// pinned GitHub release. Only the pins below are typed by hand: every count, hash,
+// date and result comes from the fetched files. `npm run validate` then checks the
+// output against itself, and the build fails if it doesn't hold.
 
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import checkers from '../src/data/checkers.json' with { type: 'json' };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// The pins
 const DATASET = 'AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence';
 const REVISION = '96dc282a';
-const BASE_URL = `https://huggingface.co/datasets/${DATASET}/raw/${REVISION}/`;
+const REPOSITORY = 'AOSSIE-Org/OpenVerifiableLLM';
+const RELEASE_TAG = 'v1.1.0';
+const RELEASE_ASSETS = ['ovl-23m-chat.gguf', 'Modelfile'];
+const PREPARED_ID = '8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68';
+const AUTHORITIES = { digicert: 'DigiCert', freetsa: 'FreeTSA' };
 
-const PREP_PATH = 'prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68/preparation.json';
+const RUN = 'release/simple-run';
+const FORK = 'release/unlearning-3i-atlas';
+const PREP_PATH = `prepared/${PREPARED_ID}/preparation.json`;
+const STAMP_FILES = Object.keys(AUTHORITIES).map(name => `anchor.${name}.tsr`);
 
 const FILES_TO_FETCH = [
-  'release/simple-run/chain.jsonl',
-  'release/simple-run/verifications.jsonl',
-  'release/simple-run/hardware-map.jsonl',
-  'release/simple-run/release-hashes.txt',
-  'release/simple-run/anchor.json',
-  'release/simple-run/README.md',
-  'release/unlearning-3i-atlas/loo-results.json',
+  `${RUN}/chain.jsonl`,
+  `${RUN}/verifications.jsonl`,
+  `${RUN}/hardware-map.jsonl`,
+  `${RUN}/release-hashes.txt`,
+  `${RUN}/anchor.json`,
+  `${RUN}/README.md`,
+  `${RUN}/code/simple/ovl.py`,
+  ...STAMP_FILES.map(file => `${RUN}/${file}`),
+  `${FORK}/loo-results.json`,
+  `${FORK}/verifications.jsonl`,
+  `${FORK}/README.md`,
   PREP_PATH,
 ];
 
-function sha256(content) {
-  return createHash('sha256').update(content).digest('hex');
+const sha256 = content => createHash('sha256').update(content).digest('hex');
+
+function must(condition, message) {
+  if (!condition) throw new Error(message);
 }
 
 async function fetchFile(relPath) {
-  const url = `${BASE_URL}${relPath}`;
+  const url = `https://huggingface.co/datasets/${DATASET}/resolve/${REVISION}/${relPath}`;
   const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch ${url}: HTTP ${res.status} ${res.statusText}`);
-  }
-  const text = await res.text();
-  return {
-    path: relPath,
-    text,
-    sha256: sha256(text),
-  };
+  must(res.ok, `Failed to fetch ${url}: HTTP ${res.status} ${res.statusText}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  return { path: relPath, bytes, text: bytes.toString('utf8'), sha256: sha256(bytes) };
+}
+
+async function fetchJson(url) {
+  const headers = { 'User-Agent': 'openverifiablellm-fetch-evidence' };
+  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const res = await fetch(url, { headers });
+  must(res.ok, `Failed to fetch ${url}: HTTP ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+const jsonLines = text => text.trim().split('\n').map(line => JSON.parse(line));
+
+// A segment passes only if every check on it matched. No checks means no result.
+function verdict(checks) {
+  if (checks.length === 0) return null;
+  return checks.every(c => c.result === 'MATCH') ? 'MATCH' : 'MISMATCH';
+}
+
+// The first GeneralizedTime in an RFC 3161 reply is the stamp's genTime. This reads
+// the time for display only; `ovl.py verify` is what checks the signature.
+function stampTime(bytes, name) {
+  const found = /\x18[\x0f-\x18](\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\.\d+)?Z/.exec(bytes.toString('latin1'));
+  must(found, `No timestamp found in ${name}`);
+  const [, y, mo, d, h, mi, s] = found;
+  return `${y}-${mo}-${d}T${h}:${mi}:${s}Z`;
 }
 
 export async function buildEvidenceData() {
@@ -53,12 +89,12 @@ export async function buildEvidenceData() {
     fetched[relPath] = file;
     console.log(`OK (${file.sha256.slice(0, 8)})`);
   }
+  const revisionInfo = await fetchJson(`https://huggingface.co/api/datasets/${DATASET}/revision/${REVISION}`);
+  must(revisionInfo.sha.startsWith(REVISION), `Revision ${REVISION} resolved to ${revisionInfo.sha}`);
 
-  // 1. Parse chain.jsonl
-  const chainRawLines = fetched['release/simple-run/chain.jsonl'].text.trim().split('\n');
-  const chain = chainRawLines.map((line) => {
+  // Chain: the number of segments comes from here and nowhere else
+  const chain = fetched[`${RUN}/chain.jsonl`].text.trim().split('\n').map(line => {
     const entry = JSON.parse(line);
-    const entryHash = sha256(line);
     return {
       index: entry.index,
       kind: entry.kind,
@@ -67,73 +103,67 @@ export async function buildEvidenceData() {
       model: entry.model,
       previous: entry.previous,
       time: entry.time,
-      entryHash,
+      entryHash: sha256(line),
+    };
+  });
+  for (let i = 1; i < chain.length; i++) {
+    must(chain[i].previous === chain[i - 1].entryHash, `Broken chain previous link at index ${i}`);
+  }
+  const segmentCount = chain.length - 1;
+
+  // Project and independent results stay apart. A checker nobody has classified stops the script.
+  const rawChecks = jsonLines(fetched[`${RUN}/verifications.jsonl`].text);
+  const category = check => {
+    must(Object.hasOwn(checkers, check.checker), `Unclassified checker: "${check.checker}". Add it to src/data/checkers.json.`);
+    return checkers[check.checker];
+  };
+  const coverage = Array.from({ length: segmentCount }, (_, segment) => {
+    const checks = rawChecks.filter(c => c.segment === segment);
+    return {
+      segment,
+      projectResult: verdict(checks.filter(c => category(c) === 'project')),
+      independentResult: verdict(checks.filter(c => category(c) === 'independent')),
+      checks,
     };
   });
 
-  if (chain.length !== 38) {
-    throw new Error(`Expected 38 chain entries, found ${chain.length}`);
-  }
-  for (let i = 1; i < chain.length; i++) {
-    if (chain[i].previous !== chain[i - 1].entryHash) {
-      throw new Error(`Broken chain previous link at index ${i}`);
-    }
-  }
+  const hardwareMap = jsonLines(fetched[`${RUN}/hardware-map.jsonl`].text);
 
-  // 2. Parse verifications.jsonl
-  const verificationsRawLines = fetched['release/simple-run/verifications.jsonl'].text.trim().split('\n');
-  const rawVerifications = verificationsRawLines.map(line => JSON.parse(line));
-
-  // Segment coverage
-  const segmentCoverage = [];
-  for (let s = 0; s < 37; s++) {
-    const checksForSegment = rawVerifications.filter(v => v.segment === s);
-    const projectMatch = checksForSegment.some(c => c.checker.startsWith('project') && c.result === 'MATCH');
-    const independentChecks = checksForSegment.filter(c => !c.checker.startsWith('project'));
-
-    segmentCoverage.push({
-      segment: s,
-      projectResult: projectMatch ? 'MATCH' : 'MISMATCH',
-      independentResult: independentChecks.length > 0 ? (independentChecks.every(c => c.result === 'MATCH') ? 'MATCH' : 'MISMATCH') : null,
-      checks: checksForSegment,
-    });
-  }
-
-  // 3. Parse hardware-map.jsonl
-  const hwRawLines = fetched['release/simple-run/hardware-map.jsonl'].text.trim().split('\n');
-  const hardwareMap = hwRawLines.map(line => JSON.parse(line));
-
-  // 4. Parse release-hashes.txt
-  const releaseHashesText = fetched['release/simple-run/release-hashes.txt'].text.trim().split('\n');
+  // Release hashes: the record's own list, then the asset digests GitHub reports
   const releaseHashes = {};
-  for (const line of releaseHashesText) {
-    const parts = line.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      releaseHashes[parts[1]] = parts[0];
-    }
+  for (const line of fetched[`${RUN}/release-hashes.txt`].text.trim().split('\n')) {
+    const [hash, name] = line.trim().split(/\s+/);
+    if (hash && name) releaseHashes[name] = hash;
+  }
+  const release = await fetchJson(`https://api.github.com/repos/${REPOSITORY}/releases/tags/${RELEASE_TAG}`);
+  for (const name of RELEASE_ASSETS) {
+    const asset = release.assets.find(a => a.name === name);
+    must(asset?.digest?.startsWith('sha256:'), `Release ${RELEASE_TAG} has no SHA-256 digest for ${name}`);
+    releaseHashes[name] = asset.digest.slice('sha256:'.length);
   }
 
-  // Also include the GitHub release v1.0.1 model assets
-  releaseHashes['ovl-23m-chat.gguf'] = '541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de';
-  releaseHashes['Modelfile'] = 'df4dacfc3191e56b1dc1195764ea66ca1a7695856be04ecec17d8dde4c66fc8b';
+  const anchor = JSON.parse(fetched[`${RUN}/anchor.json`].text);
+  const timestamps = Object.entries(AUTHORITIES).map(([name, authority]) => {
+    const file = `anchor.${name}.tsr`;
+    return { authority, file, time: stampTime(fetched[`${RUN}/${file}`].bytes, file) };
+  });
 
-  // 5. Parse anchor.json
-  const anchor = JSON.parse(fetched['release/simple-run/anchor.json'].text);
-
-  // 6. Parse preparation.json
-  const prep = JSON.parse(fetched[PREP_PATH].text);
+  const prepFile = fetched[PREP_PATH];
+  must(prepFile.sha256 === PREPARED_ID, `preparation.json hashes to ${prepFile.sha256}, not ${PREPARED_ID}`);
+  const prep = JSON.parse(prepFile.text);
   const preparation = {
     articles: prep.corpus.counts.included,
     wikipediaTargets: prep.streams.wikipedia.targets,
     conversations: prep.conversation_selection.conversations.train,
-    trainingLoopLines: '~630 lines',
-    preparedDataId: '8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68',
+    trainingCodeLines: fetched[`${RUN}/code/simple/ovl.py`].text.trimEnd().split('\n').length,
+    preparedDataId: prepFile.sha256,
   };
 
-  // 7. Parse loo-results.json
-  const loo = JSON.parse(fetched['release/unlearning-3i-atlas/loo-results.json'].text);
+  const loo = JSON.parse(fetched[`${FORK}/loo-results.json`].text);
+  const removedArticle = /without the "([^"]+)" article/.exec(fetched[`${FORK}/README.md`].text)?.[1];
+  must(removedArticle, `Could not read the removed article from ${FORK}/README.md`);
   const exclusion = {
-    removedArticle: '3I/ATLAS',
+    removedArticle,
     originalRemovedLoss: Number(loo.original_base.removed_loss[0].toFixed(4)),
     forkRemovedLoss: Number(loo.fork_base.removed_loss[0].toFixed(4)),
     removedLossDelta: Number((loo.fork_base.removed_loss[0] - loo.original_base.removed_loss[0]).toFixed(4)),
@@ -141,38 +171,33 @@ export async function buildEvidenceData() {
     forkControlLossMean: Number(loo.fork_base.control_loss_mean.toFixed(4)),
     controlLossDelta: Number((loo.fork_base.control_loss_mean - loo.original_base.control_loss_mean).toFixed(4)),
     controlArticlesCount: loo.control_documents,
-    evidencePath: 'release/unlearning-3i-atlas/',
+    evidencePath: `${FORK}/`,
+    forkChecks: jsonLines(fetched[`${FORK}/verifications.jsonl`].text),
   };
 
-  const evidenceData = {
-    schemaVersion: 1,
+  return {
+    schemaVersion: 2,
     dataset: DATASET,
     revision: REVISION,
+    revisionFull: revisionInfo.sha,
     fetchedAt: new Date().toISOString(),
-    sourceHashes: Object.fromEntries(
-      Object.entries(fetched).map(([path, f]) => [path, f.sha256])
-    ),
+    sourceHashes: Object.fromEntries(Object.entries(fetched).map(([path, f]) => [path, f.sha256])),
+    release: { tag: RELEASE_TAG, publishedAt: release.published_at },
     preparation,
     chain,
     verifications: {
-      totalChecks: rawVerifications.length,
-      uniqueSegments: 37,
-      projectChecksCount: rawVerifications.filter(v => v.checker.startsWith('project')).length,
-      independentChecksCount: rawVerifications.filter(v => !v.checker.startsWith('project')).length,
-      coverage: segmentCoverage,
-      rawChecks: rawVerifications,
+      totalChecks: rawChecks.length,
+      uniqueSegments: segmentCount,
+      projectChecksCount: rawChecks.filter(c => category(c) === 'project').length,
+      independentChecksCount: rawChecks.filter(c => category(c) === 'independent').length,
+      coverage,
+      rawChecks,
     },
     hardwareMap,
-    anchor: {
-      ...anchor,
-      timestamp: '2026-10-20 14:38:43 UTC',
-      authorities: ['DigiCert', 'FreeTSA (RFC 3161)'],
-    },
+    anchor: { ...anchor, timestamps },
     exclusion,
     releaseHashes,
   };
-
-  return evidenceData;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -181,7 +206,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const outPath = join(__dirname, '../public/data/evidence.json');
     await mkdir(dirname(outPath), { recursive: true });
     await writeFile(outPath, JSON.stringify(data, null, 2) + '\n', 'utf8');
-    console.log(`\nWrote evidence data to ${outPath}`);
+    console.log(`\nWrote evidence data to ${outPath}. Run npm run validate next.`);
   } catch (err) {
     console.error('Failed to fetch evidence:', err);
     process.exit(1);

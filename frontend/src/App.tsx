@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { EvidenceData } from './data/contracts';
+import { type Facts, summarize } from './data/facts';
 import { validateEvidence, SnapshotError } from './data/validate';
 import { Header } from './components/Header';
 import { Contents } from './components/Contents';
@@ -13,7 +14,7 @@ import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
 
 export const App: React.FC = () => {
-  const [evidence, setEvidence] = useState<EvidenceData | null>(null);
+  const [loaded, setLoaded] = useState<{ evidence: EvidenceData; facts: Facts } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,10 +26,10 @@ export const App: React.FC = () => {
         if (!res.ok) {
           throw new SnapshotError(`Failed to load evidence.json: HTTP ${res.status}`);
         }
-        const json = await res.json();
-        const validated = validateEvidence(json);
+        const evidence = validateEvidence(await res.json());
+        const facts = summarize(evidence);
         if (active) {
-          setEvidence(validated);
+          setLoaded({ evidence, facts });
         }
       } catch (err) {
         if (active) {
@@ -45,23 +46,25 @@ export const App: React.FC = () => {
 
   if (error) {
     return (
-      <div className="page-msg" role="alert">
-        <h2>Snapshot unavailable or invalid</h2>
+      <main className="page-msg" role="alert">
+        <h1>Snapshot unavailable or invalid</h1>
         <p className="err">{error}</p>
         <button type="button" className="btn" onClick={() => window.location.reload()}>
           Retry loading snapshot
         </button>
-      </div>
+      </main>
     );
   }
 
-  if (!evidence) {
+  if (!loaded) {
     return (
-      <div className="page-msg">
+      <main className="page-msg" role="status">
         <p>Loading display snapshot…</p>
-      </div>
+      </main>
     );
   }
+
+  const { evidence, facts } = loaded;
 
   return (
     <>
@@ -69,24 +72,30 @@ export const App: React.FC = () => {
         Skip to content
       </a>
 
-      <Header />
+      <Header evidenceHref={facts.evidenceUrl} />
       <Contents />
 
-      <main id="main" className="page">
-        <Hero evidence={evidence} />
-        <HowItWorks />
+      <main id="main" className="page" tabIndex={-1}>
+        <Hero facts={facts} />
+        <HowItWorks facts={facts} />
         <Results
-          verifications={evidence.verifications}
+          facts={facts}
+          coverage={evidence.verifications.coverage}
           hardwareMap={evidence.hardwareMap}
           preparation={evidence.preparation}
         />
-        <TrainingHistory chain={evidence.chain} exclusion={evidence.exclusion} />
-        <CheckLadder />
-        <Downloads releaseHashes={evidence.releaseHashes} />
-        <Faq />
+        <TrainingHistory
+          facts={facts}
+          chain={evidence.chain}
+          coverage={evidence.verifications.coverage}
+          exclusion={evidence.exclusion}
+        />
+        <CheckLadder facts={facts} />
+        <Downloads facts={facts} releaseHashes={evidence.releaseHashes} />
+        <Faq facts={facts} />
       </main>
 
-      <Footer revision={evidence.revision} />
+      <Footer facts={facts} />
     </>
   );
 };

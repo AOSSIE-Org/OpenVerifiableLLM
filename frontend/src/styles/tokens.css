@@ -5,7 +5,7 @@
   --paper: #F0EEE9;
   --sheet: #E8E5DE;
   --rule: #D5D1C8;
-  --rule-strong: #8F8A81;
+  --rule-strong: #86817A;
   --ink: #2A2826;
   --ink-3: #4F4B47;
   --link: #2F558C;
@@ -15,6 +15,10 @@
   --match-fill: #5E8463;
   --miss: #8E3A3F;
   --focus-ring: #2F558C;
+  --fs-xs: 13px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 18px;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Lato, Helvetica, Arial, sans-serif;
   --serif: "Linux Libertine", Georgia, Times, "Source Serif Pro", serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;

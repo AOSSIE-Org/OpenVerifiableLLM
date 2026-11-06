@@ -1,10 +1,12 @@
 import React from 'react';
+import { claimsFor } from '../content/claims';
 import { copy } from '../content/copy';
+import type { Facts } from '../data/facts';
 import { CopyButton } from './CopyButton';
 
 // Three ways to check, on one scale of effort from a few minutes to an hour.
 // A one-line command shows in place; a longer script folds away.
-export const CheckLadder: React.FC = () => (
+export const CheckLadder: React.FC<{ facts: Facts }> = ({ facts }) => (
   <section id="check" className="sec">
     <div className="sec-head">
       <h2>{copy.check.kicker}</h2>
@@ -12,7 +14,7 @@ export const CheckLadder: React.FC = () => (
     </div>
 
     <ol className="steps">
-      {copy.check.ladder.map(step => (
+      {claimsFor(facts).ladder.map(step => (
         <li key={step.time} className={step.isKey ? 'step key' : 'step'}>
           <p className="step-time">{step.time}</p>
           <p className="step-meta">{step.meta}</p>

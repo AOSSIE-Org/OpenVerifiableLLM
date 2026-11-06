@@ -4,10 +4,11 @@ Static single-page project site for OpenVerifiableLLM, presenting real bit-for-b
 
 ## Overview
 
-- **Single-page navigation**: Evidence-first landing page with section anchors (`#check`, `#verification`, `#timeline`, `#exclusion`, `#downloads`).
+- **Single-page navigation**: One continuous report with section anchors (`#how`, `#overview`, `#timeline`, `#check`, `#downloads`, `#faq`).
 - **Real evidence data**: Pinned Hugging Face dataset `AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence` at revision `96dc282a`.
-- **Prebuild validation**: `npm run build` runs `prebuild` (`npm run validate`), failing closed if any data contract or hash link is violated.
-- **Accessible design**: WCAG 2.2 AA compliant, zero axe violations across themes (dark default, light opt-in) and viewports.
+- **Results come from the records**: Every result, count, date and revision on the page is worked out from `evidence.json` (`src/data/facts.ts`, `src/content/claims.ts`). A mismatch shows as a mismatch, and a missing check shows as not checked.
+- **Prebuild validation**: `npm run build` runs `prebuild` (`npm run validate`), failing closed if the snapshot disagrees with itself: chain links, the anchor, the hash list, or a summary that differs from the raw check rows.
+- **Accessible design**: Targets WCAG 2.2 AA, with axe run across both themes (light default, dark opt-in) and five widths.
 - **Offline bundle**: System fonts only (no web fonts), embedded SVG brand assets, and zero runtime external CDN dependencies.
 
 ## Commands
@@ -20,6 +21,9 @@ npm run typecheck  # verify TypeScript types (tsc -b --noEmit)
 npm test           # run Vitest suite (validation, copy lint, components)
 npm run build      # validate evidence and build static output to dist/
 npm run preview    # preview production build locally
+npx playwright install chromium
+npm run e2e        # browser and accessibility tests (PW_CHANNEL=chrome uses an installed Chrome)
+npm run fetch-evidence  # rebuild evidence.json from the pinned sources
 ```
 
 ## Structure
@@ -32,14 +36,15 @@ frontend/
 ├── scripts/
 │   └── fetch-evidence.mjs  # Manual script to fetch and assemble snapshot from Hugging Face
 ├── src/
-│   ├── components/  # React components (Hero, Overview, CheckLadder, Verification, TrainingTimeline, etc.)
-│   ├── content/     # copy.ts (single source of truth for text and copy linting)
-│   ├── data/        # contracts.ts and validate.ts (strict schemas, invariant validator)
+│   ├── components/  # React components (Hero, HowItWorks, Results, TrainingHistory, CheckLadder, etc.)
+│   ├── content/     # copy.ts (static text) and claims.ts (sentences worked out from the evidence)
+│   ├── data/        # contracts.ts, facts.ts (results and counts), validate.ts (invariants), checkers.json
 │   └── styles/      # tokens.css (color tokens and ratios) and base.css (typography and layouts)
 └── tests/
     ├── browser/     # Playwright + axe-core accessibility and interaction test suite
-    ├── fixtures/    # Corrupted evidence fixtures for fail-closed validation tests
+    ├── evidence-cases.ts  # Mismatches and missing checks, built from the real snapshot
     ├── components.test.tsx
+    ├── facts.test.ts
     ├── copy-lint.test.ts
     └── validate.test.ts
 ```
