@@ -21,6 +21,8 @@ export interface ChainControl {
 }
 
 export interface ChainBoundary {
+  // The published line of chain.jsonl. entryHash is the SHA-256 of these exact bytes.
+  record: string;
   index: number;
   kind: 'initial' | 'progress' | 'base' | 'transition' | 'epoch' | 'final';
   control: ChainControl;
@@ -86,6 +88,16 @@ export interface ReleaseAnchor {
   timestamps: AnchorTimestamp[];
 }
 
+// The fork's split, as its own chain records it
+export interface ForkPoint {
+  fromEntry: number;
+  entryIndex: number;
+  entries: number;
+  sharedEntries: number;
+  previous: string;
+  state: string;
+}
+
 export interface ExclusionData {
   removedArticle: string;
   originalRemovedLoss: number;
@@ -96,10 +108,12 @@ export interface ExclusionData {
   controlLossDelta: number;
   controlArticlesCount: number;
   evidencePath: string;
+  fork: ForkPoint;
   forkChecks: RawVerificationCheck[];
 }
 
 export interface PreparationData {
+  modelParametersMillions: number;
   articles: number;
   wikipediaTargets: number;
   conversations: number;
@@ -117,7 +131,6 @@ export interface EvidenceData {
   dataset: string;
   revision: string;
   revisionFull: string;
-  fetchedAt: string;
   sourceHashes: Record<string, string>;
   release: ReleaseInfo;
   preparation: PreparationData;

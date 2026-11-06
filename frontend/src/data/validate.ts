@@ -1,8 +1,14 @@
 // Checks the evidence snapshot against itself, so it fails closed. Nothing here is
 // compared with a number typed by hand: the chain gives the segment count, the raw
 // check rows give the results and counts, and the anchor ties the files together.
+//
+// This is a consistency check, not verification. It recomputes the chain's hashes, so
+// editing one field breaks them. It can't tell who wrote the snapshot: someone rewriting
+// every hash, the anchor included, would pass. Only the timestamp signatures can catch
+// that, and `ovl.py verify` checks those, not this file.
 import { type EvidenceData, KNOWN_CHECKER_MAP, type RawVerificationCheck } from './contracts';
 import { deriveCoverage } from './facts';
+import { sha256Hex } from './sha256';
 
 export class SnapshotError extends Error {
   constructor(message: string) {
@@ -23,6 +29,10 @@ const HEX_64_REGEX = /^[0-9a-f]{64}$/i;
 const CHAIN_KINDS = new Set(['initial', 'progress', 'base', 'transition', 'epoch', 'final']);
 const RUN_CHAIN = 'release/simple-run/chain.jsonl';
 const RUN_HASHES = 'release/simple-run/release-hashes.txt';
+// These go into download links and into commands readers copy and run, so only the
+// exact expected shape gets through: no spaces, newlines or shell characters.
+const DATASET_ID_REGEX = /^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,94}[A-Za-z0-9])?\/[A-Za-z0-9](?:[A-Za-z0-9._-]{0,94}[A-Za-z0-9])?$/;
+const RELEASE_TAG_REGEX = /^v\d+\.\d+\.\d+$/;
 const DOWNLOADED_FILES = ['ovl-23m-chat.gguf', 'Modelfile', 'conversation-model.pt'];
 
 const isFields = (value: unknown): value is Fields =>
@@ -38,6 +48,36 @@ const isDate = (value: unknown): value is string => isText(value) && !Number.isN
 function fields(value: unknown, name: string): Fields {
   assert(isFields(value), `Missing ${name} section`);
   return value;
+}
+
+// Same value, whatever order the keys are in
+function sameJson(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, i) => sameJson(item, b[i]));
+  }
+  if (isFields(a) && isFields(b)) {
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every(key => Object.hasOwn(b, key) && sameJson(a[key], b[key]));
+  }
+  return a === b;
+}
+
+// The fields the page reads must be the ones in the record the hash covers.
+const RECORD_FIELDS = ['index', 'kind', 'control', 'state', 'model', 'previous', 'time'];
+
+function validateRecord(entry: Fields, i: number): void {
+  assert(isText(entry.record), `Missing record at boundary ${i}`);
+  assert(sha256Hex(entry.record) === entry.entryHash, `Entry hash at boundary ${i} does not match its record`);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(entry.record);
+  } catch {
+    throw new SnapshotError(`Record at boundary ${i} is not valid JSON`);
+  }
+  const record = fields(parsed, `parsed record at boundary ${i}`);
+  for (const field of RECORD_FIELDS) {
+    assert(sameJson(entry[field], record[field]), `${field} at boundary ${i} does not match its record`);
+  }
 }
 
 function validateChain(root: Fields): Fields[] {
@@ -77,6 +117,7 @@ function validateChain(root: Fields): Fields[] {
     assert(control.global_step >= lastStep, `Training step goes backwards at boundary ${i}`);
     lastTime = entry.time;
     lastStep = control.global_step;
+    validateRecord(entry, i);
   });
   return chain;
 }
@@ -177,6 +218,9 @@ function validateAnchor(root: Fields, chain: Fields[], source: Fields): void {
   assert(anchor.final_model === head.model, 'Anchor final model does not match the last chain entry');
   assert(anchor.chain_jsonl_sha256 === source[RUN_CHAIN], 'Anchor does not match the hash of chain.jsonl');
   assert(anchor.release_hashes_sha256 === source[RUN_HASHES], 'Anchor does not match the hash of release-hashes.txt');
+  // The whole file, rebuilt from the records, must be the file the anchor names.
+  const chainFile = `${chain.map(entry => entry.record).join('\n')}\n`;
+  assert(sha256Hex(chainFile) === anchor.chain_jsonl_sha256, 'The chain records do not hash to the chain.jsonl the anchor names');
   assert(anchor.dataset === root.dataset, `Anchor names dataset ${anchor.dataset}, not ${root.dataset}`);
 
   assert(Array.isArray(anchor.timestamps) && anchor.timestamps.length > 0, 'Anchor must have at least one timestamp');
@@ -201,6 +245,7 @@ function validateHardware(root: Fields, segmentCount: number): void {
 
 function validatePreparation(root: Fields, source: Fields): void {
   const prep = fields(root.preparation, 'preparation');
+  assert(isPositive(prep.modelParametersMillions), `modelParametersMillions must be a positive integer, got ${prep.modelParametersMillions}`);
   assert(isPositive(prep.articles), `articles count must be a positive integer, got ${prep.articles}`);
   assert(isPositive(prep.wikipediaTargets), `wikipediaTargets count must be a positive integer, got ${prep.wikipediaTargets}`);
   assert(isPositive(prep.conversations), `conversations count must be a positive integer, got ${prep.conversations}`);
@@ -212,7 +257,21 @@ function validatePreparation(root: Fields, source: Fields): void {
   );
 }
 
-function validateExclusion(root: Fields, segmentCount: number): void {
+function validateFork(excl: Fields, chain: Fields[]): { first: number; last: number } {
+  const fork = fields(excl.fork, 'exclusion fork');
+  const { fromEntry, entryIndex, entries, sharedEntries, previous, state } = fork;
+  assert(isCount(fromEntry) && fromEntry < chain.length - 1, `Invalid fork point: from entry ${fromEntry}`);
+  assert(entryIndex === fromEntry + 1, `Fork entry ${entryIndex} does not follow from entry ${fromEntry}`);
+  assert(sharedEntries === fromEntry + 1, `Fork shares ${sharedEntries} entries but splits from entry ${fromEntry}`);
+  assert(isCount(entries) && entries > entryIndex, `Fork has ${entries} entries, too few for fork entry ${entryIndex}`);
+  // The split must point at the run's own entry and carry its state unchanged.
+  const parent = chain[fromEntry];
+  assert(previous === parent.entryHash, `Fork does not link to entry ${fromEntry} of the run`);
+  assert(state === parent.state, `Fork entry changes the state of entry ${fromEntry}`);
+  return { first: fromEntry, last: entries - 2 };
+}
+
+function validateExclusion(root: Fields, chain: Fields[]): void {
   const excl = fields(root.exclusion, 'exclusion');
   assert(isText(excl.removedArticle), 'Missing removedArticle');
   assert(isFiniteNumber(excl.originalRemovedLoss) && excl.originalRemovedLoss > 0, 'Invalid originalRemovedLoss');
@@ -232,9 +291,10 @@ function validateExclusion(root: Fields, segmentCount: number): void {
   );
   assert(excl.evidencePath === 'release/unlearning-3i-atlas/', `Invalid exclusion evidencePath: ${excl.evidencePath}`);
   assert(Array.isArray(excl.forkChecks) && excl.forkChecks.length > 0, 'Exclusion has no fork checks');
-  // The fork has one more boundary than the run, for its recorded fork entry.
+  // Fork checks can only be on segments after the split, up to the fork's own last one.
+  const { first, last } = validateFork(excl, chain);
   excl.forkChecks.forEach((check: unknown, i: number) =>
-    validateCheckRow(check, `Fork check #${i}`, s => s <= segmentCount, `[0, ${segmentCount}]`),
+    validateCheckRow(check, `Fork check #${i}`, s => s >= first && s <= last, `[${first}, ${last}]`),
   );
 }
 
@@ -243,7 +303,10 @@ export function validateEvidence(data: unknown): EvidenceData {
   const root = data;
 
   assert(isPositive(root.schemaVersion), `Invalid schemaVersion: ${root.schemaVersion}`);
-  assert(isText(root.dataset), `Invalid dataset: ${root.dataset}`);
+  assert(
+    typeof root.dataset === 'string' && DATASET_ID_REGEX.test(root.dataset) && !/\.\.|--/.test(root.dataset),
+    `Invalid dataset identifier, expected owner/name: ${JSON.stringify(root.dataset)}`,
+  );
   assert(
     typeof root.revision === 'string' && /^[0-9a-f]{7,40}$/i.test(root.revision),
     `Invalid evidence revision format: ${root.revision}`,
@@ -253,7 +316,10 @@ export function validateEvidence(data: unknown): EvidenceData {
     `revisionFull ${root.revisionFull} is not the full form of revision ${root.revision}`,
   );
   const release = fields(root.release, 'release');
-  assert(isText(release.tag), `Invalid release tag: ${release.tag}`);
+  assert(
+    typeof release.tag === 'string' && RELEASE_TAG_REGEX.test(release.tag),
+    `Invalid release tag, expected a version like v1.2.3: ${JSON.stringify(release.tag)}`,
+  );
   assert(isDate(release.publishedAt), `Invalid release date: ${release.publishedAt}`);
 
   const chain = validateChain(root);
@@ -263,7 +329,7 @@ export function validateEvidence(data: unknown): EvidenceData {
   validateAnchor(root, chain, source);
   validateHardware(root, segmentCount);
   validatePreparation(root, source);
-  validateExclusion(root, segmentCount);
+  validateExclusion(root, chain);
 
   return data as unknown as EvidenceData;
 }

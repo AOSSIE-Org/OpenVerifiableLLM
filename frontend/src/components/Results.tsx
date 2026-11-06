@@ -49,7 +49,7 @@ export const Results: React.FC<ResultsProps> = ({ facts, coverage, hardwareMap, 
                 {r.projectSummary}
                 {r.projectExtra}
               </b>
-              <span className="lg-i">
+              <span className={facts.independentChecked < facts.segments ? 'lg-i caveat' : 'lg-i'}>
                 {r.independentSummary}
                 {r.independentExtra}
               </span>

@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { claimsFor, timelineClaims } from '../src/content/claims';
+import { claimsFor, timelineClaims, TRAINING_EVENTS } from '../src/content/claims';
 import type { RawVerificationCheck } from '../src/data/contracts';
+import { sha256Hex } from '../src/data/sha256';
 import { checksForOdds, combine, datasetUrl, deriveCoverage, detectionOdds, summarize, verdict } from '../src/data/facts';
 import { loadEvidence, withMismatch, withoutChecks } from './evidence-cases';
 
@@ -13,6 +15,29 @@ const check = (segment: number, checker: string, result: RawVerificationCheck['r
   code: 'c',
   driver: 'd',
   gpu: 'g',
+});
+
+describe('sha256Hex', () => {
+  it('matches the published test vectors', () => {
+    expect(sha256Hex('')).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(sha256Hex('abc')).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(sha256Hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq')).toBe(
+      '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
+    );
+  });
+
+  it('agrees with node:crypto across block boundaries and non-ASCII text', () => {
+    for (let length = 0; length < 200; length++) {
+      const text = 'é€'.repeat(length).slice(0, length);
+      expect(sha256Hex(text)).toBe(createHash('sha256').update(text).digest('hex'));
+    }
+  });
+
+  it('reproduces every published entry hash', () => {
+    for (const entry of loadEvidence().chain) {
+      expect(sha256Hex(entry.record)).toBe(entry.entryHash);
+    }
+  });
 });
 
 describe('verdict and coverage', () => {
@@ -70,8 +95,11 @@ describe('summary of the real snapshot', () => {
       totalChecks: 46,
       projectChecks: 46,
       independentChecks: 0,
+      forkFromEntry: 30,
       forkSegments: 8,
       forkSegmentsMatched: 8,
+      modelMillions: 23,
+      checkGpu: 'RTX 5090',
       stampDate: '20 October 2026',
       stampDateShort: '20 Oct 2026',
       authorities: ['DigiCert', 'FreeTSA'],
@@ -93,7 +121,46 @@ describe('summary of the real snapshot', () => {
   it('agrees with the static page description', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
     expect(html).toContain(`each of its ${facts.segments} training segments`);
+    expect(html).toContain(`A ${facts.modelMillions}M-parameter model`);
     expect(facts.independentChecks === 0).toBe(html.includes('no independent checks yet'));
+  });
+});
+
+describe('facts that come from the snapshot', () => {
+  it('moves the fork claim with the fork record', () => {
+    const evidence = loadEvidence();
+    expect(claimsFor(summarize(evidence)).forkWhy[0]).toBe('Entries 0 to 30 of its record are identical to the original.');
+    evidence.exclusion.fork = { ...evidence.exclusion.fork, fromEntry: 12, entries: 20 };
+    const facts = summarize(evidence);
+    expect(claimsFor(facts).forkWhy[0]).toBe('Entries 0 to 12 of its record are identical to the original.');
+    expect(facts.forkSegments).toBe(7);
+  });
+
+  it('counts a fork segment with no check as not matched', () => {
+    const evidence = loadEvidence();
+    evidence.exclusion.forkChecks = evidence.exclusion.forkChecks.filter(c => c.segment !== 33);
+    const facts = summarize(evidence);
+    expect(facts).toMatchObject({ forkSegments: 8, forkSegmentsMatched: 7 });
+    expect(claimsFor(facts).forkWhy[2]).toContain('7 of the 8');
+  });
+
+  it('moves the model size and GPU with the evidence', () => {
+    const evidence = loadEvidence();
+    evidence.preparation.modelParametersMillions = 116;
+    evidence.verifications.rawChecks.forEach(c => { c.gpu = 'NVIDIA GeForce RTX 4090'; });
+    const claims = claimsFor(summarize(evidence));
+    expect(claims.lead).toContain('116 million parameters');
+    expect(claims.results.subtitle).toContain('second RTX 4090');
+    expect(claims.ladder[2].meta).toContain('RTX 4090');
+  });
+
+  it('keeps the written training events in line with the evidence', () => {
+    const evidence = loadEvidence();
+    const second = evidence.verifications.rawChecks.filter(c => c.checker === 'project second pod');
+    const firstNewCode = second.find(c => c.code !== second[0].code);
+    expect(firstNewCode?.segment).toBe(TRAINING_EVENTS.codeChangeBoundary);
+    const allSegments = evidence.hardwareMap.find(p => typeof p.segment === 'string');
+    expect(allSegments?.note).toContain(`segments 0-${TRAINING_EVENTS.hostFailureSegment - 1}`);
   });
 });
 

@@ -545,6 +545,11 @@ table.sr-only {
   color: var(--ink-3);
 }
 
+.lg-i.caveat {
+  color: var(--event);
+  font-weight: 600;
+}
+
 .covgrid {
   display: grid;
   grid-template-columns: 90px minmax(0, 1fr);

@@ -140,11 +140,18 @@ describe('Hero', () => {
   });
 });
 
+describe('Hero honesty', () => {
+  it('says the page checks consistency, and points to the real checks', () => {
+    render(<Hero facts={summarize(loadEvidence())} />);
+    expect(screen.getByText(/consistent with itself/)).toBeInTheDocument();
+  });
+});
+
 describe('Results coverage map', () => {
   it('shows the real snapshot: every project cell matched, every independent cell unchecked', () => {
     const { container } = renderResults(loadEvidence());
     expect(screen.getByText('Project: 37 / 37 matched')).toBeInTheDocument();
-    expect(screen.getByText('Independent: 0 / 37 checked')).toBeInTheDocument();
+    expect(screen.getByText('Independent: 0 / 37 checked')).toHaveClass('caveat');
     expect([...projectCells(container)].every(c => c.classList.contains('match'))).toBe(true);
     expect([...independentCells(container)].every(c => c.classList.contains('none'))).toBe(true);
     expect(independentCells(container)[0]).toHaveAttribute('title', 'Segment 0: not checked, by anyone independent');

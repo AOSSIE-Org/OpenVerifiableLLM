@@ -21,10 +21,7 @@ export const copy = {
   article: {
     title: 'OpenVerifiableLLM',
     from: 'An AOSSIE project',
-    lead: [
-      'is a language model whose training anyone can recompute.',
-      "It's small, 23 million parameters, trained on English Wikipedia and a few conversations. You don't have to take our word for how it was made.",
-    ],
+    lead: 'is a language model whose training anyone can recompute.',
     factsTitle: 'Key facts',
     primaryAction: 'Explore the results',
     secondaryAction: 'Source on GitHub',

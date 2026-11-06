@@ -1,8 +1,10 @@
 // Manual script: node scripts/fetch-evidence.mjs
 // Builds public/data/evidence.json from the pinned Hugging Face revision and the
 // pinned GitHub release. Only the pins below are typed by hand: every count, hash,
-// date and result comes from the fetched files. `npm run validate` then checks the
-// output against itself, and the build fails if it doesn't hold.
+// date and result comes from the fetched files, and two runs give identical output.
+// `npm run validate` then checks the output against itself, and the build fails if
+// it doesn't hold. This reads the evidence; it doesn't verify the timestamp signatures
+// or recompute training. `simple/ovl.py verify` and the segment checks do that.
 
 import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -37,6 +39,7 @@ const FILES_TO_FETCH = [
   ...STAMP_FILES.map(file => `${RUN}/${file}`),
   `${FORK}/loo-results.json`,
   `${FORK}/verifications.jsonl`,
+  `${FORK}/chain.jsonl`,
   `${FORK}/README.md`,
   PREP_PATH,
 ];
@@ -63,7 +66,33 @@ async function fetchJson(url) {
   return res.json();
 }
 
-const jsonLines = text => text.trim().split('\n').map(line => JSON.parse(line));
+const textLines = text => text.trim().split('\n');
+const jsonLines = text => textLines(text).map(line => JSON.parse(line));
+
+// The file's own digest, worked out from its bytes, must equal the digest GitHub publishes.
+async function checkAssetDigest(asset) {
+  const res = await fetch(asset.browser_download_url);
+  must(res.ok, `Failed to fetch ${asset.browser_download_url}: HTTP ${res.status} ${res.statusText}`);
+  const hash = createHash('sha256');
+  for await (const chunk of res.body) hash.update(chunk);
+  const digest = `sha256:${hash.digest('hex')}`;
+  must(digest === asset.digest, `${asset.name} hashes to ${digest}, but GitHub publishes ${asset.digest}`);
+}
+
+// The fork's own record names the entry it split from. Its first entries must be the
+// run's, byte for byte, and its fork entry must change nothing but declare the exclusion.
+function readFork(runLines, forkLines) {
+  const entries = forkLines.map(line => JSON.parse(line));
+  const forkEntries = entries.filter(entry => entry.kind === 'fork');
+  must(forkEntries.length === 1, `Expected one fork entry in the fork's chain, found ${forkEntries.length}`);
+  const entry = forkEntries[0];
+  const fromEntry = entry.fork?.from_entry;
+  must(Number.isInteger(fromEntry), 'The fork entry does not record from_entry');
+  let sharedEntries = 0;
+  while (sharedEntries < forkLines.length && forkLines[sharedEntries] === runLines[sharedEntries]) sharedEntries++;
+  must(sharedEntries === fromEntry + 1, `The fork shares ${sharedEntries} entries with the run, but says it split from entry ${fromEntry}`);
+  return { fromEntry, entryIndex: entry.index, entries: entries.length, sharedEntries, previous: entry.previous, state: entry.state };
+}
 
 // A segment passes only if every check on it matched. No checks means no result.
 function verdict(checks) {
@@ -93,9 +122,12 @@ export async function buildEvidenceData() {
   must(revisionInfo.sha.startsWith(REVISION), `Revision ${REVISION} resolved to ${revisionInfo.sha}`);
 
   // Chain: the number of segments comes from here and nowhere else
-  const chain = fetched[`${RUN}/chain.jsonl`].text.trim().split('\n').map(line => {
+  // Each record is kept as published, because its hash covers those exact bytes.
+  const runChainLines = textLines(fetched[`${RUN}/chain.jsonl`].text);
+  const chain = runChainLines.map(line => {
     const entry = JSON.parse(line);
     return {
+      record: line,
       index: entry.index,
       kind: entry.kind,
       control: entry.control,
@@ -139,10 +171,15 @@ export async function buildEvidenceData() {
   for (const name of RELEASE_ASSETS) {
     const asset = release.assets.find(a => a.name === name);
     must(asset?.digest?.startsWith('sha256:'), `Release ${RELEASE_TAG} has no SHA-256 digest for ${name}`);
+    process.stdout.write(`  Checking the digest of ${name}... `);
+    await checkAssetDigest(asset);
+    console.log('OK');
     releaseHashes[name] = asset.digest.slice('sha256:'.length);
   }
 
   const anchor = JSON.parse(fetched[`${RUN}/anchor.json`].text);
+  must(anchor.dataset === DATASET, `The anchor names dataset ${anchor.dataset}, not the pinned ${DATASET}`);
+  must(anchor.path === RUN, `The anchor names path ${anchor.path}, not ${RUN}`);
   const timestamps = Object.entries(AUTHORITIES).map(([name, authority]) => {
     const file = `anchor.${name}.tsr`;
     return { authority, file, time: stampTime(fetched[`${RUN}/${file}`].bytes, file) };
@@ -150,11 +187,15 @@ export async function buildEvidenceData() {
 
   const prepFile = fetched[PREP_PATH];
   must(prepFile.sha256 === PREPARED_ID, `preparation.json hashes to ${prepFile.sha256}, not ${PREPARED_ID}`);
+  must(fetched[`${RUN}/README.md`].text.includes(PREPARED_ID), 'The release README does not name the pinned prepared-data ID');
   const prep = JSON.parse(prepFile.text);
+  const millions = /(\d+)-million-parameter/.exec(fetched[`${RUN}/README.md`].text)?.[1];
+  must(millions, `Could not read the model size from ${RUN}/README.md`);
   const preparation = {
     articles: prep.corpus.counts.included,
     wikipediaTargets: prep.streams.wikipedia.targets,
     conversations: prep.conversation_selection.conversations.train,
+    modelParametersMillions: Number(millions),
     trainingCodeLines: fetched[`${RUN}/code/simple/ovl.py`].text.trimEnd().split('\n').length,
     preparedDataId: prepFile.sha256,
   };
@@ -162,6 +203,8 @@ export async function buildEvidenceData() {
   const loo = JSON.parse(fetched[`${FORK}/loo-results.json`].text);
   const removedArticle = /without the "([^"]+)" article/.exec(fetched[`${FORK}/README.md`].text)?.[1];
   must(removedArticle, `Could not read the removed article from ${FORK}/README.md`);
+  const forkChecks = jsonLines(fetched[`${FORK}/verifications.jsonl`].text);
+  forkChecks.forEach(category);
   const exclusion = {
     removedArticle,
     originalRemovedLoss: Number(loo.original_base.removed_loss[0].toFixed(4)),
@@ -172,15 +215,15 @@ export async function buildEvidenceData() {
     controlLossDelta: Number((loo.fork_base.control_loss_mean - loo.original_base.control_loss_mean).toFixed(4)),
     controlArticlesCount: loo.control_documents,
     evidencePath: `${FORK}/`,
-    forkChecks: jsonLines(fetched[`${FORK}/verifications.jsonl`].text),
+    fork: readFork(runChainLines, textLines(fetched[`${FORK}/chain.jsonl`].text)),
+    forkChecks,
   };
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     dataset: DATASET,
     revision: REVISION,
     revisionFull: revisionInfo.sha,
-    fetchedAt: new Date().toISOString(),
     sourceHashes: Object.fromEntries(Object.entries(fetched).map(([path, f]) => [path, f.sha256])),
     release: { tag: RELEASE_TAG, publishedAt: release.published_at },
     preparation,

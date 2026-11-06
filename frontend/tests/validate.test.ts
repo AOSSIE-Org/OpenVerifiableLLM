@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { EvidenceData } from '../src/data/contracts';
+import { sha256Hex } from '../src/data/sha256';
 import { validateEvidence, SnapshotError } from '../src/data/validate';
 import { loadEvidence, withMismatch, withoutChecks } from './evidence-cases';
 
@@ -71,6 +72,178 @@ describe('Evidence Validator', () => {
       rejects(e => { e.chain[4].control.global_step = 1; }, /Training step goes backwards at boundary 4/);
       rejects(e => { delete e.chain[4].control.phase; }, /Invalid phase at boundary 4/);
       rejects(e => { e.chain[4].kind = 'made-up'; }, /Invalid kind at boundary 4/);
+    });
+  });
+
+  describe('chain records and hashes', () => {
+    // The field changes, and the stored hash stays as it was
+    it('catches a changed field whose stored hash is unchanged', () => {
+      rejects(e => { e.chain[1].time += 1; }, /time at boundary 1 does not match its record/);
+      rejects(e => { e.chain[1].state = 'a'.repeat(64); }, /state at boundary 1 does not match its record/);
+      rejects(e => { e.chain[1].model = 'a'.repeat(64); }, /model at boundary 1 does not match its record/);
+      rejects(e => { e.chain[1].control.cursor += 1; }, /control at boundary 1 does not match its record/);
+      rejects(e => { e.chain[1].control.phase = 'other'; }, /control at boundary 1 does not match its record/);
+      rejects(e => { e.chain[1].kind = 'epoch'; }, /kind at boundary 1 does not match its record/);
+    });
+
+    it('catches a changed record whose stored hash is unchanged', () => {
+      rejects(e => { e.chain[2].record = e.chain[2].record.replace('"time": ', '"time":  '); }, /Entry hash at boundary 2 does not match its record/);
+    });
+
+    it('catches a changed stored hash', () => {
+      rejects(e => { e.chain[5].entryHash = 'a'.repeat(64); }, /Broken previous link at boundary 6|Entry hash at boundary 5/);
+      rejects(e => { e.chain[37].entryHash = 'a'.repeat(64); }, /Entry hash at boundary 37/);
+    });
+
+    it('catches a missing or broken record', () => {
+      rejects(e => { delete e.chain[3].record; }, /Missing record at boundary 3/);
+      rejects(e => { e.chain[3].record = 'not json'; e.chain[3].entryHash = sha256Hex('not json'); e.chain[4].previous = e.chain[3].entryHash; }, /Record at boundary 3 is not valid JSON/);
+    });
+
+    it('catches a record rewritten with its hash, because the link to the next entry breaks', () => {
+      rejects(e => {
+        const entry = JSON.parse(e.chain[4].record);
+        entry.time += 1;
+        const record = JSON.stringify(entry);
+        e.chain[4].record = record;
+        e.chain[4].entryHash = sha256Hex(record);
+        e.chain[4].time = entry.time;
+      }, /Broken previous link at boundary 5/);
+    });
+
+    it('catches a whole chain rewritten without its anchor', () => {
+      rejects(e => {
+        const entry = JSON.parse(e.chain[37].record);
+        entry.state = 'a'.repeat(64);
+        const record = JSON.stringify(entry);
+        e.chain[37].record = record;
+        e.chain[37].state = entry.state;
+        e.chain[37].entryHash = sha256Hex(record);
+      }, /Anchor/);
+    });
+
+    it('catches records that no longer rebuild the file the anchor names', () => {
+      rejects(e => {
+        const hash = 'a'.repeat(64);
+        e.anchor.chain_jsonl_sha256 = hash;
+        e.sourceHashes['release/simple-run/chain.jsonl'] = hash;
+        e.releaseHashes['chain.jsonl'] = hash;
+      }, /do not hash to the chain\.jsonl the anchor names/);
+    });
+
+    it('still passes a rewrite of everything, which is why this is not verification', () => {
+      // The honest limit of this validator, kept as a test so the README can't drift from it.
+      const copy = loadEvidence() as unknown as Loose;
+      copy.chain = copy.chain.map((entry: Loose) => {
+        const { record, ...rest } = entry;
+        return { record, ...rest };
+      });
+      const last = copy.chain[37];
+      const parsed = JSON.parse(last.record);
+      parsed.time += 1;
+      last.record = JSON.stringify(parsed);
+      last.time = parsed.time;
+      last.entryHash = sha256Hex(last.record);
+      const file = `${copy.chain.map((e: Loose) => e.record).join('\n')}\n`;
+      copy.anchor.chain_head_sha256 = last.entryHash;
+      copy.anchor.chain_jsonl_sha256 = sha256Hex(file);
+      copy.sourceHashes['release/simple-run/chain.jsonl'] = copy.anchor.chain_jsonl_sha256;
+      copy.releaseHashes['chain.jsonl'] = copy.anchor.chain_jsonl_sha256;
+      expect(() => validateEvidence(copy)).not.toThrow();
+    });
+  });
+
+  describe('values that reach links and commands', () => {
+    const badDatasets = [
+      'owner/name; rm -rf /',
+      'owner/name`whoami`',
+      'owner/$(whoami)',
+      'owner/name\nrm -rf /',
+      'owner/name\n',
+      ' owner/name',
+      'owner/name ',
+      'owner name/data',
+      'owner',
+      'owner/',
+      '/name',
+      'a/b/c',
+      '../name',
+      'owner/..',
+      'owner/na..me',
+      'owner/-name',
+      'owner/name&&ls',
+      'owner/name|ls',
+      "owner/name'",
+      'owner/name"',
+      'https://evil.example/x',
+      '',
+    ];
+    for (const dataset of badDatasets) {
+      it(`rejects the dataset ${JSON.stringify(dataset)}`, () => {
+        rejects(e => { e.dataset = dataset; }, /Invalid dataset identifier/);
+      });
+    }
+
+    const badTags = [
+      'v1.1.0; rm -rf /',
+      'v1.1.0`whoami`',
+      'v$(whoami)',
+      'v1.1.0\nrm -rf /',
+      'v1.1.0\n',
+      ' v1.1.0',
+      'v1.1',
+      '1.1.0',
+      'v1.1.0-rc1',
+      'latest',
+      'main',
+      '--upload-pack=x',
+      '',
+    ];
+    for (const tag of badTags) {
+      it(`rejects the release tag ${JSON.stringify(tag)}`, () => {
+        rejects(e => { e.release.tag = tag; }, /Invalid release tag/);
+      });
+    }
+
+    it('rejects a dataset or tag that is not a string', () => {
+      rejects(e => { e.dataset = 42; }, /Invalid dataset identifier/);
+      rejects(e => { e.release.tag = { toString: 'v1.1.0' }; }, /Invalid release tag/);
+    });
+
+    it('rejects a revision with shell characters', () => {
+      rejects(e => { e.revision = '96dc282a; ls'; }, /Invalid evidence revision format/);
+      rejects(e => { e.revisionFull = `${e.revisionFull}\n`; }, /is not the full form of revision/);
+    });
+
+    it('checks that the anchor names the same dataset', () => {
+      rejects(e => { e.dataset = 'someone/else'; }, /Anchor names dataset/);
+    });
+  });
+
+  describe('fork point', () => {
+    it('reads the split from the fork record', () => {
+      const { fork } = loadEvidence().exclusion;
+      expect(fork).toMatchObject({ fromEntry: 30, entryIndex: 31, entries: 39, sharedEntries: 31 });
+    });
+
+    it('rejects a fork point that does not fit the evidence', () => {
+      rejects(e => { delete e.exclusion.fork; }, /Missing exclusion fork section/);
+      rejects(e => { e.exclusion.fork.fromEntry = 29; }, /Fork entry 31 does not follow from entry 29/);
+      rejects(e => { e.exclusion.fork.fromEntry = 999; }, /Invalid fork point: from entry 999/);
+      rejects(e => { e.exclusion.fork.fromEntry = -1; }, /Invalid fork point/);
+      rejects(e => { e.exclusion.fork.entryIndex = 32; }, /Fork entry 32 does not follow from entry 30/);
+      rejects(e => { e.exclusion.fork.sharedEntries = 5; }, /Fork shares 5 entries but splits from entry 30/);
+      rejects(e => { e.exclusion.fork.entries = 31; }, /too few for fork entry 31/);
+    });
+
+    it('rejects a fork that does not link to the run, or changes its state', () => {
+      rejects(e => { e.exclusion.fork.previous = 'a'.repeat(64); }, /Fork does not link to entry 30/);
+      rejects(e => { e.exclusion.fork.state = 'a'.repeat(64); }, /Fork entry changes the state of entry 30/);
+    });
+
+    it('rejects a fork check outside the segments after the split', () => {
+      rejects(e => { e.exclusion.forkChecks[0].segment = 29; }, /Fork check #0 points at invalid segment 29; must be in \[30, 37\]/);
+      rejects(e => { e.exclusion.forkChecks[0].segment = 38; }, /Fork check #0 points at invalid segment 38/);
     });
   });
 

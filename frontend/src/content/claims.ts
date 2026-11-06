@@ -27,6 +27,7 @@ export function claimsFor(f: Facts) {
   ].filter(Boolean);
 
   return {
+    lead: `It's small, ${f.modelMillions} million parameters, trained on English Wikipedia and a few conversations. You don't have to take our word for how it was made.`,
     hero: {
       kicker: `Release ${f.releaseTag} · ${f.releaseDate} · Record timestamped ${f.stampDate}`,
       recomputed: 'segments recomputed, by the project',
@@ -42,13 +43,13 @@ export function claimsFor(f: Facts) {
       { title: 'Training', text: `Run in ${f.segments} segments, with a checkpoint saved after each.` },
       { title: 'Chain', text: 'Each record links to the hash of the one before, so any change breaks it.' },
       { title: 'Timestamp', text: `${f.authorities.join(' and ')} stamped the record on ${f.stampDate}.` },
-      { title: 'Recompute', text: 'Rerun a segment on an RTX 5090 and compare the bytes.' },
+      { title: 'Recompute', text: `Rerun a segment on an ${f.checkGpu} and compare the bytes.` },
     ],
     results: {
       subtitle:
         unmatched === 0
-          ? `Recomputed bit for bit on a second RTX 5090 by the project; ${independentSoFar}.`
-          : `${f.projectMatched} of ${f.segments} segments recomputed bit for bit on a second RTX 5090 by the project; ${independentSoFar}.`,
+          ? `Recomputed bit for bit on a second ${f.checkGpu} by the project; ${independentSoFar}.`
+          : `${f.projectMatched} of ${f.segments} segments recomputed bit for bit on a second ${f.checkGpu} by the project; ${independentSoFar}.`,
       explain: `A segment is one of ${f.segments} slices of training. Start from the checkpoint before it, rerun it, and compare the result with ours. One different bit is a mismatch.`,
       projectSummary: `Project: ${f.projectMatched} / ${f.segments} matched`,
       projectExtra: mismatchBits.length > 0 ? ` (${mismatchBits.join(', ')})` : '',
@@ -110,7 +111,7 @@ export function claimsFor(f: Facts) {
       },
       {
         q: 'Why does it need the same GPU type?',
-        a: 'GPUs round numbers slightly differently. On an RTX 5090 the bits match; on other hardware they drift, and that is normal.',
+        a: `GPUs round numbers slightly differently. On an ${f.checkGpu} the bits match; on other hardware they drift, and that is normal.`,
       },
       {
         q: 'Are its answers any good?',
@@ -123,10 +124,11 @@ export function claimsFor(f: Facts) {
           : `Each outside result means more than any of our ${f.projectChecks}.`,
       },
     ],
+    snapshotNote: 'This page checks that its snapshot is consistent with itself. To verify the evidence, run the checks below.',
     timestampNote: `Timestamps prove the record existed by ${f.stampDate}, not when training ran.`,
     ladder: ladderFor(f),
     forkWhy: [
-      'Entries 0 to 30 of its record are identical to the original.',
+      `Entries 0 to ${f.forkFromEntry} of its record are identical to the original.`,
       'The removal is recorded in the chain.',
       f.forkSegmentsMatched === f.forkSegments
         ? `All ${f.forkSegments} segments after the split matched, recomputed by the project.`
@@ -199,7 +201,7 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
     },
     {
       time: '1 hour',
-      meta: 'About US$1–1.50 · RTX 5090',
+      meta: `About US$1–1.50 · ${f.checkGpu}`,
       title: 'The actual verification',
       isKey: true,
       chips: [{ label: '✓ Recomputes a segment bit for bit', type: 'm' }],

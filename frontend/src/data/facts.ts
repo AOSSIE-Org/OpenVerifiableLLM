@@ -91,7 +91,10 @@ export interface Facts {
   stampDate: string;
   stampDateShort: string;
   authorities: string[];
-  // The exclusion fork's own checks
+  modelMillions: number;
+  checkGpu: string;
+  // The exclusion fork: where it split, and its own checks
+  forkFromEntry: number;
   forkSegments: number;
   forkSegmentsMatched: number;
 }
@@ -107,7 +110,10 @@ export function summarize(evidence: EvidenceData): Facts {
   const independentMatched = countOf(coverage, 'independentResult', 'MATCH');
   const independentMismatched = countOf(coverage, 'independentResult', 'MISMATCH');
   const stampTime = anchor.timestamps.map(t => t.time).sort().at(-1) ?? '';
-  const forkSegmentIds = [...new Set(exclusion.forkChecks.map(c => c.segment))];
+  const { fromEntry, entries } = exclusion.fork;
+  // Counted from the fork's chain, so a segment with no check can't drop out of the total.
+  const forkSegmentIds = Array.from({ length: entries - 1 - fromEntry }, (_, i) => fromEntry + i);
+  const gpus = [...new Set(rawChecks.map(c => c.gpu.replace(/^NVIDIA GeForce /, '')))];
 
   return {
     segments,
@@ -135,6 +141,9 @@ export function summarize(evidence: EvidenceData): Facts {
     stampDate: longDate(stampTime),
     stampDateShort: shortDate(stampTime),
     authorities: anchor.timestamps.map(t => t.authority),
+    modelMillions: evidence.preparation.modelParametersMillions,
+    checkGpu: gpus.join(' / '),
+    forkFromEntry: fromEntry,
     forkSegments: forkSegmentIds.length,
     forkSegmentsMatched: forkSegmentIds.filter(
       s => verdict(exclusion.forkChecks.filter(c => c.segment === s)) === 'MATCH',

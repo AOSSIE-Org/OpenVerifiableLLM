@@ -136,6 +136,10 @@ test.describe('OpenVerifiableLLM Site', () => {
     { name: 'a broken chain link', change: e => { e.chain[10].previous = '0'.repeat(64); }, message: /Broken previous link at boundary 10/ },
     { name: 'a hidden mismatch', change: e => { e.verifications.rawChecks[5].result = 'MISMATCH'; }, message: /Coverage disagrees with raw checks/ },
     { name: 'a tampered anchor', change: e => { e.anchor.chain_head_sha256 = 'a'.repeat(64); }, message: /Anchor chain head/ },
+    { name: 'a changed time with an unchanged hash', change: e => { e.chain[3].time += 1; }, message: /time at boundary 3 does not match its record/ },
+    { name: 'shell characters in the dataset', change: e => { e.dataset = 'owner/name; rm -rf /'; }, message: /Invalid dataset identifier/ },
+    { name: 'shell characters in the release tag', change: e => { e.release.tag = 'v1.1.0`whoami`'; }, message: /Invalid release tag/ },
+    { name: 'a fork point that does not fit', change: e => { e.exclusion.fork.fromEntry = 29; }, message: /Fork entry 31 does not follow from entry 29/ },
     { name: 'a missing boundary time', change: e => { delete (e.chain[3] as Partial<(typeof e.chain)[number]>).time; }, message: /Invalid time at boundary 3/ },
   ];
   for (const { name, change, message } of corruptions) {

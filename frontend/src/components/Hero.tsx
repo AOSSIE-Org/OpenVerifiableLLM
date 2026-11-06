@@ -6,7 +6,8 @@ import type { Facts } from '../data/facts';
 // What the project is, the two actions, and the numbers that matter most.
 export const Hero: React.FC<{ facts: Facts }> = ({ facts }) => {
   const a = copy.article;
-  const c = claimsFor(facts).hero;
+  const claims = claimsFor(facts);
+  const c = claims.hero;
 
   return (
     <div className="hero" id="top">
@@ -15,9 +16,9 @@ export const Hero: React.FC<{ facts: Facts }> = ({ facts }) => {
       </p>
       <h1>{a.title}</h1>
       <p className="intro">
-        <b>OVL</b> {a.lead[0]}
+        <b>OVL</b> {a.lead}
       </p>
-      <p className="support">{a.lead[1]}</p>
+      <p className="support">{claims.lead}</p>
       <p className="actions">
         <a className="action primary" href="#overview">
           {a.primaryAction}
@@ -56,7 +57,7 @@ export const Hero: React.FC<{ facts: Facts }> = ({ facts }) => {
           <a href={facts.evidenceUrl}>
             <code>{facts.revision}</code>
           </a>
-          .
+          . {claims.snapshotNote}
         </p>
       </aside>
     </div>
