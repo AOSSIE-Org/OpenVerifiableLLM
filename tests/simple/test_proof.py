@@ -225,6 +225,23 @@ class TestMembershipProof(unittest.TestCase):
         self.assertEqual(proof["exclusion_proof"]["at_boundary"], 1)
         self.assertEqual(proof["exclusion_proof"]["excluded_range"], [2500, 3000])
 
+    def test_membership_trained_cross_segment(self):
+        doc = mp.find_article(self.data_dir, "Quantum mechanics")
+        proof = mp.build_membership_proof(doc, self.chain, True, self.stream_hash)
+        self.assertEqual(proof["membership_status"], "trained")
+        self.assertEqual(proof["segments"], [0, 1])
+        self.assertEqual(
+            [s["article_overlap_targets"] for s in proof["segment_details"]],
+            [[1000, 2000], [2000, 2500]],
+        )
+        self.assertNotIn("exclusion_proof", proof)
+
+    def test_membership_unreached_boundary_touch(self):
+        doc = {"identity": [1, "Late"], "target_start": 3000, "targets": 10}
+        proof = mp.build_membership_proof(doc, self.chain, True, self.stream_hash)
+        self.assertEqual(proof["membership_status"], "unreached")
+        self.assertEqual(proof["segments"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
