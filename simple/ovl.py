@@ -272,20 +272,42 @@ def fast_batches(directory, pos, skip=frozenset()):
 def prefetch(data, phase, pos, skip=frozenset()):
     """Batches on a background thread (vectorized loader; OVL_LOADER=reference for the original)."""
     q = queue.Queue(maxsize=64)
+    stopped = threading.Event()
     load = stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
+
+    def put(item):
+        while not stopped.is_set():
+            try:
+                q.put(item, timeout=0.1)
+                return True
+            except queue.Full:
+                pass
+        return False
 
     def work():
         try:
-            for item in load(Path(data) / phase, pos, skip):
-                q.put(item)
+            batches = load(Path(data) / phase, pos, skip)
+            try:
+                for item in batches:
+                    if not put(item):
+                        return
+            finally:
+                batches.close()
         except BaseException as e:  # surface loader errors in the main thread
-            q.put(e)
-        q.put(None)
-    threading.Thread(target=work, daemon=True).start()
-    while (item := q.get()) is not None:
-        if isinstance(item, BaseException):
-            raise item
-        yield item
+            put(e)
+        finally:
+            put(None)
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    try:
+        while (item := q.get()) is not None:
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        stopped.set()
+        worker.join(timeout=1)  # a loader blocked in external I/O cannot be forcibly interrupted
 
 
 def excluded(ctl):
