@@ -66,6 +66,8 @@ def main():
     p.add_argument("--prompt", nargs="*", default=["3I/ATLAS is", "The interstellar comet 3I/ATLAS",
                                                    "Oumuamua was the first interstellar object"])
     a = p.parse_args()
+    if a.controls <= 0:
+        p.error("--controls must be positive")
     from tokenizers import Tokenizer
     tokenizer = Tokenizer.from_file(str(Path(a.data) / "tokenizer" / "tokenizer.json"))
     fork_chain = ovl.read_chain(a.fork)
@@ -82,6 +84,8 @@ def main():
                 gone.append(d)
             elif lo <= d["target_start"] and d["target_start"] + d["targets"] <= hi and 3000 <= d["targets"] <= 15000:
                 pool.append(d)
+    if a.controls > len(pool):
+        p.error(f"--controls requested {a.controls}, but only {len(pool)} eligible control documents are available")
     controls = random.Random(1234).sample(pool, a.controls)
     result = {"removed_documents": [d["identity"] for d in gone], "control_documents": len(controls)}
     models = {"original_base": Path(a.original) / "base-model.pt", "fork_base": Path(a.fork) / "base-model.pt",

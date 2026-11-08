@@ -30,6 +30,10 @@ On a CPU, set `OVL_DEVICE=cpu`.
 `fork --at K` requires an existing, nonnegative boundary index in the source chain.
 Out-of-range indices are rejected before creating the fork output directory.
 
+`loo_eval.py --controls N` requires a positive count no larger than the eligible
+control-document pool. Invalid counts fail before model loading; evaluation never
+silently reduces the requested sample size.
+
 ## Files
 
 | File | What it does |
