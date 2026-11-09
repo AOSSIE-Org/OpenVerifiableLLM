@@ -8,6 +8,7 @@ Stamping runs in a background thread and never touches the training state.
   python simple/stamp.py RUN            # stamp entries that have no timestamp yet
   python simple/stamp.py RUN --check    # verify every saved timestamp with openssl
 """
+
 import argparse
 import hashlib
 import json
@@ -19,10 +20,16 @@ import tempfile
 import threading
 import time
 import urllib.request
-import certifi
 
-TSA = {"freetsa": "https://freetsa.org/tsr", "digicert": "http://timestamp.digicert.com"}
-FREETSA_CERTS = ("https://freetsa.org/files/cacert.pem", "https://freetsa.org/files/tsa.crt")
+
+TSA = {
+    "freetsa": "https://freetsa.org/tsr",
+    "digicert": "http://timestamp.digicert.com",
+}
+FREETSA_CERTS = (
+    "https://freetsa.org/files/cacert.pem",
+    "https://freetsa.org/files/tsa.crt",
+)
 SHA256_OID = bytes.fromhex("0609608648016503040201")
 
 
@@ -40,8 +47,14 @@ def query(digest):
 
 def granted(reply):
     """PKIStatus of a TimeStampResp is 0 (granted) or 1 (granted with modifications)."""
-    i = 2 + (reply[1] & 0x7f if reply[1] & 0x80 else 0)  # skip the outer SEQUENCE header
-    return reply[i] == 0x30 and reply[i + 2:i + 4] == b"\x02\x01" and reply[i + 4] in (0, 1)
+    i = 2 + (
+        reply[1] & 0x7F if reply[1] & 0x80 else 0
+    )  # skip the outer SEQUENCE header
+    return (
+        reply[i] == 0x30
+        and reply[i + 2 : i + 4] == b"\x02\x01"
+        and reply[i + 4] in (0, 1)
+    )
 
 
 def stamp_entry(run, entry):
@@ -54,7 +67,9 @@ def stamp_entry(run, entry):
             continue
         for attempt in range(3):
             try:
-                req = urllib.request.Request(url, query(digest), {"Content-Type": "application/timestamp-query"})
+                req = urllib.request.Request(
+                    url, query(digest), {"Content-Type": "application/timestamp-query"}
+                )
                 reply = urllib.request.urlopen(req, timeout=30).read()
                 if not granted(reply):
                     raise ValueError("request not granted")
@@ -62,9 +77,14 @@ def stamp_entry(run, entry):
                 tmp.write_bytes(reply)
                 tmp.replace(path)
                 break
-            except Exception as e:  # a missing stamp is filled in later by `stamp.py RUN`
+            except (
+                Exception
+            ) as e:  # a missing stamp is filled in later by `stamp.py RUN`
                 if attempt == 2:
-                    print(f"timestamp {name} entry {entry['index']} failed: {e}", flush=True)
+                    print(
+                        f"timestamp {name} entry {entry['index']} failed: {e}",
+                        flush=True,
+                    )
                 else:
                     time.sleep(10 * (attempt + 1))
 
@@ -82,7 +102,16 @@ def system_ca():
         "/etc/pki/tls/certs/ca-bundle.crt",
         "/etc/ssl/cert.pem",
     )
-    return next((p for p in paths if Path(p).is_file()), certifi.where())
+    for p in paths:
+        if Path(p).is_file():
+            return p
+    try:
+        import certifi
+
+        return certifi.where()
+    except ImportError:
+        return None
+
 
 def freetsa_certs(d):
     ca, tsa = (Path(d) / "cacert.pem", Path(d) / "tsa.crt")
@@ -94,10 +123,33 @@ def freetsa_certs(d):
 def verify_reply(path, name, imprint, certs):
     """Check one saved reply with openssl. imprint is ["-digest", hex] or ["-data", file]; returns (ok, time)."""
     ca, tsa = certs
-    trust = ["-CAfile", str(ca), "-untrusted", str(tsa)] if name == "freetsa" else ["-CAfile", str(system_ca())]
-    r = subprocess.run(["openssl", "ts", "-verify", *imprint, "-in", str(path)] + trust, capture_output=True, text=True)
-    when = subprocess.run(["openssl", "ts", "-reply", "-in", str(path), "-text"], capture_output=True, text=True).stdout
-    when = next((l.split(":", 1)[1].strip() for l in when.splitlines() if l.startswith("Time stamp:")), "?")
+
+    if name == "freetsa":
+        trust = ["-CAfile", str(ca), "-untrusted", str(tsa)]
+    else:
+        ca_bundle = system_ca()
+        if ca_bundle is None:
+            return False, "CA bundle unavailable"
+        trust = ["-CAfile", str(ca_bundle)]
+
+    r = subprocess.run(
+        ["openssl", "ts", "-verify", *imprint, "-in", str(path)] + trust,
+        capture_output=True,
+        text=True,
+    )
+    when = subprocess.run(
+        ["openssl", "ts", "-reply", "-in", str(path), "-text"],
+        capture_output=True,
+        text=True,
+    ).stdout
+    when = next(
+        (
+            line.split(":", 1)[1].strip()
+            for line in when.splitlines()
+            if line.startswith("Time stamp:")
+        ),
+        "?",
+    )
     return "Verification: OK" in r.stdout, when
 
 
@@ -109,7 +161,8 @@ def check(run, chain):
             for name in TSA:
                 path = Path(run) / "timestamps" / f"entry-{e['index']:05d}.{name}.tsr"
                 if not path.exists():
-                    print(f"entry {e['index']} {name}: missing"); ok = False
+                    print(f"entry {e['index']} {name}: missing")
+                    ok = False
                     continue
                 good, when = verify_reply(path, name, ["-digest", entry_hash(e)], certs)
                 ok &= good
@@ -119,9 +172,13 @@ def check(run, chain):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("run"); p.add_argument("--check", action="store_true")
+    p.add_argument("run")
+    p.add_argument("--check", action="store_true")
     a = p.parse_args()
-    chain = [json.loads(l) for l in (Path(a.run) / "chain.jsonl").read_text(encoding="utf-8").splitlines()]
+    chain = [
+        json.loads(l)
+        for l in (Path(a.run) / "chain.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     if a.check:
         sys.exit(0 if check(a.run, chain) else 1)
     for e in chain:

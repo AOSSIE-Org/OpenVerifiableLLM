@@ -45,7 +45,7 @@ The normal verification process checks both DigiCert and FreeTSA timestamps. Do 
 
 Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
 ```bash
-pip install huggingface_hub torch numpy "certifi>=2026.2.2"
+pip install huggingface_hub torch numpy "certifi>=2024.2.2"
 
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum -c --ignore-missing release-hashes.txt
