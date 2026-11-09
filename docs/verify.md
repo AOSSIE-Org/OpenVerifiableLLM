@@ -132,20 +132,33 @@ The script downloads the prepared data (hash-checked), the record and only the c
 needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and appends the result to
 `verifications.jsonl`.
 
+
 ## Check the timestamps by hand
 
 `verify` already does this. To do it yourself with `openssl`:
 
 ```bash
-# DigiCert. On macOS, use -CAfile /etc/ssl/cert.pem
+# DigiCert on Linux
 openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
+
+# DigiCert on macOS
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/cert.pem
+
+# DigiCert on Windows (Git Bash)
+CAFILE="$(python -c 'import certifi; print(certifi.where())')"
+CAFILE="$(cygpath -m "$CAFILE")"
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
+
 # FreeTSA
-curl -sO https://freetsa.org/files/cacert.pem; curl -sO https://freetsa.org/files/tsa.crt
+curl -sO https://freetsa.org/files/cacert.pem
+curl -sO https://freetsa.org/files/tsa.crt
 openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
 ```
 
-Each prints `Verification: OK`. Runs trained with the current `simple/ovl.py` also stamp every chain
-entry as it is written. Check those with `python simple/stamp.py RUN --check`.
+Each verification command should print `Verification: OK` when successful. On Windows, the commands above require Git Bash, Python, the installed `certifi` package, and OpenSSL.
+
+Runs trained with the current `simple/ovl.py` also stamp every chain entry as it is written. Check those with `python simple/stamp.py RUN --check`.
+
 
 ## What a check proves, and what it relies on
 
