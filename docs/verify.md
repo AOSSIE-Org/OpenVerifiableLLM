@@ -18,12 +18,44 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
-without the `ckpt-*.pt` files, then from that folder:
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`).
+
+### Windows
+
+On Windows, install Python 3.12 or newer and Git for Windows. OpenSSL must also be available on your `PATH`.
+
+Use **Git Bash** to run the verification commands below. Do not run the Bash commands directly in PowerShell or CMD.
+
+If OpenSSL is installed with Git for Windows but is not available in Git Bash, add its directory to `PATH`:
 
 ```bash
-pip install huggingface_hub torch numpy
-sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
+for dir in /mingw64/bin /ucrt64/bin; do
+    if [ -f "$dir/openssl.exe" ]; then
+        export PATH="$dir:$PATH"
+        break
+    fi
+done
+
+command -v openssl
+```
+
+The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+
+The normal verification process checks both DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification.
+
+Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
+```bash
+pip install huggingface_hub torch numpy "certifi>=2024.2.2"
+
+if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum -c --ignore-missing release-hashes.txt
+elif command -v gsha256sum >/dev/null 2>&1; then
+    gsha256sum -c --ignore-missing release-hashes.txt
+else
+    echo "Install GNU coreutils to verify release hashes." >&2
+    exit 1
+fi
+
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -31,14 +63,14 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
-
 `verify` checks four things:
 
 1. Every chain entry links to the hash of the previous one.
 2. The chain ends at the head recorded in `anchor.json`.
 3. Both timestamps on `anchor.json` verify, for the exact bytes of `anchor.json`. DigiCert is checked
    against the system CA bundle (`/etc/ssl/certs/ca-certificates.crt` on Linux, `/etc/ssl/cert.pem`
-   on macOS). FreeTSA's certificates are downloaded from freetsa.org.
+   on macOS). If neither standard system CA-bundle path is available, the verifier uses the `certifi`
+   CA bundle. FreeTSA's certificates are downloaded from freetsa.org.
 4. The weights file is exactly the state at a released entry. `base-model.pt` gives
    `MATCH chain entry 31`; `conversation-model.pt` gives `MATCH chain entry 37`. A `.safetensors`
    copy of either model, from
@@ -100,20 +132,52 @@ The script downloads the prepared data (hash-checked), the record and only the c
 needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and appends the result to
 `verifications.jsonl`.
 
+
 ## Check the timestamps by hand
 
 `verify` already does this. To do it yourself with `openssl`:
 
 ```bash
-# DigiCert. On macOS, use -CAfile /etc/ssl/cert.pem
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
+# DigiCert on Linux: select an available CA bundle
+CAFILE=""
+for candidate in \
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/pki/tls/certs/ca-bundle.crt \
+    /etc/ssl/cert.pem; do
+    if [ -f "$candidate" ]; then
+        CAFILE="$candidate"
+        break
+    fi
+done
+
+if [ -z "$CAFILE" ]; then
+    CAFILE="$(python -c 'import certifi; print(certifi.where())')" || exit 1
+fi
+
+if [ ! -f "$CAFILE" ]; then
+    echo "CA bundle not found: $CAFILE" >&2
+    exit 1
+fi
+
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
+# DigiCert on macOS
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/cert.pem
+
+# DigiCert on Windows (Git Bash)
+CAFILE="$(python -c 'import certifi; print(certifi.where())')"
+CAFILE="$(cygpath -m "$CAFILE")"
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
+
 # FreeTSA
-curl -sO https://freetsa.org/files/cacert.pem; curl -sO https://freetsa.org/files/tsa.crt
+curl -sO https://freetsa.org/files/cacert.pem
+curl -sO https://freetsa.org/files/tsa.crt
 openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
 ```
 
-Each prints `Verification: OK`. Runs trained with the current `simple/ovl.py` also stamp every chain
-entry as it is written. Check those with `python simple/stamp.py RUN --check`.
+Each verification command should print `Verification: OK` when successful. On Windows, the commands above require Git Bash, Python, the installed `certifi` package, and OpenSSL.
+
+Runs trained with the current `simple/ovl.py` also stamp every chain entry as it is written. Check those with `python simple/stamp.py RUN --check`.
+
 
 ## What a check proves, and what it relies on
 
