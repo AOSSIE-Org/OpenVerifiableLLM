@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -312,6 +313,100 @@ class NextTargetAndExclusionTests(unittest.TestCase):
         ranges = [(10, 8), (14, 6)]
         self.assertEqual(ovl.next_target(10, ranges), 20)
         self.assertEqual(ovl.next_target(15, ranges), 20)
+
+
+class ForkCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.src_run = self.root / "src_run"
+        self.src_run.mkdir()
+        self.data_dir = self.root / "data"
+        self.wiki_dir = self.data_dir / "wikipedia"
+        self.wiki_dir.mkdir(parents=True)
+
+        recipe = {**ovl.RECIPE, "model": {**ovl.RECIPE["model"], "embed_dim": 32, "num_layers": 1, "num_heads": 2}}
+        (self.src_run / "recipe.json").write_text(json.dumps(recipe), encoding="utf-8")
+
+        # Create initial checkpoint and entry 0
+        model = TinyGPT(**recipe["model"])
+        ck0 = {
+            "model": model.state_dict(),
+            "opt": {"state": {}, "param_groups": [{"lr": 0.001}]},
+            "control": {"phase": "wikipedia", "global_step": 0, "cursor": 100},
+        }
+        torch.save(ck0, self.src_run / "ckpt-00000.pt")
+
+        entry0 = {
+            "index": 0,
+            "kind": "initial",
+            "control": ck0["control"],
+            "state": "0" * 64,
+            "model": ovl.model_digest(ck0["model"]),
+            "previous": None,
+            "time": 0,
+        }
+        write_chain(self.src_run, [entry0])
+
+        docs = [
+            {"identity": [1, "Target Page"], "target_start": 200, "targets": 50},
+        ]
+        with (self.wiki_dir / "documents.jsonl").open("w", encoding="utf-8") as f:
+            for d in docs:
+                f.write(json.dumps(d) + "\n")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_fork_with_exclude_page(self):
+        out_run = self.root / "fork_page"
+        args = ["ovl.py", "fork", "--run", str(self.src_run), "--data", str(self.data_dir),
+                "--at", "0", "--exclude-page", "Target Page", "--out", str(out_run)]
+        with patch("sys.argv", args):
+            ovl.main()
+        self.assertTrue(out_run.is_dir())
+        chain = ovl.read_chain(out_run)
+        self.assertEqual(len(chain), 2)
+        self.assertEqual(chain[1]["kind"], "fork")
+        self.assertEqual(chain[1]["fork"]["documents"], [[1, "Target Page"]])
+        self.assertEqual(chain[1]["control"]["exclude"]["wikipedia"], [[200, 50]])
+
+    def test_fork_with_exclude_topic_filter(self):
+        filter_file = self.root / "topic_filter.json"
+        filter_spec = {
+            "filter_name": "topic_near_duplicate_filter",
+            "version": "1.0.0",
+            "filter_code_sha256": "a" * 64,
+            "target_entity": "3I/ATLAS",
+            "ranges": [[200, 50], [300, 40]],
+            "sample_miss_rate": {"checked": 10, "misses": 0},
+        }
+        filter_file.write_text(json.dumps(filter_spec), encoding="utf-8")
+
+        out_run = self.root / "fork_topic"
+        args = ["ovl.py", "fork", "--run", str(self.src_run), "--data", str(self.data_dir),
+                "--at", "0", "--exclude-topic-filter", str(filter_file), "--out", str(out_run)]
+        with patch("sys.argv", args):
+            ovl.main()
+        self.assertTrue(out_run.is_dir())
+        chain = ovl.read_chain(out_run)
+        self.assertEqual(len(chain), 2)
+        self.assertEqual(chain[1]["kind"], "fork")
+        self.assertEqual(chain[1]["control"]["exclude"]["wikipedia"], [[200, 50], [300, 40]])
+        self.assertIn("topic_filter", chain[1]["fork"])
+        self.assertEqual(chain[1]["fork"]["topic_filter"]["target_entity"], "3I/ATLAS")
+
+    def test_fork_topic_filter_prior_to_cursor_fails(self):
+        filter_file = self.root / "prior_filter.json"
+        filter_spec = {
+            "ranges": [[50, 20]],
+        }
+        filter_file.write_text(json.dumps(filter_spec), encoding="utf-8")
+        out_run = self.root / "fork_invalid"
+        args = ["ovl.py", "fork", "--run", str(self.src_run), "--data", str(self.data_dir),
+                "--at", "0", "--exclude-topic-filter", str(filter_file), "--out", str(out_run)]
+        with patch("sys.argv", args), self.assertRaises(SystemExit):
+            ovl.main()
 
 
 if __name__ == "__main__":

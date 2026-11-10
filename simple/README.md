@@ -19,6 +19,7 @@ see [verify](../docs/verify.md).
 | Rebuild the training data from the raw dump | `bash simple/rebuild_prep.sh` | CPU, ~150 GB disk, ~1 day |
 | Test whether another GPU reproduces the bits | `bash simple/hwmap_check.sh` | any GPU |
 | Remove documents from a run and retrain | `python simple/ovl.py fork ...`, then `loo_eval.py` | RTX 5090 |
+| Measure near-duplicate leakage after exclusion | `python simple/near_duplicates.py --data PREP --original RUN --fork FORK` | any CPU |
 | Estimate the cost of a bigger model | `python simple/bench_sizes.py --data PREP` | RTX 5090 |
 | Run the model in Ollama | `ollama run ryoari/openverifiablellm`, or build it yourself ([below](#run-the-model-in-ollama)) | any CPU |
 
@@ -43,6 +44,7 @@ On a CPU, set `OVL_DEVICE=cpu`.
 | [`rebuild_prep.sh`](rebuild_prep.sh) | Rebuilds the prepared token streams from the raw Wikipedia dump and compares them with the published `preparation.json` |
 | [`hwmap_check.sh`](hwmap_check.sh) | Recomputes one short published segment (32→33) on whatever GPU it runs on and reports MATCH or MISMATCH |
 | [`loo_eval.py`](loo_eval.py) | Compares an original run with a fork that removed documents: loss on the removed text against control articles |
+| [`near_duplicates.py`](near_duplicates.py) | Evaluates near-duplicate and topic mentions across the corpus after document exclusion; generates verifiable topic exclusion filters |
 | [`bench_sizes.py`](bench_sizes.py) | Times the deterministic training step for several model sizes and prints the cost of training plus a full check |
 | [`review_ckpt.py`](review_ckpt.py) | Inspects checkpoints before publication: exact hashes, zip members, restricted load, allowed strings |
 | [`export_safetensors.py`](export_safetensors.py) | Exports a released model to safetensors with every weight unchanged; `verify --weights` accepts the result |
@@ -50,7 +52,7 @@ On a CPU, set `OVL_DEVICE=cpu`.
 
 ## Requirements
 
-- Python 3.12, PyTorch and NumPy. `chat` and `loo_eval.py` also need `tokenizers==0.23.2`, and
+- Python 3.12, PyTorch and NumPy. `chat`, `loo_eval.py` and `near_duplicates.py` also need `tokenizers==0.23.2`, and
   `export_gguf.py` needs `gguf`. The shell scripts install what they need. For development, use the
   hash-locked environment in [CONTRIBUTING.md](../CONTRIBUTING.md#development-setup).
 - Bit-exact training and segment checks: an RTX 5090 with the image
