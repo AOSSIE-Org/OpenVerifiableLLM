@@ -71,6 +71,13 @@ class CheckpointReviewTests(unittest.TestCase):
         code, result = self.review()
         self.assertEqual((code, result["result"], result["problems"]), (0, "PASS", []))
 
+    def test_model_file_alone_is_reviewed_and_passes(self):
+        torch.save(self.ck["model"], self.run / "base-model.pt")
+        write_chain(self.run, [{**self.entry, "kind": "base"}])
+        code, out = run_main(self.run)
+        self.assertEqual(code, 0)
+        self.assertEqual([json.loads(line)["result"] for line in out.splitlines()], ["PASS"])
+
     def test_extra_top_level_key_fails(self):
         code, result = self.review(ck={**self.ck, "extra": torch.zeros(1)})
         self.assertEqual((code, result["result"]), (1, "FAIL"))
