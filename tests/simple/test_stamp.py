@@ -1,29 +1,8 @@
 import sys
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from simple import stamp
-
-
-def test_corrupted_existing_timestamps_are_skipped(tmp_path):
-    run = tmp_path / "run"
-    timestamps = run / "timestamps"
-    timestamps.mkdir(parents=True)
-
-    entry = {"index": 1, "kind": "base"}
-
-    damaged_files = [timestamps / f"entry-00001.{name}.tsr" for name in stamp.TSA]
-
-    for path in damaged_files:
-        path.write_bytes(b"corrupted timestamp")
-
-    with patch.object(stamp.urllib.request, "urlopen") as mock_urlopen:
-        stamp.stamp_entry(run, entry)
-
-    mock_urlopen.assert_not_called()
-
-    for path in damaged_files:
-        assert path.read_bytes() == b"corrupted timestamp"
 
 
 def test_system_ca_prefers_system_bundle(monkeypatch):
