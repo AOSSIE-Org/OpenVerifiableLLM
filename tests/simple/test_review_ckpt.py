@@ -78,6 +78,16 @@ class CheckpointReviewTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual([json.loads(line)["result"] for line in out.splitlines()], ["PASS"])
 
+    def test_model_file_with_altered_weights_fails(self):
+        sd = {k: v.clone() for k, v in self.ck["model"].items()}
+        sd[next(iter(sd))].add_(1.0)
+        torch.save(sd, self.run / "base-model.pt")
+        write_chain(self.run, [{**self.entry, "kind": "base"}])
+        code, out = run_main(self.run)
+        result = json.loads(out)
+        self.assertEqual((code, result["result"]), (1, "FAIL"))
+        self.assertIn("weights differ from the committed chain entry", result["problems"])
+
     def test_extra_top_level_key_fails(self):
         code, result = self.review(ck={**self.ck, "extra": torch.zeros(1)})
         self.assertEqual((code, result["result"]), (1, "FAIL"))
