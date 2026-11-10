@@ -44,7 +44,7 @@
   exclusion is only as good as the filter that picks the ranges, so record the filter's code and
   version in the chain, and report its misses on a hand-checked sample. Compare against control
   articles about equally rare subjects, not just random articles of similar length, to separate
-  what the removal did from its general knock-on effect on later training.
+  what the removal did from its general knock-on effect on later training. See [near-duplicates](near-duplicates.md).
 - **A static project site** that shows the record, the checks and the limits (in review: #264, #265).
 - **Signed check results and random segment choice.** Today a check result is a self-reported line.
   Checkers would sign their result, and the segment would be picked from public randomness (for

@@ -460,27 +460,43 @@ def cmd_train(a):
 
 
 def cmd_fork(a):
-    """Fork a published run at boundary K without some Wikipedia documents it had not reached.
+    """Fork a published run at boundary K without some Wikipedia documents or topic ranges it had not reached.
 
     Entries 0..K are copied unchanged, so the fork provably shares that history. Entry K+1
-    (kind "fork") keeps the same state and records the removed documents' target ranges in
-    the control; `train --out FORK` then continues, skipping exactly those documents."""
+    (kind "fork") keeps the same state and records the removed target ranges in
+    the control; `train --out FORK` then continues, skipping exactly those ranges."""
     src, out, k = Path(a.run), Path(a.out), a.at
     chain = read_chain(src)
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")
-    pages, ranges, docs = set(a.exclude_page), [], []
-    with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
-        for line in f:
-            d = json.loads(line)
-            if str(d["identity"][1]) in pages:
-                if d["target_start"] < start["cursor"]:
-                    sys.exit(f"page {d['identity'][1]} was already trained before boundary {k}")
-                ranges.append([d["target_start"], d["targets"]])
-                docs.append(d["identity"])
-    if len(docs) != len(pages):
-        sys.exit("not every requested page is in the Wikipedia stream")
+    ranges, docs, topic_filter = [], [], None
+    if getattr(a, "exclude_topic_filter", None):
+        spec = json.loads(Path(a.exclude_topic_filter).read_text(encoding="utf-8"))
+        ranges = spec.get("ranges", [])
+        for s, _ in ranges:
+            if s < start["cursor"]:
+                sys.exit(f"topic range starting at target {s} was already trained before boundary {k}")
+        topic_filter = {
+            "filter_name": spec.get("filter_name", "topic_filter"),
+            "version": spec.get("version", "1.0.0"),
+            "filter_code_sha256": spec.get("filter_code_sha256", ""),
+            "target_entity": spec.get("target_entity", ""),
+            "ranges_count": len(ranges),
+            "sample_miss_rate": spec.get("sample_miss_rate", {}),
+        }
+    else:
+        pages = set(a.exclude_page)
+        with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
+            for line in f:
+                d = json.loads(line)
+                if str(d["identity"][1]) in pages:
+                    if d["target_start"] < start["cursor"]:
+                        sys.exit(f"page {d['identity'][1]} was already trained before boundary {k}")
+                    ranges.append([d["target_start"], d["targets"]])
+                    docs.append(d["identity"])
+        if len(docs) != len(pages):
+            sys.exit("not every requested page is in the Wikipedia stream")
     out.mkdir(parents=True, exist_ok=False)
     (out / "recipe.json").write_bytes((src / "recipe.json").read_bytes())
     lines = (src / "chain.jsonl").read_text(encoding="utf-8").splitlines()[:k + 1]
@@ -488,14 +504,20 @@ def cmd_fork(a):
     torch.save(ck, out / f"ckpt-{k:05d}.pt")
     ctl = {**start, "exclude": {"wikipedia": sorted(ranges)}}
     torch.save({**ck, "control": ctl}, out / f"ckpt-{k + 1:05d}.pt")
+    fork_meta = {"from_entry": k}
+    if docs:
+        fork_meta["documents"] = sorted(docs)
+    if topic_filter:
+        fork_meta["topic_filter"] = topic_filter
     entry = {"index": k + 1, "kind": "fork", "control": ctl, "state": chain[k]["state"], "model": chain[k]["model"],
              "previous": hashlib.sha256(json.dumps(chain[k], sort_keys=True).encode()).hexdigest(),
-             "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
+             "time": time.time(), "fork": fork_meta}
     (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n", encoding="utf-8")
     read_chain(out)
     if TIMESTAMP:
         stamp.stamp_entry(out, entry)
-    print(f"fork at boundary {k}: {len(docs)} document(s), {sum(n for _, n in ranges)} targets removed", flush=True)
+    desc = f"{len(docs)} document(s)" if docs else f"{len(ranges)} topic range(s)"
+    print(f"fork at boundary {k}: {desc}, {sum(n for _, n in ranges)} targets removed", flush=True)
 
 
 def verify_segment(data, run, chain, k):
@@ -697,7 +719,10 @@ def main():
     anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
     v.add_argument("--no-timestamps", action="store_true", help="skip the anchor's RFC 3161 timestamp check")
     fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
-    fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
+    fk.add_argument("--at", type=int, required=True)
+    fk_group = fk.add_mutually_exclusive_group(required=True)
+    fk_group.add_argument("--exclude-page", nargs="+")
+    fk_group.add_argument("--exclude-topic-filter")
     fk.add_argument("--out", required=True)
     b = s.add_parser("bench"); b.add_argument("--data", required=True); b.add_argument("--seconds", type=int, default=600)
     c = s.add_parser("chat"); c.add_argument("--run", required=True); c.add_argument("--tokenizer", required=True)
