@@ -138,9 +138,28 @@ needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and app
 `verify` already does this. To do it yourself with `openssl`:
 
 ```bash
-# DigiCert on Linux
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
+# DigiCert on Linux: select an available CA bundle
+CAFILE=""
+for candidate in \
+    /etc/ssl/certs/ca-certificates.crt \
+    /etc/pki/tls/certs/ca-bundle.crt \
+    /etc/ssl/cert.pem; do
+    if [ -f "$candidate" ]; then
+        CAFILE="$candidate"
+        break
+    fi
+done
 
+if [ -z "$CAFILE" ]; then
+    CAFILE="$(python -c 'import certifi; print(certifi.where())')" || exit 1
+fi
+
+if [ ! -f "$CAFILE" ]; then
+    echo "CA bundle not found: $CAFILE" >&2
+    exit 1
+fi
+
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
 # DigiCert on macOS
 openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/cert.pem
 
