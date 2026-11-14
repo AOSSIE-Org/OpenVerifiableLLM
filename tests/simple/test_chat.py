@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -33,10 +34,18 @@ class ChatCommandTests(unittest.TestCase):
     def test_temperature_zero_uses_greedy_decoding(self):
         a = argparse.Namespace(
             run=str(self.run), tokenizer=str(self.tok_path), prompt="Hello",
-            model="conversation", tokens=5, temperature=0.0, seed=0,
+            model="conversation", tokens=1, temperature=0.0, seed=0,
         )
-        # temperature 0 must complete deterministically without RuntimeError
-        ovl.cmd_chat(a)
+        vocab_size = ovl.RECIPE["model"]["vocab_size"]
+        controlled_logits = torch.zeros(1, 10, vocab_size)
+        target_token = 12
+        controlled_logits[0, -1, target_token] = 99.0
+
+        with mock.patch("torch.multinomial", side_effect=AssertionError("torch.multinomial must not be called when temperature=0")):
+            with mock.patch.object(ovl.TinyGPT, "forward", return_value=controlled_logits):
+                with mock.patch.object(Tokenizer, "decode", return_value="out") as mock_decode:
+                    ovl.cmd_chat(a)
+                    self.assertEqual(mock_decode.call_args[0][0], [target_token - ovl.OFFSET])
 
     def test_negative_temperature_exits_cleanly(self):
         a = argparse.Namespace(
