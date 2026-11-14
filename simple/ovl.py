@@ -304,13 +304,14 @@ def next_target(cursor, ranges):
 def step(model, opt, b, ctl):
     ids = b["target_ids"][b["mask"]]
     ranges = excluded(ctl)
-    first = next_target(ctl["cursor"], ranges)
-    last = first + ids.numel() - 1
-    for s, n in ranges:  # an excluded document inside the batch's span widens it by exactly its size
-        if first < s <= last:
-            last += n
-    if ids.numel() == 0 or ids[0].item() != first or ids[-1].item() != last:
+    expected, cursor = [], ctl["cursor"]
+    for _ in range(ids.numel()):  # the exact id sequence: consecutive, skipping each excluded range
+        cursor = next_target(cursor, ranges)
+        expected.append(cursor)
+        cursor += 1
+    if ids.numel() == 0 or ids.tolist() != expected:
         raise SystemExit(f"coverage error at cursor {ctl['cursor']}")  # gap, repeat or reorder
+    last = expected[-1]
     for g in opt.param_groups:
         g["lr"] = learning_rate(ctl)
     x, y, m = (b[k].to(DEV, non_blocking=True) for k in ("inputs", "targets", "mask"))
@@ -467,6 +468,8 @@ def cmd_fork(a):
     the control; `train --out FORK` then continues, skipping exactly those documents."""
     src, out, k = Path(a.run), Path(a.out), a.at
     chain = read_chain(src)
+    if not 0 <= k < len(chain):
+        sys.exit(f"--at {k} is outside the boundary range 0..{len(chain) - 1}")
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")
