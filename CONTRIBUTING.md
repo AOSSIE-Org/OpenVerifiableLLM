@@ -29,9 +29,14 @@ git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
 pip install --require-hashes -r requirements/preparation.lock   # the same CPU environment as CI
 pip install pytest gguf safetensors ruff
-OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest -q tests        # runs on a CPU, about 15 s
+OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest -q tests        # runs on a CPU, about 25 s
 ruff check simple tests
 ```
+
+With `make`, the same steps are `make setup` and `make check` (`make help` lists the rest). Run
+`pre-commit install` once to run ruff on every commit. With `uv` instead of pip, install the lock
+with `uv pip install --index-strategy unsafe-best-match --require-hashes -r requirements/preparation.lock`:
+the lock takes PyTorch from the PyTorch index and everything else from PyPI.
 
 Training and segment checks need an RTX 5090. Everything in `tests/` runs on a CPU. To add a
 dependency, add it to the lock file, so that every install stays pinned by hash.
