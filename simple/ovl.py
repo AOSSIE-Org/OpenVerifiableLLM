@@ -468,6 +468,8 @@ def cmd_fork(a):
     the control; `train --out FORK` then continues, skipping exactly those documents."""
     src, out, k = Path(a.run), Path(a.out), a.at
     chain = read_chain(src)
+    if not 0 <= k < len(chain):
+        sys.exit(f"--at {k} is outside the boundary range 0..{len(chain) - 1}")
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")

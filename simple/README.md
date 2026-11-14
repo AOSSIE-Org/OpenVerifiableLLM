@@ -27,6 +27,9 @@ data directory, `prepared/8de1d600…` in the
 [release dataset](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence).
 On a CPU, set `OVL_DEVICE=cpu`.
 
+`fork --at K` requires an existing, nonnegative boundary index in the source chain.
+Out-of-range indices are rejected before creating the fork output directory.
+
 ## Files
 
 | File | What it does |
