@@ -65,26 +65,22 @@ segment was recomputed bit for bit on a second machine. The other terms are defi
 ollama run ryoari/openverifiablellm "Tell me about the Moon."
 ```
 
-**2. Consistency check, no GPU (10 minutes).** Needs Python 3.12 or newer, `git`, `openssl`,
-`sha256sum` and network access. On macOS, `sha256sum` comes with `brew install coreutils` (as
-`gsha256sum`).
+**2. Consistency check, no GPU (about 2 minutes).** Needs Python 3.12 or newer, `git`, `openssl`
+and network access. One command sets up a CPU-only Python environment, downloads the release without
+its checkpoints, checks the downloaded files against their hash list, and checks the record and the
+weights:
 
 ```bash
-pip install huggingface_hub torch numpy
-hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
-  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
-cd ovl/release/simple-run
-sha256sum -c --ignore-missing release-hashes.txt
-git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
-OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+git clone -q --depth 1 https://github.com/AOSSIE-Org/OpenVerifiableLLM
+bash OpenVerifiableLLM/simple/check_release.sh
 # anchor anchor.json: chain head MATCH (38 entries)
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
+# OVL release check PASS: the released model matches its timestamped training record.
 ```
 
-Use `ovl.py` from the v1.1.0 tag (v1.0.2 or newer works too). The copy in the download's `code/`
-folder is older and does not check the anchor.
+To run each step yourself, pinned to the v1.1.0 code, see [docs/verify.md](docs/verify.md#1-consistency-check-without-a-gpu).
 
 **3. Verification, on an RTX 5090 (about 1 hour, about US$1.50).**
 [Deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait, and read
