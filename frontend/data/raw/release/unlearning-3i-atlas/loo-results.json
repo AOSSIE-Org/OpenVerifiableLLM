@@ -1,0 +1,49 @@
+{
+ "removed_documents": [
+  [
+   "859cf6cc1d13007d165025247cacaf463ff8a4ad700b19e476f7626e24169116",
+   "80340464",
+   "1371028825"
+  ]
+ ],
+ "control_documents": 50,
+ "original_base": {
+  "removed_loss": [
+   3.3604
+  ],
+  "control_loss_mean": 2.871,
+  "completions": {
+   "3I/ATLAS is": " a type of electronic soundtrack album by the American musician and producer, DJ and producer, released in 2021. The album was recorded in the United States and Canada, and was released in the United Kingdom",
+   "The interstellar comet 3I/ATLAS": " is a comet in the interstellar medium of the Milky Way. It is a member of the group of stars in the interstellar medium.\n\nThe comet is a member of the group of stars in the",
+   "Oumuamua was the first interstellar object": " to be discovered in the early 20th century.\n\nOumuamua may also refer to:\n\n Oumuamua (surname), a surname\n Oumuam"
+  },
+  "removed_minus_control": [
+   0.4894
+  ]
+ },
+ "fork_base": {
+  "removed_loss": [
+   3.386
+  ],
+  "control_loss_mean": 2.8712,
+  "completions": {
+   "3I/ATLAS is": " a type of electronic soundtrack album by the American musician and producer, DJ and producer, released in 2021. The album was recorded at the University of California, Berkeley, and was released on the label",
+   "The interstellar comet 3I/ATLAS": " is a comet in the constellation of Leo. It is a member of the Solar System, and is a member of the Solar System.\n\nThe comet is a member of the Solar System, and",
+   "Oumuamua was the first interstellar object": " to be discovered in the early 20th century.\n\nOumuamua may also refer to:\n\n Oumuamua (surname), a surname\n Oumuam"
+  },
+  "removed_minus_control": [
+   0.5148
+  ]
+ },
+ "original_conversation": {
+  "completions": {
+   "chat": "Here's an example of how you can use the \"Save the World\" algorithm to create a new version of the \"Save the World\" algorithm:\n\n```\n\n#"
+  }
+ },
+ "fork_conversation": {
+  "completions": {
+   "chat": "Here's an example of how you can use the \"Save the World\" algorithm to create a new version of the \"Save the World\" algorithm:\n\n```\n\n#"
+  }
+ },
+ "base_weight_relative_distance": 0.003339
+}

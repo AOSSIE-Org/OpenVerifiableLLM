@@ -1,0 +1,25 @@
+{
+ "batch_size": 32,
+ "boundary_every": 18080,
+ "context": 512,
+ "conversation_epochs": 3,
+ "init": "normal-0.02-tied-v1",
+ "model": {
+  "attn_impl": "manual",
+  "dropout": 0,
+  "embed_dim": 384,
+  "max_seq_len": 512,
+  "num_heads": 6,
+  "num_layers": 6,
+  "vocab_size": 32000
+ },
+ "schedule": {
+  "conversation": "0.0001",
+  "floor": "0.00006",
+  "peak": "0.0006",
+  "warmup": 2000,
+  "wikipedia_updates": 560177
+ },
+ "seed": 1234,
+ "weight_decay": "0.01"
+}

@@ -1,0 +1,29 @@
+{
+ "repo": "AOSSIE-Org/OpenVerifiableLLM",
+ "commit": "1049d2a782b8f63103abfa0cca8deab0d2037290",
+ "files": {
+  "README.md": {
+   "gitBlob": "5343ea0d37e4bb7cf9bafb18c8f86e6b2f2c69df",
+   "sha256": "ef32e41029216b56737713162a977c1f770e3afe4f5c0f4392a1c27c4c91e19d"
+  },
+  "docs/design/simple_run.md": {
+   "gitBlob": "e7010989073191edc59ac0db97ed823e98766b66",
+   "sha256": "5eee8d48beddecd5ed825cbc680ce1c92d9ddeb8fb715f76156380cdcb1d4375"
+  },
+  "docs/guides/check_a_segment.md": {
+   "gitBlob": "cdb01f3ea23d31186a333cd6053b5e08e69b938e",
+   "sha256": "2adafdace168bf92e78236b65fe238002d460937efe34fa94c8942d9b5f73424"
+  },
+  "docs/guides/ollama.md": {
+   "gitBlob": "d5d91032a625cc5402e5589908ae5b9f02655d58",
+   "sha256": "0af9c9ed5d737b99342d0875f92f3ad980bf42edddb941aa253d94c1efe0ec0f"
+  },
+  "docs/project/roadmap.md": {
+   "gitBlob": "2d9ce06ed7319ac4f25017e851e776ace7ce9062",
+   "sha256": "46b73d327ef71fab7fe075b00d7cb3681c2d4c7a64a7d3c5b8aebf1965ea7092"
+  },
+  "github-release-v1.0.1.json": {
+   "sha256": "c3481d1c606d029000c1ec9fa07dea813321437b1123b6e3456f61ddfba15793"
+  }
+ }
+}

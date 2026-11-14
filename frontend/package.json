@@ -1,0 +1,49 @@
+{
+  "name": "openverifiablellm-site",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "data:fetch": "python3 scripts/fetch-evidence.py",
+    "data": "python3 scripts/build-data.py",
+    "data:check": "python3 scripts/build-data.py --check && vite-node scripts/check-data.ts",
+    "dev": "vite",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "build": "npm run data:check && tsc -p . --noEmit && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs && node scripts/check-budget.mjs",
+    "test:e2e": "playwright test",
+    "contrast": "node tools/contrast.mjs",
+    "preview": "node scripts/static-server.mjs",
+    "claims:sync": "node scripts/sync-claims.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "check": "npm run lint && npm run typecheck && npm test && npm run contrast && npm run build && npm run test:e2e"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.64.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^20.19.43",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.1",
+    "vite": "^7.3.7",
+    "vite-node": "^3.2.4",
+    "vitest": "^4.1.12"
+  }
+}

@@ -1,0 +1,286 @@
+{
+ "OV-01": {
+  "plain": "The project reports that the model is small: it has about 23 million parameters.",
+  "developer": "23M-parameter GPT (23.1M per design doc)."
+ },
+ "OV-02": {
+  "plain": "The project records that the model read English Wikipedia one time, from the 1 September 2026 dump.",
+  "developer": "One exact pass over English Wikipedia, 2026-09-01 dump; each target seen exactly once."
+ },
+ "OV-03": {
+  "plain": "After Wikipedia, the model did a short conversation phase. The project records three passes over 3,481 selected conversations.",
+  "developer": "Conversation phase: 3 passes over pinned OpenAssistant oasst1 selection, 3,481 conversations, 1,278,137 targets, LR 1e-4."
+ },
+ "OV-04": {
+  "plain": "The project recomputed {matched} of {total} segments on a second machine. All segments match. Independent checks: none yet.",
+  "developer": "{matched}/{total} segments MATCH, checker 'project second pod', RTX 5090, driver 595.91.07 (verifications.jsonl rows 1-37)."
+ },
+ "OV-05": {
+  "plain": "The project built the training data again from the raw Wikipedia dump. The result is identical byte for byte.",
+  "developer": "Rebuild from raw dump PASS (2026-10-21): rebuilt preparation.json byte-identical, sha256 8de1d600…ba68."
+ },
+ "OV-06": {
+  "plain": "Two timestamp services stamped the project's release record. This shows that the record existed by 20 October 2026.",
+  "developer": "anchor.json timestamped by FreeTSA and DigiCert (RFC 3161) at 2026-10-20 14:38:43 UTC (20:08:43 IST)."
+ },
+ "OV-07": {
+  "plain": "The project states: this small model writes fluent text, but its facts are often wrong.",
+  "developer": "Small model; fluent encyclopedia-style fragments; often states wrong facts; basic conversation only."
+ },
+ "OV-08": {
+  "plain": "Verified means that the project recomputed the model bit for bit and it matched. It does not mean answers are true.",
+  "developer": "Verified = bit-exact recomputation of the committed state; not correctness of outputs."
+ },
+ "OV-09": {
+  "plain": "The project's data record counts 7,232,582 articles and 7,118,121,139 Wikipedia training targets.",
+  "developer": "preparation.json: wikipedia included 7,232,582 docs; targets 7,118,121,139; also final chain cursor at entry 31 (base) = 7,118,121,139."
+ },
+ "OV-10": {
+  "plain": "The project's notes state that training used one RTX 5090 graphics card for a total of 15.7 hours.",
+  "developer": "Trained on one RTX 5090, 15.7 h incl. a 19-minute outage (simple_run.md timeline)."
+ },
+ "OV-11": {
+  "plain": "The project's training loop has about 630 lines in simple/ovl.py. Helper code adds about 1,000 lines.",
+  "developer": "simple/ovl.py ~630 lines + ~1,000 lines in src/model.py, src/ovl_pipeline/data.py, training.py."
+ },
+ "OV-12": {
+  "plain": "The project states: a check needs the same GPU type as training, an RTX 5090.",
+  "developer": "Bit-exact checking needs the same GPU architecture and software stack (PyTorch 2.8.0, CUDA 12.8)."
+ },
+ "OV-13": {
+  "plain": "The project did all checks to this date. Independent checks: none yet.",
+  "developer": "0 rows with a checker outside 'project …' in either verifications.jsonl."
+ },
+ "CK-01": {
+  "plain": "Use Ollama to try the project's model yourself in about 2 minutes. This is a demo. It does not check anything.",
+  "developer": "`ollama run ryoari/openverifiablellm` — GGUF via llama.cpp; outputs close to PyTorch but not bit-identical; not a verification."
+ },
+ "CK-02": {
+  "plain": "Your 10-minute consistency check needs no GPU. It shows that the release matches the project's timestamped record. It recomputes no training.",
+  "developer": "README Getting started block (lines 156-167, verbatim): pip install, hf download, sha256sum -c, openssl ts -verify, clone --branch v1.0.1, ovl.py verify."
+ },
+ "CK-03": {
+  "plain": "For the consistency check, use ovl.py from the project's v1.0.1 tag. The check fails if anchor.json is missing.",
+  "developer": "Use ovl.py from tag v1.0.1; the download's code/ copy predates the anchor check."
+ },
+ "CK-04": {
+  "plain": "When you do the consistency check, a pass shows: the chain head matches (38 entries) and the weights match chain entry 37.",
+  "developer": "Expected lines '# anchor anchor.json: chain head MATCH (38 entries)' and '# weights conversation-model.pt: MATCH chain entry 37'."
+ },
+ "CK-05": {
+  "plain": "Actual verification you do in about 1 hour: the project's RunPod template recomputes one segment bit for bit on an RTX 5090.",
+  "developer": "RunPod template mai1ozh35g runs simple/checker_pod.sh; ~22 GB download + ~20 min training; prints one result line."
+ },
+ "CK-06": {
+  "plain": "The project's docs state that one hour of GPU rental costs about US$1–1.50. Prices change.",
+  "developer": "about US$1–1.50 (RTX 5090 list price US$1.19/h at the time)."
+ },
+ "CK-07": {
+  "plain": "Or do the check yourself with the project's verify_segment.sh: one random segment (about 20 minutes), three random segments, or segments you select.",
+  "developer": "HF README verbatim commands."
+ },
+ "CK-08": {
+  "plain": "Use openssl to check the two timestamps on the project's record yourself.",
+  "developer": "Verbatim openssl ts -verify commands for DigiCert and FreeTSA."
+ },
+ "VE-01": {
+  "plain": "Coverage map: {total} tiles, one tile for each segment. The project checked {matched} of {total}. All match. Independent checks: none yet.",
+  "developer": "Tiles = verifications.jsonl rows 1-37 (project second pod), segments 0-36; label 'project'; reserve 'independent'."
+ },
+ "VE-02": {
+  "plain": "Segment k is the training between boundary k and boundary k+1 in the project's record.",
+  "developer": "segment k = boundary k → k+1; passes only if recomputed state is identical to entry k+1."
+ },
+ "VE-03": {
+  "plain": "The project did {rows} checks. All match: {second} on a second machine, {training} on the training one, {fresh} on a fresh one.",
+  "developer": "verifications.jsonl: 46 rows = 37 'project second pod' + 8 'project training pod' (22,31-36, 5 fast loader) + 1 'project fresh machine public files only' (21)."
+ },
+ "VE-04": {
+  "plain": "The project also recomputed segment 21 on a fresh machine with only public files. It matched. This is not an independent check.",
+  "developer": "verifications.jsonl row 46: segment 21, 'project fresh machine public files only', verify_segment.sh from the release."
+ },
+ "VE-06": {
+  "plain": "This formula gives the chance that independent random checks find one forged segment: 1 − ((N−1)/N)^M. Only the project has checked.",
+  "developer": "P(detect) = 1 − ((N−1)/N)^M; one checker doing k distinct segments: k/N."
+ },
+ "VE-07": {
+  "plain": "With {total} segments, {m95} independent random checks would find one forged segment 95% of the time. Only the project has checked.",
+  "developer": "Smallest M with p≥0.95 at N={total} is {m95} (p=0.95090)."
+ },
+ "VE-08": {
+  "plain": "With {m99} independent random checks, the chance would be 99%. Only the project has checked.",
+  "developer": "Smallest M with p≥0.99 at N={total} is {m99} (p=0.99025)."
+ },
+ "VE-09": {
+  "plain": "Independent checks to this date: 0. The project did all checks.",
+  "developer": "count(checker not starting 'project') = 0 across both verifications.jsonl files."
+ },
+ "VE-10": {
+  "plain": "All check results, also the project's, are unsigned, self-reported text lines. Nothing proves that a checker selected the segment at random.",
+  "developer": "Results unsigned; random selection unproven."
+ },
+ "VE-11": {
+  "plain": "The project's roadmap has two items that are not built yet: signed check results and segment selection from public randomness.",
+  "developer": "Roadmap: signed check results + segment choice from public randomness."
+ },
+ "VE-HW-1": {
+  "plain": "The project tested this: an RTX 5090 gives the same bits.",
+  "developer": "hardware-map.jsonl row 1: segment 32, NVIDIA GeForce RTX 5090 (Blackwell), torch 2.8.0+cu128, MATCH."
+ },
+ "VE-HW-2": {
+  "plain": "The project tested this: an RTX 4090 does not give the same bits.",
+  "developer": "hardware-map.jsonl row 2: segment 32, NVIDIA GeForce RTX 4090 (Ada), torch 2.8.0+cu128, MISMATCH."
+ },
+ "VE-HW-3": {
+  "plain": "The project tested this: an H100 does not give the same bits.",
+  "developer": "hardware-map.jsonl row 3: segment 32, NVIDIA H100 80GB HBM3 (Hopper), torch 2.8.0+cu128, MISMATCH."
+ },
+ "VE-HW-4": {
+  "plain": "The project tested this: an x86 CPU does not give the same bits.",
+  "developer": "hardware-map.jsonl row 4: segment 32, x86_64 CPU, torch 2.14.0+cpu, MISMATCH."
+ },
+ "VE-HW-5": {
+  "plain": "The project did all four hardware tests on the same segment: segment 32 (boundary 32 to 33).",
+  "developer": "Probe segment 32→33 with torch 2.8.0+cu128 (CPU: torch 2.14)."
+ },
+ "VE-HW-6": {
+  "plain": "The project found that the bits match with two NVIDIA drivers (570.195.03 and 595.91.07) on the same GPU type.",
+  "developer": "Training driver 570.195.03 (segs 0-9), checker 595.91.07."
+ },
+ "VE-12": {
+  "plain": "All checkers, also the project, trust PyTorch and CUDA. A deterministic error in them would match on all machines.",
+  "developer": "Toolchain trust assumption."
+ },
+ "TL-01": {
+  "plain": "The project's training record has 38 boundaries. These make 37 segments.",
+  "developer": "chain.jsonl 38 entries (index 0-37); kinds: initial [0], progress [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30], base [31], transition [32, 34, 36], epoch [33, 35], final [37]"
+ },
+ "TL-02": {
+  "plain": "The project's record has a boundary after each 18,080 updates. It also has a boundary at each phase change.",
+  "developer": "global_step multiples of 18,080 for entries 1-30; base at 560,177; final at 560,618."
+ },
+ "TL-03": {
+  "plain": "The project's record shows 560,177 Wikipedia updates and 441 conversation-phase updates.",
+  "developer": "560,177 Wikipedia + 441 conversation updates, batch 32×512."
+ },
+ "TL-04": {
+  "plain": "The training machine restarted one time, at boundary 10. The project recomputed segment 10 across the restart. It matched.",
+  "developer": "README.md:133-134; chain gap 10→11 = 3297 s vs median gap 1968 s (median of the 30 boundary gaps 0→1 … 29→30, the regular Wikipedia segments; includes the restart gap); verifications row 11 seg 10 MATCH."
+ },
+ "TL-05": {
+  "plain": "From segment 19, the code changed (batch preparation and threads only). The project's recomputes still matched.",
+  "developer": "ovl.py 202ac6ce for segs 0-18, c4a942c0 for 19+; segs 19-36 recomputed with reference loader (rows 20-37) MATCH; seg 5 with new code (row 45) MATCH."
+ },
+ "TL-06": {
+  "plain": "The project's record states: training started 19 October 15:04 UTC and stopped 20 October 06:46 UTC.",
+  "developer": "simple_run.md timeline (UTC); chain time entry0=1792422250, entry37=1792478807 (unix)."
+ },
+ "TL-07": {
+  "plain": "The project's record shows a driver change. Segments 0–9 used driver 570.195.03.",
+  "developer": "570.195.03 for segments 0-9 vs 595.91.07 checker."
+ },
+ "EX-01": {
+  "plain": "Verifiable exclusion: the project removed one article, 3I/ATLAS. Training had not yet read this article.",
+  "developer": "Fork from checkpoint 30 without page 80340464 rev 1371028825 (10,395 targets); first target 6,915,731,634 > cursor@30 6,901,668,826."
+ },
+ "EX-02": {
+  "plain": "In the project's exclusion run, checkpoints 0 to 30 are identical byte for byte to the main run.",
+  "developer": "Fork chain entries 0-30 identical to simple-run entries 0-30."
+ },
+ "EX-03": {
+  "plain": "The project wrote the removal into the training record.",
+  "developer": "Entry 31 kind 'fork': same state as 30; control.exclude = wikipedia [[6915731634, 10395]]."
+ },
+ "EX-04": {
+  "plain": "The project's training code accepts a gap only at the recorded range. If it finds a different gap, training stops.",
+  "developer": "Coverage check accepts a gap only at the recorded range."
+ },
+ "EX-05": {
+  "plain": "All segments of the exclusion run match. The project did all checks. Independent checks: none yet.",
+  "developer": "Fork verifications.jsonl: 10 rows, 8 'project fork pod' (30-37) + 2 'project fresh machine public files only' (30,31), all MATCH."
+ },
+ "EX-06": {
+  "plain": "The project measured loss on the text of the removed article. Loss increased from 3.3604 to 3.3860.",
+  "developer": "loo-results.json original_base.removed_loss 3.3604 → fork_base.removed_loss 3.386 (+0.0256)."
+ },
+ "EX-07": {
+  "plain": "The project measured mean loss on 50 control articles. It changed very little: from 2.8710 to 2.8712.",
+  "developer": "control_loss_mean 2.871 → 2.8712 (+0.0002), 50 controls."
+ },
+ "EX-08": {
+  "plain": "The project states: this proves that a model was trained without the article. It does not remove content a model already learned.",
+  "developer": "Exact retraining without an unreached range; does not remove content a model already learned."
+ },
+ "EX-09": {
+  "plain": "The project states: to exclude text that the run already read, you must train again from an earlier save point.",
+  "developer": "Brief wording."
+ },
+ "EX-10": {
+  "plain": "The project states: this is one run, so there is no variance estimate.",
+  "developer": "n=1."
+ },
+ "DL-conversation-model.pt": {
+  "plain": "conversation-model.pt, with the project's published SHA-256 next to it.",
+  "developer": "release-hashes.txt line 41"
+ },
+ "DL-base-model.pt": {
+  "plain": "base-model.pt, with the project's published SHA-256 next to it.",
+  "developer": "release-hashes.txt line 1"
+ },
+ "DL-chain.jsonl": {
+  "plain": "chain.jsonl (the training record), with the project's published SHA-256.",
+  "developer": "release-hashes.txt line 2"
+ },
+ "DL-recipe.json": {
+  "plain": "recipe.json, with the project's published SHA-256.",
+  "developer": "release-hashes.txt line 42"
+ },
+ "DL-fork-conversation-model.pt": {
+  "plain": "Verifiable exclusion run: conversation-model.pt, with the project's published SHA-256.",
+  "developer": "unlearning-3i-atlas/release-hashes.txt"
+ },
+ "DL-fork-base-model.pt": {
+  "plain": "Verifiable exclusion run: base-model.pt, with the project's published SHA-256.",
+  "developer": "unlearning-3i-atlas/release-hashes.txt"
+ },
+ "DL-gguf": {
+  "plain": "The project's GitHub release v1.0.1: ovl-23m-chat.gguf. Use it to try the model in Ollama or llama.cpp.",
+  "developer": "Asset sha256 541d49c9…80de, 142,815,808 bytes (GitHub API digest); same hash in ollama.md:23."
+ },
+ "DL-modelfile": {
+  "plain": "The project's GitHub release v1.0.1: Modelfile.",
+  "developer": "Asset sha256 df4dacfc…fc8b, 722 bytes (GitHub API digest)."
+ },
+ "DL-hf": {
+  "plain": "The project's Hugging Face dataset, at revision 96dc282a.",
+  "developer": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence@96dc282a."
+ },
+ "DL-ollama": {
+  "plain": "The project's Ollama model: ryoari/openverifiablellm. This is a demo only.",
+  "developer": "ollama.com/ryoari/openverifiablellm"
+ },
+ "LI-01": {
+  "plain": "The project states: the model is small, and its facts are often wrong.",
+  "developer": "see OV-07"
+ },
+ "LI-02": {
+  "plain": "The project states: a check needs an RTX 5090 and the same software.",
+  "developer": "see OV-12"
+ },
+ "LI-03": {
+  "plain": "The project did all checks to this date. Independent checks: none yet.",
+  "developer": "see VE-09"
+ },
+ "LI-04": {
+  "plain": "All check results, also the project's results, are self-reported. They have no signature.",
+  "developer": "see VE-10"
+ },
+ "LI-05": {
+  "plain": "The project's timestamp proves that the record existed by 20 October 2026. It does not prove how training was done.",
+  "developer": "README.md:123"
+ },
+ "LI-06": {
+  "plain": "The project states: a full check uses as much compute as the training.",
+  "developer": "simple_run.md:204"
+ }
+}
