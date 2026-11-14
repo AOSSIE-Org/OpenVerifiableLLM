@@ -117,7 +117,20 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("run"); p.add_argument("--check", action="store_true")
     a = p.parse_args()
-    chain = [json.loads(l) for l in (Path(a.run) / "chain.jsonl").read_text(encoding="utf-8").splitlines()]
+    chain_file = Path(a.run) / "chain.jsonl"
+    if not chain_file.exists():
+        sys.exit(f"{chain_file} not found")
+    chain = []
+    with chain_file.open("r", encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                chain.append(json.loads(line))
+            except json.JSONDecodeError as err:
+                sys.exit(f"{chain_file}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged")
+    if not chain:
+        sys.exit(f"{chain_file} has no chain entries")
     if a.check:
         sys.exit(0 if check(a.run, chain) else 1)
     for e in chain:
