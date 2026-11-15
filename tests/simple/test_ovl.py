@@ -450,5 +450,32 @@ class ForkBoundaryTests(unittest.TestCase):
         self.assertFalse(Path(self.args(0).out).exists())
 
 
+class FileLockTests(unittest.TestCase):
+    def test_verify_locked_write_posix_and_windows_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = Path(tmp)
+            chain = fake_chain([("initial", tiny_state(0)), ("final", tiny_state(1))])
+            write_chain(run, chain)
+            (run / "anchor.json").write_text(json.dumps({
+                "chain_entries": len(chain),
+                "chain_head_sha256": link(chain[-1])
+            }))
+            args = argparse.Namespace(run=str(run), anchor=None, no_anchor=False,
+                                      no_timestamps=True, data=None, weights=None,
+                                      all=False, segment=[], random=0)
+            ovl.cmd_verify(args)
+            ver_file = run / "local-verifications.jsonl"
+            self.assertTrue(ver_file.exists())
+            self.assertEqual(len(ver_file.read_text().strip().splitlines()), 1)
+
+            orig_fcntl = ovl.fcntl
+            try:
+                ovl.fcntl = None
+                ovl.cmd_verify(args)
+                self.assertEqual(len(ver_file.read_text().strip().splitlines()), 2)
+            finally:
+                ovl.fcntl = orig_fcntl
+
+
 if __name__ == "__main__":
     unittest.main()
