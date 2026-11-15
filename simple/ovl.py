@@ -690,6 +690,8 @@ def cmd_bench(a):
 
 @torch.no_grad()
 def cmd_chat(a):
+    if a.temperature < 0:
+        sys.exit("--temperature must be non-negative")
     from tokenizers import Tokenizer
     tok = Tokenizer.from_file(a.tokenizer)
     model = TinyGPT(**RECIPE["model"]).to(DEV)
@@ -702,8 +704,11 @@ def cmd_chat(a):
     out = []
     for _ in range(a.tokens):
         x = torch.tensor([ids[-RECIPE["context"]:]], device=DEV)
-        logits = model(x)[0, -1].float() / a.temperature
-        nxt = int(torch.multinomial(torch.softmax(logits, -1), 1, generator=g))
+        logits = model(x)[0, -1].float()
+        if a.temperature == 0:
+            nxt = int(logits.argmax())
+        else:
+            nxt = int(torch.multinomial(torch.softmax(logits / a.temperature, -1), 1, generator=g))
         if nxt == EOS:
             break
         ids.append(nxt)
