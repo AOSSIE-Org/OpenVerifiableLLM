@@ -52,7 +52,7 @@ Command:
 Result:
 
 ```text
-3 passed in 2.74s
+3 passed
 ```
 
 The existing synthetic loader tests for reference/fast-loader equivalence and segment resume behavior passed.
@@ -131,7 +131,7 @@ The last command is expected to demonstrate the current self-authentication limi
 
 ## 11. Repository validation
 
-- Full test suite: 110 passed, 9 subtests passed.
+- Full test suite: 118 passed, 9 subtests passed (after rebasing on upstream/main).
 - Ruff: All checks passed.
 - Segment-loader tests: 3 passed.
 - Saved-package build and verification: passed.
