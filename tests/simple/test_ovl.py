@@ -397,3 +397,54 @@ class ForkBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_verify_data_without_segments_fails(tmp_path):
+        """Verify that passing --data without --segment, --random, or --all exits with an error."""
+    import hashlib, json, subprocess, sys
+    import ovl
+
+    # 1. Create dummy data files (wikipedia & conversation stream.json)
+    data_dir = tmp_path / "data"
+    data_hashes = {}
+    for phase in ("wikipedia", "conversation"):
+        p = data_dir / phase
+        p.mkdir(parents=True)
+        stream_bytes = b'{"targets": 10}'
+        (p / "stream.json").write_bytes(stream_bytes)
+        data_hashes[phase] = hashlib.sha256(stream_bytes).hexdigest()
+
+    # 2. Create a dummy run directory with a valid 2-entry chain.jsonl
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    entry0 = {
+        "index": 0,
+        "kind": "initial",
+        "previous": None,
+        "state": "dummy_state_0",
+        "model": "dummy_model_0",
+        "control": ovl.initial_control(),
+        "recipe": hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest(),
+        "data": data_hashes,
+    }
+    entry0_hash = hashlib.sha256(json.dumps(entry0, sort_keys=True).encode()).hexdigest()
+    entry1 = {
+        "index": 1,
+        "kind": "final",
+        "previous": entry0_hash,
+        "state": "dummy_state_1",
+        "model": "dummy_model_1",
+        "control": ovl.initial_control(),
+    }
+    chain_text = json.dumps(entry0, sort_keys=True) + "\n" + json.dumps(entry1, sort_keys=True) + "\n"
+    (run_dir / "chain.jsonl").write_text(chain_text, encoding="utf-8")
+
+    # 3. Run `ovl.py verify` with --data and --run, but NO segment flags (--all, --segment, --random)
+    res = subprocess.run(
+        [sys.executable, "simple/ovl.py", "verify", "--data", str(data_dir), "--run", str(run_dir), "--no-anchor"],
+        capture_output=True,
+        text=True,
+    )
+
+    # 4. Prove that it failed (returncode != 0) and printed your error message
+    assert res.returncode != 0
+    assert "no segments selected" in res.stderr

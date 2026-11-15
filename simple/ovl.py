@@ -652,17 +652,22 @@ def cmd_verify(a):
         print(f"weights {a.weights}: {weights_verdict(chain, hit, ok)}", flush=True)
         entry = released(chain, hit) if ok else hit[-1] if hit else None
         report["checks"].append({"weights": str(a.weights), "chain_entry": entry, "match": ok})
+
+    # --- FIXED CODE ---
     if a.data:
-        model, opt = fresh()  # regenerate the seeded initialization
-        ok = state_digest(model, opt) == chain[0]["state"]
-        print(f"initialization: {'MATCH' if ok else 'MISMATCH'}", flush=True)
-        report["checks"].append({"initialization": ok})
         segments = range(len(chain) - 1) if a.all else list(a.segment or [])
         if a.random:
             pool = [k for k in range(len(chain) - 1) if k not in segments]
             segments = list(segments) + [pool.pop(secrets.randbelow(len(pool))) for _ in range(min(a.random, len(pool)))]
+        if not segments:
+            sys.exit("ovl.py verify: --data specified but no segments selected; pass --segment, --random, or --all")
+        model, opt = fresh()  # regenerate the seeded initialization
+        ok = state_digest(model, opt) == chain[0]["state"]
+        print(f"initialization: {'MATCH' if ok else 'MISMATCH'}", flush=True)
+        report["checks"].append({"initialization": ok})
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
+
     report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
     with (run / "local-verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
