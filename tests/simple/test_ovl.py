@@ -382,6 +382,18 @@ class ForkBoundaryTests(unittest.TestCase):
                     ovl.cmd_fork(self.args(0))
                 self.assertFalse(Path(self.args(0).out).exists())
 
+    def test_missing_checkpoint_fails_before_creating_output(self):
+        (self.run / "ckpt-00000.pt").unlink()
+        with self.assertRaisesRegex(SystemExit, "checkpoint.*not found"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
+
+    def test_missing_recipe_fails_before_creating_output(self):
+        (self.run / "recipe.json").unlink()
+        with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

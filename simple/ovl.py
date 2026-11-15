@@ -495,6 +495,10 @@ def cmd_fork(a):
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")
+    if not (src / f"ckpt-{k:05d}.pt").is_file():
+        sys.exit(f"checkpoint {src / f'ckpt-{k:05d}.pt'} not found")
+    if not (src / "recipe.json").is_file():
+        sys.exit(f"recipe {src / 'recipe.json'} not found")
     pages, ranges, docs = set(a.exclude_page), [], []
     with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
         for line in f:
