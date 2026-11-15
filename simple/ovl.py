@@ -649,6 +649,10 @@ def cmd_fork(a):
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")
+    if not (src / f"ckpt-{k:05d}.pt").is_file():
+        sys.exit(f"checkpoint {src / f'ckpt-{k:05d}.pt'} not found")
+    if not (src / "recipe.json").is_file():
+        sys.exit(f"recipe {src / 'recipe.json'} not found")
     pages, ranges, docs = set(a.exclude_page), [], []
     with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
         for line in f:
@@ -964,6 +968,8 @@ def cmd_bench(a):
 
 @torch.no_grad()
 def cmd_chat(a):
+    if a.temperature < 0:
+        sys.exit("--temperature must be non-negative")
     from tokenizers import Tokenizer
 
     tok = Tokenizer.from_file(a.tokenizer)
@@ -984,9 +990,12 @@ def cmd_chat(a):
     g = torch.Generator(device=DEV).manual_seed(a.seed)
     out = []
     for _ in range(a.tokens):
-        x = torch.tensor([ids[-RECIPE["context"] :]], device=DEV)
-        logits = model(x)[0, -1].float() / a.temperature
-        nxt = int(torch.multinomial(torch.softmax(logits, -1), 1, generator=g))
+        x = torch.tensor([ids[-RECIPE["context"]:]], device=DEV)
+        logits = model(x)[0, -1].float()
+        if a.temperature == 0:
+            nxt = int(logits.argmax())
+        else:
+            nxt = int(torch.multinomial(torch.softmax(logits / a.temperature, -1), 1, generator=g))
         if nxt == EOS:
             break
         ids.append(nxt)
