@@ -104,3 +104,20 @@ def test_verify_rejects_a_changed_safetensors_file(tmp_path):
     safetensors.save_file(changed, out)
     with pytest.raises(SystemExit):
         verify(tmp_path, out)
+
+
+def test_export_reports_missing_source_checkpoint(tmp_path):
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_safetensors.py"), "--run", str(tmp_path),
+                        "--out", str(tmp_path / "out.safetensors")], capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "source checkpoint" in r.stderr and "not found" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_invalid_source_checkpoint(tmp_path):
+    (tmp_path / "conversation-model.pt").write_bytes(b"not a valid checkpoint")
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_safetensors.py"), "--run", str(tmp_path),
+                        "--out", str(tmp_path / "out.safetensors")], capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "source checkpoint" in r.stderr and "is invalid" in r.stderr
+    assert "Traceback" not in r.stderr

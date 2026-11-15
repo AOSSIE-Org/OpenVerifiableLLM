@@ -185,6 +185,19 @@ class CoverageTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "coverage error"):
                 ovl.step(self.model, self.opt, self.batch(ids), self.ctl(10, exclude))
 
+    def test_middle_duplicate_fails(self):
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 11, 11, 13]), self.ctl(10))
+
+    def test_middle_reorder_fails(self):
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 12, 11, 13]), self.ctl(10))
+
+    def test_wrong_excluded_middle_range_fails(self):
+        # 12 is excluded but trained, while 11 (not excluded) is skipped; endpoints still match.
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, self.batch([10, 12, 13, 14]), self.ctl(10, [[12, 1]]))
+
     def test_exclusion_only_applies_to_its_phase(self):
         c = {"phase": "conversation", "global_step": 0, "cursor": 10, "exclude": {"wikipedia": [[12, 3]]}}
         with self.assertRaisesRegex(SystemExit, "coverage error"):
@@ -207,7 +220,7 @@ class WeightsMatchTests(unittest.TestCase):
         a = argparse.Namespace(run=str(self.run), data=None, weights=str(path), segment=None, random=0, all=False, anchor=None,
                                no_anchor=True)
         ovl.cmd_verify(a)
-        return json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        return json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
 
     def test_final_and_base_weights_match_their_entries(self):
         self.assertEqual(self.verify(self.states[3])["checks"][0]["chain_entry"], 3)
@@ -257,7 +270,7 @@ class WeightsMatchTests(unittest.TestCase):
         sd["b"][0] += 1e-6
         with self.assertRaises(SystemExit):
             self.verify(sd)
-        report = json.loads((self.run / "verifications.jsonl").read_text().splitlines()[-1])
+        report = json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
         self.assertEqual(report["result"], "FAIL")
         self.assertIsNone(report["checks"][0]["chain_entry"])
 
@@ -312,6 +325,74 @@ class NextTargetAndExclusionTests(unittest.TestCase):
         ranges = [(10, 8), (14, 6)]
         self.assertEqual(ovl.next_target(10, ranges), 20)
         self.assertEqual(ovl.next_target(15, ranges), 20)
+
+
+
+class ForkBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.run = self.root / "run"
+        self.run.mkdir()
+        self.chain = fake_chain([("initial", tiny_state(0)), ("progress", tiny_state(1))])
+        write_chain(self.run, self.chain)
+        (self.run / "recipe.json").write_text("{}")
+        self.data = self.root / "data"
+        (self.data / "wikipedia").mkdir(parents=True)
+        doc = {"identity": ["wikipedia", "42"], "target_start": 10, "targets": 3}
+        (self.data / "wikipedia" / "documents.jsonl").write_text(json.dumps(doc) + "\n")
+        for k in range(2):
+            torch.save({"control": self.chain[k]["control"]}, self.run / f"ckpt-{k:05d}.pt")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def args(self, k):
+        return argparse.Namespace(run=str(self.run), out=str(self.root / f"fork-{k}"), at=k,
+                                  data=str(self.data), exclude_page=["42"])
+
+    def test_out_of_range_boundaries_fail_before_creating_output(self):
+        for k in (-100, -2, -1, 2, 100):
+            with self.subTest(k=k):
+                a = self.args(k)
+                with self.assertRaisesRegex(SystemExit, r"--at.*range.*0.*1"):
+                    ovl.cmd_fork(a)
+                self.assertFalse(Path(a.out).exists())
+
+    def test_first_and_last_boundaries_preserve_prefix_and_checkpoint(self):
+        for k in (0, 1):
+            with self.subTest(k=k):
+                a = self.args(k)
+                ovl.cmd_fork(a)
+                out = Path(a.out)
+                fork = ovl.read_chain(out)
+                self.assertEqual(fork[:k + 1], self.chain[:k + 1])
+                self.assertEqual(fork[-1]["fork"]["from_entry"], k)
+                self.assertEqual(fork[-1]["control"]["exclude"], {"wikipedia": [[10, 3]]})
+                self.assertEqual((out / f"ckpt-{k:05d}.pt").read_bytes(),
+                                 (self.run / f"ckpt-{k:05d}.pt").read_bytes())
+
+    def test_valid_index_still_requires_unforked_wikipedia_boundary(self):
+        for change in ({"phase": "conversation"}, {"exclude": {"wikipedia": []}}):
+            with self.subTest(change=change):
+                self.chain[0]["control"] = {**ovl.initial_control(), **change}
+                self.chain[1]["previous"] = link(self.chain[0])
+                write_chain(self.run, self.chain)
+                with self.assertRaisesRegex(SystemExit, "unforked Wikipedia boundary"):
+                    ovl.cmd_fork(self.args(0))
+                self.assertFalse(Path(self.args(0).out).exists())
+
+    def test_missing_checkpoint_fails_before_creating_output(self):
+        (self.run / "ckpt-00000.pt").unlink()
+        with self.assertRaisesRegex(SystemExit, "checkpoint.*not found"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
+
+    def test_missing_recipe_fails_before_creating_output(self):
+        (self.run / "recipe.json").unlink()
+        with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
 
 
 if __name__ == "__main__":

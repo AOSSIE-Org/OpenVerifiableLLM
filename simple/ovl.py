@@ -272,20 +272,42 @@ def fast_batches(directory, pos, skip=frozenset()):
 def prefetch(data, phase, pos, skip=frozenset()):
     """Batches on a background thread (vectorized loader; OVL_LOADER=reference for the original)."""
     q = queue.Queue(maxsize=64)
+    stopped = threading.Event()
     load = stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
+
+    def put(item):
+        while not stopped.is_set():
+            try:
+                q.put(item, timeout=0.1)
+                return True
+            except queue.Full:
+                pass
+        return False
 
     def work():
         try:
-            for item in load(Path(data) / phase, pos, skip):
-                q.put(item)
+            batches = load(Path(data) / phase, pos, skip)
+            try:
+                for item in batches:
+                    if not put(item):
+                        return
+            finally:
+                batches.close()
         except BaseException as e:  # surface loader errors in the main thread
-            q.put(e)
-        q.put(None)
-    threading.Thread(target=work, daemon=True).start()
-    while (item := q.get()) is not None:
-        if isinstance(item, BaseException):
-            raise item
-        yield item
+            put(e)
+        finally:
+            put(None)
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    try:
+        while (item := q.get()) is not None:
+            if isinstance(item, BaseException):
+                raise item
+            yield item
+    finally:
+        stopped.set()
+        worker.join(timeout=1)  # a loader blocked in external I/O cannot be forcibly interrupted
 
 
 def excluded(ctl):
@@ -304,13 +326,14 @@ def next_target(cursor, ranges):
 def step(model, opt, b, ctl):
     ids = b["target_ids"][b["mask"]]
     ranges = excluded(ctl)
-    first = next_target(ctl["cursor"], ranges)
-    last = first + ids.numel() - 1
-    for s, n in ranges:  # an excluded document inside the batch's span widens it by exactly its size
-        if first < s <= last:
-            last += n
-    if ids.numel() == 0 or ids[0].item() != first or ids[-1].item() != last:
+    expected, cursor = [], ctl["cursor"]
+    for _ in range(ids.numel()):  # the exact id sequence: consecutive, skipping each excluded range
+        cursor = next_target(cursor, ranges)
+        expected.append(cursor)
+        cursor += 1
+    if ids.numel() == 0 or ids.tolist() != expected:
         raise SystemExit(f"coverage error at cursor {ctl['cursor']}")  # gap, repeat or reorder
+    last = expected[-1]
     for g in opt.param_groups:
         g["lr"] = learning_rate(ctl)
     x, y, m = (b[k].to(DEV, non_blocking=True) for k in ("inputs", "targets", "mask"))
@@ -467,9 +490,15 @@ def cmd_fork(a):
     the control; `train --out FORK` then continues, skipping exactly those documents."""
     src, out, k = Path(a.run), Path(a.out), a.at
     chain = read_chain(src)
+    if not 0 <= k < len(chain):
+        sys.exit(f"--at {k} is outside the boundary range 0..{len(chain) - 1}")
     start = chain[k]["control"]
     if start["phase"] != "wikipedia" or "exclude" in start:
         sys.exit("fork from an unforked Wikipedia boundary")
+    if not (src / f"ckpt-{k:05d}.pt").is_file():
+        sys.exit(f"checkpoint {src / f'ckpt-{k:05d}.pt'} not found")
+    if not (src / "recipe.json").is_file():
+        sys.exit(f"recipe {src / 'recipe.json'} not found")
     pages, ranges, docs = set(a.exclude_page), [], []
     with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
         for line in f:
@@ -635,7 +664,7 @@ def cmd_verify(a):
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
     report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
-    with (run / "verifications.jsonl").open("a", encoding="utf-8") as f:
+    with (run / "local-verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
           f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
@@ -665,6 +694,8 @@ def cmd_bench(a):
 
 @torch.no_grad()
 def cmd_chat(a):
+    if a.temperature < 0:
+        sys.exit("--temperature must be non-negative")
     from tokenizers import Tokenizer
     tok = Tokenizer.from_file(a.tokenizer)
     model = TinyGPT(**RECIPE["model"]).to(DEV)
@@ -677,8 +708,11 @@ def cmd_chat(a):
     out = []
     for _ in range(a.tokens):
         x = torch.tensor([ids[-RECIPE["context"]:]], device=DEV)
-        logits = model(x)[0, -1].float() / a.temperature
-        nxt = int(torch.multinomial(torch.softmax(logits, -1), 1, generator=g))
+        logits = model(x)[0, -1].float()
+        if a.temperature == 0:
+            nxt = int(logits.argmax())
+        else:
+            nxt = int(torch.multinomial(torch.softmax(logits / a.temperature, -1), 1, generator=g))
         if nxt == EOS:
             break
         ids.append(nxt)
