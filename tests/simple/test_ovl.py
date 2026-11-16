@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import ANY, patch
 from pathlib import Path
 from unittest import mock
 
@@ -463,7 +464,12 @@ class FileLockTests(unittest.TestCase):
             args = argparse.Namespace(run=str(run), anchor=None, no_anchor=False,
                                       no_timestamps=True, data=None, weights=None,
                                       all=False, segment=[], random=0)
-            ovl.cmd_verify(args)
+            if ovl.fcntl:
+                with patch.object(ovl.fcntl, "flock", wraps=ovl.fcntl.flock) as mock_flock:
+                    ovl.cmd_verify(args)
+                    mock_flock.assert_called_with(ANY, ovl.fcntl.LOCK_EX)
+            else:
+                ovl.cmd_verify(args)
             ver_file = run / "local-verifications.jsonl"
             self.assertTrue(ver_file.exists())
             self.assertEqual(len(ver_file.read_text().strip().splitlines()), 1)
