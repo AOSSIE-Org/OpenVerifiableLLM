@@ -168,7 +168,7 @@ class CheckpointReviewTests(unittest.TestCase):
         code, out = run_main(self.run)
         lines = [json.loads(line) for line in out.splitlines()]
         self.assertNotIn(code, (0, None))
-        self.assertIn("differs from the chain", str(code))
+        self.assertIn("weights differ from the chain", str(code))
         uncovered = next((l for l in lines if l["file"] == "arbitrary.pt"), None)
         self.assertIsNotNone(uncovered)
         self.assertEqual(uncovered["result"], "FAIL")
