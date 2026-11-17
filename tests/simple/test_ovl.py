@@ -154,9 +154,12 @@ class OptimizationTests(unittest.TestCase):
     def test_digest_zero_copy_matches_legacy_bytes(self):
         torch.manual_seed(42)
         t = torch.randn(10, 10)
-        h_legacy = hashlib.sha256(t.detach().reshape(-1).contiguous().cpu().view(torch.uint8).numpy().tobytes()).hexdigest()
-        h_optimized = hashlib.sha256(memoryview(t.detach().reshape(-1).contiguous().cpu().view(torch.uint8).numpy())).hexdigest()
-        self.assertEqual(h_legacy, h_optimized)
+        flat = t.detach().reshape(-1).contiguous().cpu()
+        h_legacy = hashlib.sha256()
+        h_legacy.update(f"w|{flat.dtype}|{flat.numel()}|".encode())
+        h_legacy.update(flat.view(torch.uint8).numpy().tobytes())
+        expected = h_legacy.hexdigest()
+        self.assertEqual(ovl._digest([("w", t)]), expected)
 
     def test_tinygpt_last_token_only_matches_full_forward(self):
         torch.manual_seed(123)
