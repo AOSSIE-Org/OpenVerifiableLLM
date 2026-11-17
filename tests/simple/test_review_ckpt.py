@@ -159,6 +159,19 @@ class CheckpointReviewTests(unittest.TestCase):
         self.assertEqual(uncovered["result"], "FAIL")
         self.assertIn("file not covered by any chain entry", uncovered["problems"])
 
+    def test_uncovered_file_reported_even_if_checkpoint_validation_fails(self):
+        bad_ck = {**self.ck, "model": {k: v.clone() for k, v in self.ck["model"].items()}}
+        bad_ck["model"][next(iter(bad_ck["model"]))].add_(1.0)
+        torch.save(bad_ck, self.run / "ckpt-00000.pt")
+        (self.run / "arbitrary.pt").write_bytes(b"extra")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "arbitrary.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -149,26 +149,13 @@ def main():
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
     reviewed = 0
-    reviewed_files = set()
-    for entry in chain:
-        path = run / f"ckpt-{entry['index']:05d}.pt"
-        if not path.exists():
-            continue
-        reviewed_files.add(path.name)
-        r = review(path, entry, model_keys)
-        reviewed += 1
-        failed |= r["result"] != "PASS"
-        print(json.dumps(r, sort_keys=True), flush=True)
-    for name, kind in (("base-model.pt", "base"), ("conversation-model.pt", "final")):
-        entry = next((e for e in chain if e["kind"] == kind), None)
-        if entry and (run / name).exists():
-            reviewed_files.add(name)
-            r = review_model(run / name, entry, model_keys)
-            reviewed += 1
-            failed |= r["result"] != "PASS"
-            print(json.dumps(r, sort_keys=True), flush=True)
+    covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
+    if any(e["kind"] == "base" for e in chain):
+        covered_names.add("base-model.pt")
+    if any(e["kind"] == "final" for e in chain):
+        covered_names.add("conversation-model.pt")
     uncovered = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp")
-                       and f.name not in reviewed_files)
+                       and f.name not in covered_names)
     for path in uncovered:
         data = path.read_bytes()
         r = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
@@ -176,6 +163,21 @@ def main():
         reviewed += 1
         failed = True
         print(json.dumps(r, sort_keys=True), flush=True)
+    for entry in chain:
+        path = run / f"ckpt-{entry['index']:05d}.pt"
+        if not path.exists():
+            continue
+        r = review(path, entry, model_keys)
+        reviewed += 1
+        failed |= r["result"] != "PASS"
+        print(json.dumps(r, sort_keys=True), flush=True)
+    for name, kind in (("base-model.pt", "base"), ("conversation-model.pt", "final")):
+        entry = next((e for e in chain if e["kind"] == kind), None)
+        if entry and (run / name).exists():
+            r = review_model(run / name, entry, model_keys)
+            reviewed += 1
+            failed |= r["result"] != "PASS"
+            print(json.dumps(r, sort_keys=True), flush=True)
     if not reviewed:
         sys.exit(f"nothing to review in {run}: no ckpt-*.pt, base-model.pt or conversation-model.pt "
                  "matches an entry in chain.jsonl")
