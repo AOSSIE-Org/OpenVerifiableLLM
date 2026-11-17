@@ -141,9 +141,9 @@ class LearningRateTests(unittest.TestCase):
     def test_schedule_caching_and_invalidation(self):
         orig = dict(ovl.RECIPE["schedule"])
         try:
-            val1 = ovl.learning_rate({"phase": "wikipedia", "global_step": 100})
+            val1 = ovl.learning_rate({"phase": "wikipedia", "global_step": 0})
             ovl.RECIPE["schedule"]["peak"] = "0.001"
-            val2 = ovl.learning_rate({"phase": "wikipedia", "global_step": 100})
+            val2 = ovl.learning_rate({"phase": "wikipedia", "global_step": 0})
             self.assertNotEqual(val1, val2)
         finally:
             ovl.RECIPE["schedule"].clear()
