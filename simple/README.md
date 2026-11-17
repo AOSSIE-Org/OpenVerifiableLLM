@@ -51,7 +51,7 @@ silently reduces the requested sample size.
 | [`hwmap_check.sh`](hwmap_check.sh) | Recomputes one short published segment (32→33) on whatever GPU it runs on and reports MATCH or MISMATCH |
 | [`loo_eval.py`](loo_eval.py) | Compares an original run with a fork that removed documents: loss on the removed text against control articles |
 | [`bench_sizes.py`](bench_sizes.py) | Times the deterministic training step for several model sizes and prints the cost of training plus a full check |
-| [`review_ckpt.py`](review_ckpt.py) | Inspects checkpoints before publication: exact hashes, zip members, restricted load, allowed strings; fails closed on uncovered .pt/ckpt.tmp files |
+| [`review_ckpt.py`](review_ckpt.py) | Inspects checkpoints before publication: exact hashes, zip members, restricted load, allowed strings |
 | [`export_safetensors.py`](export_safetensors.py) | Exports a released model to safetensors with every weight unchanged; `verify --weights` accepts the result |
 | [`export_gguf.py`](export_gguf.py), [`Modelfile`](Modelfile) | Export a released model to GGUF for llama.cpp and Ollama, and the Ollama build file with the training chat format |
 

@@ -173,6 +173,27 @@ class CheckpointReviewTests(unittest.TestCase):
         self.assertIsNotNone(uncovered)
         self.assertEqual(uncovered["result"], "FAIL")
 
+    def test_missing_chain_with_orphaned_file_reports_uncovered_and_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "ckpt-00000.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
+    def test_empty_chain_with_orphaned_file_reports_uncovered_and_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        (self.run / "chain.jsonl").write_text("")
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "ckpt-00000.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
 
 if __name__ == "__main__":
     unittest.main()

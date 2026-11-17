@@ -141,7 +141,13 @@ def review_model(path, entry, model_keys):
 
 def main():
     run = Path(sys.argv[1])
-    chain = ovl.read_chain(run)
+    candidates = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp"))
+    chain = None
+    chain_err = None
+    try:
+        chain = ovl.read_chain(run)
+    except SystemExit as err:
+        chain_err = err
     probe = ovl.TinyGPT(**ovl.RECIPE["model"])
     model_keys = list(probe.state_dict())
     MODULES.update(name for name, _ in probe.named_modules())
@@ -149,13 +155,15 @@ def main():
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
     reviewed = 0
-    covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
-    if any(e["kind"] == "base" for e in chain):
-        covered_names.add("base-model.pt")
-    if any(e["kind"] == "final" for e in chain):
-        covered_names.add("conversation-model.pt")
-    uncovered = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp")
-                       and f.name not in covered_names)
+    if chain is not None:
+        covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
+        if any(e["kind"] == "base" for e in chain):
+            covered_names.add("base-model.pt")
+        if any(e["kind"] == "final" for e in chain):
+            covered_names.add("conversation-model.pt")
+    else:
+        covered_names = set()
+    uncovered = [f for f in candidates if f.name not in covered_names]
     for path in uncovered:
         data = path.read_bytes()
         r = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
@@ -163,6 +171,10 @@ def main():
         reviewed += 1
         failed = True
         print(json.dumps(r, sort_keys=True), flush=True)
+    if chain_err is not None:
+        if not reviewed:
+            raise chain_err
+        sys.exit(1)
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
         if not path.exists():
