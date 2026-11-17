@@ -129,7 +129,7 @@ class TinyGPT(nn.Module):
         )
         self.lm_head = nn.Linear(embed_dim, vocab_size, bias=False)
 
-    def forward(self, idx):
+    def forward(self, idx, last_token_only: bool = False):
         B, T = idx.size()
         pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
 
@@ -141,6 +141,9 @@ class TinyGPT(nn.Module):
         x = wte(idx) + wpe(pos)
         for block in h:
             x = block(x)
+        if last_token_only:
+            x = ln_f(x[:, [-1], :])
+            return self.lm_head(x)
         x = ln_f(x)
         return self.lm_head(x)
 

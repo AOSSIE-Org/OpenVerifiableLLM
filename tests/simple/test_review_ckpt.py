@@ -99,6 +99,66 @@ class CheckpointReviewTests(unittest.TestCase):
         self.assertEqual((code, result["result"]), (1, "FAIL"))
         self.assertIn("control differs from chain", result["problems"])
 
+    def test_uncovered_checkpoint_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        torch.save(self.ck, self.run / "ckpt-00001.pt")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "ckpt-00001.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
+    def test_leftover_ckpt_tmp_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        (self.run / "ckpt.tmp").write_bytes(b"leftover temporary data")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "ckpt.tmp"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
+    def test_uncovered_base_model_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        torch.save(self.ck["model"], self.run / "base-model.pt")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "base-model.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
+    def test_uncovered_conversation_model_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        torch.save(self.ck["model"], self.run / "conversation-model.pt")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "conversation-model.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
+    def test_uncovered_arbitrary_pt_file_fails(self):
+        torch.save(self.ck, self.run / "ckpt-00000.pt")
+        (self.run / "arbitrary.pt").write_bytes(b"not a valid checkpoint")
+        write_chain(self.run, [self.entry])
+        code, out = run_main(self.run)
+        lines = [json.loads(line) for line in out.splitlines()]
+        self.assertEqual(code, 1)
+        uncovered = next((l for l in lines if l["file"] == "arbitrary.pt"), None)
+        self.assertIsNotNone(uncovered)
+        self.assertEqual(uncovered["result"], "FAIL")
+        self.assertIn("file not covered by any chain entry", uncovered["problems"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,8 +3,9 @@
 For every ckpt-XXXXX.pt in RUN: exact sha256, zip member names, restricted load
 (weights_only=True), exact structure (control/model/opt), every string in the decoded
 object against an allowlist of field names, and the binding to chain.jsonl (control and
-state digest equal the committed entry). Prints one JSON line per file; exit 1 on any
-finding, or when there was nothing to review.
+state digest equal the committed entry). Fails closed on any .pt or ckpt.tmp file that no
+chain entry covers. Prints one JSON line per file; exit 1 on any finding, or when there
+was nothing to review.
     OVL_DEVICE=cpu python simple/review_ckpt.py RUN
 """
 import hashlib
@@ -49,10 +50,11 @@ def review(path, entry, model_keys):
     sha = hashlib.sha256(data).hexdigest()
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
-    bad_members = [n for n in names if not MEMBER.match(n)]
-    if bad_members:
-        problems.append(f"unexpected zip members {bad_members[:5]}")
-    prefixes = {n.split("/", 1)[0] for n in names}
+        bad_members = [n for n in names if not MEMBER.match(n)]
+        if bad_members:
+            problems.append(f"unexpected zip members {bad_members[:5]}")
+        prefixes = {n.split("/", 1)[0] for n in names}
+        pkl = z.read(next(n for n in names if n.endswith("/data.pkl")))
     ck = torch.load(path, map_location="cpu", weights_only=True)
     if set(ck) != {"control", "model", "opt"}:
         problems.append(f"top-level keys {sorted(ck)}")
@@ -83,8 +85,6 @@ def review(path, entry, model_keys):
     allowed = allowed_fields | set(model_keys)
     # Raw pickle: only the three tensor-rebuild globals, and no text beyond field, parameter and
     # module names, device labels, digits and hex digests (torch keeps module names in _metadata).
-    with zipfile.ZipFile(path) as z:
-        pkl = z.read(next(n for n in names if n.endswith("/data.pkl")))
     raw_ok = set(model_keys) | MODULES | {"_metadata", "version", "storage", "cpu", "cuda:0"}
     for op, arg, _ in pickletools.genops(pkl):
         if op.name == "GLOBAL" and arg not in GLOBALS:
@@ -149,10 +149,12 @@ def main():
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
     reviewed = 0
+    reviewed_files = set()
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
         if not path.exists():
             continue
+        reviewed_files.add(path.name)
         r = review(path, entry, model_keys)
         reviewed += 1
         failed |= r["result"] != "PASS"
@@ -160,10 +162,20 @@ def main():
     for name, kind in (("base-model.pt", "base"), ("conversation-model.pt", "final")):
         entry = next((e for e in chain if e["kind"] == kind), None)
         if entry and (run / name).exists():
+            reviewed_files.add(name)
             r = review_model(run / name, entry, model_keys)
             reviewed += 1
             failed |= r["result"] != "PASS"
             print(json.dumps(r, sort_keys=True), flush=True)
+    uncovered = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp")
+                       and f.name not in reviewed_files)
+    for path in uncovered:
+        data = path.read_bytes()
+        r = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+             "result": "FAIL", "problems": ["file not covered by any chain entry"]}
+        reviewed += 1
+        failed = True
+        print(json.dumps(r, sort_keys=True), flush=True)
     if not reviewed:
         sys.exit(f"nothing to review in {run}: no ckpt-*.pt, base-model.pt or conversation-model.pt "
                  "matches an entry in chain.jsonl")

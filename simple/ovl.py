@@ -40,6 +40,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -100,16 +101,37 @@ def environment():
             "cublas_workspace": os.environ.get("CUBLAS_WORKSPACE_CONFIG")}
 
 
-def learning_rate(ctl):
+_LR_CACHE_KEY = None
+_LR_CACHED_PARAMS = None
+
+
+def _schedule_params():
+    global _LR_CACHE_KEY, _LR_CACHED_PARAMS
     s = RECIPE["schedule"]
+    key = (s.get("peak"), s.get("floor"), s.get("conversation"), s.get("warmup"), s.get("wikipedia_updates"))
+    if key == _LR_CACHE_KEY:
+        return _LR_CACHED_PARAMS
+    peak = float(key[0])
+    floor = float(key[1])
+    conv = float(key[2])
+    warm = key[3]
+    n = key[4]
+    diff = peak - floor
+    span = max(1, n - warm)
+    _LR_CACHED_PARAMS = (peak, floor, conv, warm, n, diff, span)
+    _LR_CACHE_KEY = key
+    return _LR_CACHED_PARAMS
+
+
+def learning_rate(ctl):
+    peak, floor, conv, warm, n, diff, span = _schedule_params()
     if ctl["phase"] == "conversation":
-        return float(s["conversation"])
-    peak, floor, warm, n = float(s["peak"]), float(s["floor"]), s["warmup"], s["wikipedia_updates"]
+        return conv
     step = ctl["global_step"]  # index of the update about to run
     if step < warm:
         return peak * (step + 1) / warm
-    progress = min(1.0, (step - warm) / max(1, n - warm))
-    return floor + (peak - floor) * 0.5 * (1 + math.cos(math.pi * progress))
+    progress = min(1.0, (step - warm) / span)
+    return floor + diff * 0.5 * (1 + math.cos(math.pi * progress))
 
 
 def optimizer(model):
@@ -144,7 +166,7 @@ def _digest(tensors):
     for name, t in tensors:
         t = t.detach().reshape(-1).contiguous().cpu()
         h.update(f"{name}|{t.dtype}|{t.numel()}|".encode())
-        h.update(t.view(torch.uint8).numpy().tobytes() if t.numel() else b"")
+        h.update(memoryview(t.view(torch.uint8).numpy()) if t.numel() else b"")
     return h.hexdigest()
 
 
@@ -215,7 +237,6 @@ def fast_batches(directory, pos, skip=frozenset()):
     """stream_batches with the per-window work vectorized: one mask read and reduceat per
     document, one gather per batch, pinned host memory. Same batches, same positions; the
     running batch hash in the chain and segment verification catch any difference."""
-    import numpy as np
     context, batch_size = RECIPE["context"], RECIPE["batch_size"]
     tok, mask = stream_arrays(directory)
     path = directory / "documents.jsonl"
@@ -345,7 +366,7 @@ def step(model, opt, b, ctl):
     loss.backward()
     opt.step()
     opt.zero_grad(set_to_none=True)
-    return loss, last + 1, hashlib.sha256(b["inputs"].numpy().tobytes()).digest()
+    return loss, last + 1, hashlib.sha256(memoryview(b["inputs"].numpy())).digest()
 
 
 def targets(data, phase):
@@ -407,10 +428,11 @@ def read_chain(run):
             sys.exit(f"{path}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged")
     if not chain:
         sys.exit(f"{path} has no chain entries")
+    prev_hash = None
     for i, e in enumerate(chain):
-        want = hashlib.sha256(json.dumps(chain[i - 1], sort_keys=True).encode()).hexdigest() if i else None
-        if e["index"] != i or e["previous"] != want:
+        if e["index"] != i or e["previous"] != prev_hash:
             sys.exit(f"chain link broken at entry {i}")
+        prev_hash = hashlib.sha256(json.dumps(e, sort_keys=True).encode()).hexdigest()
     return chain
 
 
@@ -708,7 +730,7 @@ def cmd_chat(a):
     out = []
     for _ in range(a.tokens):
         x = torch.tensor([ids[-RECIPE["context"]:]], device=DEV)
-        logits = model(x)[0, -1].float()
+        logits = model(x, last_token_only=True)[0, -1].float()
         if a.temperature == 0:
             nxt = int(logits.argmax())
         else:

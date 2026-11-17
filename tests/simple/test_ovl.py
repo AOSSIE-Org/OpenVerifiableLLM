@@ -138,6 +138,37 @@ class LearningRateTests(unittest.TestCase):
         self.assertTrue(all(lr(k) >= lr(k + 997) for k in range(warm, n, 50021)))
         self.assertEqual(ovl.learning_rate({"phase": "conversation", "global_step": 5}), float(s["conversation"]))
 
+    def test_schedule_caching_and_invalidation(self):
+        orig = dict(ovl.RECIPE["schedule"])
+        try:
+            val1 = ovl.learning_rate({"phase": "wikipedia", "global_step": 100})
+            ovl.RECIPE["schedule"]["peak"] = "0.001"
+            val2 = ovl.learning_rate({"phase": "wikipedia", "global_step": 100})
+            self.assertNotEqual(val1, val2)
+        finally:
+            ovl.RECIPE["schedule"].clear()
+            ovl.RECIPE["schedule"].update(orig)
+
+
+class OptimizationTests(unittest.TestCase):
+    def test_digest_zero_copy_matches_legacy_bytes(self):
+        torch.manual_seed(42)
+        t = torch.randn(10, 10)
+        h_legacy = hashlib.sha256(t.detach().reshape(-1).contiguous().cpu().view(torch.uint8).numpy().tobytes()).hexdigest()
+        h_optimized = hashlib.sha256(memoryview(t.detach().reshape(-1).contiguous().cpu().view(torch.uint8).numpy())).hexdigest()
+        self.assertEqual(h_legacy, h_optimized)
+
+    def test_tinygpt_last_token_only_matches_full_forward(self):
+        torch.manual_seed(123)
+        model = TinyGPT(vocab_size=32, embed_dim=16, num_heads=2, num_layers=2, max_seq_len=16, dropout=0)
+        model.eval()
+        x = torch.randint(0, 32, (1, 8))
+        with torch.no_grad():
+            full = model(x)
+            last_only = model(x, last_token_only=True)
+        self.assertEqual(last_only.shape, (1, 1, 32))
+        torch.testing.assert_close(last_only[0, -1], full[0, -1])
+
 
 class CoverageTests(unittest.TestCase):
     def setUp(self):
