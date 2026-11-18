@@ -118,11 +118,14 @@ Method, results, cost and lessons: [docs/how-it-works.md](docs/how-it-works.md).
 |---|---|
 | [`simple/`](simple/README.md) | All the code: `ovl.py` (train, verify, fork, chat) and the scripts around it |
 | `tests/` | Tests for `simple/`. They run on a CPU |
-| [`docs/`](docs/how-it-works.md) | [How it works](docs/how-it-works.md), [verify](docs/verify.md), [roadmap](docs/roadmap.md), the [GSoC 2026 report](docs/gsoc-2026-report.md) |
+| [`docs/`](docs/README.md) | [How it works](docs/how-it-works.md), [verify](docs/verify.md), [roadmap](docs/roadmap.md), the [GSoC 2026 report](docs/gsoc-2026-report.md) |
 | [`audit/`](audit/README.md) | Outside reviews and our responses |
 | [`security-reviews/`](security-reviews/) | Security reviews and their fixes |
 | `requirements/preparation.lock` | The hash-locked CPU environment that CI installs |
 | [`brand/`](brand/Brand.md) | Logo, colours and typography |
+| [`.github/workflows/`](.github/workflows/) | GitHub Actions workflows: CI, CodeQL and Scorecard |
+| [`MAINTAINERS.md`](MAINTAINERS.md) | Project maintainers, mentors and vulnerability reporting |
+| [`BestPracticesChecklist.md`](BestPracticesChecklist.md) | OpenSSF best practices criteria and evidence |
 
 ## Join us
 
