@@ -52,7 +52,7 @@ try {
 
   template = template.replace(
     '<div id="root"></div>',
-    `<div id="root">${appHtml}</div>\n    ${embeddedScript}`,
+    () => `<div id="root">${appHtml}</div>\n    ${embeddedScript}`,
   );
 
   fs.writeFileSync(htmlPath, template, 'utf8');
