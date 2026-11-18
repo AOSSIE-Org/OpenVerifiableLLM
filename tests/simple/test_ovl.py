@@ -451,34 +451,37 @@ class ForkBoundaryTests(unittest.TestCase):
         self.assertFalse(Path(self.args(0).out).exists())
 
 
-class FileLockTests(unittest.TestCase):
-    def test_verify_locked_write_posix_and_windows_fallback(self):
+class TrainLockTests(unittest.TestCase):
+    def test_second_train_exits_when_folder_locked(self):
         with tempfile.TemporaryDirectory() as tmp:
-            run = Path(tmp)
-            chain = fake_chain([("initial", tiny_state(0)), ("final", tiny_state(1))])
-            write_chain(run, chain)
-            (run / "anchor.json").write_text(json.dumps({
-                "chain_entries": len(chain),
-                "chain_head_sha256": link(chain[-1])
-            }))
-            args = argparse.Namespace(run=str(run), anchor=None, no_anchor=False,
-                                      no_timestamps=True, data=None, weights=None,
-                                      all=False, segment=[], random=0)
+            out = Path(tmp) / "run"
+            out.mkdir()
+            lock_path = out / ".train.lock"
+            f = lock_path.open("a+")
             if ovl.fcntl:
-                with patch.object(ovl.fcntl, "flock", wraps=ovl.fcntl.flock) as mock_flock:
-                    ovl.cmd_verify(args)
-                    mock_flock.assert_called_with(ANY, ovl.fcntl.LOCK_EX)
-            else:
-                ovl.cmd_verify(args)
-            ver_file = run / "local-verifications.jsonl"
-            self.assertTrue(ver_file.exists())
-            self.assertEqual(len(ver_file.read_text().strip().splitlines()), 1)
+                ovl.fcntl.flock(f.fileno(), ovl.fcntl.LOCK_EX | ovl.fcntl.LOCK_NB)
+            try:
+                args = argparse.Namespace(data="fake_data", out=str(out))
+                if ovl.fcntl:
+                    with self.assertRaisesRegex(SystemExit, f"another train is using {out}"):
+                        ovl.cmd_train(args)
+                    self.assertFalse((out / "recipe.json").exists())
+                    self.assertFalse((out / "chain.jsonl").exists())
+            finally:
+                if ovl.fcntl:
+                    ovl.fcntl.flock(f.fileno(), ovl.fcntl.LOCK_UN)
+                f.close()
 
+    def test_train_lock_windows_fallback_creates_lock_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "run"
+            args = argparse.Namespace(data="fake_data", out=str(out))
             orig_fcntl = ovl.fcntl
             try:
                 ovl.fcntl = None
-                ovl.cmd_verify(args)
-                self.assertEqual(len(ver_file.read_text().strip().splitlines()), 2)
+                with self.assertRaises(Exception):
+                    ovl.cmd_train(args)
+                self.assertTrue((out / ".train.lock").exists())
             finally:
                 ovl.fcntl = orig_fcntl
 
