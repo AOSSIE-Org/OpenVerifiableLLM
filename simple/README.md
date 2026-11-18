@@ -34,6 +34,10 @@ Out-of-range indices are rejected before creating the fork output directory.
 control-document pool. Invalid counts fail before model loading; evaluation never
 silently reduces the requested sample size.
 
+`loo_eval.py --prompt` sets the completions of the base models and `--chat-prompt`
+the question asked to the conversation models. Both default to prompts about the
+removed 3I/ATLAS articles, so pass your own when a fork removes other pages.
+
 ## Files
 
 | File | What it does |
