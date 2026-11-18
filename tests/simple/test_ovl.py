@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
@@ -273,6 +274,60 @@ class WeightsMatchTests(unittest.TestCase):
         report = json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
         self.assertEqual(report["result"], "FAIL")
         self.assertIsNone(report["checks"][0]["chain_entry"])
+
+
+class TrainResumeTests(unittest.TestCase):
+    """Resuming `train` must use the recipe and prepared data that entry 0 recorded."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run = Path(self.tmp.name) / "run"
+        self.run.mkdir()
+        self.data = self.prepared("data", "{}")
+        chain = fake_chain([("initial", tiny_state(0)), ("progress", tiny_state(1))])
+        chain[0]["recipe"] = hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest()
+        chain[0]["data"] = {p: hashlib.sha256(b"{}").hexdigest() for p in ("wikipedia", "conversation")}
+        self.write(chain)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def prepared(self, name, stream):
+        for phase in ("wikipedia", "conversation"):
+            (Path(self.tmp.name) / name / phase).mkdir(parents=True)
+            (Path(self.tmp.name) / name / phase / "stream.json").write_text(stream)
+        return Path(self.tmp.name) / name
+
+    def write(self, chain):
+        for i in range(1, len(chain)):
+            chain[i]["previous"] = link(chain[i - 1])
+        write_chain(self.run, chain)
+
+    def resume(self, data):
+        a = argparse.Namespace(data=str(data), out=str(self.run))
+        with mock.patch.object(ovl, "load_checkpoint", side_effect=RuntimeError("checkpoint loaded")) as load:
+            try:
+                ovl.cmd_train(a)
+            finally:
+                self.loaded = load.called
+
+    def test_other_prepared_data_stops_before_loading_the_checkpoint(self):
+        with self.assertRaisesRegex(SystemExit, "prepared data differs"):
+            self.resume(self.prepared("other", '{"targets": 1}'))
+        self.assertFalse(self.loaded)
+
+    def test_other_recipe_stops_before_loading_the_checkpoint(self):
+        chain = [json.loads(line) for line in (self.run / "chain.jsonl").read_text().splitlines()]
+        chain[0]["recipe"] = "0" * 64
+        self.write(chain)
+        with self.assertRaisesRegex(SystemExit, "RECIPE differs"):
+            self.resume(self.data)
+        self.assertFalse(self.loaded)
+
+    def test_same_recipe_and_data_go_on_to_the_checkpoint(self):
+        with self.assertRaisesRegex(RuntimeError, "checkpoint loaded"):
+            self.resume(self.data)
+        self.assertTrue(self.loaded)
 
 
 class NextTargetAndExclusionTests(unittest.TestCase):
