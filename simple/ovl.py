@@ -414,6 +414,16 @@ def read_chain(run):
     return chain
 
 
+def check_recipe_and_data(chain, data):
+    """Stop unless this ovl.py's RECIPE and the prepared data are the ones entry 0 recorded."""
+    recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
+    if chain[0].get("recipe") not in (None, recipe):
+        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
+    if chain[0]["data"] != {p: hashlib.sha256((Path(data) / p / "stream.json").read_bytes()).hexdigest()
+                            for p in ("wikipedia", "conversation")}:
+        sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")
+
+
 def load_checkpoint(run, entry, model):
     """Load boundary checkpoint `entry` and prove it is the state the chain committed to."""
     ck = torch.load(Path(run) / f"ckpt-{entry['index']:05d}.pt", map_location=DEV, weights_only=True)
@@ -443,6 +453,7 @@ def cmd_train(a):
     if chain:
         if chain[-1]["kind"] == "final":
             sys.exit("run already complete")
+        check_recipe_and_data(chain, a.data)  # resuming on other data or another recipe would break the chain
         opt = load_checkpoint(out, chain[-1], model)
         start = chain[-1]["control"]
         print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
@@ -636,12 +647,8 @@ def cmd_verify(a):
     else:
         print("WARNING: --no-anchor: the chain is not compared with a timestamped anchor", flush=True)
     report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": checks}
-    recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
-    if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
-        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
-    if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
-                                       for p in ("wikipedia", "conversation")}:
-        sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")
+    if a.data:
+        check_recipe_and_data(chain, a.data)  # fail before any GPU time is spent
     env = chain[0].get("environment", {})
     if a.data and env and env != report["environment"]:
         print(f"WARNING: environment differs from training: {env} vs {report['environment']}", flush=True)
