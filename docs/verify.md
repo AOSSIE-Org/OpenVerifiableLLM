@@ -18,14 +18,18 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
-without the `ckpt-*.pt` files, then from that folder:
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). On Windows, Git for Windows
+provides `sha256sum.exe` and `openssl.exe` in `C:\Program Files\Git\usr\bin` (add that directory to
+`PATH`, or run the steps in Git Bash; PowerShell users without `sha256sum` can check hashes with
+`Get-FileHash`). Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
 pip install huggingface_hub torch numpy
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# PowerShell: $env:OVL_DEVICE="cpu"; python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# CMD:        set OVL_DEVICE=cpu && python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
