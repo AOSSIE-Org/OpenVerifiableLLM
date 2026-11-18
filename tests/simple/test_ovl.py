@@ -212,7 +212,10 @@ class CoverageTests(unittest.TestCase):
 
     def test_vectorized_coverage_advances_cursor_over_large_span(self):
         span = list(range(1000, 2048))
-        _, cursor, _ = ovl.step(self.model, self.opt, self.batch(span), self.ctl(1000))
+        ids = torch.tensor(span, dtype=torch.int64).view(-1, 4)
+        b = {"inputs": torch.ones_like(ids), "targets": torch.ones_like(ids),
+             "mask": ids >= 0, "target_ids": ids}
+        _, cursor, _ = ovl.step(self.model, self.opt, b, self.ctl(1000))
         self.assertEqual(cursor, 2048)
 
 
