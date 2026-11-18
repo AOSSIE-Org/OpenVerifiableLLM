@@ -13,7 +13,8 @@ PREP_ID=8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68
 RUN_PATH=${RUN_PATH:-release/simple-run}   # where the run is published in $REPO
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
-pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
+# Hash-pinned on top of the image (which has torch and numpy): see requirements/pod.in.
+pip install --break-system-packages -q --require-hashes -r requirements/pod.lock
 fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done) "$RUN_PATH/chain.jsonl" "$RUN_PATH/recipe.json" "$RUN_PATH/anchor.json" \
   "$RUN_PATH/anchor.digicert.tsr" "$RUN_PATH/anchor.freetsa.tsr"
 check_prep "$WORK/hf/prepared/$PREP_ID"

@@ -21,7 +21,5 @@ To reach a maintainer, use the [AOSSIE Discord](https://discord.gg/hjUhu33uAn) o
 
 ## Reporting a vulnerability
 
-Don't open a public issue for a security problem. Report it privately to the maintainer, by email to
-[rajat.roy@aossie.org](mailto:rajat.roy@aossie.org) or by Discord DM to `reoarei`. Include the affected file or
-command, how to reproduce it, and its impact. You'll get a reply within 14 days. AOSSIE's
-[security policy](https://github.com/AOSSIE-Org/.github/blob/master/SECURITY.md) also applies.
+Don't open a public issue for a security problem. See [SECURITY.md](SECURITY.md) for how to report
+it privately and what to expect.

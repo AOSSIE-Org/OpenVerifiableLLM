@@ -364,9 +364,9 @@ email-validator==2.3.0 \
     --hash=sha256:80f13f623413e6b197ae73bb10bf4eb0908faf509ad8362c5edeb0be7fd450b4 \
     --hash=sha256:9fc05c37f2f6cf439ff414f8fc46d917929974a82244c20eb10231ba60c54426
     # via pydantic
-filelock==3.32.3 \
-    --hash=sha256:0ffa185a3540854c95caa7fa76b76cb219d907415e2c5dc9af25fd970563487f \
-    --hash=sha256:7f0ca4bcc0e181c60dbbd8aa9ab5b120ebb99e4e064e83636340056f833a1f09
+filelock==4.2.11 \
+    --hash=sha256:020e229e4bb9d410fc799c07ddf45fa217cba970278f40b30751d94f309b69e2 \
+    --hash=sha256:0cb84119fb8dce17898e1f69c974d5019daa59c4d7656be390a5fa59ccced912
     # via
     #   -r requirements/preparation.in
     #   huggingface-hub
@@ -868,8 +868,9 @@ securesystemslib==1.5.1 \
     --hash=sha256:4b8d00abd93707ead10b69eb2b8582376a1364de3b0a71077de534c2ef4985e0 \
     --hash=sha256:ada8bdf817da29ece4ba91654f6a162ce7cfbadbc3ae3f840f7313f9d22675de
     # via tuf
-setuptools==78.1.0 \
-    --hash=sha256:3e386e96793c8702ae83d17b853fb93d3e09ef82ec62722e61da5cd22376dcd8
+setuptools==84.2.1 \
+    --hash=sha256:3ff8b3b5492a0aa66960f4419365a86b84e013070d4313e4d4a6894f5d64d6bc \
+    --hash=sha256:ca140b45d5325a9478f880e351484f62fef15f336462e449ca0c03c873d589c2
     # via
     #   -r requirements/preparation.in
     #   torch

@@ -15,7 +15,8 @@ REMOTE_RUN=${REMOTE_RUN:-/workspace/run}
 export CUBLAS_WORKSPACE_CONFIG=:4096:8 TOKENIZERS_PARALLELISM=false
 source simple/fetch.sh
 command -v rsync >/dev/null || { apt-get update -qq && apt-get install -y -qq rsync; } >/dev/null
-pip install --break-system-packages -q numpy rfc8785==0.1.4 tokenizers==0.23.2 mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0"
+# Hash-pinned on top of the image (which has torch and numpy): see requirements/pod.in.
+pip install --break-system-packages -q --require-hashes -r requirements/pod.lock
 fetch $(for f in $PREP_FILES; do echo "prepared/$PREP_ID/$f"; done)
 check_prep "$PREP"
 nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | tee "$WORK/follower-gpu.txt"

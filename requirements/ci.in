@@ -1,0 +1,7 @@
+# Test and lint tools that CI installs on top of preparation.lock.
+# Kept separate so updating them never touches the preparation lock.
+pytest==9.2.0
+pytest-cov==7.1.0
+ruff==0.17.5
+gguf==0.19.0
+safetensors==0.8.0
