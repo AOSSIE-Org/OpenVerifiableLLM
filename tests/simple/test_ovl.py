@@ -450,5 +450,50 @@ class ForkBoundaryTests(unittest.TestCase):
         self.assertFalse(Path(self.args(0).out).exists())
 
 
+    def test_fork_preserves_inherited_receipts_and_stamps_new_entry(self):
+        source_timestamps = self.run / "timestamps"
+        source_timestamps.mkdir()
+        expected = {}
+
+        for i in range(2):
+            for name in ovl.stamp.TSA:
+                filename = f"entry-{i:05d}.{name}.tsr"
+                payload = f"original-{i}-{name}".encode()
+                (source_timestamps / filename).write_bytes(payload)
+                expected[filename] = payload
+
+        def fake_stamp_entry(run, entry):
+            self.assertEqual(entry["index"], 2)
+            target_dir = Path(run) / "timestamps"
+            target_dir.mkdir(exist_ok=True)
+            for name in ovl.stamp.TSA:
+                filename = f"entry-00002.{name}.tsr"
+                (target_dir / filename).write_bytes(f"new-{name}".encode())
+
+        with mock.patch.object(ovl, "TIMESTAMP", True), \
+             mock.patch.object(ovl.stamp, "stamp_entry",
+                               side_effect=fake_stamp_entry) as stamp_entry:
+            ovl.cmd_fork(self.args(1))
+
+        stamp_entry.assert_called_once()
+        output_timestamps = self.root / "fork-1" / "timestamps"
+
+        for filename, payload in expected.items():
+            self.assertEqual((output_timestamps / filename).read_bytes(), payload)
+
+        for name in ovl.stamp.TSA:
+            self.assertTrue((output_timestamps / f"entry-00002.{name}.tsr").is_file())
+
+    def test_fork_does_not_copy_missing_source_timestamps(self):
+        args = self.args(1)
+
+        with mock.patch.object(ovl, "TIMESTAMP", True), \
+             mock.patch.object(ovl.stamp, "stamp_entry") as stamp_entry:
+            ovl.cmd_fork(args)
+
+        stamp_entry.assert_called_once()
+        self.assertEqual(stamp_entry.call_args.args[1]["index"], 2)
+        self.assertFalse((Path(args.out) / "timestamps").exists())
+
 if __name__ == "__main__":
     unittest.main()
