@@ -50,8 +50,7 @@ export const Header: React.FC<{ evidenceHref: string }> = ({ evidenceHref }) => 
     <header>
       <div className="bar">
         <a className="brand" href="#top">
-          <img className="logo-l" src="brand/logo-light.svg" width="30" height="30" alt="" />
-          <img className="logo-d" src="brand/logo-dark.svg" width="30" height="30" alt="" />
+          <img className="logo" src="brand/logo.svg" width="30" height="30" alt="" />
           <span>
             <span className="brand-name">
               {copy.header.title}
