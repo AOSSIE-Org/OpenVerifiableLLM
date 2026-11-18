@@ -27,11 +27,18 @@ data directory, `prepared/8de1d600…` in the
 [release dataset](https://huggingface.co/datasets/AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence).
 On a CPU, set `OVL_DEVICE=cpu`.
 
+`fork --at K` requires an existing, nonnegative boundary index in the source chain.
+Out-of-range indices are rejected before creating the fork output directory.
+
+`loo_eval.py --controls N` requires a positive count no larger than the eligible
+control-document pool. Invalid counts fail before model loading; evaluation never
+silently reduces the requested sample size.
+
 ## Files
 
 | File | What it does |
 |---|---|
-| [`ovl.py`](ovl.py) | The loop. Commands: `train`, `verify` (`--weights`, `--segment`, `--random`, `--all`, `--data`; it needs the run's `anchor.json` and its two timestamps, or `--anchor FILE`; `--no-anchor` and `--no-timestamps` are only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
+| [`ovl.py`](ovl.py) | The loop. Commands: `train` (re-running it with the same `--out` resumes, after checking that the recipe and the prepared data are the ones entry 0 recorded), `verify` (`--weights`, `--segment`, `--random`, `--all`, `--data`; it needs the run's `anchor.json` and its two timestamps, or `--anchor FILE`; `--no-anchor` and `--no-timestamps` are only for a run that hasn't been anchored yet), `fork`, `chat`, `bench` |
 | [`model.py`](model.py), [`data.py`](data.py) | The GPT model, and the token ids, batch layout and seeding shared with the data preparation (copied unchanged from commit `3f882ad`) |
 | [`stamp.py`](stamp.py) | RFC 3161 timestamps (FreeTSA and DigiCert) for each chain entry while training runs; `--check` verifies them. `OVL_TIMESTAMP=0` turns stamping off |
 | [`verify_segment.sh`](verify_segment.sh) | Downloads the release's data, record and the needed checkpoints, then checks `K` random segments (or `SEGMENTS="7 8"`) |

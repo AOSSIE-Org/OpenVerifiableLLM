@@ -29,9 +29,14 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
     source = Path(a.run) / f"{a.model}-model.pt"
+    if not source.is_file():
+        sys.exit(f"source checkpoint {source} not found")
     if source.resolve() == Path(a.out).resolve():
         p.error("--out must not overwrite the source checkpoint")
-    sd = torch.load(source, map_location="cpu", weights_only=True)
+    try:
+        sd = torch.load(source, map_location="cpu", weights_only=True)
+    except Exception as exc:
+        sys.exit(f"source checkpoint {source} is invalid: {exc}")
     digest = ovl.model_digest(sd)
     save_file({k: v.detach().clone().contiguous() for k, v in sd.items()}, a.out,
               metadata={"ovl": json.dumps({"source": source.name, "model_digest": digest,

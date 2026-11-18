@@ -2,7 +2,7 @@
 
 Tests that:
 1. An invocation of `simple/ovl.py verify` with no check options (zero checks performed)
-   does not report PASS, exits nonzero, and records result: FAIL in verifications.jsonl.
+   does not report PASS, exits nonzero, and records result: FAIL in local-verifications.jsonl.
 2. Invoking with `--all` or `--segment` without `--data` does not report PASS and exits nonzero.
 3. Legitimate verification paths (e.g. valid matching weights) still pass and exit 0.
 4. Mismatched weights fail and exit nonzero.
@@ -40,6 +40,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             cmd.extend(extra_args)
         env = dict(os.environ)
         env["PYTHONPATH"] = f"{ROOT / 'simple'}"
+        env.setdefault("OVL_DEVICE", "cpu")
         res = subprocess.run(cmd, capture_output=True, text=True, env=env)
         return res.returncode, res.stdout, res.stderr
 
@@ -58,10 +59,10 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self.assertNotEqual(code, 0, "Zero-check invocation must exit with a nonzero code")
 
             # 3. Records a failure accurately in verification report
-            verif_file = d / "verifications.jsonl"
-            self.assertTrue(verif_file.exists(), "verifications.jsonl must exist")
+            verif_file = d / "local-verifications.jsonl"
+            self.assertTrue(verif_file.exists(), "local-verifications.jsonl must exist")
             lines = verif_file.read_text().splitlines()
-            self.assertTrue(len(lines) > 0, "verifications.jsonl must contain records")
+            self.assertTrue(len(lines) > 0, "local-verifications.jsonl must contain records")
             last_record = json.loads(lines[-1])
             self.assertEqual(last_record.get("result"), "FAIL", "Verification record result must be FAIL")
             self.assertEqual(len(last_record.get("checks", [])), 0, "Checks array must be empty")
@@ -77,7 +78,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self.assertIn("verify FAIL", out, "--all without --data must report FAIL")
             self.assertNotEqual(code, 0, "--all without --data must exit nonzero")
 
-            verif_file = d / "verifications.jsonl"
+            verif_file = d / "local-verifications.jsonl"
             last_record = json.loads(verif_file.read_text().splitlines()[-1])
             self.assertEqual(last_record.get("result"), "FAIL")
 
@@ -117,7 +118,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self.assertEqual(code, 0, f"Matching weights should pass. out: {out}, err: {err}")
             self.assertIn("verify PASS: 1 checks", out)
 
-            verif_file = d / "verifications.jsonl"
+            verif_file = d / "local-verifications.jsonl"
             last_record = json.loads(verif_file.read_text().splitlines()[-1])
             self.assertEqual(last_record.get("result"), "PASS")
             self.assertEqual(len(last_record.get("checks")), 1)
@@ -138,7 +139,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self.assertNotEqual(code, 0, "Mismatched weights must exit nonzero")
             self.assertIn("verify FAIL", out)
 
-            verif_file = d / "verifications.jsonl"
+            verif_file = d / "local-verifications.jsonl"
             last_record = json.loads(verif_file.read_text().splitlines()[-1])
             self.assertEqual(last_record.get("result"), "FAIL")
             self.assertEqual(len(last_record.get("checks")), 1)

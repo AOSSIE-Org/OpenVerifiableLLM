@@ -54,8 +54,8 @@ The exclusion fork (`release/unlearning-3i-atlas/`) has its own anchor, timestam
 14:28:00 UTC. That is later than the main run's, because the fork was anchored after the release. The
 same command in that folder gives `chain head MATCH (39 entries)` and `MATCH chain entry 38`.
 
-`verify` appends its result to `verifications.jsonl` in the run folder, so it changes that file in
-your download. With the prepared data (`--data PREP`), `verify` also checks that its own recipe is the one
+`verify` appends its local result to `local-verifications.jsonl` in the run folder, so the published
+`verifications.jsonl` (one MATCH/MISMATCH line per segment) is left unchanged. With the prepared data (`--data PREP`), `verify` also checks that its own recipe is the one
 the chain was trained with, then regenerates the seeded starting weights and compares them with
 entry 0. That works on any device, including a CPU. The
 prepared-data check compares each phase's `stream.json` hash with entry 0. It does not hash the
@@ -97,8 +97,8 @@ SEGMENTS="7 8" bash simple/verify_segment.sh   # chosen segments
 ```
 
 The script downloads the prepared data (hash-checked), the record and only the checkpoints it
-needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and appends the result to
-`verifications.jsonl`.
+needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and appends the local
+result to `local-verifications.jsonl` (the published `verifications.jsonl` stays untouched).
 
 ## Check the timestamps by hand
 

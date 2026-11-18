@@ -4,7 +4,7 @@ For every ckpt-XXXXX.pt in RUN: exact sha256, zip member names, restricted load
 (weights_only=True), exact structure (control/model/opt), every string in the decoded
 object against an allowlist of field names, and the binding to chain.jsonl (control and
 state digest equal the committed entry). Prints one JSON line per file; exit 1 on any
-finding.
+finding, or when there was nothing to review.
     OVL_DEVICE=cpu python simple/review_ckpt.py RUN
 """
 import hashlib
@@ -148,19 +148,25 @@ def main():
     allowed_fields.update(set(CONTROL) | ADAM_STATE | ADAM_GROUP | {"control", "model", "opt", "state", "param_groups",
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
+    reviewed = 0
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
         if not path.exists():
             continue
         r = review(path, entry, model_keys)
+        reviewed += 1
         failed |= r["result"] != "PASS"
         print(json.dumps(r, sort_keys=True), flush=True)
     for name, kind in (("base-model.pt", "base"), ("conversation-model.pt", "final")):
         entry = next((e for e in chain if e["kind"] == kind), None)
         if entry and (run / name).exists():
             r = review_model(run / name, entry, model_keys)
+            reviewed += 1
             failed |= r["result"] != "PASS"
             print(json.dumps(r, sort_keys=True), flush=True)
+    if not reviewed:
+        sys.exit(f"nothing to review in {run}: no ckpt-*.pt, base-model.pt or conversation-model.pt "
+                 "matches an entry in chain.jsonl")
     sys.exit(1 if failed else 0)
 
 
