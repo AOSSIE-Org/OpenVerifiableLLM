@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import sys
 
 import gguf
 import numpy as np
@@ -51,13 +52,37 @@ def main():
     a = p.parse_args()
 
     run = Path(a.run)
-    cfg = json.loads((run / "recipe.json").read_text(encoding="utf-8"))["model"]
+    recipe_path = run / "recipe.json"
+    if not recipe_path.is_file():
+        sys.exit(f"recipe {recipe_path} not found")
+    try:
+        cfg = json.loads(recipe_path.read_text(encoding="utf-8"))["model"]
+    except Exception as exc:
+        sys.exit(f"recipe {recipe_path} is invalid: {exc}")
+
     weights = run / f"{a.model}-model.pt"
-    sd = torch.load(weights, map_location="cpu", weights_only=True)
-    tok = json.loads(Path(a.tokenizer).read_text(encoding="utf-8"))["model"]
+    if not weights.is_file():
+        sys.exit(f"source checkpoint {weights} not found")
+    if weights.resolve() == Path(a.out).resolve():
+        p.error("--out must not overwrite the source checkpoint")
+    try:
+        sd = torch.load(weights, map_location="cpu", weights_only=True)
+    except Exception as exc:
+        sys.exit(f"source checkpoint {weights} is invalid: {exc}")
+
+    tok_path = Path(a.tokenizer)
+    if not tok_path.is_file():
+        sys.exit(f"tokenizer {tok_path} not found")
+    try:
+        tok = json.loads(tok_path.read_text(encoding="utf-8"))["model"]
+    except Exception as exc:
+        sys.exit(f"tokenizer {tok_path} is invalid: {exc}")
+
     vocab = sorted(tok["vocab"].items(), key=lambda kv: kv[1])
-    assert [i for _, i in vocab] == list(range(len(vocab))), "tokenizer ids must be contiguous"
-    assert len(CONTROLS) + len(vocab) == cfg["vocab_size"], "vocabulary size differs from the recipe"
+    if [i for _, i in vocab] != list(range(len(vocab))):
+        sys.exit("tokenizer ids must be contiguous")
+    if len(CONTROLS) + len(vocab) != cfg["vocab_size"]:
+        sys.exit("vocabulary size differs from the recipe")
     merges = [m if isinstance(m, str) else " ".join(m) for m in tok["merges"]]
 
     w = gguf.GGUFWriter(a.out, "gpt2")
