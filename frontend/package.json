@@ -31,7 +31,7 @@
     "jsdom": "^26.1.0",
     "typescript": "~5.9.2",
     "vite": "^7.1.5",
-    "vitest": "^3.2.4"
+    "vitest": "^5.1.1"
   },
   "overrides": {
     "tinypool": "^2.1.2"
