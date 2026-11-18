@@ -50,11 +50,10 @@ def review(path, entry, model_keys):
     sha = hashlib.sha256(data).hexdigest()
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
-        bad_members = [n for n in names if not MEMBER.match(n)]
-        if bad_members:
-            problems.append(f"unexpected zip members {bad_members[:5]}")
-        prefixes = {n.split("/", 1)[0] for n in names}
-        pkl = z.read(next(n for n in names if n.endswith("/data.pkl")))
+    bad_members = [n for n in names if not MEMBER.match(n)]
+    if bad_members:
+        problems.append(f"unexpected zip members {bad_members[:5]}")
+    prefixes = {n.split("/", 1)[0] for n in names}
     ck = torch.load(path, map_location="cpu", weights_only=True)
     if set(ck) != {"control", "model", "opt"}:
         problems.append(f"top-level keys {sorted(ck)}")
@@ -85,6 +84,8 @@ def review(path, entry, model_keys):
     allowed = allowed_fields | set(model_keys)
     # Raw pickle: only the three tensor-rebuild globals, and no text beyond field, parameter and
     # module names, device labels, digits and hex digests (torch keeps module names in _metadata).
+    with zipfile.ZipFile(path) as z:
+        pkl = z.read(next(n for n in names if n.endswith("/data.pkl")))
     raw_ok = set(model_keys) | MODULES | {"_metadata", "version", "storage", "cpu", "cuda:0"}
     for op, arg, _ in pickletools.genops(pkl):
         if op.name == "GLOBAL" and arg not in GLOBALS:
@@ -141,13 +142,7 @@ def review_model(path, entry, model_keys):
 
 def main():
     run = Path(sys.argv[1])
-    candidates = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp"))
-    chain = None
-    chain_err = None
-    try:
-        chain = ovl.read_chain(run)
-    except SystemExit as err:
-        chain_err = err
+    chain = ovl.read_chain(run)
     probe = ovl.TinyGPT(**ovl.RECIPE["model"])
     model_keys = list(probe.state_dict())
     MODULES.update(name for name, _ in probe.named_modules())
@@ -155,15 +150,13 @@ def main():
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
     reviewed = 0
-    if chain is not None:
-        covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
-        if any(e["kind"] == "base" for e in chain):
-            covered_names.add("base-model.pt")
-        if any(e["kind"] == "final" for e in chain):
-            covered_names.add("conversation-model.pt")
-    else:
-        covered_names = set()
-    uncovered = [f for f in candidates if f.name not in covered_names]
+    covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
+    if any(e["kind"] == "base" for e in chain):
+        covered_names.add("base-model.pt")
+    if any(e["kind"] == "final" for e in chain):
+        covered_names.add("conversation-model.pt")
+    uncovered = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp")
+                       and f.name not in covered_names)
     for path in uncovered:
         data = path.read_bytes()
         r = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
@@ -171,10 +164,6 @@ def main():
         reviewed += 1
         failed = True
         print(json.dumps(r, sort_keys=True), flush=True)
-    if chain_err is not None:
-        if not reviewed:
-            raise chain_err
-        sys.exit(1)
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
         if not path.exists():
