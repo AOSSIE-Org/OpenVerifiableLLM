@@ -690,6 +690,8 @@ def cmd_bench(a):
             t0 = time.time()
         if t0 and time.time() - t0 >= a.seconds:
             break
+    if n < 51:
+        sys.exit(f"stream ended after {n} updates; need at least 51 to time after 50 warm-up steps")
     if DEV == "cuda": torch.cuda.synchronize()
     ms = 1000 * (time.time() - t0) / (n - 50)
     total = RECIPE["schedule"]["wikipedia_updates"]
