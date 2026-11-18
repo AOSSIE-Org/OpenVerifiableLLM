@@ -35,7 +35,8 @@ npm run dev             # development server at http://localhost:5173
 npm run typecheck       # TypeScript
 npm test                # unit, validator and copy tests
 npm run validate        # validate the committed snapshot only
-npm run build           # validate the snapshot, then build to dist/
+npm run build           # validate the snapshot, build bundle, and prerender to static HTML
+npm run prerender       # prerender static HTML into dist/index.html
 npm run preview         # serve the production build
 npm run fetch-evidence  # rebuild the snapshot from the pinned sources (downloads the release assets)
 ```

@@ -14,8 +14,14 @@ import { Downloads } from './components/Downloads';
 import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
 
-export const App: React.FC = () => {
-  const [loaded, setLoaded] = useState<{ evidence: EvidenceData; facts: Facts } | null>(null);
+export interface AppProps {
+  initialData?: { evidence: EvidenceData; facts: Facts };
+}
+
+export const App: React.FC<AppProps> = ({ initialData }) => {
+  const [loaded, setLoaded] = useState<{ evidence: EvidenceData; facts: Facts } | null>(
+    () => initialData ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

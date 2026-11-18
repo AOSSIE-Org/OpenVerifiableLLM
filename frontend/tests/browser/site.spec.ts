@@ -43,6 +43,31 @@ test.describe('OpenVerifiableLLM Site', () => {
     await expect(page.getByText('541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de')).toBeVisible();
   });
 
+  test('with JavaScript disabled, the prerendered page renders all sections and content', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto('/');
+
+    // Verify key headings and intro are visible without JS
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('OpenVerifiableLLM');
+    await expect(page.getByText(/is a language model whose training anyone can recompute/)).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Key facts' }).first()).toBeVisible();
+
+    // Verify all primary sections are present in static HTML
+    await expect(page.locator('#how')).toBeVisible();
+    await expect(page.locator('#overview')).toBeVisible();
+    await expect(page.locator('#timeline')).toBeVisible();
+    await expect(page.locator('#check')).toBeVisible();
+    await expect(page.locator('#downloads')).toBeVisible();
+    await expect(page.locator('#faq')).toBeVisible();
+
+    // Verify evidence numbers are rendered
+    await expect(page.getByText('7,232,582', { exact: true })).toBeVisible();
+    await expect(page.getByText('Project: 37 / 37 matched')).toBeVisible();
+
+    await context.close();
+  });
+
   test('copy button provides visual feedback and clipboard content', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/');
