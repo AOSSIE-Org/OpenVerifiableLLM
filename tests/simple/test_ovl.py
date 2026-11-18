@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -448,6 +449,33 @@ class ForkBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
             ovl.cmd_fork(self.args(0))
         self.assertFalse(Path(self.args(0).out).exists())
+
+
+class BenchTests(unittest.TestCase):
+    def test_stream_exhausted_before_51_updates_exits(self):
+        for count in (0, 10, 50):
+            with self.subTest(count=count):
+                batches = [(torch.zeros(1), None) for _ in range(count)]
+                with mock.patch.object(ovl, "fresh", return_value=(mock.MagicMock(), mock.MagicMock())), \
+                     mock.patch.object(ovl, "step", return_value=(torch.tensor(1.0), [0, 0], None)), \
+                     mock.patch.object(ovl, "prefetch", return_value=iter(batches)):
+                    a = argparse.Namespace(data="unused", seconds=60)
+                    msg = rf"^stream ended after {count} updates; need at least 51 to time after 50 warm-up steps$"
+                    with self.assertRaisesRegex(SystemExit, msg):
+                        ovl.cmd_bench(a)
+
+    def test_stream_with_at_least_51_updates_succeeds(self):
+        batches = [(torch.zeros(1), None) for _ in range(52)]
+        with mock.patch.object(ovl, "fresh", return_value=(mock.MagicMock(), mock.MagicMock())), \
+             mock.patch.object(ovl, "step", return_value=(torch.tensor(1.23), [0, 0], None)), \
+             mock.patch.object(ovl, "prefetch", return_value=iter(batches)), \
+             mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+            a = argparse.Namespace(data="unused", seconds=60)
+            ovl.cmd_bench(a)
+            report = json.loads(out.getvalue())
+            self.assertEqual(report["updates_timed"], 2)
+            self.assertAlmostEqual(report["loss"], 1.23, places=2)
+            self.assertIn("ms_per_update", report)
 
 
 if __name__ == "__main__":
