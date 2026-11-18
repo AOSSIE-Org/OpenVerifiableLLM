@@ -1,0 +1,48 @@
+name: Sign release assets
+# Signs every file attached to a release, plus the release's source archive, with Sigstore
+# (keyless: the signing identity is this workflow in this repository), and attaches one
+# <file>.sigstore.json bundle per file. Releases published before this workflow existed are
+# signed by running it by hand with their tag.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sign (for a release published before this workflow)"
+        required: true
+
+permissions: {}
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # attach the signature bundles to the release
+      id-token: write   # Sigstore keyless signing with this workflow's GitHub identity
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Download the release's files
+        run: |
+          mkdir assets
+          if [ "$(gh release view "$TAG" --json assets --jq '.assets | length')" -gt 0 ]; then
+            gh release download "$TAG" --dir assets --clobber
+          fi
+          rm -f assets/*.sigstore.json   # signed again below
+          # The source archive becomes a release file too, so the signed bytes are fixed.
+          gh release download "$TAG" --archive tar.gz --output "assets/OpenVerifiableLLM-$TAG.tar.gz" --clobber
+          ls -l assets
+
+      - uses: sigstore/gh-action-sigstore-python@790bc6befb9d733738f18d8f895854b453640ec9 # v3.5.0
+        with:
+          inputs: ./assets/*
+          verify: true
+          verify-cert-identity: https://github.com/${{ github.repository }}/.github/workflows/sign-release.yml@${{ github.ref }}
+          verify-oidc-issuer: https://token.actions.githubusercontent.com
+          release-signing-artifacts: false   # attached below, for both triggers
+
+      - name: Attach the archive and the signatures to the release
+        run: gh release upload "$TAG" assets/OpenVerifiableLLM-"$TAG".tar.gz assets/*.sigstore.json --clobber
