@@ -3,8 +3,9 @@
 For every ckpt-XXXXX.pt in RUN: exact sha256, zip member names, restricted load
 (weights_only=True), exact structure (control/model/opt), every string in the decoded
 object against an allowlist of field names, and the binding to chain.jsonl (control and
-state digest equal the committed entry). Prints one JSON line per file; exit 1 on any
-finding, or when there was nothing to review.
+state digest equal the committed entry). Fails closed on any .pt or ckpt.tmp file that no
+chain entry covers. Prints one JSON line per file; exit 1 on any finding, or when there
+was nothing to review.
     OVL_DEVICE=cpu python simple/review_ckpt.py RUN
 """
 import hashlib
@@ -149,6 +150,20 @@ def main():
                                                                    "wikipedia", "conversation", "exclude"})
     failed = False
     reviewed = 0
+    covered_names = {f"ckpt-{e['index']:05d}.pt" for e in chain}
+    if any(e["kind"] == "base" for e in chain):
+        covered_names.add("base-model.pt")
+    if any(e["kind"] == "final" for e in chain):
+        covered_names.add("conversation-model.pt")
+    uncovered = sorted(f for f in run.iterdir() if f.is_file() and (f.suffix == ".pt" or f.name == "ckpt.tmp")
+                       and f.name not in covered_names)
+    for path in uncovered:
+        data = path.read_bytes()
+        r = {"file": path.name, "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data),
+             "result": "FAIL", "problems": ["file not covered by any chain entry"]}
+        reviewed += 1
+        failed = True
+        print(json.dumps(r, sort_keys=True), flush=True)
     for entry in chain:
         path = run / f"ckpt-{entry['index']:05d}.pt"
         if not path.exists():
