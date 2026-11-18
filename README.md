@@ -67,16 +67,19 @@ ollama run ryoari/openverifiablellm "Tell me about the Moon."
 
 **2. Consistency check, no GPU (10 minutes).** Needs Python 3.12 or newer, `git`, `openssl`,
 `sha256sum` and network access. On macOS, `sha256sum` comes with `brew install coreutils` (as
-`gsha256sum`).
+`gsha256sum`). On Windows, Git for Windows provides `sha256sum.exe` and `openssl.exe` in
+`C:\Program Files\Git\usr\bin` (add that directory to `PATH`, or run the steps in Git Bash;
+PowerShell users without `sha256sum` can check hashes with `Get-FileHash`).
 
 ```bash
 pip install huggingface_hub torch numpy
-hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
-  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# PowerShell: $env:OVL_DEVICE="cpu"; python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
+# CMD:        set OVL_DEVICE=cpu && python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
