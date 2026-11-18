@@ -115,6 +115,25 @@ openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -
 Each prints `Verification: OK`. Runs trained with the current `simple/ovl.py` also stamp every chain
 entry as it is written. Check those with `python simple/stamp.py RUN --check`.
 
+## Check a release file's signature
+
+Each file attached to a [GitHub release](https://github.com/AOSSIE-Org/OpenVerifiableLLM/releases),
+and the release's source archive, has a `<file>.sigstore.json` bundle next to it. The
+[`sign-release.yml`](../.github/workflows/sign-release.yml) workflow signs them with
+[Sigstore](https://www.sigstore.dev/), so the signature proves which workflow in this repository
+made the file, and the signing is logged in a public transparency log. To check a file:
+
+```bash
+pip install sigstore
+sigstore verify github --repository AOSSIE-Org/OpenVerifiableLLM \
+  --cert-identity "https://github.com/AOSSIE-Org/OpenVerifiableLLM/.github/workflows/sign-release.yml@refs/tags/v1.1.0" \
+  --bundle ovl-23m-chat.gguf.sigstore.json ovl-23m-chat.gguf
+```
+
+Releases from v1.1.0 back were signed after they were published, by running the workflow by hand
+from `main`; for those, the identity ends in `@refs/heads/main` instead of the tag. This checks
+who published a file. The checks above are what show that the model matches its record.
+
 ## What a check proves, and what it relies on
 
 A MATCH means: the published checkpoint k, trained under the published recipe on the published
