@@ -679,6 +679,7 @@ def cmd_verify(a):
         sys.exit(1)
 
 
+
 def cmd_bench(a):
     model, opt = fresh()
     ctl, n, t0 = initial_control(), 0, None
@@ -690,6 +691,10 @@ def cmd_bench(a):
             t0 = time.time()
         if t0 and time.time() - t0 >= a.seconds:
             break
+
+    if n <= 50:
+        sys.exit("benchmark requires at least 51 updates (50 warm-up + 1 timed update)")
+
     if DEV == "cuda": torch.cuda.synchronize()
     ms = 1000 * (time.time() - t0) / (n - 50)
     total = RECIPE["schedule"]["wikipedia_updates"]
@@ -697,6 +702,7 @@ def cmd_bench(a):
                       **environment(), "projected_train_hours": round(total * ms / 3.6e6, 2),
                       "segments": math.ceil(total / RECIPE["boundary_every"]),
                       "minutes_per_segment": round(RECIPE["boundary_every"] * ms / 6e4, 1)}))
+
 
 
 @torch.no_grad()
