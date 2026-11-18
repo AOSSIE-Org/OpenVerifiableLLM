@@ -28,7 +28,7 @@ other versions.
 git clone https://github.com/<your-username>/OpenVerifiableLLM
 cd OpenVerifiableLLM
 pip install --require-hashes -r requirements/preparation.lock   # the same CPU environment as CI
-pip install pytest gguf safetensors ruff
+pip install --require-hashes -r requirements/ci.lock         # pytest, ruff and the export tools
 OVL_DEVICE=cpu OVL_TIMESTAMP=0 python -m pytest -q tests        # runs on a CPU, about 15 s
 ruff check simple tests
 ```
@@ -65,7 +65,7 @@ A good bug report has the exact command, your OS, Python and PyTorch versions (a
 reproducibility problems, the GPU and CUDA version), what you expected and what happened.
 
 Report a security problem privately, not in a public issue. For example, a way to make `verify`
-report a false PASS. See [MAINTAINERS.md](MAINTAINERS.md#reporting-a-vulnerability).
+report a false PASS. See [SECURITY.md](SECURITY.md).
 
 ## Discussion
 

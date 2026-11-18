@@ -117,10 +117,10 @@
 ### Vulnerability Reporting
 
 - [x] 🔴 **vulnerability_report_process** — A vulnerability reporting process is documented (e.g., `SECURITY.md`).
-  - *Evidence URL:* https://github.com/AOSSIE-Org/.github/blob/master/SECURITY.md (AOSSIE's org-wide policy, linked from the README and MAINTAINERS.md)
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/SECURITY.md (the project's policy; AOSSIE's org-wide policy also applies)
 
 - [x] 🟡 **vulnerability_report_private** — If private vulnerability reporting is supported, the method for private submission is documented.
-  - *Evidence URL:* https://github.com/AOSSIE-Org/.github/blob/master/SECURITY.md (private report to the maintainers; GitHub private vulnerability reporting is not enabled on this repository yet)
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/SECURITY.md (GitHub private vulnerability reporting, email or Discord DM)
 
 - [~] 🔴 **vulnerability_report_response** — Initial response to any vulnerability report received in the last 6 months was within 14 days.
   - *Self-certification note:* N/A — *Justification:* no vulnerability reports received.
