@@ -1,6 +1,6 @@
 """Export a released model to GGUF, the file format llama.cpp and Ollama load.
 
-    python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m.gguf
+    python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat-F32.gguf
     python simple/export_gguf.py ... --model base      # the Wikipedia-only model instead of the chat model
 
 The model is a GPT-2-style transformer and the tokenizer a GPT-2-style byte-level BPE, so the file
@@ -21,7 +21,7 @@ import gguf
 import numpy as np
 import torch
 
-CONTROLS = ["<|pad|>", "<|bos|>", "<|eos|>", "<|user|>", "<|assistant|>"]  # ids 0-4, see ovl_pipeline.data
+CONTROLS = ["<|pad|>", "<|bos|>", "<|eos|>", "<|user|>", "<|assistant|>"]  # ids 0-4, see data.py
 # Single and multi-turn chat in the training format: <|user|> text <|eos|> <|assistant|> text <|eos|> ...
 CHAT_TEMPLATE = ("{% for m in messages %}{% if m['role'] == 'user' %}<|user|>{{ m['content'] }}<|eos|>"
                  "{% elif m['role'] == 'assistant' %}<|assistant|>{{ m['content'] }}<|eos|>{% endif %}{% endfor %}"
@@ -51,10 +51,10 @@ def main():
     a = p.parse_args()
 
     run = Path(a.run)
-    cfg = json.loads((run / "recipe.json").read_text())["model"]
+    cfg = json.loads((run / "recipe.json").read_text(encoding="utf-8"))["model"]
     weights = run / f"{a.model}-model.pt"
     sd = torch.load(weights, map_location="cpu", weights_only=True)
-    tok = json.loads(Path(a.tokenizer).read_text())["model"]
+    tok = json.loads(Path(a.tokenizer).read_text(encoding="utf-8"))["model"]
     vocab = sorted(tok["vocab"].items(), key=lambda kv: kv[1])
     assert [i for _, i in vocab] == list(range(len(vocab))), "tokenizer ids must be contiguous"
     assert len(CONTROLS) + len(vocab) == cfg["vocab_size"], "vocabulary size differs from the recipe"

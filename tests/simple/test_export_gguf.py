@@ -10,7 +10,7 @@ import torch
 
 gguf = pytest.importorskip("gguf")
 ROOT = Path(__file__).resolve().parents[2]
-sys.path[:0] = [str(ROOT / "src")]
+sys.path[:0] = [str(ROOT / "simple")]
 from model import TinyGPT  # noqa: E402
 
 CFG = {"attn_impl": "manual", "dropout": 0, "embed_dim": 16, "max_seq_len": 8, "num_heads": 2,
@@ -22,9 +22,9 @@ def make_run(tmp_path):
     model = TinyGPT(**CFG)
     model.lm_head.weight = model.transformer["wte"].weight
     torch.save(model.state_dict(), tmp_path / "conversation-model.pt")
-    (tmp_path / "recipe.json").write_text(json.dumps({"model": CFG}))
+    (tmp_path / "recipe.json").write_text(json.dumps({"model": CFG}), encoding="utf-8")
     tok = {"model": {"type": "BPE", "vocab": {"a": 0, "b": 1, "ab": 2, "Ġa": 3}, "merges": [["a", "b"]]}}
-    (tmp_path / "tokenizer.json").write_text(json.dumps(tok))
+    (tmp_path / "tokenizer.json").write_text(json.dumps(tok), encoding="utf-8")
     return model.state_dict()
 
 
@@ -54,3 +54,13 @@ def test_vocabulary_size_must_match_recipe(tmp_path):
     (tmp_path / "recipe.json").write_text(json.dumps({"model": {**CFG, "vocab_size": 99}}))
     with pytest.raises(subprocess.CalledProcessError):
         export(tmp_path)
+
+
+def test_utf8_tokenizer_without_ascii_escaping(tmp_path):
+    make_run(tmp_path)
+    tok = {"model": {"type": "BPE", "vocab": {"a": 0, "b": 1, "ab": 2, "Ġa": 3}, "merges": [["a", "b"]]}}
+    (tmp_path / "tokenizer.json").write_bytes(json.dumps(tok, ensure_ascii=False).encode("utf-8"))
+    r = export(tmp_path)
+    f = r.fields["tokenizer.ggml.tokens"]
+    tokens = [bytes(f.parts[i]).decode() for i in f.data]
+    assert "Ġa" in tokens

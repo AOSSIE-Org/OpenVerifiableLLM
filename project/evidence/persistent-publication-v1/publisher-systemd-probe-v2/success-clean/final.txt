@@ -1,7 +1,0 @@
-ActiveState=inactive
-SubState=dead
-InvocationID=
-MainPID=0
-Result=success
-ExecMainStatus=0
-ControlGroup=

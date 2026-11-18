@@ -1,3 +1,0 @@
-# Isolated signing/verifying environment. No training or repository install needed.
-rfc8785==0.1.4
-sigstore==4.5.0

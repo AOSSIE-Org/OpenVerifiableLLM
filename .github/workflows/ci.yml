@@ -11,11 +11,11 @@ jobs:
   falsifiability:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
           cache: pip
@@ -25,36 +25,16 @@ jobs:
           python -m pip install --upgrade pip
           # Install the CPU wheel explicitly so CI doesn't pull the multi-GB CUDA build.
           pip install --require-hashes -r requirements/preparation.lock
-          pip install -r requirements.txt
-          pip install -e ".[pipeline]" pytest pytest-cov ruff gguf
+          pip install pytest pytest-cov ruff gguf safetensors
 
-      # Lint the active code: the training loop and the artifact verifier.
       - name: Ruff
-        run: ruff check simple src/ovllm.py src/verifier.py src/publish.py src/signing.py tests/simple tests/test_verifier.py
+        run: ruff check simple tests
 
-      - name: Unit tests and synthetic full-replay fixture
+      - name: Tests
         env:
           TOKENIZERS_PARALLELISM: "false"
+          OVL_DEVICE: cpu
+          OVL_TIMESTAMP: "0"
         run: |
-          python -m pytest -q -rs tests --cov=simple --cov=src --cov-report=term
-          python -m coverage report --format=markdown --include='simple/*,src/ovllm.py,src/verifier.py,src/publish.py,src/signing.py' >> "$GITHUB_STEP_SUMMARY"
-
-      # The falsifiability contract, enforced: reproducibility.py exits nonzero
-      # if the clean audit fails OR any tampered scenario (bad seed, gradient
-      # noise, post-training sabotage, broken seal) passes verification.
-      - name: Falsifiability suite (clean must pass, tampered must fail)
-        working-directory: src
-        env:
-          OVL_TOTAL_STEPS: "10"
-          OVL_CHECKPOINT_STEP: "5"
-          OVL_BATCH_SIZE: "4"
-          OVL_BLOCK_SIZE: "64"
-        run: python reproducibility.py
-
-      # k-of-N chain audit smoke: train a signed 4-segment chain, sample 2
-      # segments, replay bit-exactly. Exits nonzero on any failed segment.
-      - name: Chain audit smoke (k-of-N)
-        working-directory: src
-        run: |
-          python chain.py train --model mlp --segments 4 --segment-steps 3 --batch-size 4 --block-size 48
-          python chain.py audit --k 2 --audit-seed 7
+          python -m pytest -q -rs tests --cov=simple --cov-report=term
+          python -m coverage report --format=markdown --include='simple/*' >> "$GITHUB_STEP_SUMMARY"

@@ -1,34 +1,17 @@
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
 name = "openverifiablellm"
-version = "1.0.0"
-description = "One-command verification for small open model artifacts."
+version = "1.1.0"
+description = "Train a small language model on English Wikipedia so that anyone can recompute it bit for bit."
 readme = "README.md"
-requires-python = ">=3.10"
-dependencies = [
-  "torch>=2.10.0,<3.0",
-  "numpy>=2.4,<3.0",
-  "tqdm>=4.67,<5.0",
-  "safetensors>=0.4.5,<1.0",
-  "pynacl>=1.5,<2.0",
-  "matplotlib>=3.7,<4.0",
-  "model-signing>=1.1.1",
-  "huggingface_hub>=0.24.0",
-  "pyyaml>=6.0.2",
-]
+requires-python = ">=3.12"
+# Pinned with hashes in requirements/preparation.lock, which CI installs.
+dependencies = ["torch>=2.10.0,<3.0", "numpy>=2.4,<3.0", "tokenizers==0.23.2"]
 
 [project.optional-dependencies]
-pipeline = ["sigstore==4.5.0", "rfc8785==0.1.4", "tokenizers==0.23.2", "mwparserfromhell==0.7.2", "defusedxml==0.7.1", "pyarrow==25.0.1"]
-
-[project.scripts]
-ovllm = "ovllm:main"
-ovllm-pipeline = "ovl_pipeline.__main__:main"
+gguf = ["gguf"]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "B"]
@@ -36,29 +19,7 @@ select = ["E4", "E7", "E9", "F", "B"]
 ignore = ["E701", "E702", "E741"]
 
 [tool.ruff.lint.per-file-ignores]
-# ovl.py puts the repository on sys.path before importing project modules. Its zips run on the
-# training data path, which stays byte-for-byte as released.
+# ovl.py puts simple/ on sys.path before importing its modules. The zips in ovl.py and data.py run on
+# the training data path, which stays byte-for-byte as released.
 "simple/ovl.py" = ["E402", "B905"]
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-packages = ["ovl_pipeline"]
-py-modules = [
-  "artifacts",
-  "config",
-  "dataset",
-  "device",
-  "eval",
-  "experiment",
-  "global_manifest",
-  "gpu_reproducibility_test",
-  "main",
-  "model",
-  "ovllm",
-  "plot_divergence",
-  "publish",
-  "reproducibility",
-  "signing",
-  "telemetry",
-  "verifier",
-]
+"simple/data.py" = ["B905"]

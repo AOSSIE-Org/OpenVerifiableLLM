@@ -52,10 +52,10 @@
   - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#making-changes (tests, determinism, pinned dependencies)
 
 - [x] 🔴 **documentation_basics** — Basic documentation exists for the software (README, Wiki, or docs folder).
-  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/README.md
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/how-it-works.md
 
 - [x] 🔴 **documentation_interface** — Reference documentation describes the external interface (API inputs/outputs, CLI flags, config schema, etc.).
-  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/simple/README.md (commands and flags), https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/guides/ovllm_verify.md (`ovllm verify` CLI)
+  - *Evidence URL:* https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/simple/README.md (commands and flags)
 
 ### Other Basics
 
@@ -146,7 +146,7 @@
   - *Evidence URL:* `python -m pytest -q tests` (https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/CONTRIBUTING.md#development-setup)
 
 - [ ] 🔵 **test_most** — The test suite covers most code branches, input fields, and functionality. *(SUGGESTED)*
-  - *Estimated coverage %:* Measured in CI (job summary): 74% of `simple/` and `src/` overall. Verifier: 78–88% per module; `simple/ovl.py`: about 30% (GPU training paths have no CPU tests yet).
+  - *Estimated coverage %:* Measured in CI (job summary): 34% of `simple/` on 2026-11-01 (`simple/ovl.py` 47%). The earlier 74% included the old verifier under `src/`, which was removed in #271. The GPU training and segment-replay paths can't run in CPU tests; they are covered by recomputing all 37 segments on an RTX 5090. `export_gguf.py` is tested by running it as a separate process, which coverage doesn't count.
 
 ### New Functionality Testing Policy
 
@@ -177,7 +177,7 @@
 ### Secure Development Knowledge
 
 - [x] 🔴 **know_secure_design** — At least one primary developer knows how to design secure software (familiar with OWASP, threat modeling, secure-by-default principles).
-  - *Self-certification note:* The project is verification infrastructure: fail-closed checks, hash-linked records, signed and timestamped anchors. Threat model and limitations in https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/design/simple_run.md.
+  - *Self-certification note:* The project is verification infrastructure: fail-closed checks, hash-linked records, signed and timestamped anchors. Threat model and limitations in https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/how-it-works.md and https://github.com/AOSSIE-Org/OpenVerifiableLLM/blob/main/docs/verify.md.
 
 - [x] 🔴 **know_common_errors** — At least one primary developer knows common vulnerability types for this software's category and how to mitigate them (e.g., injection, XSS, reentrancy for Solidity, prompt injection for AI).
   - *Self-certification note:* Unsafe deserialization (weights load with `weights_only=True` or safetensors), dependency tampering (hash-locked requirements), false verification passes (fail-closed verifier, #205/#218).

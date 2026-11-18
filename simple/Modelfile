@@ -1,8 +1,8 @@
 # Ollama build file for the released chat model. Build the GGUF first:
-#   python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat.gguf
+#   python simple/export_gguf.py --run RUN --tokenizer PREP/tokenizer/tokenizer.json --out ovl-23m-chat-F32.gguf
 #   ollama create openverifiablellm -f simple/Modelfile
-# Run `ollama create` from the directory that holds ovl-23m-chat.gguf, or edit the FROM path.
-FROM ./ovl-23m-chat.gguf
+# Run `ollama create` from the directory that holds ovl-23m-chat-F32.gguf, or edit the FROM path.
+FROM ./ovl-23m-chat-F32.gguf
 
 # The training format: <|user|> text <|eos|> <|assistant|> text <|eos|> ...
 TEMPLATE """{{- range .Messages }}{{ if eq .Role "user" }}<|user|>{{ .Content }}<|eos|>{{ else if eq .Role "assistant" }}<|assistant|>{{ .Content }}<|eos|>{{ end }}{{ end }}<|assistant|>"""
