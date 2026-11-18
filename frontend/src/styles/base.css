@@ -128,6 +128,11 @@ table.sr-only {
   height: 1px;
 }
 
+.brand img.logo {
+  flex-shrink: 0;
+  display: block;
+}
+
 .logo-d {
   display: none;
 }
