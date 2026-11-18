@@ -98,3 +98,29 @@ def test_valid_count_keeps_seeded_sampling_and_produces_evaluation(evaluation, m
     assert result["base_weight_relative_distance"] == 0
     expected = loo.random.Random(1234).sample(["1", "2"], count)
     assert calls == (["0"] + expected) * 2
+
+
+@pytest.mark.parametrize("extra, question", [([], "What is 3I/ATLAS?"),
+                                             (["--chat-prompt", "Who wrote Hamlet?"], "Who wrote Hamlet?")])
+def test_conversation_models_are_asked_the_chat_prompt(evaluation, monkeypatch, capsys, extra, question):
+    _, fork, original, args = evaluation
+    recipe = {**loo.ovl.RECIPE, "context": 64,
+              "model": {"vocab_size": 16, "embed_dim": 8, "num_heads": 2, "num_layers": 1,
+                        "max_seq_len": 64, "dropout": 0, "attn_impl": "manual"}}
+    monkeypatch.setattr(loo.ovl, "RECIPE", recipe)
+    model = loo.ovl.TinyGPT(**recipe["model"])
+    for run in (original, fork):
+        for name in ("base-model.pt", "conversation-model.pt"):
+            torch.save(model.state_dict(), run / name)
+    asked = []
+
+    def observe_complete(model, tokenizer, prompt, chat, tokens=40):
+        asked.append((prompt, chat))
+        return "answer"
+
+    monkeypatch.setattr(loo, "complete", observe_complete)
+    monkeypatch.setattr(sys, "argv", args + ["--controls", "1"] + extra)
+    loo.main()
+    result = json.loads(capsys.readouterr().out)
+    assert asked == [(question, True), (question, True)]
+    assert result["original_conversation"] == result["fork_conversation"] == {"completions": {"chat": "answer"}}
