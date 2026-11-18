@@ -35,33 +35,14 @@ PUBLISHED = {
 
 def _setup_run_dir(dest: Path) -> None:
     dest.mkdir(parents=True, exist_ok=True)
-    e0 = {
-        "index": 0,
-        "kind": "initial",
-        "state": "0" * 64,
-        "model": "0" * 64,
-        "previous": None,
-    }
+    e0 = {"index": 0, "kind": "initial", "state": "0" * 64, "model": "0" * 64, "previous": None}
     h0 = hashlib.sha256(json.dumps(e0, sort_keys=True).encode()).hexdigest()
-    e1 = {
-        "index": 1,
-        "kind": "final",
-        "state": "1" * 64,
-        "model": "1" * 64,
-        "previous": h0,
-    }
+    e1 = {"index": 1, "kind": "final", "state": "1" * 64, "model": "1" * 64, "previous": h0}
     (dest / "chain.jsonl").write_text(json.dumps(e0) + "\n" + json.dumps(e1) + "\n")
 
 
 def _run_verify(run_dir: Path, extra_args=None):
-    cmd = [
-        PYTHON,
-        str(ROOT / "simple" / "ovl.py"),
-        "verify",
-        "--run",
-        str(run_dir),
-        "--no-anchor",
-    ]
+    cmd = [PYTHON, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(run_dir), "--no-anchor"]
     if extra_args:
         cmd.extend(extra_args)
     env = dict(os.environ)
@@ -102,9 +83,7 @@ class VerificationRecordSchemaTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             _setup_run_dir(d)
-            (d / "verifications.jsonl").write_text(
-                json.dumps(PUBLISHED, sort_keys=True) + "\n"
-            )
+            (d / "verifications.jsonl").write_text(json.dumps(PUBLISHED, sort_keys=True) + "\n")
 
             code, out, err = _run_verify(d)
             self.assertNotEqual(code, 0)
@@ -117,9 +96,7 @@ class VerificationRecordSchemaTests(unittest.TestCase):
             self.assertIn("environment", record)
             self.assertIn("chain_head", record)
             self.assertIn("time", record)
-            self.assertNotIn(
-                "segment", record
-            )  # published field; local nests under checks
+            self.assertNotIn("segment", record)  # published field; local nests under checks
             self.assertNotEqual(record["result"], "MATCH")
             self.assertNotEqual(record["result"], "MISMATCH")
 
@@ -151,9 +128,7 @@ class VerificationRecordSchemaTests(unittest.TestCase):
             self.assertIn("verify PASS", out)
 
             self.assertEqual((d / "verifications.jsonl").read_text(), published_line)
-            record = json.loads(
-                (d / "local-verifications.jsonl").read_text().splitlines()[-1]
-            )
+            record = json.loads((d / "local-verifications.jsonl").read_text().splitlines()[-1])
             self.assertEqual(record["result"], "PASS")
             self.assertEqual(len(record["checks"]), 1)
             self.assertTrue(record["checks"][0].get("match"))

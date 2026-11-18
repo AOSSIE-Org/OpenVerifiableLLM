@@ -29,34 +29,13 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             shutil.copytree(FIXTURE_DIR, dest, dirs_exist_ok=True)
         else:
             dest.mkdir(parents=True, exist_ok=True)
-            e0 = {
-                "index": 0,
-                "kind": "initial",
-                "state": "0" * 64,
-                "model": "0" * 64,
-                "previous": None,
-            }
+            e0 = {"index": 0, "kind": "initial", "state": "0" * 64, "model": "0" * 64, "previous": None}
             h0 = hashlib.sha256(json.dumps(e0, sort_keys=True).encode()).hexdigest()
-            e1 = {
-                "index": 1,
-                "kind": "final",
-                "state": "1" * 64,
-                "model": "1" * 64,
-                "previous": h0,
-            }
-            (dest / "chain.jsonl").write_text(
-                json.dumps(e0) + "\n" + json.dumps(e1) + "\n"
-            )
+            e1 = {"index": 1, "kind": "final", "state": "1" * 64, "model": "1" * 64, "previous": h0}
+            (dest / "chain.jsonl").write_text(json.dumps(e0) + "\n" + json.dumps(e1) + "\n")
 
     def _run_verify(self, run_dir, extra_args=None):
-        cmd = [
-            PYTHON,
-            str(ROOT / "simple" / "ovl.py"),
-            "verify",
-            "--run",
-            str(run_dir),
-            "--no-anchor",
-        ]
+        cmd = [PYTHON, str(ROOT / "simple" / "ovl.py"), "verify", "--run", str(run_dir), "--no-anchor"]
         if extra_args:
             cmd.extend(extra_args)
         env = dict(os.environ)
@@ -73,36 +52,20 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             code, out, err = self._run_verify(d)
 
             # 1. Must not report PASS
-            self.assertNotIn(
-                "verify PASS",
-                out,
-                "Zero-check invocation must not report 'verify PASS'",
-            )
-            self.assertIn(
-                "verify FAIL", out, "Zero-check invocation should report 'verify FAIL'"
-            )
+            self.assertNotIn("verify PASS", out, "Zero-check invocation must not report 'verify PASS'")
+            self.assertIn("verify FAIL", out, "Zero-check invocation should report 'verify FAIL'")
 
             # 2. Must exit nonzero
-            self.assertNotEqual(
-                code, 0, "Zero-check invocation must exit with a nonzero code"
-            )
+            self.assertNotEqual(code, 0, "Zero-check invocation must exit with a nonzero code")
 
             # 3. Records a failure accurately in verification report
             verif_file = d / "local-verifications.jsonl"
             self.assertTrue(verif_file.exists(), "local-verifications.jsonl must exist")
             lines = verif_file.read_text().splitlines()
-            self.assertTrue(
-                len(lines) > 0, "local-verifications.jsonl must contain records"
-            )
+            self.assertTrue(len(lines) > 0, "local-verifications.jsonl must contain records")
             last_record = json.loads(lines[-1])
-            self.assertEqual(
-                last_record.get("result"),
-                "FAIL",
-                "Verification record result must be FAIL",
-            )
-            self.assertEqual(
-                len(last_record.get("checks", [])), 0, "Checks array must be empty"
-            )
+            self.assertEqual(last_record.get("result"), "FAIL", "Verification record result must be FAIL")
+            self.assertEqual(len(last_record.get("checks", [])), 0, "Checks array must be empty")
 
     def test_all_flag_without_data_fails_closed(self):
         """Invoking --all without --data performs 0 checks and must fail closed."""
@@ -111,9 +74,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self._setup_run_dir(d)
             code, out, err = self._run_verify(d, ["--all"])
 
-            self.assertNotIn(
-                "verify PASS", out, "--all without --data must not report PASS"
-            )
+            self.assertNotIn("verify PASS", out, "--all without --data must not report PASS")
             self.assertIn("verify FAIL", out, "--all without --data must report FAIL")
             self.assertNotEqual(code, 0, "--all without --data must exit nonzero")
 
@@ -134,7 +95,6 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
     def test_legitimate_weights_verification_passes(self):
         """Legitimate verification with matching weights passes and exits 0."""
         import torch
-
         sys.path.insert(0, str(ROOT / "simple"))
         from ovl import model_digest
 
@@ -155,9 +115,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             (d / "chain.jsonl").write_text("\n".join(chain_lines) + "\n")
 
             code, out, err = self._run_verify(d, ["--weights", str(weights_file)])
-            self.assertEqual(
-                code, 0, f"Matching weights should pass. out: {out}, err: {err}"
-            )
+            self.assertEqual(code, 0, f"Matching weights should pass. out: {out}, err: {err}")
             self.assertIn("verify PASS: 1 checks", out)
 
             verif_file = d / "local-verifications.jsonl"
@@ -169,7 +127,6 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
     def test_legitimate_weights_mismatch_fails(self):
         """Weights verification with mismatched weights fails and exits nonzero."""
         import torch
-
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
             self._setup_run_dir(d)

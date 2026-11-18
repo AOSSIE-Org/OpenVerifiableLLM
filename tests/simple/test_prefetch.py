@@ -1,5 +1,4 @@
 """Loader lifecycle checks using real synthetic memmaps; no GPU or release replay."""
-
 import contextlib
 import importlib.util
 import json
@@ -18,9 +17,7 @@ os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "simple"))
-spec = importlib.util.spec_from_file_location(
-    "ovl_prefetch_tested", ROOT / "simple" / "ovl.py"
-)
+spec = importlib.util.spec_from_file_location("ovl_prefetch_tested", ROOT / "simple" / "ovl.py")
 ovl = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ovl)
 
@@ -31,30 +28,17 @@ def stream(tmp_path, monkeypatch, request):
         monkeypatch.setenv("OVL_LOADER", "reference")
     else:
         monkeypatch.delenv("OVL_LOADER", raising=False)
-    recipe = {
-        **ovl.RECIPE,
-        "context": 4,
-        "batch_size": 2,
-        "boundary_every": 1,
-        "model": {
-            "vocab_size": 16,
-            "embed_dim": 8,
-            "num_heads": 2,
-            "num_layers": 1,
-            "max_seq_len": 4,
-            "dropout": 0,
-            "attn_impl": "manual",
-        },
-    }
+    recipe = {**ovl.RECIPE, "context": 4, "batch_size": 2, "boundary_every": 1,
+              "model": {"vocab_size": 16, "embed_dim": 8, "num_heads": 2, "num_layers": 1,
+                        "max_seq_len": 4, "dropout": 0, "attn_impl": "manual"}}
     monkeypatch.setattr(ovl, "RECIPE", recipe)
     phase = tmp_path / "wikipedia"
     phase.mkdir()
     n = 80 * recipe["batch_size"] * recipe["context"]
     np.full(n, 5, dtype="<u2").tofile(phase / "tokens.u16")
     np.ones(n, dtype="u1").tofile(phase / "mask.u8")
-    (phase / "documents.jsonl").write_text(
-        json.dumps({"tokens": n, "offset": 0, "target_start": 0, "targets": n}) + "\n"
-    )
+    (phase / "documents.jsonl").write_text(json.dumps({"tokens": n, "offset": 0, "target_start": 0,
+                                                     "targets": n}) + "\n")
     (phase / "stream.json").write_text(json.dumps({"targets": n}))
     name = "stream_batches" if request.param == "reference" else "fast_batches"
     loader = getattr(ovl, name)
@@ -112,9 +96,7 @@ def test_repeated_close_with_full_queue_releases_worker_and_loader(stream):
 def test_exhaustion_preserves_every_tensor_and_position(stream):
     data, loader, _, queues, closed = stream
     with contextlib.closing(ovl.prefetch(data, "wikipedia", [0, 4])) as batches:
-        for (expected, expected_pos), (actual, actual_pos) in zip(
-            loader(data / "wikipedia", [0, 4]), batches, strict=True
-        ):
+        for (expected, expected_pos), (actual, actual_pos) in zip(loader(data / "wikipedia", [0, 4]), batches, strict=True):
             assert actual_pos == expected_pos
             assert actual.keys() == expected.keys()
             for key in expected:
@@ -125,9 +107,7 @@ def test_exhaustion_preserves_every_tensor_and_position(stream):
 
 
 @pytest.mark.parametrize("fail_at", [0, 66])
-def test_loader_error_reaches_consumer_and_releases_worker(
-    stream, monkeypatch, fail_at
-):
+def test_loader_error_reaches_consumer_and_releases_worker(stream, monkeypatch, fail_at):
     data, _, name, queues, _ = stream
     closed = threading.Event()
 
@@ -149,9 +129,7 @@ def test_loader_error_reaches_consumer_and_releases_worker(
 
 
 @pytest.mark.parametrize("terminal_error", [False, True])
-def test_close_cancels_full_queue_terminal_delivery(
-    stream, monkeypatch, terminal_error
-):
+def test_close_cancels_full_queue_terminal_delivery(stream, monkeypatch, terminal_error):
     data, _, name, queues, _ = stream
 
     def terminal_loader(*args):

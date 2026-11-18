@@ -39,11 +39,14 @@ done
 command -v openssl
 ```
 
-The verifier uses the `certifi` CA bundle when the platform does not provide one of the standard system CA-bundle paths.
+Source revisions and releases that include this change use the `certifi` CA bundle when none of the standard system CA-bundle paths is available.
+
+**Version note:** The published v1.1.0 verifier predates the `certifi` fallback introduced by this change. The Windows manual DigiCert command below can verify a timestamp using `certifi`, but automatic Windows CA-bundle fallback in `ovl.py verify` requires a release containing this change.
 
 The normal verification process checks both DigiCert and FreeTSA timestamps. Do not use `--no-timestamps` unless you intentionally want to skip timestamp verification.
 
 Download `release/simple-run/` without the `ckpt-*.pt` files, then from that folder:
+
 ```bash
 pip install huggingface_hub torch numpy "certifi>=2024.2.2"
 
@@ -53,7 +56,6 @@ elif command -v gsha256sum >/dev/null 2>&1; then
     gsha256sum -c --ignore-missing release-hashes.txt
 else
     echo "Install GNU coreutils to verify release hashes." >&2
-    exit 1
 fi
 
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
@@ -138,35 +140,14 @@ result to `local-verifications.jsonl` (the published `verifications.jsonl` stays
 `verify` already does this. To do it yourself with `openssl`:
 
 ```bash
-# DigiCert on Linux: select an available CA bundle
-CAFILE=""
-for candidate in \
-    /etc/ssl/certs/ca-certificates.crt \
-    /etc/pki/tls/certs/ca-bundle.crt \
-    /etc/ssl/cert.pem; do
-    if [ -f "$candidate" ]; then
-        CAFILE="$candidate"
-        break
-    fi
-done
+# DigiCert on Linux
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/certs/ca-certificates.crt
 
-if [ -z "$CAFILE" ]; then
-    CAFILE="$(python -c 'import certifi; print(certifi.where())')" || exit 1
-fi
-
-if [ ! -f "$CAFILE" ]; then
-    echo "CA bundle not found: $CAFILE" >&2
-    exit 1
-fi
-
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
 # DigiCert on macOS
 openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /etc/ssl/cert.pem
 
-# DigiCert on Windows (Git Bash)
-CAFILE="$(python -c 'import certifi; print(certifi.where())')"
-CAFILE="$(cygpath -m "$CAFILE")"
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$CAFILE"
+# DigiCert on Windows (Git Bash; requires certifi and cygpath)
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$(cygpath -m "$(python -c 'import certifi; print(certifi.where())')")"
 
 # FreeTSA
 curl -sO https://freetsa.org/files/cacert.pem

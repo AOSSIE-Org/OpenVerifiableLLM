@@ -1,5 +1,4 @@
 """CPU-only checks of simple/review_ckpt.py using tiny fake runs (no prepared data, no GPU)."""
-
 import contextlib
 import io
 import json
@@ -13,10 +12,7 @@ from unittest import mock
 os.environ["OVL_DEVICE"] = "cpu"
 os.environ["OVL_TIMESTAMP"] = "0"
 
-sys.path[:0] = [
-    str(Path(__file__).resolve().parents[2] / "simple"),
-    str(Path(__file__).resolve().parent),
-]
+sys.path[:0] = [str(Path(__file__).resolve().parents[2] / "simple"), str(Path(__file__).resolve().parent)]
 
 import torch  # noqa: E402
 import review_ckpt  # noqa: E402
@@ -28,10 +24,7 @@ ovl = review_ckpt.ovl
 def run_main(run):
     """Run review_ckpt.main() on RUN and return (exit code, stdout)."""
     out = io.StringIO()
-    with (
-        mock.patch.object(sys, "argv", ["review_ckpt.py", str(run)]),
-        contextlib.redirect_stdout(out),
-    ):
+    with mock.patch.object(sys, "argv", ["review_ckpt.py", str(run)]), contextlib.redirect_stdout(out):
         try:
             review_ckpt.main()
         except SystemExit as e:
@@ -42,17 +35,8 @@ def run_main(run):
 class NothingToReviewTests(unittest.TestCase):
     def test_valid_chain_but_no_files_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            write_chain(
-                tmp,
-                fake_chain(
-                    [
-                        ("initial", tiny_state(0)),
-                        ("progress", tiny_state(1)),
-                        ("base", tiny_state(2)),
-                        ("final", tiny_state(3)),
-                    ]
-                ),
-            )
+            write_chain(tmp, fake_chain([("initial", tiny_state(0)), ("progress", tiny_state(1)),
+                                         ("base", tiny_state(2)), ("final", tiny_state(3))]))
             code, out = run_main(tmp)
         self.assertEqual(out, "")
         self.assertNotIn(code, (0, None))
@@ -66,20 +50,9 @@ class CheckpointReviewTests(unittest.TestCase):
     def setUpClass(cls):
         model, opt = ovl.fresh()
         cls.ctl = ovl.initial_control()
-        cls.entry = {
-            "index": 0,
-            "kind": "initial",
-            "control": cls.ctl,
-            "state": ovl.state_digest(model, opt),
-            "model": ovl.model_digest(model.state_dict()),
-            "previous": None,
-            "time": 0,
-        }
-        cls.ck = {
-            "control": cls.ctl,
-            "model": model.state_dict(),
-            "opt": opt.state_dict(),
-        }
+        cls.entry = {"index": 0, "kind": "initial", "control": cls.ctl, "state": ovl.state_digest(model, opt),
+                     "model": ovl.model_digest(model.state_dict()), "previous": None, "time": 0}
+        cls.ck = {"control": cls.ctl, "model": model.state_dict(), "opt": opt.state_dict()}
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -103,9 +76,7 @@ class CheckpointReviewTests(unittest.TestCase):
         write_chain(self.run, [{**self.entry, "kind": "base"}])
         code, out = run_main(self.run)
         self.assertEqual(code, 0)
-        self.assertEqual(
-            [json.loads(line)["result"] for line in out.splitlines()], ["PASS"]
-        )
+        self.assertEqual([json.loads(line)["result"] for line in out.splitlines()], ["PASS"])
 
     def test_model_file_with_altered_weights_fails(self):
         sd = {k: v.clone() for k, v in self.ck["model"].items()}
@@ -115,9 +86,7 @@ class CheckpointReviewTests(unittest.TestCase):
         code, out = run_main(self.run)
         result = json.loads(out)
         self.assertEqual((code, result["result"]), (1, "FAIL"))
-        self.assertIn(
-            "weights differ from the committed chain entry", result["problems"]
-        )
+        self.assertIn("weights differ from the committed chain entry", result["problems"])
 
     def test_extra_top_level_key_fails(self):
         code, result = self.review(ck={**self.ck, "extra": torch.zeros(1)})

@@ -22,9 +22,7 @@ Usage (on a pod):
 Each new chain entry is also timestamped by two RFC 3161 authorities while training runs
 (simple/stamp.py; OVL_TIMESTAMP=0 turns it off), so the record shows when each boundary existed.
 """
-
 import os
-
 os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
@@ -45,47 +43,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import torch
 import torch.nn.functional as F
 
-from data import (
-    PAD,
-    BOS,
-    EOS,
-    USER,
-    ASSISTANT,
-    OFFSET,
-    _collate,
-    stream_arrays,
-    configure,
-)
+from data import PAD, BOS, EOS, USER, ASSISTANT, OFFSET, _collate, stream_arrays, configure
 from model import TinyGPT
 import stamp
 
-RECIPE = {
-    "batch_size": 32,
-    "boundary_every": 18080,
-    "context": 512,
-    "init": "normal-0.02-tied-v1",
-    "seed": 1234,
-    "weight_decay": "0.01",
-    "conversation_epochs": 3,
-    # Learning rate is a pure function of the step, so a segment started from any
-    # checkpoint uses exactly the rates the original run used.
-    "schedule": {
-        "peak": "0.0006",
-        "floor": "0.00006",
-        "warmup": 2000,
-        "wikipedia_updates": 560177,
-        "conversation": "0.0001",
-    },
-    "model": {
-        "attn_impl": "manual",
-        "dropout": 0,
-        "embed_dim": 384,
-        "max_seq_len": 512,
-        "num_heads": 6,
-        "num_layers": 6,
-        "vocab_size": 32000,
-    },
-}
+RECIPE = {"batch_size": 32, "boundary_every": 18080, "context": 512, "init": "normal-0.02-tied-v1",
+          "seed": 1234, "weight_decay": "0.01", "conversation_epochs": 3,
+          # Learning rate is a pure function of the step, so a segment started from any
+          # checkpoint uses exactly the rates the original run used.
+          "schedule": {"peak": "0.0006", "floor": "0.00006", "warmup": 2000, "wikipedia_updates": 560177,
+                       "conversation": "0.0001"},
+          "model": {"attn_impl": "manual", "dropout": 0, "embed_dim": 384, "max_seq_len": 512,
+                    "num_heads": 6, "num_layers": 6, "vocab_size": 32000}}
 DEV = os.environ.get("OVL_DEVICE", "cuda")  # "cpu" only for smoke tests
 if os.environ.get("OVL_BOUNDARY_EVERY"):  # smoke tests only
     RECIPE["boundary_every"] = int(os.environ["OVL_BOUNDARY_EVERY"])
@@ -95,9 +64,7 @@ TIMESTAMP = os.environ.get("OVL_TIMESTAMP", "1") != "0"
 
 
 def stages():
-    return [("wikipedia", 0)] + [
-        ("conversation", e) for e in range(RECIPE["conversation_epochs"])
-    ]
+    return [("wikipedia", 0)] + [("conversation", e) for e in range(RECIPE["conversation_epochs"])]
 
 
 def deterministic():
@@ -128,25 +95,16 @@ def cpu_threads():
 
 
 def environment():
-    return {
-        "torch": torch.__version__,
-        "cuda": torch.version.cuda,
-        "cudnn": torch.backends.cudnn.version(),
-        "gpu": torch.cuda.get_device_name() if DEV == "cuda" else "cpu",
-        "cublas_workspace": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
-    }
+    return {"torch": torch.__version__, "cuda": torch.version.cuda, "cudnn": torch.backends.cudnn.version(),
+            "gpu": torch.cuda.get_device_name() if DEV == "cuda" else "cpu",
+            "cublas_workspace": os.environ.get("CUBLAS_WORKSPACE_CONFIG")}
 
 
 def learning_rate(ctl):
     s = RECIPE["schedule"]
     if ctl["phase"] == "conversation":
         return float(s["conversation"])
-    peak, floor, warm, n = (
-        float(s["peak"]),
-        float(s["floor"]),
-        s["warmup"],
-        s["wikipedia_updates"],
-    )
+    peak, floor, warm, n = float(s["peak"]), float(s["floor"]), s["warmup"], s["wikipedia_updates"]
     step = ctl["global_step"]  # index of the update about to run
     if step < warm:
         return peak * (step + 1) / warm
@@ -155,15 +113,9 @@ def learning_rate(ctl):
 
 
 def optimizer(model):
-    return torch.optim.AdamW(
-        model.parameters(),
-        lr=float(RECIPE["schedule"]["peak"]),
-        weight_decay=float(RECIPE["weight_decay"]),
-        betas=(0.9, 0.999),
-        eps=1e-8,
-        foreach=True,
-        fused=False,
-    )
+    return torch.optim.AdamW(model.parameters(), lr=float(RECIPE["schedule"]["peak"]),
+                             weight_decay=float(RECIPE["weight_decay"]), betas=(0.9, 0.999), eps=1e-8,
+                             foreach=True, fused=False)
 
 
 def fresh():
@@ -204,9 +156,7 @@ def state_digest(model, opt):
     tensors = [(f"model.{k}", v) for k, v in model.state_dict().items()]
     for i, p in enumerate(model.parameters()):
         for k, v in sorted(opt.state.get(p, {}).items()):
-            tensors.append(
-                (f"opt.{i}.{k}", v if torch.is_tensor(v) else torch.tensor(v))
-            )
+            tensors.append((f"opt.{i}.{k}", v if torch.is_tensor(v) else torch.tensor(v)))
     return _digest(tensors)
 
 
@@ -238,12 +188,12 @@ def stream_batches(directory, pos, skip=frozenset()):
             for start in range(0, d["tokens"], context):
                 n = min(context, d["tokens"] - start)
                 absolute = d["offset"] + start
-                valid = torch.from_numpy(mask[absolute : absolute + n].astype(bool))
+                valid = torch.from_numpy(mask[absolute:absolute + n].astype(bool))
                 count = int(valid.sum())
                 if start < first:  # consumed before the recorded position
                     target += count
                     continue
-                y = torch.from_numpy(tok[absolute : absolute + n].astype("int64"))
+                y = torch.from_numpy(tok[absolute:absolute + n].astype("int64"))
                 ids = torch.full((n,), -1, dtype=torch.int64)
                 ids[valid] = torch.arange(target, target + count)
                 target += count
@@ -253,11 +203,7 @@ def stream_batches(directory, pos, skip=frozenset()):
                 x = torch.cat((torch.tensor([previous]), y[:-1]))
                 pending.append((x.numpy(), y.numpy(), valid.numpy(), ids.numpy()))
                 if len(pending) == batch_size:
-                    after = (
-                        [row, start + context]
-                        if start + context < d["tokens"]
-                        else [f.tell(), 0]
-                    )
+                    after = [row, start + context] if start + context < d["tokens"] else [f.tell(), 0]
                     yield _collate(pending, context), after
                     pending = []
             first = 0
@@ -270,7 +216,6 @@ def fast_batches(directory, pos, skip=frozenset()):
     document, one gather per batch, pinned host memory. Same batches, same positions; the
     running batch hash in the chain and segment verification catch any difference."""
     import numpy as np
-
     context, batch_size = RECIPE["context"], RECIPE["batch_size"]
     tok, mask = stream_arrays(directory)
     path = directory / "documents.jsonl"
@@ -303,32 +248,20 @@ def fast_batches(directory, pos, skip=frozenset()):
                 break
             d = json.loads(line)
             n_tok, offset = d["tokens"], d["offset"]
-            if (
-                not n_tok or d["target_start"] in skip
-            ):  # empty, or removed by a recorded fork
+            if not n_tok or d["target_start"] in skip:  # empty, or removed by a recorded fork
                 first = 0
                 continue
             starts = np.arange(0, n_tok, context)
-            counts = np.add.reduceat(
-                mask[offset : offset + n_tok] != 0, starts, dtype=np.int64
-            )
+            counts = np.add.reduceat(mask[offset:offset + n_tok] != 0, starts, dtype=np.int64)
             bases = d["target_start"] + np.concatenate(([0], np.cumsum(counts)[:-1]))
-            for start, count, base in zip(
-                starts.tolist(), counts.tolist(), bases.tolist()
-            ):
-                if (
-                    start < first or not count
-                ):  # consumed before the recorded position, or no targets
+            for start, count, base in zip(starts.tolist(), counts.tolist(), bases.tolist()):
+                if start < first or not count:  # consumed before the recorded position, or no targets
                     continue
                 absolute = offset + start
                 previous = BOS if start == 0 else int(tok[absolute - 1])
                 pending.append((absolute, min(context, n_tok - start), base, previous))
                 if len(pending) == batch_size:
-                    after = (
-                        [row, start + context]
-                        if start + context < n_tok
-                        else [f.tell(), 0]
-                    )
+                    after = [row, start + context] if start + context < n_tok else [f.tell(), 0]
                     yield collate(pending), after
                     pending = []
             first = 0
@@ -340,9 +273,7 @@ def prefetch(data, phase, pos, skip=frozenset()):
     """Batches on a background thread (vectorized loader; OVL_LOADER=reference for the original)."""
     q = queue.Queue(maxsize=64)
     stopped = threading.Event()
-    load = (
-        stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
-    )
+    load = stream_batches if os.environ.get("OVL_LOADER") == "reference" else fast_batches
 
     def put(item):
         while not stopped.is_set():
@@ -376,9 +307,7 @@ def prefetch(data, phase, pos, skip=frozenset()):
             yield item
     finally:
         stopped.set()
-        worker.join(
-            timeout=1
-        )  # a loader blocked in external I/O cannot be forcibly interrupted
+        worker.join(timeout=1)  # a loader blocked in external I/O cannot be forcibly interrupted
 
 
 def excluded(ctl):
@@ -398,25 +327,19 @@ def step(model, opt, b, ctl):
     ids = b["target_ids"][b["mask"]]
     ranges = excluded(ctl)
     expected, cursor = [], ctl["cursor"]
-    for _ in range(
-        ids.numel()
-    ):  # the exact id sequence: consecutive, skipping each excluded range
+    for _ in range(ids.numel()):  # the exact id sequence: consecutive, skipping each excluded range
         cursor = next_target(cursor, ranges)
         expected.append(cursor)
         cursor += 1
     if ids.numel() == 0 or ids.tolist() != expected:
-        raise SystemExit(
-            f"coverage error at cursor {ctl['cursor']}"
-        )  # gap, repeat or reorder
+        raise SystemExit(f"coverage error at cursor {ctl['cursor']}")  # gap, repeat or reorder
     last = expected[-1]
     for g in opt.param_groups:
         g["lr"] = learning_rate(ctl)
     x, y, m = (b[k].to(DEV, non_blocking=True) for k in ("inputs", "targets", "mask"))
     with torch.autocast(DEV, dtype=torch.bfloat16, cache_enabled=False):
         logits = model(x)
-        losses = F.cross_entropy(
-            logits.flatten(0, 1).float(), y.flatten(), reduction="none"
-        )
+        losses = F.cross_entropy(logits.flatten(0, 1).float(), y.flatten(), reduction="none")
         m = m.flatten()
         loss = losses[m].sum() / m.sum()
     loss.backward()
@@ -426,21 +349,12 @@ def step(model, opt, b, ctl):
 
 
 def targets(data, phase):
-    return json.loads((Path(data) / phase / "stream.json").read_text(encoding="utf-8"))[
-        "targets"
-    ]
+    return json.loads((Path(data) / phase / "stream.json").read_text(encoding="utf-8"))["targets"]
 
 
 def initial_control():
-    return {
-        "phase": "wikipedia",
-        "epoch": 0,
-        "global_step": 0,
-        "phase_step": 0,
-        "cursor": 0,
-        "pos": [0, 0],
-        "batches": hashlib.sha256(b"ovl.simple.batches.v2").hexdigest(),
-    }
+    return {"phase": "wikipedia", "epoch": 0, "global_step": 0, "phase_step": 0, "cursor": 0, "pos": [0, 0],
+            "batches": hashlib.sha256(b"ovl.simple.batches.v2").hexdigest()}
 
 
 def run_phases(data, model, opt, on_boundary, start=None):
@@ -450,58 +364,30 @@ def run_phases(data, model, opt, on_boundary, start=None):
     if start is None and on_boundary("initial", ctl, opt) == STOP:
         return ctl
     plan = stages()
-    for phase, epoch in plan[plan.index((ctl["phase"], ctl["epoch"])) :]:
+    for phase, epoch in plan[plan.index((ctl["phase"], ctl["epoch"])):]:
         if (phase, epoch) != (ctl["phase"], ctl["epoch"]):
             if phase != ctl["phase"]:
                 opt = optimizer(model)
-            ctl = {
-                **ctl,
-                "phase": phase,
-                "epoch": epoch,
-                "phase_step": 0,
-                "cursor": 0,
-                "pos": [0, 0],
-            }
+            ctl = {**ctl, "phase": phase, "epoch": epoch, "phase_step": 0, "cursor": 0, "pos": [0, 0]}
             if on_boundary("transition", ctl, opt) == STOP:
                 return ctl
         total, t0, loss = targets(data, phase), time.time(), None
         ranges = excluded(ctl)
-        for b, after in prefetch(
-            data, phase, ctl["pos"], frozenset(s for s, _ in ranges)
-        ):
+        for b, after in prefetch(data, phase, ctl["pos"], frozenset(s for s, _ in ranges)):
             loss, cursor, bh = step(model, opt, b, ctl)
-            ctl = {
-                **ctl,
-                "global_step": ctl["global_step"] + 1,
-                "phase_step": ctl["phase_step"] + 1,
-                "cursor": cursor,
-                "pos": after,
-                "batches": hashlib.sha256(
-                    bytes.fromhex(ctl["batches"]) + bh
-                ).hexdigest(),
-            }
+            ctl = {**ctl, "global_step": ctl["global_step"] + 1, "phase_step": ctl["phase_step"] + 1,
+                   "cursor": cursor, "pos": after,
+                   "batches": hashlib.sha256(bytes.fromhex(ctl["batches"]) + bh).hexdigest()}
             if ctl["phase_step"] % 1000 == 0:
                 lv = loss.item()
                 if not math.isfinite(lv):
                     raise SystemExit(f"nonfinite loss at step {ctl['global_step']}")
                 rate = ctl["phase_step"] / (time.time() - t0)
-                print(
-                    f"{phase} step {ctl['phase_step']} loss {lv:.4f} {1000 / rate:.1f} ms/update",
-                    flush=True,
-                )
+                print(f"{phase} step {ctl['phase_step']} loss {lv:.4f} {1000 / rate:.1f} ms/update", flush=True)
             end = next_target(ctl["cursor"], ranges) == total
             if end or ctl["phase_step"] % RECIPE["boundary_every"] == 0:
-                kind = (
-                    (
-                        "final"
-                        if (phase, epoch) == plan[-1]
-                        else "base"
-                        if phase == "wikipedia"
-                        else "epoch"
-                    )
-                    if end
-                    else "progress"
-                )
+                kind = ("final" if (phase, epoch) == plan[-1] else "base" if phase == "wikipedia" else "epoch") \
+                    if end else "progress"
                 if on_boundary(kind, ctl, opt) == STOP:
                     return ctl
         if next_target(ctl["cursor"], ranges) != total:
@@ -518,19 +404,11 @@ def read_chain(run):
         try:
             chain.append(json.loads(line))
         except json.JSONDecodeError as err:
-            sys.exit(
-                f"{path}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged"
-            )
+            sys.exit(f"{path}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged")
     if not chain:
         sys.exit(f"{path} has no chain entries")
     for i, e in enumerate(chain):
-        want = (
-            hashlib.sha256(
-                json.dumps(chain[i - 1], sort_keys=True).encode()
-            ).hexdigest()
-            if i
-            else None
-        )
+        want = hashlib.sha256(json.dumps(chain[i - 1], sort_keys=True).encode()).hexdigest() if i else None
         if e["index"] != i or e["previous"] != want:
             sys.exit(f"chain link broken at entry {i}")
     return chain
@@ -538,18 +416,14 @@ def read_chain(run):
 
 def load_checkpoint(run, entry, model):
     """Load boundary checkpoint `entry` and prove it is the state the chain committed to."""
-    ck = torch.load(
-        Path(run) / f"ckpt-{entry['index']:05d}.pt", map_location=DEV, weights_only=True
-    )
+    ck = torch.load(Path(run) / f"ckpt-{entry['index']:05d}.pt", map_location=DEV, weights_only=True)
     if ck["control"] != entry["control"]:
         sys.exit(f"checkpoint {entry['index']} control differs from the chain")
     if model_digest(ck["model"]) != entry["model"]:
         sys.exit(f"checkpoint {entry['index']} weights differ from the chain")
     model.load_state_dict(ck["model"])
     model.lm_head.weight = model.transformer["wte"].weight
-    if (
-        model_digest(model.state_dict()) != entry["model"]
-    ):  # load_state_dict casts, e.g. float64 to float32
+    if model_digest(model.state_dict()) != entry["model"]:  # load_state_dict casts, e.g. float64 to float32
         sys.exit(f"loaded checkpoint {entry['index']} weights differ from the chain")
     opt = optimizer(model)
     opt.load_state_dict(ck["opt"])
@@ -571,62 +445,34 @@ def cmd_train(a):
             sys.exit("run already complete")
         opt = load_checkpoint(out, chain[-1], model)
         start = chain[-1]["control"]
-        print(
-            f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}",
-            flush=True,
-        )
+        print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
     else:
-        (out / "recipe.json").write_text(
-            json.dumps(RECIPE, sort_keys=True, indent=1), encoding="utf-8"
-        )
+        (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1), encoding="utf-8")
     stamping = []
 
     def boundary(kind, ctl, o):
-        entry = {
-            "index": len(chain),
-            "kind": kind,
-            "control": ctl,
-            "state": state_digest(model, o),
-            "model": model_digest(model.state_dict()),
-            "previous": hashlib.sha256(
-                json.dumps(chain[-1], sort_keys=True).encode()
-            ).hexdigest()
-            if chain
-            else None,
-            "time": time.time(),
-        }
+        entry = {"index": len(chain), "kind": kind, "control": ctl, "state": state_digest(model, o),
+                 "model": model_digest(model.state_dict()),
+                 "previous": hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest() if chain else None,
+                 "time": time.time()}
         if kind == "initial":
             entry["environment"] = environment()
-            entry["recipe"] = hashlib.sha256(
-                json.dumps(RECIPE, sort_keys=True).encode()
-            ).hexdigest()
-            entry["data"] = {
-                p: hashlib.sha256(
-                    (Path(a.data) / p / "stream.json").read_bytes()
-                ).hexdigest()
-                for p in ("wikipedia", "conversation")
-            }
+            entry["recipe"] = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
+            entry["data"] = {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
+                             for p in ("wikipedia", "conversation")}
         # Every boundary checkpoint is kept: each one is the start of a verifiable segment.
         # Checkpoint first, then the chain entry, so a crash between them is harmless.
         tmp = out / "ckpt.tmp"
-        torch.save(
-            {"control": ctl, "model": model.state_dict(), "opt": o.state_dict()}, tmp
-        )
+        torch.save({"control": ctl, "model": model.state_dict(), "opt": o.state_dict()}, tmp)
         os.replace(tmp, out / f"ckpt-{entry['index']:05d}.pt")
         if kind in ("base", "final"):
-            torch.save(
-                model.state_dict(),
-                out / f"{'base' if kind == 'base' else 'conversation'}-model.pt",
-            )
+            torch.save(model.state_dict(), out / f"{'base' if kind == 'base' else 'conversation'}-model.pt")
         chain.append(entry)
         with (out / "chain.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, sort_keys=True) + "\n")
             f.flush()
             os.fsync(f.fileno())
-        print(
-            f"boundary {entry['index']} {kind} step {ctl['global_step']} state {entry['state'][:16]}",
-            flush=True,
-        )
+        print(f"boundary {entry['index']} {kind} step {ctl['global_step']} state {entry['state'][:16]}", flush=True)
         if TIMESTAMP:
             stamping.append(stamp.stamp_async(out, entry))
 
@@ -659,65 +505,39 @@ def cmd_fork(a):
             d = json.loads(line)
             if str(d["identity"][1]) in pages:
                 if d["target_start"] < start["cursor"]:
-                    sys.exit(
-                        f"page {d['identity'][1]} was already trained before boundary {k}"
-                    )
+                    sys.exit(f"page {d['identity'][1]} was already trained before boundary {k}")
                 ranges.append([d["target_start"], d["targets"]])
                 docs.append(d["identity"])
     if len(docs) != len(pages):
         sys.exit("not every requested page is in the Wikipedia stream")
     out.mkdir(parents=True, exist_ok=False)
     (out / "recipe.json").write_bytes((src / "recipe.json").read_bytes())
-    lines = (src / "chain.jsonl").read_text(encoding="utf-8").splitlines()[: k + 1]
+    lines = (src / "chain.jsonl").read_text(encoding="utf-8").splitlines()[:k + 1]
     ck = torch.load(src / f"ckpt-{k:05d}.pt", map_location="cpu", weights_only=True)
     torch.save(ck, out / f"ckpt-{k:05d}.pt")
     ctl = {**start, "exclude": {"wikipedia": sorted(ranges)}}
     torch.save({**ck, "control": ctl}, out / f"ckpt-{k + 1:05d}.pt")
-    entry = {
-        "index": k + 1,
-        "kind": "fork",
-        "control": ctl,
-        "state": chain[k]["state"],
-        "model": chain[k]["model"],
-        "previous": hashlib.sha256(
-            json.dumps(chain[k], sort_keys=True).encode()
-        ).hexdigest(),
-        "time": time.time(),
-        "fork": {"from_entry": k, "documents": sorted(docs)},
-    }
-    (out / "chain.jsonl").write_text(
-        "\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n", encoding="utf-8"
-    )
+    entry = {"index": k + 1, "kind": "fork", "control": ctl, "state": chain[k]["state"], "model": chain[k]["model"],
+             "previous": hashlib.sha256(json.dumps(chain[k], sort_keys=True).encode()).hexdigest(),
+             "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
+    (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n", encoding="utf-8")
     read_chain(out)
     if TIMESTAMP:
         stamp.stamp_entry(out, entry)
-    print(
-        f"fork at boundary {k}: {len(docs)} document(s), {sum(n for _, n in ranges)} targets removed",
-        flush=True,
-    )
+    print(f"fork at boundary {k}: {len(docs)} document(s), {sum(n for _, n in ranges)} targets removed", flush=True)
 
 
 def verify_segment(data, run, chain, k):
     """Recompute boundary k -> k+1 from checkpoint k; True if it matches bit for bit."""
     want = chain[k + 1]
-    if (
-        want["kind"] == "fork"
-    ):  # same state; the control only adds the recorded exclusion
+    if want["kind"] == "fork":  # same state; the control only adds the recorded exclusion
         model, _ = fresh()
         load_checkpoint(run, want, model)
         added = {key: v for key, v in want["control"].items() if key != "exclude"}
-        ok = (
-            want["state"] == chain[k]["state"]
-            and want["model"] == chain[k]["model"]
-            and added == chain[k]["control"]
-            and "exclude" not in chain[k]["control"]
-            and all(
-                s >= chain[k]["control"]["cursor"] for s, _ in excluded(want["control"])
-            )
-        )
-        print(
-            f"segment {k}->{k + 1} (fork): {'MATCH' if ok else 'MISMATCH'}", flush=True
-        )
+        ok = (want["state"] == chain[k]["state"] and want["model"] == chain[k]["model"] and
+              added == chain[k]["control"] and "exclude" not in chain[k]["control"] and
+              all(s >= chain[k]["control"]["cursor"] for s, _ in excluded(want["control"])))
+        print(f"segment {k}->{k + 1} (fork): {'MATCH' if ok else 'MISMATCH'}", flush=True)
         return ok
     model, _ = fresh()
     opt = load_checkpoint(run, chain[k], model)
@@ -725,22 +545,14 @@ def verify_segment(data, run, chain, k):
 
     def compare(kind, ctl, o):
         want = chain[k + 1]
-        seen["ok"] = (
-            want["kind"] == kind
-            and want["control"] == ctl
-            and want["state"] == state_digest(model, o)
-            and want["model"] == model_digest(model.state_dict())
-        )  # the weights `--weights` checks
+        seen["ok"] = (want["kind"] == kind and want["control"] == ctl and want["state"] == state_digest(model, o)
+                      and want["model"] == model_digest(model.state_dict()))  # the weights `--weights` checks
         return STOP
-
     t0 = time.time()
     run_phases(data, model, opt, compare, chain[k]["control"])
     ok = seen.get("ok", False)
-    print(
-        f"segment {k}->{k + 1} ({chain[k + 1]['kind']}): {'MATCH' if ok else 'MISMATCH'} "
-        f"in {time.time() - t0:.0f} s",
-        flush=True,
-    )
+    print(f"segment {k}->{k + 1} ({chain[k + 1]['kind']}): {'MATCH' if ok else 'MISMATCH'} "
+          f"in {time.time() - t0:.0f} s", flush=True)
     return ok
 
 
@@ -757,7 +569,6 @@ def load_weights(path):
     """A released model as a state dict, from a .pt file or a .safetensors file (see export_safetensors.py)."""
     if str(path).endswith(".safetensors"):
         from safetensors.torch import load_file
-
         return load_file(path)
     return torch.load(path, map_location="cpu", weights_only=True)
 
@@ -765,9 +576,7 @@ def load_weights(path):
 def released(chain, hit):
     """The last base or final entry among the matches. A transition entry repeats the base model's
     digest, because the phase change doesn't touch the weights, so the base match isn't the last one."""
-    return next(
-        (i for i in reversed(hit) if chain[i]["kind"] in ("base", "final")), None
-    )
+    return next((i for i in reversed(hit) if chain[i]["kind"] in ("base", "final")), None)
 
 
 def check_anchor_timestamps(anchor, data):
@@ -776,9 +585,7 @@ def check_anchor_timestamps(anchor, data):
     data is the bytes the chain head was compared with; openssl checks a private copy of them, so the
     file can't be swapped between the two checks."""
     if not stamp.system_ca():
-        sys.exit(
-            "no system CA bundle found for the DigiCert timestamp; pass --no-timestamps to skip it"
-        )
+        sys.exit("no system CA bundle found for the DigiCert timestamp; pass --no-timestamps to skip it")
     stamped = {}
     with tempfile.TemporaryDirectory() as d:
         snapshot = Path(d) / "anchor.json"
@@ -786,27 +593,17 @@ def check_anchor_timestamps(anchor, data):
         try:
             certs = stamp.freetsa_certs(d)
         except OSError as e:
-            sys.exit(
-                f"could not download the FreeTSA certificates ({e}); pass --no-timestamps to skip the check"
-            )
+            sys.exit(f"could not download the FreeTSA certificates ({e}); pass --no-timestamps to skip the check")
         for name in stamp.TSA:
             tsr = anchor.with_name(f"{anchor.stem}.{name}.tsr")
             if not tsr.exists():
-                sys.exit(
-                    f"timestamp {tsr} not found; pass --no-timestamps only to check an unstamped anchor"
-                )
+                sys.exit(f"timestamp {tsr} not found; pass --no-timestamps only to check an unstamped anchor")
             try:
-                ok, when = stamp.verify_reply(
-                    tsr, name, ["-data", str(snapshot)], certs
-                )
+                ok, when = stamp.verify_reply(tsr, name, ["-data", str(snapshot)], certs)
             except FileNotFoundError:
-                sys.exit(
-                    "openssl not found; it is needed to check the anchor's timestamps"
-                )
+                sys.exit("openssl not found; it is needed to check the anchor's timestamps")
             if not ok:
-                sys.exit(
-                    f"timestamp {tsr} does not verify for {anchor}: the anchor was changed after it was stamped"
-                )
+                sys.exit(f"timestamp {tsr} does not verify for {anchor}: the anchor was changed after it was stamped")
             print(f"anchor timestamp {name}: OK ({when})", flush=True)
             stamped[name] = when
     return stamped
@@ -823,85 +620,38 @@ def cmd_verify(a):
             want = json.loads(data)
         except ValueError:
             want = None
-        if (
-            not isinstance(want, dict)
-            or not {"chain_entries", "chain_head_sha256"} <= want.keys()
-        ):
-            sys.exit(
-                f"{anchor} is not an anchor file: it needs chain_entries and chain_head_sha256"
-            )
-        head = hashlib.sha256(
-            json.dumps(chain[-1], sort_keys=True).encode()
-        ).hexdigest()
+        if not isinstance(want, dict) or not {"chain_entries", "chain_head_sha256"} <= want.keys():
+            sys.exit(f"{anchor} is not an anchor file: it needs chain_entries and chain_head_sha256")
+        head = hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest()
         if (len(chain), head) != (want["chain_entries"], want["chain_head_sha256"]):
-            sys.exit(
-                f"chain head differs from {anchor}: {len(chain)} entries, head {head}"
-            )
+            sys.exit(f"chain head differs from {anchor}: {len(chain)} entries, head {head}")
         print(f"anchor {anchor}: chain head MATCH ({len(chain)} entries)", flush=True)
         if a.no_timestamps:
-            print(
-                "WARNING: --no-timestamps: the anchor itself is not checked against its timestamps",
-                flush=True,
-            )
-        checks.append(
-            {
-                "anchor": str(anchor),
-                "match": True,
-                "timestamps": None
-                if a.no_timestamps
-                else check_anchor_timestamps(anchor, data),
-            }
-        )
+            print("WARNING: --no-timestamps: the anchor itself is not checked against its timestamps", flush=True)
+        checks.append({"anchor": str(anchor), "match": True,
+                       "timestamps": None if a.no_timestamps else check_anchor_timestamps(anchor, data)})
     elif a.anchor or not a.no_anchor:
-        sys.exit(
-            f"anchor {anchor} not found"
-            + (
-                ""
-                if a.anchor
-                else "; pass --no-anchor only to check a run that has no anchor yet"
-            )
-        )
+        sys.exit(f"anchor {anchor} not found" + ("" if a.anchor else
+                 "; pass --no-anchor only to check a run that has no anchor yet"))
     else:
-        print(
-            "WARNING: --no-anchor: the chain is not compared with a timestamped anchor",
-            flush=True,
-        )
-    report = {
-        "time": time.time(),
-        "environment": environment(),
-        "chain_head": chain[-1]["state"],
-        "checks": checks,
-    }
+        print("WARNING: --no-anchor: the chain is not compared with a timestamped anchor", flush=True)
+    report = {"time": time.time(), "environment": environment(), "chain_head": chain[-1]["state"], "checks": checks}
     recipe = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
-    if a.data and chain[0].get("recipe") not in (
-        None,
-        recipe,
-    ):  # fail before any GPU time is spent
-        sys.exit(
-            "this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag"
-        )
-    if a.data and chain[0]["data"] != {
-        p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
-        for p in ("wikipedia", "conversation")
-    }:
-        sys.exit(
-            "prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)"
-        )
+    if a.data and chain[0].get("recipe") not in (None, recipe):  # fail before any GPU time is spent
+        sys.exit("this ovl.py's RECIPE differs from the one the chain was trained with; use ovl.py from the release's tag")
+    if a.data and chain[0]["data"] != {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
+                                       for p in ("wikipedia", "conversation")}:
+        sys.exit("prepared data differs from the data the chain trained on (the stream.json hashes in entry 0)")
     env = chain[0].get("environment", {})
     if a.data and env and env != report["environment"]:
-        print(
-            f"WARNING: environment differs from training: {env} vs {report['environment']}",
-            flush=True,
-        )
+        print(f"WARNING: environment differs from training: {env} vs {report['environment']}", flush=True)
     if a.weights:
         sd = load_weights(a.weights)
         hit = [e["index"] for e in chain if e["model"] == model_digest(sd)]
         ok = released(chain, hit) is not None
         print(f"weights {a.weights}: {weights_verdict(chain, hit, ok)}", flush=True)
         entry = released(chain, hit) if ok else hit[-1] if hit else None
-        report["checks"].append(
-            {"weights": str(a.weights), "chain_entry": entry, "match": ok}
-        )
+        report["checks"].append({"weights": str(a.weights), "chain_entry": entry, "match": ok})
     if a.data:
         model, opt = fresh()  # regenerate the seeded initialization
         ok = state_digest(model, opt) == chain[0]["state"]
@@ -910,27 +660,14 @@ def cmd_verify(a):
         segments = range(len(chain) - 1) if a.all else list(a.segment or [])
         if a.random:
             pool = [k for k in range(len(chain) - 1) if k not in segments]
-            segments = list(segments) + [
-                pool.pop(secrets.randbelow(len(pool)))
-                for _ in range(min(a.random, len(pool)))
-            ]
+            segments = list(segments) + [pool.pop(secrets.randbelow(len(pool))) for _ in range(min(a.random, len(pool)))]
         for k in sorted(segments):
-            report["checks"].append(
-                {"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)}
-            )
-    report["result"] = (
-        "PASS"
-        if report["checks"]
-        and all(c.get("match", c.get("initialization")) for c in report["checks"])
-        else "FAIL"
-    )
+            report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
+    report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
     with (run / "local-verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
-    print(
-        f"verify {report['result']}: {len(report['checks'])} checks; "
-        f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments",
-        flush=True,
-    )
+    print(f"verify {report['result']}: {len(report['checks'])} checks; "
+          f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
     if report["result"] != "PASS":
         sys.exit(1)
 
@@ -942,28 +679,17 @@ def cmd_bench(a):
         loss, ctl["cursor"], _ = step(model, opt, b, ctl)
         n += 1
         if n == 50:
-            if DEV == "cuda":
-                torch.cuda.synchronize()
+            if DEV == "cuda": torch.cuda.synchronize()
             t0 = time.time()
         if t0 and time.time() - t0 >= a.seconds:
             break
-    if DEV == "cuda":
-        torch.cuda.synchronize()
+    if DEV == "cuda": torch.cuda.synchronize()
     ms = 1000 * (time.time() - t0) / (n - 50)
     total = RECIPE["schedule"]["wikipedia_updates"]
-    print(
-        json.dumps(
-            {
-                "ms_per_update": round(ms, 2),
-                "updates_timed": n - 50,
-                "loss": loss.item(),
-                **environment(),
-                "projected_train_hours": round(total * ms / 3.6e6, 2),
-                "segments": math.ceil(total / RECIPE["boundary_every"]),
-                "minutes_per_segment": round(RECIPE["boundary_every"] * ms / 6e4, 1),
-            }
-        )
-    )
+    print(json.dumps({"ms_per_update": round(ms, 2), "updates_timed": n - 50, "loss": loss.item(),
+                      **environment(), "projected_train_hours": round(total * ms / 3.6e6, 2),
+                      "segments": math.ceil(total / RECIPE["boundary_every"]),
+                      "minutes_per_segment": round(RECIPE["boundary_every"] * ms / 6e4, 1)}))
 
 
 @torch.no_grad()
@@ -971,22 +697,13 @@ def cmd_chat(a):
     if a.temperature < 0:
         sys.exit("--temperature must be non-negative")
     from tokenizers import Tokenizer
-
     tok = Tokenizer.from_file(a.tokenizer)
     model = TinyGPT(**RECIPE["model"]).to(DEV)
-    model.load_state_dict(
-        torch.load(
-            Path(a.run) / f"{a.model}-model.pt", map_location=DEV, weights_only=True
-        )
-    )
+    model.load_state_dict(torch.load(Path(a.run) / f"{a.model}-model.pt", map_location=DEV, weights_only=True))
     model.lm_head.weight = model.transformer["wte"].weight
     model.eval()
     ids = [i + OFFSET for i in tok.encode(a.prompt, add_special_tokens=False).ids]
-    ids = (
-        ([USER] + ids + [EOS, ASSISTANT])
-        if a.model == "conversation"
-        else ([BOS] + ids)
-    )
+    ids = ([USER] + ids + [EOS, ASSISTANT]) if a.model == "conversation" else ([BOS] + ids)
     g = torch.Generator(device=DEV).manual_seed(a.seed)
     out = []
     for _ in range(a.tokens):
@@ -1004,53 +721,25 @@ def cmd_chat(a):
 
 
 def main():
-    p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest="cmd", required=True)
-    t = s.add_parser("train")
-    t.add_argument("--data", required=True)
-    t.add_argument("--out", required=True)
-    v = s.add_parser("verify")
-    v.add_argument("--run", required=True)
-    v.add_argument("--data")
-    v.add_argument("--segment", type=int, nargs="*")
-    v.add_argument("--random", type=int, default=0)
-    v.add_argument("--all", action="store_true")
-    v.add_argument("--weights")
+    t = s.add_parser("train"); t.add_argument("--data", required=True); t.add_argument("--out", required=True)
+    v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
+    v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
+    v.add_argument("--all", action="store_true"); v.add_argument("--weights")
     anchored = v.add_mutually_exclusive_group()
-    anchored.add_argument("--anchor")
-    anchored.add_argument("--no-anchor", action="store_true")
-    v.add_argument(
-        "--no-timestamps",
-        action="store_true",
-        help="skip the anchor's RFC 3161 timestamp check",
-    )
-    fk = s.add_parser("fork")
-    fk.add_argument("--run", required=True)
-    fk.add_argument("--data", required=True)
-    fk.add_argument("--at", type=int, required=True)
-    fk.add_argument("--exclude-page", nargs="+", required=True)
+    anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
+    v.add_argument("--no-timestamps", action="store_true", help="skip the anchor's RFC 3161 timestamp check")
+    fk = s.add_parser("fork"); fk.add_argument("--run", required=True); fk.add_argument("--data", required=True)
+    fk.add_argument("--at", type=int, required=True); fk.add_argument("--exclude-page", nargs="+", required=True)
     fk.add_argument("--out", required=True)
-    b = s.add_parser("bench")
-    b.add_argument("--data", required=True)
-    b.add_argument("--seconds", type=int, default=600)
-    c = s.add_parser("chat")
-    c.add_argument("--run", required=True)
-    c.add_argument("--tokenizer", required=True)
-    c.add_argument("prompt")
-    c.add_argument("--model", default="conversation", choices=["base", "conversation"])
-    c.add_argument("--tokens", type=int, default=200)
-    c.add_argument("--temperature", type=float, default=0.8)
+    b = s.add_parser("bench"); b.add_argument("--data", required=True); b.add_argument("--seconds", type=int, default=600)
+    c = s.add_parser("chat"); c.add_argument("--run", required=True); c.add_argument("--tokenizer", required=True)
+    c.add_argument("prompt"); c.add_argument("--model", default="conversation", choices=["base", "conversation"])
+    c.add_argument("--tokens", type=int, default=200); c.add_argument("--temperature", type=float, default=0.8)
     c.add_argument("--seed", type=int, default=0)
     a = p.parse_args()
-    {
-        "train": cmd_train,
-        "fork": cmd_fork,
-        "verify": cmd_verify,
-        "bench": cmd_bench,
-        "chat": cmd_chat,
-    }[a.cmd](a)
+    {"train": cmd_train, "fork": cmd_fork, "verify": cmd_verify, "bench": cmd_bench, "chat": cmd_chat}[a.cmd](a)
 
 
 if __name__ == "__main__":
