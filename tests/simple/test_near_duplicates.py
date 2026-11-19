@@ -169,6 +169,46 @@ class ScanEntityMentionsTests(unittest.TestCase):
         self.assertEqual(res["window_start"], 10)
         self.assertEqual(res["mention_span"], (5, 7))
 
+    def test_scan_finds_mentions_crossing_chunk_boundary(self):
+        # Insert a 2-token pattern [99, 100] across boundary: at doc offset 9 (global 19)
+        tokens = np.zeros(45, dtype=np.uint16)
+        tokens[19:21] = [99, 100]
+        tokens.tofile(self.wiki_dir / "tokens.u16")
+
+        patterns = [
+            {"text": "3I/ATLAS", "tokens": np.array([99, 100], dtype=np.uint16)}
+        ]
+        results = nd.scan_entity_mentions(
+            self.tmp.name,
+            patterns,
+            excluded_pages=["101"],
+            ctx=10,
+        )
+        # Should emit both window 0 (idx 9..10) and window 1 (idx 0..1)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["window_idx"], 0)
+        self.assertEqual(results[0]["mention_span"], (9, 10))
+        self.assertEqual(results[1]["window_idx"], 1)
+        self.assertEqual(results[1]["mention_span"], (0, 1))
+
+    def test_deduplicate_windows_preserves_multiple_spans(self):
+        w1 = {
+            "window_start": 10,
+            "window_len": 10,
+            "mention_span": (2, 4),
+            "pattern": "a",
+        }
+        w2 = {
+            "window_start": 10,
+            "window_len": 10,
+            "mention_span": (6, 8),
+            "pattern": "b",
+        }
+        deduped = nd.deduplicate_windows([w1, w2])
+        self.assertEqual(len(deduped), 1)
+        self.assertEqual(deduped[0]["mention_spans"], [(2, 4), (6, 8)])
+        self.assertEqual(deduped[0]["patterns"], ["a", "b"])
+
 
 class PassageLossAndAttributionTests(unittest.TestCase):
     def setUp(self):
@@ -237,8 +277,10 @@ class BootstrapSignificanceTests(unittest.TestCase):
         self.assertFalse(stats["statistically_significant"])
 
     def test_bootstrap_empty_safety(self):
-        stats = nd.compute_bootstrap_significance([], [])
-        self.assertIn("error", stats)
+        stats = nd.compute_bootstrap_significance([], [0.1])
+        self.assertEqual(stats, {"error": "no target deltas"})
+        stats2 = nd.compute_bootstrap_significance([0.1], [])
+        self.assertEqual(stats2, {"error": "no control deltas"})
 
 
 class TopicFilterSpecTests(unittest.TestCase):
@@ -261,6 +303,7 @@ class TopicFilterSpecTests(unittest.TestCase):
             stream_targets=1000,
             tokenizer_sha256=dummy_tok_hash,
             aliases=["C/2025 N1"],
+            primary_documents_excluded=["101"],
         )
         self.assertEqual(spec["filter_name"], "topic_near_duplicate_filter")
         self.assertEqual(spec["excluded_ranges_count"], 2)
@@ -269,6 +312,7 @@ class TopicFilterSpecTests(unittest.TestCase):
         self.assertEqual(len(spec["filter_code_sha256"]), 64)
         self.assertEqual(spec["tokenizer_sha256"], dummy_tok_hash)
         self.assertEqual(spec["aliases"], ["C/2025 N1"])
+        self.assertEqual(spec["primary_documents_excluded"], ["101"])
         # No fake hand checks by default
         self.assertIsNone(spec["sample_miss_rate"])
         self.assertIsNone(spec["sample_file_sha256"])
@@ -323,6 +367,17 @@ class TopicFilterSpecTests(unittest.TestCase):
         bad_sample_spec["sample_miss_rate"] = 123
         with self.assertRaises(ValueError):
             nd.validate_topic_filter_spec(bad_sample_spec)
+
+        # Non-integer / fractional coordinates
+        bad_spec_frac = dict(spec)
+        bad_spec_frac["ranges"] = [[100.5, 50]]
+        with self.assertRaises(ValueError):
+            nd.validate_topic_filter_spec(bad_spec_frac)
+
+        bad_spec_bool = dict(spec)
+        bad_spec_bool["ranges"] = [[True, 50]]
+        with self.assertRaises(ValueError):
+            nd.validate_topic_filter_spec(bad_spec_bool)
 
         # Unsorted ranges
         bad_spec = dict(spec)

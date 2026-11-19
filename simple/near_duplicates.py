@@ -102,45 +102,63 @@ def scan_entity_mentions(data_dir, patterns, excluded_pages=None, ctx=None):
 
             for pat in patterns:
                 matches = find_token_subsequences(doc_tok, pat["tokens"])
+                pat_len = len(pat["tokens"])
                 for match_idx in matches:
-                    k = match_idx // ctx
-                    win_start = doc_offset + k * ctx
-                    win_len = min(ctx, doc_len - k * ctx)
-                    span_start = match_idx - (k * ctx)
-                    span_end = span_start + len(pat["tokens"])
+                    k_start = match_idx // ctx
+                    k_end = (match_idx + pat_len - 1) // ctx
+                    for k in range(k_start, k_end + 1):
+                        win_start = doc_offset + k * ctx
+                        win_len = min(ctx, doc_len - k * ctx)
+                        span_start = max(0, match_idx - k * ctx)
+                        span_end = min(win_len, match_idx + pat_len - k * ctx)
 
-                    # Target offset within target token stream
-                    target_start = d["target_start"] + min(
-                        k * ctx, d["targets"]
-                    )
-                    target_len = min(ctx, max(0, d["targets"] - k * ctx))
+                        # Target offset within target token stream
+                        target_start = d["target_start"] + min(
+                            k * ctx, d["targets"]
+                        )
+                        target_len = min(ctx, max(0, d["targets"] - k * ctx))
 
-                    results.append(
-                        {
-                            "doc_identity": ident,
-                            "page_id": page_id,
-                            "doc_offset": doc_offset,
-                            "window_idx": k,
-                            "window_start": win_start,
-                            "window_len": win_len,
-                            "target_start": target_start,
-                            "target_len": target_len,
-                            "pattern": pat["text"],
-                            "mention_span": (span_start, span_end),
-                        }
-                    )
+                        results.append(
+                            {
+                                "doc_identity": ident,
+                                "page_id": page_id,
+                                "doc_offset": doc_offset,
+                                "window_idx": k,
+                                "window_start": win_start,
+                                "window_len": win_len,
+                                "target_start": target_start,
+                                "target_len": target_len,
+                                "pattern": pat["text"],
+                                "mention_span": (span_start, span_end),
+                            }
+                        )
     return results
 
 
 def deduplicate_windows(windows):
-    """Keep unique training windows if multiple aliases matched in the same window."""
-    unique, seen = [], set()
+    """Merge entries for the same training window, preserving all distinct mention spans."""
+    grouped = {}
     for w in windows:
         key = (w["window_start"], w["window_len"])
-        if key not in seen:
-            seen.add(key)
-            unique.append(w)
-    return unique
+        if key not in grouped:
+            item = dict(w)
+            item["mention_spans"] = (
+                [w["mention_span"]] if "mention_span" in w else []
+            )
+            item["patterns"] = [w["pattern"]] if "pattern" in w else []
+            grouped[key] = item
+        else:
+            span = w.get("mention_span")
+            if span and span not in grouped[key]["mention_spans"]:
+                grouped[key]["mention_spans"].append(span)
+            pat = w.get("pattern")
+            if pat and pat not in grouped[key]["patterns"]:
+                grouped[key]["patterns"].append(pat)
+
+    for item in grouped.values():
+        if item.get("mention_spans") and "mention_span" not in item:
+            item["mention_span"] = item["mention_spans"][0]
+    return list(grouped.values())
 
 
 @torch.no_grad()
@@ -174,24 +192,34 @@ def eval_passage_loss_and_tokens(
     win_loss_orig = float(loss_orig_np[m_np].mean())
     win_loss_fork = float(loss_fork_np[m_np].mean())
 
-    # Mention span loss
-    s, e = win["mention_span"]
-    s = max(0, min(s, n))
-    e = max(s, min(e, n))
-    span_m = m_np[s:e]
+    # Mention span loss: combine all distinct mention spans in this window
+    spans = win.get(
+        "mention_spans",
+        [win["mention_span"]] if "mention_span" in win else [],
+    )
+    mention_mask = np.zeros(n, dtype=bool)
+    for s, e in spans:
+        s_clamped = max(0, min(s, n))
+        e_clamped = max(s_clamped, min(e, n))
+        mention_mask[s_clamped:e_clamped] = True
 
-    if span_m.any():
-        mention_loss_orig = float(loss_orig_np[s:e][span_m].mean())
-        mention_loss_fork = float(loss_fork_np[s:e][span_m].mean())
+    valid_mention = mention_mask & m_np
+    if valid_mention.any():
+        mention_loss_orig = float(loss_orig_np[valid_mention].mean())
+        mention_loss_fork = float(loss_fork_np[valid_mention].mean())
     else:
         mention_loss_orig = win_loss_orig
         mention_loss_fork = win_loss_fork
 
-    # Token attribution breakdown around the mention
+    # Token attribution breakdown around the mentions
     token_attributions = []
     if tokenizer is not None:
-        view_start = max(0, s - 5)
-        view_end = min(n, e + 5)
+        if spans:
+            view_start = max(0, min(s for s, _ in spans) - 5)
+            view_end = min(n, max(e for _, e in spans) + 5)
+        else:
+            view_start, view_end = 0, n
+
         for i in range(view_start, view_end):
             raw_id = int(y[i].item())
             tok_text = (
@@ -203,7 +231,7 @@ def eval_passage_loss_and_tokens(
                 {
                     "token_id": raw_id,
                     "token_text": tok_text,
-                    "is_mention": (s <= i < e),
+                    "is_mention": bool(mention_mask[i]),
                     "is_target": bool(m_np[i]),
                     "loss_orig": round(float(loss_orig_np[i]), 4),
                     "loss_fork": round(float(loss_fork_np[i]), 4),
@@ -235,7 +263,7 @@ def compute_bootstrap_significance(
     if len(t_arr) == 0:
         return {"error": "no target deltas"}
     if len(c_arr) == 0:
-        c_arr = np.zeros(1)
+        return {"error": "no control deltas"}
 
     obs_target = float(t_arr.mean())
     obs_control = float(c_arr.mean())
@@ -290,6 +318,7 @@ def make_topic_filter_spec(
     aliases=None,
     sample_check_path=None,
     sample_check_data=None,
+    primary_documents_excluded=None,
 ):
     """Generate a verifiable filter specification for chain.jsonl topic exclusion.
 
@@ -339,6 +368,9 @@ def make_topic_filter_spec(
         "tokenizer_sha256": tokenizer_sha256,
         "target_entity": entity,
         "aliases": list(aliases or []),
+        "primary_documents_excluded": sorted(
+            list(primary_documents_excluded or [])
+        ),
         "matching_patterns": [p["text"] for p in patterns],
         "excluded_ranges_count": len(merged),
         "total_excluded_targets": sum(l for _, l in merged),
@@ -358,7 +390,7 @@ def validate_topic_filter_spec(spec, stream_targets=None):
     - filter_code_sha256 matches actual sha256 of near_duplicates.py source (normalized to LF)
     - tokenizer_sha256 is present and, if set, is a 64-char hex string
     - sample_miss_rate is null or a dict
-    - ranges are sorted, non-overlapping, have positive count, and lie within stream_targets
+    - ranges are sorted, non-overlapping, strictly integer, have positive count, and lie within stream_targets
     """
     required_fields = [
         "filter_name",
@@ -400,6 +432,10 @@ def validate_topic_filter_spec(spec, stream_targets=None):
         if not isinstance(r, (list, tuple)) or len(r) != 2:
             raise ValueError(f"range {i} must be [start, length], got {r}")
         start, count = r
+        if not isinstance(start, int) or isinstance(start, bool):
+            raise ValueError(f"range {i} start must be integer, got {start}")
+        if not isinstance(count, int) or isinstance(count, bool):
+            raise ValueError(f"range {i} count must be integer, got {count}")
         if count <= 0:
             raise ValueError(f"range {i} has non-positive count {count}")
         if start < 0:
@@ -571,6 +607,7 @@ def main():
         tokenizer_sha256=tokenizer_sha256,
         aliases=a.alias,
         sample_check_path=a.sample_check,
+        primary_documents_excluded=excluded_pages,
     )
     filter_hash = spec_sha256(filter_spec)
 

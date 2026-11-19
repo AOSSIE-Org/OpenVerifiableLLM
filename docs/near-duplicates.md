@@ -114,7 +114,7 @@ keeping the training loop minimal and cleanly separating measurement artifacts f
 
 ```bash
 python simple/near_duplicates.py \
-  --data prepared/8de1d600... \
+  --data prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68 \
   --original release/simple-run \
   --fork release/unlearning-3i-atlas \
   --entity "3I/ATLAS" \
