@@ -250,7 +250,7 @@ const OddsChart: React.FC<{ facts: Facts; description: string; today: string }> 
   return (
     <figure className="chart">
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-labelledby="odds-title odds-desc">
-        <title id="odds-title">Detection odds curve for {segments} segments</title>
+        <title id="odds-title">{`Detection odds curve for ${segments} segments`}</title>
         <desc id="odds-desc">{description}</desc>
         {[0, 0.5, 1].map(p => (
           <g key={p}>

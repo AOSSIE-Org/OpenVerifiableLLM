@@ -43,6 +43,31 @@ test.describe('OpenVerifiableLLM Site', () => {
     await expect(page.getByText('541d49c97b87cd4ed0acb90b4327535ee20b8c11c452e2583d460154e9d980de')).toBeVisible();
   });
 
+  test('with JavaScript disabled, the prerendered page renders all sections and content', async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    await page.goto('/');
+
+    // Verify key headings and intro are visible without JS
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('OpenVerifiableLLM');
+    await expect(page.getByText(/is a language model whose training anyone can recompute/)).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Key facts' }).first()).toBeVisible();
+
+    // Verify all primary sections are present in static HTML
+    await expect(page.locator('#how')).toBeVisible();
+    await expect(page.locator('#overview')).toBeVisible();
+    await expect(page.locator('#timeline')).toBeVisible();
+    await expect(page.locator('#check')).toBeVisible();
+    await expect(page.locator('#downloads')).toBeVisible();
+    await expect(page.locator('#faq')).toBeVisible();
+
+    // Verify evidence numbers are rendered
+    await expect(page.getByText('7,232,582', { exact: true })).toBeVisible();
+    await expect(page.getByText('Project: 37 / 37 matched')).toBeVisible();
+
+    await context.close();
+  });
+
   test('copy button provides visual feedback and clipboard content', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/');
@@ -72,7 +97,7 @@ test.describe('OpenVerifiableLLM Site', () => {
 
   test('a stored dark theme applies before the evidence loads, and on the error page', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('ovl-theme', 'dark'));
-    await page.route('**/data/evidence.json', route => route.fulfill({ status: 500, body: '{}' }));
+    await page.route('**/data/evidence.json', route => route.fulfill({ json: {} }));
     await page.goto('/');
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
@@ -221,20 +246,42 @@ test.describe('OpenVerifiableLLM Site', () => {
     expect(inView).toBe(true);
   });
 
-  test('handles snapshot load errors gracefully', async ({ page }) => {
-    await page.route('**/data/evidence.json', (route) => {
-      route.fulfill({
-        status: 500,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'Internal Server Error' }),
-      });
-    });
+  test('keeps the prerendered report when evidence.json cannot be fetched', async ({ page }) => {
+    await page.route('**/data/evidence.json', route =>
+      route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'Internal Server Error' }) }),
+    );
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('OpenVerifiableLLM');
+    await expect(page.getByText('Project: 37 / 37 matched')).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+  });
 
+  test('replaces the page with the error when the fetched evidence is invalid', async ({ page }) => {
+    await page.route('**/data/evidence.json', route => route.fulfill({ json: { error: 'not evidence' } }));
     await page.goto('/');
     await expect(page.getByRole('alert')).toBeVisible();
     await expect(page.getByRole('heading', { level: 1, name: 'Snapshot unavailable or invalid' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry loading snapshot' })).toBeVisible();
   });
+
+  for (const saved of [null, 'light', 'dark'] as const) {
+    test(`hydrates without errors when the saved theme is ${saved ?? 'unset'}`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      page.on('console', message => {
+        if (message.type() === 'error') errors.push(message.text());
+      });
+      if (saved) await page.addInitScript(theme => localStorage.setItem('ovl-theme', theme), saved);
+      await page.goto('/');
+      const expected = saved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+      await expect(page.getByRole('button', { name: expected })).toBeVisible();
+      if (saved === 'dark') await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+      else await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
+      await page.waitForTimeout(500);
+      expect(errors).toEqual([]);
+    });
+  }
 
   const viewports = [
     { name: 'desktop', width: 1440, height: 900 },
