@@ -148,6 +148,21 @@ class AnchorHead(unittest.TestCase):
         self.assertEqual(record["result"], "PASS")
 
 
+class SystemCaTests(unittest.TestCase):
+    def test_falls_back_to_certifi_when_system_bundle_is_missing(self):
+        fake_certifi = mock.Mock()
+        fake_certifi.where.return_value = "/certifi/cacert.pem"
+
+        with mock.patch.object(ovl.stamp.Path, "is_file", return_value=False):
+            with mock.patch.dict("sys.modules", {"certifi": fake_certifi}):
+                self.assertEqual(
+                    ovl.stamp.system_ca(),
+                    "/certifi/cacert.pem",
+                )
+
+        fake_certifi.where.assert_called_once_with()
+
+
 class AnchorTimestamps(unittest.TestCase):
     """A rewritten anchor.json still matches a rewritten chain; only its timestamps catch that."""
 
