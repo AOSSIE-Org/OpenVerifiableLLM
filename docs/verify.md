@@ -18,7 +18,8 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). On Windows, see
+[Windows](#windows) below. Download `release/simple-run/`
 without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
@@ -63,6 +64,60 @@ token files; a changed token file is caught when a segment is recomputed.
 
 This is a **consistency check**. It shows that the release matches its timestamped record. It
 recomputes no training, and the record comes from the publisher.
+
+### Windows
+
+Needs Python 3.12 or newer and [Git for Windows](https://git-scm.com/download/win). Git for Windows
+provides `openssl.exe` and `sha256sum.exe` in `C:\Program Files\Git\usr\bin` (adjust the path if you
+installed Git elsewhere), but that folder is not on the default `PATH`: put it on the `PATH` for the
+session as the first line below does, or run the bash commands above in Git Bash. The commands were
+tested on Windows 11 with PowerShell 7, Python 3.12 and Git for Windows 2.51.
+
+```powershell
+$env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+pip install huggingface_hub torch numpy
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
+  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+cd ovl/release/simple-run
+sha256sum -c --ignore-missing release-hashes.txt
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+$env:OVL_DEVICE = "cpu"
+python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
+# anchor anchor.json: chain head MATCH (38 entries)
+# WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
+# weights conversation-model.pt: MATCH chain entry 37
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt"
+curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each openssl command prints: Verification: OK
+```
+
+Why `--no-timestamps`: the v1.1.0 `verify` looks for the DigiCert CA bundle only at Linux and macOS
+paths, so on Windows it stops with `no system CA bundle found for the DigiCert timestamp`. The two
+`openssl ts -verify` commands check the same two timestamps by hand, as in
+[Check the timestamps by hand](#check-the-timestamps-by-hand); Git for Windows ships a CA bundle that
+includes DigiCert's root. The `WARNING` line is expected: `verify` itself did not check the anchor's
+timestamps, and you just did. Do not skip the two `openssl` commands.
+
+**Without `sha256sum`.** This PowerShell check does what `sha256sum -c --ignore-missing` does: run it
+in the folder with `release-hashes.txt`. It prints `FAILED` for a file whose hash differs.
+
+```powershell
+Get-Content release-hashes.txt | ForEach-Object {
+  $hash, $name = $_ -split '\s+', 2
+  if ($name -and (Test-Path -LiteralPath $name)) {
+    "${name}: " + $(if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -eq $hash) { 'OK' } else { 'FAILED' })
+  }
+}
+```
+
+**CMD.** The same steps, with three differences:
+
+- Put the tools on the `PATH` with `set "PATH=C:\Program Files\Git\usr\bin;%PATH%"`.
+- Continue a long command with `^` at the end of the line, not `\` or a backtick.
+- Set the device with `set OVL_DEVICE=cpu&& python ovl-code/simple/ovl.py verify ...`. Write no space
+  before `&&`: with `set OVL_DEVICE=cpu && python ...` the value is `cpu` plus a trailing space, which
+  PyTorch rejects as a device name.
 
 ## 2. One segment, one click
 

@@ -86,12 +86,38 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 Use `ovl.py` from the v1.1.0 tag (v1.0.2 or newer works too). The copy in the download's `code/`
 folder is older and does not check the anchor.
 
+**On Windows**, run this in PowerShell (tested on Windows 11 with PowerShell 7, Python 3.12 and Git
+for Windows 2.51). Git for Windows provides `openssl` and `sha256sum`, but not on the default `PATH`.
+The v1.1.0 `verify` looks for the DigiCert CA bundle only at Linux and macOS paths, so on Windows it
+stops with "no system CA bundle found": run it with `--no-timestamps` and check the two timestamps
+with `openssl` instead. CMD, and a check that needs no `sha256sum`, are in
+[docs/verify.md](docs/verify.md#windows).
+
+```powershell
+$env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+pip install huggingface_hub torch numpy
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
+  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+cd ovl/release/simple-run
+sha256sum -c --ignore-missing release-hashes.txt
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+$env:OVL_DEVICE = "cpu"
+python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
+# anchor anchor.json: chain head MATCH (38 entries)
+# WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
+# weights conversation-model.pt: MATCH chain entry 37
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt"
+curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each openssl command prints: Verification: OK
+```
+
 **3. Verification, on an RTX 5090 (about 1 hour, about US$1.50).**
 [Deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait, and read
 the last line of the log. Then terminate the pod. Post the line in Discord: every independent check
 counts.
 
-All the details, including macOS and checking by hand: [docs/verify.md](docs/verify.md).
+All the details, including macOS, Windows and checking by hand: [docs/verify.md](docs/verify.md).
 
 ## How it works
 
