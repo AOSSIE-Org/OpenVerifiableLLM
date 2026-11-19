@@ -33,9 +33,17 @@ const Icon: React.FC<{ name: string }> = ({ name }) => (
 );
 
 export const Header: React.FC<{ evidenceHref: string }> = ({ evidenceHref }) => {
-  const [theme, setTheme] = useState<Theme>(initialTheme);
+  // The first render has to match the prerendered HTML, which can't know the reader's saved
+  // theme, so it starts as light and reads the saved theme straight after loading. main.tsx
+  // already applies that theme to the page before the first paint, so nothing flickers.
+  const [theme, setTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
+    setTheme(initialTheme());
+  }, []);
+
+  useEffect(() => {
+    if (theme === null) return;
     applyTheme(theme);
     saveTheme(theme);
   }, [theme]);
