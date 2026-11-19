@@ -224,6 +224,15 @@ class AnchorReleaseHashes(unittest.TestCase):
             self.verify()
 
 
+class ScriptsFetchTheList(unittest.TestCase):
+    """verify now needs release-hashes.txt next to the anchor, so a script that runs verify --anchor must fetch it."""
+
+    def test_verify_segment_fetches_release_hashes(self):
+        text = (ROOT / "simple" / "verify_segment.sh").read_text(encoding="utf-8")
+        self.assertIn("--anchor", text)
+        self.assertIn('"$RUN_PATH/release-hashes.txt"', text)
+
+
 class AnchorTimestamps(unittest.TestCase):
     """A rewritten anchor.json still matches a rewritten chain; only its timestamps catch that."""
 
