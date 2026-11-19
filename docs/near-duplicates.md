@@ -84,23 +84,29 @@ generates a cryptographically verifiable topic filter specification (`topic_filt
   "filter_name": "topic_near_duplicate_filter",
   "version": "1.0.0",
   "filter_code_sha256": "4a7b...",
+  "tokenizer_sha256": "9b1c...",
   "target_entity": "3I/ATLAS",
-  "matching_patterns": ["3I/ATLAS", " 3I/ATLAS", "C/2019 Q4"],
+  "aliases": ["C/2025 N1"],
+  "matching_patterns": ["3I/ATLAS", " 3I/ATLAS", "C/2025 N1", " c/2025 n1"],
   "excluded_ranges_count": 14,
   "total_excluded_targets": 7168,
   "ranges": [[10523400, 512], [14982100, 512]],
-  "sample_miss_rate": {"checked": 20, "misses": 0, "false_positives": 0}
+  "sample_miss_rate": null,
+  "sample_file_sha256": null
 }
 ```
 
 The filter records:
-- The SHA-256 digest of the extraction code.
-- Hand-checked validation sample accuracy (misses and false positives).
+- The SHA-256 digest of the entire `simple/near_duplicates.py` source code (normalized to LF line endings).
+- The SHA-256 digest of the tokenizer definition (`tokenizer.json`).
+- Explicit entity aliases passed via `--alias`.
 - Merged, strictly sorted, non-overlapping target token ranges to exclude.
-- The deterministic SHA-256 digest of the spec file itself.
+- Optional hand-checked sample validation metrics and sample file SHA-256 (`--sample-check`).
+- The deterministic SHA-256 digest of the specification itself.
 
-This specification provides the verified artifact for topic exclusion, which can be applied to training
-loaders to skip mid-document token windows.
+This specification serves as a standalone verifiable input artifact for subsequent topic forks and dataset
+filtering tools; it is intentionally not directly hooked into the core training loader (`simple/ovl.py`),
+keeping the training loop minimal and cleanly separating measurement artifacts from training execution.
 
 ## Usage
 
@@ -112,8 +118,15 @@ python simple/near_duplicates.py \
   --original release/simple-run \
   --fork release/unlearning-3i-atlas \
   --entity "3I/ATLAS" \
+  --alias "C/2025 N1" \
   --out-filter topic_filter.json
 ```
+
+Optional flags:
+- `--alias`: Explicit additional entity aliases or catalog designations to scan for.
+- `--control-entities`: Space-separated rarity-matched control entities (defaults to `1I/'Oumuamua 2I/Borisov`).
+- `--sample-check`: Path to a JSON file containing hand-checked sample audit results (sets `sample_miss_rate` and records `sample_file_sha256`).
+- `--out-filter`: Path to save the validated `topic_filter.json` specification artifact.
 
 Prints a JSON summary with mention counts, control comparisons, bootstrap confidence intervals, and
 token attributions, and optionally writes the validated `topic_filter.json` specification.

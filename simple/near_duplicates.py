@@ -12,7 +12,6 @@ Usage:
 
 import argparse
 import hashlib
-import inspect
 import json
 import sys
 from pathlib import Path
@@ -44,24 +43,26 @@ def find_token_subsequences(arr, sub):
 
 def build_entity_patterns(tokenizer, entity, extra_aliases=None):
     """Build token ID sequences for an entity and its aliases, including BPE leading spaces."""
-    names = [entity] + (extra_aliases or [])
-    # Also add standard astronomical naming variants for 3I/ATLAS
-    if "3I/ATLAS" in entity:
-        names.extend(["3I / ATLAS", "C/2019 Q4", "3I/Borisov", "comet ATLAS"])
+    names = [entity] + list(extra_aliases or [])
 
     seen_names = []
     for name in names:
+        if not name:
+            continue
         for variant in (name, " " + name, name.lower(), " " + name.lower()):
             if variant not in seen_names:
                 seen_names.append(variant)
 
     patterns = []
+    seen_tokens = set()
     for name in seen_names:
         ids = [
             i + OFFSET
             for i in tokenizer.encode(name, add_special_tokens=False).ids
         ]
-        if ids and ids not in [p["tokens"] for p in patterns]:
+        tok_tuple = tuple(ids)
+        if tok_tuple and tok_tuple not in seen_tokens:
+            seen_tokens.add(tok_tuple)
             patterns.append(
                 {"text": name.strip(), "tokens": np.array(ids, dtype=np.uint16)}
             )
@@ -274,17 +275,29 @@ def compute_bootstrap_significance(
     }
 
 
+def compute_filter_code_sha256():
+    """Compute deterministic SHA-256 digest of this script file, normalized to LF."""
+    source_bytes = Path(__file__).read_bytes().replace(b"\r\n", b"\n")
+    return hashlib.sha256(source_bytes).hexdigest()
+
+
 def make_topic_filter_spec(
-    entity, patterns, mention_windows, stream_targets=None, hand_sample=None
+    entity,
+    patterns,
+    mention_windows,
+    stream_targets=None,
+    tokenizer_sha256=None,
+    aliases=None,
+    sample_check_path=None,
+    sample_check_data=None,
 ):
     """Generate a verifiable filter specification for chain.jsonl topic exclusion.
 
     Merges contiguous or overlapping mention windows so target ranges are
-    strictly sorted and non-overlapping. Normalizes source line endings to LF
-    to guarantee a deterministic SHA-256 across all operating systems.
+    strictly sorted and non-overlapping. Normalizes script file source to LF line
+    endings to guarantee a deterministic SHA-256 across all operating systems.
     """
-    code_text = inspect.getsource(scan_entity_mentions).replace("\r\n", "\n")
-    code_sha256 = hashlib.sha256(code_text.encode("utf-8")).hexdigest()
+    code_sha256 = compute_filter_code_sha256()
 
     raw_ranges = sorted(
         [
@@ -307,17 +320,31 @@ def make_topic_filter_spec(
             else:
                 merged.append([start, length])
 
+    sample_miss_rate = None
+    sample_file_sha256 = None
+    if sample_check_path is not None:
+        sample_path = Path(sample_check_path)
+        if not sample_path.is_file():
+            sys.exit(f"sample check file not found: {sample_check_path}")
+        sample_bytes = sample_path.read_bytes()
+        sample_file_sha256 = hashlib.sha256(sample_bytes).hexdigest()
+        sample_miss_rate = json.loads(sample_bytes.decode("utf-8"))
+    elif sample_check_data is not None:
+        sample_miss_rate = sample_check_data
+
     spec = {
         "filter_name": "topic_near_duplicate_filter",
         "version": "1.0.0",
         "filter_code_sha256": code_sha256,
+        "tokenizer_sha256": tokenizer_sha256,
         "target_entity": entity,
+        "aliases": list(aliases or []),
         "matching_patterns": [p["text"] for p in patterns],
         "excluded_ranges_count": len(merged),
         "total_excluded_targets": sum(l for _, l in merged),
         "ranges": merged,
-        "sample_miss_rate": hand_sample
-        or {"checked": 20, "misses": 0, "false_positives": 0},
+        "sample_miss_rate": sample_miss_rate,
+        "sample_file_sha256": sample_file_sha256,
     }
     validate_topic_filter_spec(spec, stream_targets=stream_targets)
     return spec
@@ -327,14 +354,17 @@ def validate_topic_filter_spec(spec, stream_targets=None):
     """Validate that a topic filter spec satisfies all cryptographic and integrity constraints.
 
     Checks:
-    - Required fields: filter_name, version, filter_code_sha256, target_entity, ranges
-    - filter_code_sha256 matches actual sha256 of scan_entity_mentions source
+    - Required fields: filter_name, version, filter_code_sha256, tokenizer_sha256, target_entity, ranges
+    - filter_code_sha256 matches actual sha256 of near_duplicates.py source (normalized to LF)
+    - tokenizer_sha256 is present and, if set, is a 64-char hex string
+    - sample_miss_rate is null or a dict
     - ranges are sorted, non-overlapping, have positive count, and lie within stream_targets
     """
     required_fields = [
         "filter_name",
         "version",
         "filter_code_sha256",
+        "tokenizer_sha256",
         "target_entity",
         "ranges",
     ]
@@ -342,16 +372,27 @@ def validate_topic_filter_spec(spec, stream_targets=None):
         if f not in spec:
             raise ValueError(f"missing required field '{f}' in filter spec")
 
-    expected_code = inspect.getsource(scan_entity_mentions).replace(
-        "\r\n", "\n"
-    )
-    expected_code_sha = hashlib.sha256(
-        expected_code.encode("utf-8")
-    ).hexdigest()
+    expected_code_sha = compute_filter_code_sha256()
     if spec["filter_code_sha256"] != expected_code_sha:
         raise ValueError(
             f"filter_code_sha256 mismatch: spec has {spec['filter_code_sha256']}, "
             f"actual code is {expected_code_sha}"
+        )
+
+    if spec["tokenizer_sha256"] is not None:
+        if (
+            not isinstance(spec["tokenizer_sha256"], str)
+            or len(spec["tokenizer_sha256"]) != 64
+        ):
+            raise ValueError(
+                f"invalid tokenizer_sha256: {spec['tokenizer_sha256']}"
+            )
+
+    if spec.get("sample_miss_rate") is not None and not isinstance(
+        spec["sample_miss_rate"], dict
+    ):
+        raise ValueError(
+            f"sample_miss_rate must be null or dict, got {type(spec['sample_miss_rate'])}"
         )
 
     ranges = spec["ranges"]
@@ -383,9 +424,11 @@ def validate_topic_filter_spec(spec, stream_targets=None):
 def spec_sha256(spec_dict_or_path):
     """Compute deterministic SHA-256 digest of a topic filter spec."""
     if isinstance(spec_dict_or_path, (str, Path)):
-        return hashlib.sha256(Path(spec_dict_or_path).read_bytes()).hexdigest()
+        data = json.loads(Path(spec_dict_or_path).read_text(encoding="utf-8"))
+    else:
+        data = spec_dict_or_path
     return hashlib.sha256(
-        json.dumps(spec_dict_or_path, sort_keys=True).encode("utf-8")
+        json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
 
 
@@ -430,10 +473,20 @@ def main():
         help="entity to evaluate for near-duplicate leakage",
     )
     p.add_argument(
+        "--alias",
+        nargs="*",
+        default=[],
+        help="explicit entity aliases to search for",
+    )
+    p.add_argument(
         "--control-entities",
         nargs="*",
         default=["1I/'Oumuamua", "2I/Borisov"],
         help="rarity-matched astronomy control entities",
+    )
+    p.add_argument(
+        "--sample-check",
+        help="optional path to hand-checked validation sample JSON file",
     )
     p.add_argument(
         "--out-filter",
@@ -446,6 +499,8 @@ def main():
     tok_path = Path(a.data) / "tokenizer" / "tokenizer.json"
     if not tok_path.is_file():
         sys.exit(f"tokenizer not found at {tok_path}")
+    tok_bytes = tok_path.read_bytes()
+    tokenizer_sha256 = hashlib.sha256(tok_bytes).hexdigest()
     tokenizer = Tokenizer.from_file(str(tok_path))
 
     # Read fork chain to identify primary document exclusion
@@ -462,7 +517,9 @@ def main():
             excluded_pages.add(doc)
 
     # 1. Scan entity mentions
-    patterns = build_entity_patterns(tokenizer, a.entity)
+    patterns = build_entity_patterns(
+        tokenizer, a.entity, extra_aliases=a.alias
+    )
     raw_windows = scan_entity_mentions(
         a.data, patterns, excluded_pages=excluded_pages
     )
@@ -507,7 +564,13 @@ def main():
 
     # 7. Generate filter specification
     filter_spec = make_topic_filter_spec(
-        a.entity, patterns, windows, stream_targets=tok_stream.shape[0]
+        a.entity,
+        patterns,
+        windows,
+        stream_targets=tok_stream.shape[0],
+        tokenizer_sha256=tokenizer_sha256,
+        aliases=a.alias,
+        sample_check_path=a.sample_check,
     )
     filter_hash = spec_sha256(filter_spec)
 
@@ -519,6 +582,7 @@ def main():
     # Print Report
     report = {
         "entity": a.entity,
+        "aliases": a.alias,
         "primary_documents_excluded": sorted(list(excluded_pages)),
         "near_duplicate_mentions_found": len(target_results),
         "articles_with_mentions": sorted(

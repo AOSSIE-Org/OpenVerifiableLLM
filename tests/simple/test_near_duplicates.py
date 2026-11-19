@@ -73,6 +73,21 @@ class EntityPatternTests(unittest.TestCase):
         for p in patterns:
             self.assertTrue((p["tokens"] >= OFFSET).all())
 
+    def test_build_entity_patterns_no_hardcoded_aliases(self):
+        patterns = nd.build_entity_patterns(self.tok, "3I/ATLAS")
+        texts = [p["text"] for p in patterns]
+        # Must not contain any hardcoded aliases or unmentioned objects
+        self.assertNotIn("3I/Borisov", texts)
+        self.assertNotIn("C/2019 Q4", texts)
+        self.assertNotIn("comet ATLAS", texts)
+
+    def test_build_entity_patterns_with_explicit_aliases(self):
+        patterns = nd.build_entity_patterns(
+            self.tok, "3I/ATLAS", extra_aliases=["comet"]
+        )
+        texts = [p["text"] for p in patterns]
+        self.assertTrue(any("comet" in t.lower() for t in texts))
+
 
 class ScanEntityMentionsTests(unittest.TestCase):
     def setUp(self):
@@ -238,24 +253,76 @@ class TopicFilterSpecTests(unittest.TestCase):
             {"target_start": 100, "target_len": 64},
             {"target_start": 140, "target_len": 64},
         ]
+        dummy_tok_hash = "a" * 64
         spec = nd.make_topic_filter_spec(
-            "3I/ATLAS", patterns, windows, stream_targets=1000
+            "3I/ATLAS",
+            patterns,
+            windows,
+            stream_targets=1000,
+            tokenizer_sha256=dummy_tok_hash,
+            aliases=["C/2025 N1"],
         )
         self.assertEqual(spec["filter_name"], "topic_near_duplicate_filter")
         self.assertEqual(spec["excluded_ranges_count"], 2)
         # Ranges must be sorted by start offset and non-overlapping
         self.assertEqual(spec["ranges"], [[100, 104], [500, 128]])
         self.assertEqual(len(spec["filter_code_sha256"]), 64)
+        self.assertEqual(spec["tokenizer_sha256"], dummy_tok_hash)
+        self.assertEqual(spec["aliases"], ["C/2025 N1"])
+        # No fake hand checks by default
+        self.assertIsNone(spec["sample_miss_rate"])
+        self.assertIsNone(spec["sample_file_sha256"])
 
         # Validation helper passes
         self.assertTrue(
             nd.validate_topic_filter_spec(spec, stream_targets=1000)
         )
 
-    def test_validate_topic_filter_spec_catches_invalid_ranges(self):
+    def test_topic_filter_spec_with_sample_check(self):
+        patterns = [{"text": "3I/ATLAS"}]
+        windows = [{"target_start": 100, "target_len": 50}]
+        sample_data = {"checked": 25, "misses": 0, "false_positives": 0}
+        with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as f:
+            json.dump(sample_data, f)
+            sample_path = f.name
+        try:
+            expected_sample_sha = hashlib.sha256(
+                Path(sample_path).read_bytes()
+            ).hexdigest()
+            spec = nd.make_topic_filter_spec(
+                "3I/ATLAS",
+                patterns,
+                windows,
+                sample_check_path=sample_path,
+            )
+            self.assertEqual(spec["sample_miss_rate"], sample_data)
+            self.assertEqual(spec["sample_file_sha256"], expected_sample_sha)
+            self.assertTrue(nd.validate_topic_filter_spec(spec))
+        finally:
+            Path(sample_path).unlink(missing_ok=True)
+
+    def test_validate_topic_filter_spec_catches_invalid_ranges_and_hashes(self):
         patterns = [{"text": "3I/ATLAS"}]
         windows = [{"target_start": 100, "target_len": 50}]
         spec = nd.make_topic_filter_spec("3I/ATLAS", patterns, windows)
+
+        # Mismatched code hash
+        bad_code_spec = dict(spec)
+        bad_code_spec["filter_code_sha256"] = "0" * 64
+        with self.assertRaises(ValueError):
+            nd.validate_topic_filter_spec(bad_code_spec)
+
+        # Invalid tokenizer hash
+        bad_tok_spec = dict(spec)
+        bad_tok_spec["tokenizer_sha256"] = "invalid_short_hash"
+        with self.assertRaises(ValueError):
+            nd.validate_topic_filter_spec(bad_tok_spec)
+
+        # Invalid sample_miss_rate (not dict or None)
+        bad_sample_spec = dict(spec)
+        bad_sample_spec["sample_miss_rate"] = 123
+        with self.assertRaises(ValueError):
+            nd.validate_topic_filter_spec(bad_sample_spec)
 
         # Unsorted ranges
         bad_spec = dict(spec)
@@ -432,6 +499,8 @@ class NearDuplicatesCliTests(unittest.TestCase):
             str(self.fork_dir),
             "--entity",
             "3I/ATLAS",
+            "--alias",
+            "comet",
             "--control-entities",
             "2I/Borisov",
             "--out-filter",
@@ -444,13 +513,56 @@ class NearDuplicatesCliTests(unittest.TestCase):
         out_text = buf.getvalue()
         report = json.loads(out_text)
         self.assertEqual(report["entity"], "3I/ATLAS")
+        self.assertEqual(report["aliases"], ["comet"])
         self.assertIn("102", report["articles_with_mentions"])
         self.assertIn("statistics", report)
         self.assertTrue(filter_out.is_file())
         filter_data = json.loads(filter_out.read_text(encoding="utf-8"))
         self.assertEqual(filter_data["target_entity"], "3I/ATLAS")
+        self.assertEqual(filter_data["aliases"], ["comet"])
         self.assertEqual(len(filter_data["filter_code_sha256"]), 64)
+        self.assertEqual(len(filter_data["tokenizer_sha256"]), 64)
+        self.assertIsNone(filter_data["sample_miss_rate"])
+        self.assertIsNone(filter_data["sample_file_sha256"])
         self.assertIn("topic_filter_spec_sha256", report)
+
+    def test_cli_end_to_end_with_sample_check(self):
+        filter_out = self.root / "topic_filter_sample.json"
+        sample_path = self.root / "hand_sample.json"
+        sample_content = {
+            "checked": 20,
+            "misses": 0,
+            "false_positives": 0,
+        }
+        sample_path.write_text(json.dumps(sample_content), encoding="utf-8")
+        expected_sample_sha = hashlib.sha256(
+            sample_path.read_bytes()
+        ).hexdigest()
+
+        args = [
+            "near_duplicates.py",
+            "--data",
+            str(self.data_dir),
+            "--original",
+            str(self.orig_dir),
+            "--fork",
+            str(self.fork_dir),
+            "--entity",
+            "3I/ATLAS",
+            "--sample-check",
+            str(sample_path),
+            "--out-filter",
+            str(filter_out),
+        ]
+        buf = io.StringIO()
+        with patch("sys.argv", args), patch("sys.stdout", buf):
+            nd.main()
+
+        filter_data = json.loads(filter_out.read_text(encoding="utf-8"))
+        self.assertEqual(filter_data["sample_miss_rate"], sample_content)
+        self.assertEqual(
+            filter_data["sample_file_sha256"], expected_sample_sha
+        )
 
 
 if __name__ == "__main__":
