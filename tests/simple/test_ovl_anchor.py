@@ -29,6 +29,15 @@ def link(entry):
     return hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest()
 
 
+LISTING = b"0" * 64 + b"  recipe.json\n"
+
+
+def anchor_for(chain, listing=LISTING):
+    """An anchor for chain that also commits to release-hashes.txt."""
+    return {"chain_entries": len(chain), "chain_head_index": len(chain) - 1, "chain_head_sha256": link(chain[-1]),
+            "release_hashes_sha256": hashlib.sha256(listing).hexdigest()}
+
+
 def fake_chain(n):
     chain = []
     for i in range(n):
@@ -48,8 +57,8 @@ class AnchorHead(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.run = Path(self.tmp.name)
         self.chain = fake_chain(5)
-        (self.run / "anchor.json").write_text(json.dumps(
-            {"chain_entries": 5, "chain_head_index": 4, "chain_head_sha256": link(self.chain[-1])}))
+        (self.run / "release-hashes.txt").write_bytes(LISTING)
+        (self.run / "anchor.json").write_text(json.dumps(anchor_for(self.chain)))
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -148,6 +157,73 @@ class AnchorHead(unittest.TestCase):
         self.assertEqual(record["result"], "PASS")
 
 
+class AnchorReleaseHashes(unittest.TestCase):
+    """release-hashes.txt is the list sha256sum -c trusts, so verify must tie it to the anchor."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.run = Path(self.tmp.name)
+        self.chain = fake_chain(5)
+        (self.run / "chain.jsonl").write_text("".join(json.dumps(e) + "\n" for e in self.chain))
+        (self.run / "release-hashes.txt").write_bytes(LISTING)
+        self.write_anchor(anchor_for(self.chain))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def write_anchor(self, anchor, name="anchor.json"):
+        (self.run / name).write_text(json.dumps(anchor))
+
+    def verify(self, **kw):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            ovl.cmd_verify(args(self.run, **kw))
+        return out.getvalue()
+
+    def test_matching_list_passes_and_is_recorded(self):
+        out = self.verify()
+        self.assertIn("release-hashes.txt MATCH", out)
+        record = json.loads((self.run / "local-verifications.jsonl").read_text().splitlines()[-1])
+        self.assertTrue(record["checks"][0]["release_hashes"])
+        self.assertEqual(record["result"], "PASS")
+
+    def test_a_list_edited_after_the_anchor_was_made_fails(self):
+        # A released file was changed and its line in the list was rewritten to match, so sha256sum -c
+        # passes. The anchor still has the hash of the original list.
+        (self.run / "release-hashes.txt").write_bytes(b"1" * 64 + b"  recipe.json\n")
+        with self.assertRaisesRegex(SystemExit, "release-hashes.txt differs from"):
+            self.verify()
+
+    def test_a_missing_list_fails(self):
+        os.remove(self.run / "release-hashes.txt")
+        with self.assertRaisesRegex(SystemExit, "release-hashes.txt not found"):
+            self.verify()
+
+    def test_an_anchor_without_the_hash_fails(self):
+        anchor = anchor_for(self.chain)
+        del anchor["release_hashes_sha256"]
+        self.write_anchor(anchor)
+        with self.assertRaisesRegex(SystemExit, "has no release_hashes_sha256"):
+            self.verify()
+
+    def test_an_anchor_hash_that_is_not_a_string_fails(self):
+        for value in (None, 5, ["a"]):
+            self.write_anchor({**anchor_for(self.chain), "release_hashes_sha256": value})
+            with self.assertRaisesRegex(SystemExit, "has no release_hashes_sha256"):
+                self.verify()
+
+    def test_the_list_is_read_from_the_run_folder_for_an_anchor_elsewhere(self):
+        with tempfile.TemporaryDirectory() as other:
+            anchor = Path(other) / "release-anchor.json"
+            anchor.write_text(json.dumps(anchor_for(self.chain)))
+            self.assertIn("release-hashes.txt MATCH", self.verify(anchor=str(anchor)))
+
+    def test_a_wrong_chain_head_is_still_reported_first(self):
+        self.write_anchor({**anchor_for(self.chain), "chain_head_sha256": "0" * 64})
+        with self.assertRaisesRegex(SystemExit, "chain head differs"):
+            self.verify()
+
+
 class AnchorTimestamps(unittest.TestCase):
     """A rewritten anchor.json still matches a rewritten chain; only its timestamps catch that."""
 
@@ -156,8 +232,8 @@ class AnchorTimestamps(unittest.TestCase):
         self.run = Path(self.tmp.name)
         chain = fake_chain(5)
         (self.run / "chain.jsonl").write_text("".join(json.dumps(e) + "\n" for e in chain))
-        (self.run / "anchor.json").write_text(json.dumps(
-            {"chain_entries": 5, "chain_head_index": 4, "chain_head_sha256": link(chain[-1])}))
+        (self.run / "release-hashes.txt").write_bytes(LISTING)
+        (self.run / "anchor.json").write_text(json.dumps(anchor_for(chain)))
         for name in ovl.stamp.TSA:
             (self.run / f"anchor.{name}.tsr").write_bytes(b"reply")
         for target, value in (("system_ca", "/ca.pem"), ("freetsa_certs", ("ca", "tsa"))):

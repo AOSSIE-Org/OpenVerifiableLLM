@@ -620,6 +620,21 @@ def check_anchor_timestamps(anchor, data):
     return stamped
 
 
+def check_release_hashes(want, anchor, run):
+    """release-hashes.txt lists the SHA-256 of every released file, and the anchor commits to that list.
+    Without this check, a changed file plus a matching edit of its line in the list passes sha256sum -c."""
+    wanted = want.get("release_hashes_sha256")
+    if not isinstance(wanted, str):
+        sys.exit(f"{anchor} has no release_hashes_sha256, so release-hashes.txt cannot be checked against it")
+    listing = run / "release-hashes.txt"
+    if not listing.exists():
+        sys.exit(f"{listing} not found: the anchor commits to its hash")
+    got = hashlib.sha256(listing.read_bytes()).hexdigest()
+    if got != wanted:
+        sys.exit(f"{listing} differs from {anchor}: its hash is {got}, the anchor has {wanted}")
+    print(f"anchor {anchor}: release-hashes.txt MATCH", flush=True)
+
+
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
@@ -637,9 +652,10 @@ def cmd_verify(a):
         if (len(chain), head) != (want["chain_entries"], want["chain_head_sha256"]):
             sys.exit(f"chain head differs from {anchor}: {len(chain)} entries, head {head}")
         print(f"anchor {anchor}: chain head MATCH ({len(chain)} entries)", flush=True)
+        check_release_hashes(want, anchor, run)
         if a.no_timestamps:
             print("WARNING: --no-timestamps: the anchor itself is not checked against its timestamps", flush=True)
-        checks.append({"anchor": str(anchor), "match": True,
+        checks.append({"anchor": str(anchor), "match": True, "release_hashes": True,
                        "timestamps": None if a.no_timestamps else check_anchor_timestamps(anchor, data)})
     elif a.anchor or not a.no_anchor:
         sys.exit(f"anchor {anchor} not found" + ("" if a.anchor else

@@ -27,6 +27,7 @@ sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file match
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
+# anchor anchor.json: release-hashes.txt MATCH
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
@@ -35,7 +36,9 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 `verify` checks four things:
 
 1. Every chain entry links to the hash of the previous one.
-2. The chain ends at the head recorded in `anchor.json`.
+2. The chain ends at the head recorded in `anchor.json`, and `release-hashes.txt` is the list that
+   `anchor.json` commits to (`release_hashes_sha256`). `sha256sum -c` then checks the files against
+   that list.
 3. Both timestamps on `anchor.json` verify, for the exact bytes of `anchor.json`. DigiCert is checked
    against the system CA bundle (`/etc/ssl/certs/ca-certificates.crt` on Linux, `/etc/ssl/cert.pem`
    on macOS). FreeTSA's certificates are downloaded from freetsa.org.

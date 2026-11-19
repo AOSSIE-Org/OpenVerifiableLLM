@@ -78,6 +78,7 @@ sha256sum -c --ignore-missing release-hashes.txt
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
+# anchor anchor.json: release-hashes.txt MATCH
 # anchor timestamp freetsa: OK (Oct 20 14:38:43 2026 GMT)
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
