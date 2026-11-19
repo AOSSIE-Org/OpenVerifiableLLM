@@ -25,6 +25,7 @@ without the `ckpt-*.pt` files, then from that folder:
 ```bash
 pip install huggingface_hub torch numpy
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -50,6 +51,15 @@ It fails if any of these fails, or if `anchor.json` or a timestamp is missing. `
 `--no-timestamps` skip those checks and print a warning; use them only for a run that has no anchor
 yet. Use `ovl.py` from the v1.1.0 tag: the copy in the download's `code/` folder is older and does
 not check the anchor.
+
+**The file hashes.** `verify` does not read the file hashes in `release-hashes.txt`, and
+`sha256sum -c` trusts the list it is given. The `python -c` line after `sha256sum` closes that gap: it
+checks that `release-hashes.txt` is exactly the list that `anchor.json` commits to
+(`release_hashes_sha256`). `verify` ties `anchor.json` to the chain, and its two timestamps tie
+`anchor.json` to a date, so together the steps show that every downloaded file is the one the
+timestamped anchor lists. Without that line, changing a released file such as `recipe.json` and its
+line in `release-hashes.txt` passes both `sha256sum` and `verify`. Only the files you downloaded are
+checked; `--ignore-missing` skips the rest.
 
 The exclusion fork (`release/unlearning-3i-atlas/`) has its own anchor, timestamped on 2026-10-31
 14:28:00 UTC. That is later than the main run's, because the fork was anchored after the release. The
@@ -80,6 +90,7 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 $env:OVL_DEVICE = "cpu"
 python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
@@ -100,7 +111,8 @@ includes DigiCert's root. The `WARNING` line is expected: `verify` itself did no
 timestamps, and you just did. Do not skip the two `openssl` commands.
 
 **Without `sha256sum`.** This PowerShell check does what `sha256sum -c --ignore-missing` does: run it
-in the folder with `release-hashes.txt`. It prints `FAILED` for a file whose hash differs.
+in the folder with `release-hashes.txt`. It prints `FAILED` for a file whose hash differs. Then run the
+`python -c` line from above.
 
 ```powershell
 Get-Content release-hashes.txt | ForEach-Object {

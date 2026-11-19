@@ -75,6 +75,7 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -82,6 +83,12 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # anchor timestamp digicert: OK (Oct 20 14:38:43 2026 GMT)
 # weights conversation-model.pt: MATCH chain entry 37
 ```
+
+`sha256sum` trusts the list it reads. The `python -c` line checks that `release-hashes.txt` is the list
+that `anchor.json` commits to (its `release_hashes_sha256`), and `anchor.json` is tied to the chain by
+`verify` and to a date by the two timestamps. `verify` does not read the file hashes itself: without
+that line, a changed file and a matching edit of its line in `release-hashes.txt` pass both
+`sha256sum` and `verify`.
 
 Use `ovl.py` from the v1.1.0 tag (v1.0.2 or newer works too). The copy in the download's `code/`
 folder is older and does not check the anchor.
@@ -100,6 +107,7 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 $env:OVL_DEVICE = "cpu"
 python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
