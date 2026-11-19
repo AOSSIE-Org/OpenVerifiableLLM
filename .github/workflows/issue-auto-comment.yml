@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# One run at a time, so a backfill and an issue event can't both pass the
+# "already commented?" check and post twice. queue: max keeps every pending
+# run instead of replacing it, so no new issue is skipped.
+concurrency:
+  group: issue-auto-comment
+  cancel-in-progress: false
+  queue: max
+
 jobs:
   add-discord-comment:
     runs-on: ubuntu-latest
