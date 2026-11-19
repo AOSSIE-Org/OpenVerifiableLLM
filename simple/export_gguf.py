@@ -15,6 +15,7 @@ Check the released .pt files with `ovl.py verify`.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -43,6 +44,37 @@ def tensors(sd, layers):
     yield "output.weight", sd["transformer.wte.weight"]  # tied with the token embedding
 
 
+RECIPE_FIELDS = ["vocab_size", "max_seq_len", "embed_dim", "num_layers", "num_heads"]
+
+
+def source_tensor_names(layers):
+    """The checkpoint tensors the export reads, in the order `tensors` reads them."""
+    names = ["transformer.wte.weight", "transformer.wpe.weight"]
+    for i in range(layers):
+        for src in ["ln_1", "attn.c_attn", "attn.c_proj", "ln_2", "mlp.0", "mlp.3"]:
+            names += [f"transformer.h.{i}.{src}.weight", f"transformer.h.{i}.{src}.bias"]
+    return names + ["transformer.ln_f.weight", "transformer.ln_f.bias"]
+
+
+def same_file(a, b):
+    """True if both paths name one file, also through a different spelling or a hard link."""
+    if a.resolve() == b.resolve():
+        return True
+    try:
+        return b.exists() and os.path.samefile(a, b)
+    except OSError:
+        return False
+
+
+def read_json(path, what):
+    if not path.is_file():
+        sys.exit(f"{what} {path} not found")
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        sys.exit(f"{what} {path} is invalid: {exc}")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("--run", required=True, help="run directory with recipe.json and the *-model.pt files")
@@ -51,70 +83,107 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
-    run = Path(a.run)
+    run, out = Path(a.run), Path(a.out)
+    # Everything is checked before anything is written.
     recipe_path = run / "recipe.json"
-    if not recipe_path.is_file():
-        sys.exit(f"recipe {recipe_path} not found")
-    try:
-        cfg = json.loads(recipe_path.read_text(encoding="utf-8"))["model"]
-    except Exception as exc:
-        sys.exit(f"recipe {recipe_path} is invalid: {exc}")
+    cfg = read_json(recipe_path, "recipe")
+    cfg = cfg.get("model") if isinstance(cfg, dict) else None
+    if not isinstance(cfg, dict):
+        sys.exit(f"recipe {recipe_path} has no model section")
+    for field in RECIPE_FIELDS:
+        value = cfg.get(field)
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            sys.exit(f"recipe {recipe_path}: model.{field} must be a positive integer, got {value!r}")
 
     weights = run / f"{a.model}-model.pt"
     if not weights.is_file():
         sys.exit(f"source checkpoint {weights} not found")
-    if weights.resolve() == Path(a.out).resolve():
+    if same_file(weights, out):
         p.error("--out must not overwrite the source checkpoint")
     try:
         sd = torch.load(weights, map_location="cpu", weights_only=True)
-    except Exception as exc:
+    except Exception as exc:  # torch raises many types for a damaged file
         sys.exit(f"source checkpoint {weights} is invalid: {exc}")
+    if not isinstance(sd, dict):
+        sys.exit(f"source checkpoint {weights} is not a state dict")
+    missing = [n for n in source_tensor_names(cfg["num_layers"]) if not isinstance(sd.get(n), torch.Tensor)]
+    if missing:
+        shown = ", ".join(missing[:5]) + (f" and {len(missing) - 5} more" if len(missing) > 5 else "")
+        sys.exit(f"source checkpoint {weights} is missing tensors: {shown}")
 
     tok_path = Path(a.tokenizer)
-    if not tok_path.is_file():
-        sys.exit(f"tokenizer {tok_path} not found")
-    try:
-        tok = json.loads(tok_path.read_text(encoding="utf-8"))["model"]
-    except Exception as exc:
-        sys.exit(f"tokenizer {tok_path} is invalid: {exc}")
+    tok = read_json(tok_path, "tokenizer")
+    tok = tok.get("model") if isinstance(tok, dict) else None
+    if not isinstance(tok, dict) or not isinstance(tok.get("vocab"), dict) or not isinstance(tok.get("merges"), list):
+        sys.exit(f"tokenizer {tok_path} must have model.vocab and model.merges")
+    if not all(isinstance(t, str) and isinstance(i, int) and not isinstance(i, bool) for t, i in tok["vocab"].items()):
+        sys.exit(f"tokenizer {tok_path}: model.vocab must map tokens to integer ids")
 
     vocab = sorted(tok["vocab"].items(), key=lambda kv: kv[1])
     if [i for _, i in vocab] != list(range(len(vocab))):
         sys.exit("tokenizer ids must be contiguous")
     if len(CONTROLS) + len(vocab) != cfg["vocab_size"]:
         sys.exit("vocabulary size differs from the recipe")
-    merges = [m if isinstance(m, str) else " ".join(m) for m in tok["merges"]]
+    merges = []
+    for m in tok["merges"]:
+        if isinstance(m, str):
+            merges.append(m)
+        elif isinstance(m, list) and len(m) == 2 and all(isinstance(x, str) for x in m):
+            merges.append(" ".join(m))
+        else:
+            sys.exit(f"tokenizer {tok_path}: invalid merge {m!r}")
 
-    w = gguf.GGUFWriter(a.out, "gpt2")
-    w.add_name(f"OpenVerifiableLLM 23M {a.model}")
-    w.add_description(f"Exported from {weights.name} (sha256 {hashlib.sha256(weights.read_bytes()).hexdigest()})")
-    w.add_context_length(cfg["max_seq_len"])
-    w.add_embedding_length(cfg["embed_dim"])
-    w.add_feed_forward_length(4 * cfg["embed_dim"])
-    w.add_block_count(cfg["num_layers"])
-    w.add_head_count(cfg["num_heads"])
-    w.add_layer_norm_eps(1e-5)
-    w.add_file_type(gguf.LlamaFileType.ALL_F32)
+    # Written beside the target and renamed only once complete, so a failure halfway
+    # never leaves a broken .gguf where a good one is expected.
+    tmp = out.with_name(f".{out.name}.{os.getpid()}.tmp")
+    try:
+        write(a, cfg, sd, vocab, merges, weights, tmp)
+        reader = gguf.GGUFReader(tmp)
+        written = len(reader.tensors)
+        del reader  # releases its memory map before the rename
+        expected = 2 + 12 * cfg["num_layers"] + 3
+        if written != expected:
+            raise ValueError(f"wrote {written} tensors, expected {expected}")
+        os.replace(tmp, out)
+    except Exception as exc:
+        tmp.unlink(missing_ok=True)
+        sys.exit(f"could not write {out}: {exc}")
+    print(f"wrote {out}")
 
-    w.add_tokenizer_model("gpt2")
-    w.add_tokenizer_pre("gpt-2")
-    w.add_token_list(CONTROLS + [t for t, _ in vocab])
-    w.add_token_types([gguf.TokenType.CONTROL] * len(CONTROLS) + [gguf.TokenType.NORMAL] * len(vocab))
-    w.add_token_merges(merges)
-    w.add_pad_token_id(0)
-    w.add_bos_token_id(1)
-    w.add_eos_token_id(2)
-    w.add_add_bos_token(a.model == "base")
-    if a.model == "conversation":
-        w.add_chat_template(CHAT_TEMPLATE)
 
-    for name, t in tensors(sd, cfg["num_layers"]):
-        w.add_tensor(name, t.float().contiguous().numpy().astype(np.float32))
-    w.write_header_to_file()
-    w.write_kv_data_to_file()
-    w.write_tensors_to_file()
-    w.close()
-    print(f"wrote {a.out}")
+def write(a, cfg, sd, vocab, merges, weights, path):
+    w = gguf.GGUFWriter(path, "gpt2")
+    # Closed even when writing fails, so the file is released and can be removed.
+    try:
+        w.add_name(f"OpenVerifiableLLM 23M {a.model}")
+        w.add_description(f"Exported from {weights.name} (sha256 {hashlib.sha256(weights.read_bytes()).hexdigest()})")
+        w.add_context_length(cfg["max_seq_len"])
+        w.add_embedding_length(cfg["embed_dim"])
+        w.add_feed_forward_length(4 * cfg["embed_dim"])
+        w.add_block_count(cfg["num_layers"])
+        w.add_head_count(cfg["num_heads"])
+        w.add_layer_norm_eps(1e-5)
+        w.add_file_type(gguf.LlamaFileType.ALL_F32)
+
+        w.add_tokenizer_model("gpt2")
+        w.add_tokenizer_pre("gpt-2")
+        w.add_token_list(CONTROLS + [t for t, _ in vocab])
+        w.add_token_types([gguf.TokenType.CONTROL] * len(CONTROLS) + [gguf.TokenType.NORMAL] * len(vocab))
+        w.add_token_merges(merges)
+        w.add_pad_token_id(0)
+        w.add_bos_token_id(1)
+        w.add_eos_token_id(2)
+        w.add_add_bos_token(a.model == "base")
+        if a.model == "conversation":
+            w.add_chat_template(CHAT_TEMPLATE)
+
+        for name, t in tensors(sd, cfg["num_layers"]):
+            w.add_tensor(name, t.float().contiguous().numpy().astype(np.float32))
+        w.write_header_to_file()
+        w.write_kv_data_to_file()
+        w.write_tensors_to_file()
+    finally:
+        w.close()
 
 
 if __name__ == "__main__":
