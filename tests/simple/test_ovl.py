@@ -7,7 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import ANY, patch
+from unittest.mock import ANY, MagicMock, patch
 from pathlib import Path
 from unittest import mock
 
@@ -479,9 +479,11 @@ class TrainLockTests(unittest.TestCase):
             orig_fcntl = ovl.fcntl
             try:
                 ovl.fcntl = None
-                with self.assertRaises(Exception):
+                with patch.object(ovl, "run_phases", return_value=None), \
+                     patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())):
                     ovl.cmd_train(args)
                 self.assertTrue((out / ".train.lock").exists())
+                self.assertTrue((out / "recipe.json").exists())
             finally:
                 ovl.fcntl = orig_fcntl
 
