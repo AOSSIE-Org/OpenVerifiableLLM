@@ -18,12 +18,14 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 ## 1. Consistency check, without a GPU
 
 Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
+`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). On Windows, see
+[Windows](#windows) below. Download `release/simple-run/`
 without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
 pip install huggingface_hub torch numpy
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -50,6 +52,15 @@ It fails if any of these fails, or if `anchor.json` or a timestamp is missing. `
 yet. Use `ovl.py` from the v1.1.0 tag: the copy in the download's `code/` folder is older and does
 not check the anchor.
 
+**The file hashes.** `verify` does not read the file hashes in `release-hashes.txt`, and
+`sha256sum -c` trusts the list it is given. The `python -c` line after `sha256sum` closes that gap: it
+checks that `release-hashes.txt` is exactly the list that `anchor.json` commits to
+(`release_hashes_sha256`). `verify` ties `anchor.json` to the chain, and its two timestamps tie
+`anchor.json` to a date, so together the steps show that every downloaded file is the one the
+timestamped anchor lists. Without that line, changing a released file such as `recipe.json` and its
+line in `release-hashes.txt` passes both `sha256sum` and `verify`. Only the files you downloaded are
+checked; `--ignore-missing` skips the rest.
+
 The exclusion fork (`release/unlearning-3i-atlas/`) has its own anchor, timestamped on 2026-10-31
 14:28:00 UTC. That is later than the main run's, because the fork was anchored after the release. The
 same command in that folder gives `chain head MATCH (39 entries)` and `MATCH chain entry 38`.
@@ -63,6 +74,74 @@ token files; a changed token file is caught when a segment is recomputed.
 
 This is a **consistency check**. It shows that the release matches its timestamped record. It
 recomputes no training, and the record comes from the publisher.
+
+### Windows
+
+Needs Python 3.12 or newer and [Git for Windows](https://git-scm.com/download/win). Git for Windows
+provides `openssl.exe` and `sha256sum.exe` in `C:\Program Files\Git\usr\bin` (adjust the path if you
+installed Git elsewhere), but that folder is not on the default `PATH`: put it on the `PATH` for the
+session as the first two lines below do (they also set the Git folder for the CA bundle), or run the bash commands above in Git Bash (see below). The commands were
+tested on Windows 11 with PowerShell 7, Python 3.12 and Git for Windows 2.51.
+
+```powershell
+$git = "C:\Program Files\Git"   # change this if Git for Windows is installed elsewhere
+$env:PATH = "$git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+pip install huggingface_hub torch numpy
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
+  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+cd ovl/release/simple-run
+sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+$env:OVL_DEVICE = "cpu"
+python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
+# anchor anchor.json: chain head MATCH (38 entries)
+# WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
+# weights conversation-model.pt: MATCH chain entry 37
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$git\mingw64\etc\ssl\certs\ca-bundle.crt"
+curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each openssl command prints: Verification: OK
+```
+
+Why `--no-timestamps`: the v1.1.0 `verify` looks for the DigiCert CA bundle only at Linux and macOS
+paths, so on Windows it stops with `no system CA bundle found for the DigiCert timestamp`. The two
+`openssl ts -verify` commands check the same two timestamps by hand, as in
+[Check the timestamps by hand](#check-the-timestamps-by-hand); Git for Windows ships a CA bundle that
+includes DigiCert's root. The `WARNING` line is expected: `verify` itself did not check the anchor's
+timestamps, and you just did. Do not skip the two `openssl` commands.
+
+**Git Bash.** The bash commands above run in Git Bash, which has `openssl` and `sha256sum` on its `PATH`.
+With native Windows Python, `verify` stops at the DigiCert timestamp for the same reason as above, so add
+`--no-timestamps` to the `verify` command and check the timestamps by hand with Git's CA bundle:
+
+```bash
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /mingw64/etc/ssl/certs/ca-bundle.crt
+curl -sO https://freetsa.org/files/cacert.pem; curl -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each prints: Verification: OK
+```
+
+**Without `sha256sum`.** This PowerShell check does what `sha256sum -c --ignore-missing` does: run it
+in the folder with `release-hashes.txt`. It prints `FAILED` for a file whose hash differs. Then run the
+`python -c` line from above.
+
+```powershell
+Get-Content release-hashes.txt | ForEach-Object {
+  $hash, $name = $_ -split '\s+', 2
+  if ($name -and (Test-Path -LiteralPath $name)) {
+    "${name}: " + $(if ((Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash -eq $hash) { 'OK' } else { 'FAILED' })
+  }
+}
+```
+
+**CMD.** The same steps, with three differences:
+
+- Put the tools on the `PATH` with `set "PATH=C:\Program Files\Git\usr\bin;%PATH%"`.
+- Continue a long command with `^` at the end of the line, not `\` or a backtick.
+- Set the device with `set OVL_DEVICE=cpu&& python ovl-code/simple/ovl.py verify ...`. Write no space
+  before `&&`: with `set OVL_DEVICE=cpu && python ...` the value is `cpu` plus a trailing space, which
+  PyTorch rejects as a device name.
 
 ## 2. One segment, one click
 
