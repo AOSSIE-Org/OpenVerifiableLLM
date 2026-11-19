@@ -97,11 +97,12 @@ folder is older and does not check the anchor.
 for Windows 2.51). Git for Windows provides `openssl` and `sha256sum`, but not on the default `PATH`.
 The v1.1.0 `verify` looks for the DigiCert CA bundle only at Linux and macOS paths, so on Windows it
 stops with "no system CA bundle found": run it with `--no-timestamps` and check the two timestamps
-with `openssl` instead. CMD, and a check that needs no `sha256sum`, are in
+with `openssl` instead. Git Bash, CMD, and a check that needs no `sha256sum`, are in
 [docs/verify.md](docs/verify.md#windows).
 
 ```powershell
-$env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+$git = "C:\Program Files\Git"   # change this if Git for Windows is installed elsewhere
+$env:PATH = "$git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
 pip install huggingface_hub torch numpy
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
@@ -114,7 +115,7 @@ python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --n
 # anchor anchor.json: chain head MATCH (38 entries)
 # WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
 # weights conversation-model.pt: MATCH chain entry 37
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt"
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$git\mingw64\etc\ssl\certs\ca-bundle.crt"
 curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
 openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
 # each openssl command prints: Verification: OK

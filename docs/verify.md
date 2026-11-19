@@ -80,11 +80,12 @@ recomputes no training, and the record comes from the publisher.
 Needs Python 3.12 or newer and [Git for Windows](https://git-scm.com/download/win). Git for Windows
 provides `openssl.exe` and `sha256sum.exe` in `C:\Program Files\Git\usr\bin` (adjust the path if you
 installed Git elsewhere), but that folder is not on the default `PATH`: put it on the `PATH` for the
-session as the first line below does, or run the bash commands above in Git Bash. The commands were
+session as the first two lines below do (they also set the Git folder for the CA bundle), or run the bash commands above in Git Bash (see below). The commands were
 tested on Windows 11 with PowerShell 7, Python 3.12 and Git for Windows 2.51.
 
 ```powershell
-$env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+$git = "C:\Program Files\Git"   # change this if Git for Windows is installed elsewhere
+$env:PATH = "$git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
 pip install huggingface_hub torch numpy
 hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
@@ -97,7 +98,7 @@ python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --n
 # anchor anchor.json: chain head MATCH (38 entries)
 # WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
 # weights conversation-model.pt: MATCH chain entry 37
-openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "C:\Program Files\Git\mingw64\etc\ssl\certs\ca-bundle.crt"
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$git\mingw64\etc\ssl\certs\ca-bundle.crt"
 curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
 openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
 # each openssl command prints: Verification: OK
@@ -109,6 +110,17 @@ paths, so on Windows it stops with `no system CA bundle found for the DigiCert t
 [Check the timestamps by hand](#check-the-timestamps-by-hand); Git for Windows ships a CA bundle that
 includes DigiCert's root. The `WARNING` line is expected: `verify` itself did not check the anchor's
 timestamps, and you just did. Do not skip the two `openssl` commands.
+
+**Git Bash.** The bash commands above run in Git Bash, which has `openssl` and `sha256sum` on its `PATH`.
+With native Windows Python, `verify` stops at the DigiCert timestamp for the same reason as above, so add
+`--no-timestamps` to the `verify` command and check the timestamps by hand with Git's CA bundle:
+
+```bash
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile /mingw64/etc/ssl/certs/ca-bundle.crt
+curl -sO https://freetsa.org/files/cacert.pem; curl -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each prints: Verification: OK
+```
 
 **Without `sha256sum`.** This PowerShell check does what `sha256sum -c --ignore-missing` does: run it
 in the folder with `release-hashes.txt`. It prints `FAILED` for a file whose hash differs. Then run the
