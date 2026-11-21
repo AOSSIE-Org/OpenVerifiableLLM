@@ -116,7 +116,15 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
         exclude_ranges = (
             entry.get("control", {}).get("exclude", {}).get("wikipedia", [])
         )
+        # An exclusion can only take effect at or after the cursor already
+        # reached by the previous entry. A fork that claims to exclude targets
+        # the run had already trained on is invalid and must not be honoured.
+        previous_cursor = (
+            chain[k - 1].get("control", {}).get("cursor", 0) if k > 0 else 0
+        )
         for ex_start, ex_len in exclude_ranges:
+            if ex_start < previous_cursor:
+                continue
             if (
                 not is_excluded
                 and ex_start <= target_start
