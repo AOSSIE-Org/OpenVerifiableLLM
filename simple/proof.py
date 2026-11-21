@@ -113,15 +113,25 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
 
     # Scan every entry for exclusions (including if the fork entry is the last entry)
     for k, entry in enumerate(chain):
-        exclude_ranges = (
-            entry.get("control", {}).get("exclude", {}).get("wikipedia", [])
-        )
+        control = entry.get("control", {})
+        exclude_ranges = control.get("exclude", {}).get("wikipedia", [])
         for ex_start, ex_len in exclude_ranges:
             if (
                 not is_excluded
                 and ex_start <= target_start
                 and (ex_start + ex_len) >= target_end
             ):
+                # An exclusion only shows the run never saw the article if it was in force
+                # before the run reached it. `fork` refuses a document trained before the
+                # fork and `verify` checks every excluded range starts at or after the fork
+                # entry's cursor, so do not report "excluded" for a chain that breaks that.
+                cursor = control.get("cursor", 0)
+                if ex_start < cursor:
+                    sys.exit(
+                        f"chain entry {k} excludes targets [{ex_start}, {ex_start + ex_len}) "
+                        f"but its cursor {cursor} is already past the start of that range, "
+                        "so the run had trained on part of the article before the exclusion"
+                    )
                 is_excluded = True
                 exclusion_detail = {
                     "at_boundary": k,

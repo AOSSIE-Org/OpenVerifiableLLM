@@ -234,7 +234,7 @@ class TestMembershipProof(unittest.TestCase):
                 "kind": "fork",
                 "control": {
                     "phase": "wikipedia",
-                    "cursor": 274561003,
+                    "cursor": 274560000,
                     "exclude": {"wikipedia": [[274560000, 2000]]},
                 },
                 "state": "state_fork",
@@ -259,7 +259,7 @@ class TestMembershipProof(unittest.TestCase):
                 "kind": "fork",
                 "control": {
                     "phase": "wikipedia",
-                    "cursor": 274561003,
+                    "cursor": 274560000,
                     "exclude": {"wikipedia": [[274560000, 2000]]},
                 },
                 "state": "state_fork",
@@ -289,6 +289,51 @@ class TestMembershipProof(unittest.TestCase):
         self.assertEqual(
             proof["exclusion_proof"]["excluded_range"], [274560000, 274562000]
         )
+
+    def test_membership_exclusion_after_the_article_was_trained_is_rejected(self):
+        # Article 12 is trained in segment 0. `fork` refuses to exclude a document it has
+        # already trained on, and `verify` rejects such a fork entry, so it must not be
+        # reported as "excluded" (which would also hide the segment that trained on it)
+        late_fork_chain = [
+            self.chain[0],
+            self.chain[1],
+            {
+                "index": 2,
+                "kind": "fork",
+                "control": {
+                    "phase": "wikipedia",
+                    "cursor": 274561003,
+                    "exclude": {"wikipedia": [[0, 9037]]},
+                },
+                "state": "state_fork",
+                "previous": "prev_hash_2",
+            },
+        ]
+        doc = mp.find_article(self.data_dir, "12")
+        with self.assertRaises(SystemExit) as ctx:
+            mp.build_membership_proof(doc, late_fork_chain, True, self.stream_hash)
+        self.assertIn("already past the start", str(ctx.exception))
+
+    def test_membership_exclusion_starting_at_the_fork_cursor_is_accepted(self):
+        # The excluded range starts exactly where the fork entry's cursor is: not reached yet
+        fork_chain = [
+            self.chain[0],
+            {
+                "index": 1,
+                "kind": "fork",
+                "control": {
+                    "phase": "wikipedia",
+                    "cursor": 9037,
+                    "exclude": {"wikipedia": [[9037, 5721]]},
+                },
+                "state": "state_fork",
+                "previous": "prev_hash_1",
+            },
+        ]
+        doc = mp.find_article(self.data_dir, "39")
+        proof = mp.build_membership_proof(doc, fork_chain, True, self.stream_hash)
+        self.assertEqual(proof["membership_status"], "excluded")
+        self.assertEqual(proof["exclusion_proof"]["at_boundary"], 1)
 
     def test_membership_trained_single_segment(self):
         doc = mp.find_article(self.data_dir, "12")
