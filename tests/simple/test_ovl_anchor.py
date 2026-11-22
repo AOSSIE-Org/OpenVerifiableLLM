@@ -235,6 +235,22 @@ class AnchorTimestamps(unittest.TestCase):
         self.assertIn(ca_error, message)
         self.assertIn("OVL_OPENSSL", message)
 
+    def test_genuine_anchor_change_still_fails_as_tampering(self):
+        """A reply whose imprint is for different bytes must still be reported as tampering."""
+        original = (self.run / "anchor.json").read_bytes()
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(hashlib.sha256(original).hexdigest()))
+        (self.run / "anchor.json").write_text(json.dumps({**json.loads(original), "note": "edited"}))
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value="digest verify failure"):
+            with self.assertRaisesRegex(SystemExit, "the anchor was changed after it was stamped"):
+                self.verify()
+
     def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
         # Swapping anchor.json after it was read must not change what the timestamps check.
         original = (self.run / "anchor.json").read_bytes()
