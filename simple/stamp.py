@@ -134,16 +134,21 @@ def verify_failure_detail(path, name, imprint, certs):
 def reply_imprint(path):
     """The SHA-256 message imprint stamped into a reply, as hex; None if it cannot be found.
 
-    The imprint is a sha256 AlgorithmIdentifier (OID plus NULL) followed by a 32-byte OCTET
-    STRING. Comparing it with the digest of the data under test tells a changed anchor apart
-    from a CA or tool failure, without depending on version-specific openssl error text.
+    The imprint is a sha256 AlgorithmIdentifier (OID with NULL or absent parameters, per RFC
+    5754) followed by a 32-byte OCTET STRING. A short or missing digest yields None, so a
+    truncated reply is not mistaken for a changed anchor. Comparing the imprint with the digest
+    of the data under test tells a changed anchor apart from a CA or tool failure, without
+    depending on version-specific openssl error text.
     """
     data = Path(path).read_bytes()
-    marker = SHA256_OID + b"\x05\x00\x04\x20"
-    i = data.find(marker)
-    if i < 0:
-        return None
-    return data[i + len(marker):i + len(marker) + 32].hex()
+    for params in (b"\x05\x00", b""):
+        marker = SHA256_OID + params + b"\x04\x20"
+        i = data.find(marker)
+        if i < 0:
+            continue
+        digest = data[i + len(marker):i + len(marker) + 32]
+        return digest.hex() if len(digest) == 32 else None
+    return None
 
 
 def check(run, chain):
