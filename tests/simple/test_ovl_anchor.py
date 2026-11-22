@@ -37,6 +37,15 @@ def fake_chain(n):
     return chain
 
 
+def reply_with_imprint(digest_hex):
+    """A reply carrying a SHA-256 message imprint, as a real TSR does.
+
+    The imprint is the AlgorithmIdentifier (sha256, NULL) followed by a 32-byte OCTET STRING,
+    the same byte pattern simple/stamp.py builds for a timestamp request.
+    """
+    return ovl.stamp.SHA256_OID + b"\x05\x00\x04\x20" + bytes.fromhex(digest_hex)
+
+
 def args(run, anchor=None, no_anchor=False, no_timestamps=True):
     # The anchors here are fake and unstamped; AnchorTimestamps below covers the timestamp check.
     return argparse.Namespace(run=str(run), data=None, segment=None, random=0, all=False, weights=None, anchor=anchor,
@@ -198,6 +207,29 @@ class AnchorTimestamps(unittest.TestCase):
         with mock.patch.object(ovl.stamp, "verify_reply", side_effect=self.stamped(original)):
             with self.assertRaisesRegex(SystemExit, "does not verify"):
                 self.verify()
+
+    def test_libressl_ca_failure_is_not_reported_as_anchor_change(self):
+        """issue #364: a CA-chain failure must not be blamed on a changed anchor.
+
+        The reply's imprint still matches anchor.json, so it is openssl that failed, not the
+        download. verify must fail closed, but say why instead of alleging tampering.
+        """
+        original = (self.run / "anchor.json").read_bytes()
+        digest = hashlib.sha256(original).hexdigest()
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(digest))
+        ca_error = "Verify error:unable to get local issuer certificate"
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub):
+            with self.assertRaises(SystemExit) as cm:
+                self.verify()
+        message = str(cm.exception)
+        self.assertNotIn("the anchor was changed", message)
+        self.assertIn(ca_error, message)
 
     def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
         # Swapping anchor.json after it was read must not change what the timestamps check.
