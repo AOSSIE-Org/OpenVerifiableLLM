@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import torch
@@ -224,12 +225,15 @@ class AnchorTimestamps(unittest.TestCase):
                 return False, "Oct 20 14:38:43 2026 GMT"
             return True, "Oct 20 14:38:43 2026 GMT"
 
-        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub):
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value=ca_error), \
+             mock.patch.object(ovl.stamp, "is_libressl", return_value=True):
             with self.assertRaises(SystemExit) as cm:
                 self.verify()
         message = str(cm.exception)
         self.assertNotIn("the anchor was changed", message)
         self.assertIn(ca_error, message)
+        self.assertIn("OVL_OPENSSL", message)
 
     def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
         # Swapping anchor.json after it was read must not change what the timestamps check.
@@ -264,6 +268,29 @@ class AnchorTimestamps(unittest.TestCase):
                 ovl.cmd_verify(args(self.run, no_timestamps=True))
         v.assert_not_called()
         self.assertIn("WARNING: --no-timestamps", out.getvalue())
+
+
+class ReplyVerification(unittest.TestCase):
+    """The openssl verdict itself: stdout alone must not be enough to pass."""
+
+    def _verify(self, returncode, stdout):
+        with mock.patch.object(ovl.stamp, "system_ca", return_value="/ca.pem"), \
+             mock.patch.object(ovl.stamp.subprocess, "run") as run:
+            run.side_effect = [
+                SimpleNamespace(returncode=returncode, stdout=stdout, stderr=""),
+                SimpleNamespace(returncode=0, stdout="Time stamp: Oct 20 14:38:43 2026 GMT\n", stderr=""),
+            ]
+            return ovl.stamp.verify_reply("reply.tsr", "digicert", ["-data", "anchor.json"], ("ca", "tsa"))
+
+    def test_nonzero_exit_fails_even_with_ok_on_stdout(self):
+        ok, when = self._verify(1, "Verification: OK\n")
+        self.assertFalse(ok)
+        self.assertEqual(when, "Oct 20 14:38:43 2026 GMT")
+
+    def test_zero_exit_with_ok_on_stdout_passes(self):
+        ok, when = self._verify(0, "Verification: OK\n")
+        self.assertTrue(ok)
+        self.assertEqual(when, "Oct 20 14:38:43 2026 GMT")
 
 
 if __name__ == "__main__":

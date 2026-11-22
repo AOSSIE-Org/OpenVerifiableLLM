@@ -11,6 +11,7 @@ Stamping runs in a background thread and never touches the training state.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import secrets
 import subprocess
@@ -87,14 +88,62 @@ def freetsa_certs(d):
     return ca, tsa
 
 
-def verify_reply(path, name, imprint, certs):
-    """Check one saved reply with openssl. imprint is ["-digest", hex] or ["-data", file]; returns (ok, time)."""
+def openssl():
+    """The openssl to use. OVL_OPENSSL lets macOS users point at Homebrew's openssl@3,
+    since /usr/bin/openssl is LibreSSL and cannot build DigiCert's chain (#364)."""
+    return os.environ.get("OVL_OPENSSL", "openssl")
+
+
+def is_libressl():
+    """True when the openssl in use is LibreSSL, for an actionable error message."""
+    try:
+        v = subprocess.run([openssl(), "version"], capture_output=True, text=True)
+    except OSError:
+        return False
+    return "libressl" in v.stdout.lower()
+
+
+def ts_verify(path, name, imprint, certs):
+    """The `openssl ts -verify` call, shared by the verdict and the diagnostic."""
     ca, tsa = certs
     trust = ["-CAfile", str(ca), "-untrusted", str(tsa)] if name == "freetsa" else ["-CAfile", str(system_ca())]
-    r = subprocess.run(["openssl", "ts", "-verify", *imprint, "-in", str(path)] + trust, capture_output=True, text=True)
-    when = subprocess.run(["openssl", "ts", "-reply", "-in", str(path), "-text"], capture_output=True, text=True).stdout
+    return subprocess.run([openssl(), "ts", "-verify", *imprint, "-in", str(path)] + trust,
+                          capture_output=True, text=True)
+
+
+def verify_reply(path, name, imprint, certs):
+    """Check one saved reply with openssl. imprint is ["-digest", hex] or ["-data", file]; returns (ok, time).
+
+    A nonzero exit is a failure even if stdout happens to contain 'Verification: OK'; fail closed.
+    """
+    r = ts_verify(path, name, imprint, certs)
+    when = subprocess.run([openssl(), "ts", "-reply", "-in", str(path), "-text"], capture_output=True, text=True).stdout
     when = next((l.split(":", 1)[1].strip() for l in when.splitlines() if l.startswith("Time stamp:")), "?")
-    return "Verification: OK" in r.stdout, when
+    return r.returncode == 0 and "Verification: OK" in r.stdout, when
+
+
+def verify_failure_detail(path, name, imprint, certs):
+    """openssl's own reason for a failed reply check, so a tool error is not misreported as tampering."""
+    try:
+        r = ts_verify(path, name, imprint, certs)
+    except OSError as e:
+        return str(e)
+    return r.stderr.strip() or r.stdout.strip() or "openssl gave no diagnostic"
+
+
+def reply_imprint(path):
+    """The SHA-256 message imprint stamped into a reply, as hex; None if it cannot be found.
+
+    The imprint is a sha256 AlgorithmIdentifier (OID plus NULL) followed by a 32-byte OCTET
+    STRING. Comparing it with the digest of the data under test tells a changed anchor apart
+    from a CA or tool failure, without depending on version-specific openssl error text.
+    """
+    data = Path(path).read_bytes()
+    marker = SHA256_OID + b"\x05\x00\x04\x20"
+    i = data.find(marker)
+    if i < 0:
+        return None
+    return data[i + len(marker):i + len(marker) + 32].hex()
 
 
 def check(run, chain):
