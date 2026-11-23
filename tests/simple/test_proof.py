@@ -225,6 +225,49 @@ class TestMembershipProof(unittest.TestCase):
         with self.assertRaises(SystemExit):
             mp.read_chain(self.run_dir)
 
+    def test_late_fork_cannot_exclude_an_already_trained_article(self):
+        doc = self.docs[0]
+
+        def control(cursor, **kw):
+            return {"phase": "wikipedia", "cursor": cursor, **kw}
+
+        chain = [
+            {"index": 0, "kind": "initial", "control": control(0), "state": "s0"},
+            {"index": 1, "kind": "progress", "control": control(20000), "state": "s1"},
+            {
+                "index": 2,
+                "kind": "fork",
+                "control": control(20000, exclude={"wikipedia": [[0, 9037]]}),
+                "state": "s1",
+            },
+        ]
+
+        proof = mp.build_membership_proof(doc, chain, True, self.stream_hash)
+        self.assertEqual(proof["membership_status"], "trained")
+        self.assertEqual(proof["segments"], [0])
+        self.assertNotIn("exclusion_proof", proof)
+
+    def test_valid_fork_exclusion_at_the_previous_cursor_is_honoured(self):
+        doc = self.docs[0]
+
+        def control(cursor, **kw):
+            return {"phase": "wikipedia", "cursor": cursor, **kw}
+
+        chain = [
+            {"index": 0, "kind": "initial", "control": control(0), "state": "s0"},
+            {
+                "index": 1,
+                "kind": "fork",
+                "control": control(0, exclude={"wikipedia": [[0, 9037]]}),
+                "state": "s1",
+            },
+        ]
+
+        proof = mp.build_membership_proof(doc, chain, True, self.stream_hash)
+        self.assertEqual(proof["membership_status"], "excluded")
+        self.assertEqual(proof["segments"], [])
+        self.assertEqual(proof["exclusion_proof"]["at_boundary"], 1)
+
     def test_membership_fork_exclusion_fork_entry_last(self):
         # Fork entry is the last entry in the chain
         fork_chain = [
@@ -234,7 +277,7 @@ class TestMembershipProof(unittest.TestCase):
                 "kind": "fork",
                 "control": {
                     "phase": "wikipedia",
-                    "cursor": 274561003,
+                    "cursor": 0,
                     "exclude": {"wikipedia": [[274560000, 2000]]},
                 },
                 "state": "state_fork",
@@ -259,7 +302,7 @@ class TestMembershipProof(unittest.TestCase):
                 "kind": "fork",
                 "control": {
                     "phase": "wikipedia",
-                    "cursor": 274561003,
+                    "cursor": 0,
                     "exclude": {"wikipedia": [[274560000, 2000]]},
                 },
                 "state": "state_fork",
