@@ -9,6 +9,7 @@ and [Mentor](https://github.com/AOSSIE-Org/Info/blob/main/Roles/Mentors.md) for 
 | Name | GitHub Username | Discord Username |
 | ---- | --------------- | ---------------- |
 | Archit Ojha | [@Archit381](https://github.com/Archit381) | archit381_ |
+| Dr. Bruno Woltzenlogel Paleo | [@Zahnentferner](https://github.com/Zahnentferner) | b.wp |
 
 ## Maintainers
 
