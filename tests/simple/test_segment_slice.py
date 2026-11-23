@@ -136,6 +136,20 @@ class SegmentSliceTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+        release_dir = self.data / "release" / "simple-run"
+        release_dir.mkdir(parents=True)
+        chain_head = hashlib.sha256(
+            json.dumps(chain[-1], sort_keys=True).encode()
+        ).hexdigest()
+        anchor = {
+            "chain_entries": len(chain),
+            "chain_head_sha256": chain_head,
+        }
+        (release_dir / "anchor.json").write_text(
+            json.dumps(anchor),
+            encoding="utf-8",
+        )
+
 
     def _run(self):
         return subprocess.run(
@@ -148,6 +162,7 @@ class SegmentSliceTests(unittest.TestCase):
                 "31",
                 "--data",
                 str(self.data),
+                "--no-timestamps",
             ],
             capture_output=True,
             text=True,
@@ -228,6 +243,33 @@ class SegmentSliceTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Chain link broken at entry 31", result.stderr)
+
+    def test_rehashed_chain_tampering_fails_release_anchor(self):
+        path = self.data / "chain.jsonl"
+        chain = [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+        ]
+
+        # Repair the internal links after changing an entry.
+        # The independently published anchor must still reject the new head.
+        chain[30]["control"]["cursor"] += 1
+        for index in range(31, len(chain)):
+            chain[index]["previous"] = hashlib.sha256(
+                json.dumps(chain[index - 1], sort_keys=True).encode()
+            ).hexdigest()
+
+        path.write_text(
+            "".join(json.dumps(entry) + "\n" for entry in chain),
+            encoding="utf-8",
+        )
+
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Chain head differs from the published release anchor",
+            result.stderr,
+        )
 
     def test_missing_token_file_fails(self):
         path = self.data / "segment-30-31-tokens.u16"

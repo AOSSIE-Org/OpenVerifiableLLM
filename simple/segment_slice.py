@@ -4,9 +4,11 @@ import argparse
 import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
+import stamp
 
 CONTEXT, BATCH_SIZE = 512, 32
 PAD, BOS, EOS = 0, 1, 2
@@ -14,6 +16,92 @@ PAD, BOS, EOS = 0, 1, 2
 def check(ok, message):
     if not ok:
         raise RuntimeError(message)
+
+
+
+def verify_release_anchor(chain, anchor_path, verify_timestamps=True):
+    """Authenticate the published chain head before trusting a segment replay."""
+    check(anchor_path.is_file(), f"Missing required release anchor: {anchor_path}")
+
+    anchor_bytes = anchor_path.read_bytes()
+    try:
+        anchor = json.loads(anchor_bytes.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise RuntimeError(f"Invalid release anchor {anchor_path}: {err}") from err
+
+    required = {"chain_entries", "chain_head_sha256"}
+    check(
+        isinstance(anchor, dict) and required <= anchor.keys(),
+        "Release anchor must contain chain_entries and chain_head_sha256.",
+    )
+    check(
+        isinstance(anchor["chain_entries"], int)
+        and not isinstance(anchor["chain_entries"], bool)
+        and anchor["chain_entries"] > 0,
+        "Release anchor has an invalid chain_entries value.",
+    )
+    check(
+        isinstance(anchor["chain_head_sha256"], str)
+        and len(anchor["chain_head_sha256"]) == 64
+        and all(c in "0123456789abcdef" for c in anchor["chain_head_sha256"]),
+        "Release anchor has an invalid chain_head_sha256 value.",
+    )
+
+    if verify_timestamps:
+        if not stamp.system_ca():
+            try:
+                import certifi
+            except ImportError as err:
+                raise RuntimeError(
+                    "No system CA bundle found; install certifi to verify the "
+                    "DigiCert timestamp."
+                ) from err
+            stamp.system_ca = lambda: certifi.where()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            snapshot = Path(temp_dir) / "anchor.json"
+            snapshot.write_bytes(anchor_bytes)
+
+            local_certs = anchor_path.parent / "freetsa-certs"
+            ca_file = local_certs / "cacert.pem"
+            tsa_file = local_certs / "tsa.crt"
+            if ca_file.is_file() and tsa_file.is_file():
+                certs = (ca_file, tsa_file)
+            else:
+                try:
+                    certs = stamp.freetsa_certs(temp_dir)
+                except OSError as err:
+                    raise RuntimeError(
+                        f"Could not obtain FreeTSA verification certificates: {err}"
+                    ) from err
+
+            for name in stamp.TSA:
+                tsr = anchor_path.with_name(f"{anchor_path.stem}.{name}.tsr")
+                check(tsr.is_file(), f"Missing release timestamp proof: {tsr}")
+                try:
+                    ok, when = stamp.verify_reply(
+                        tsr, name, ["-data", str(snapshot)], certs
+                    )
+                except FileNotFoundError as err:
+                    raise RuntimeError(
+                        "OpenSSL was not found; it is required to verify release timestamps."
+                    ) from err
+                check(
+                    ok,
+                    f"Release timestamp {tsr} does not verify against the exact anchor bytes.",
+                )
+                print(f"Release timestamp {name}: OK ({when})")
+
+    head = hashlib.sha256(
+        json.dumps(chain[-1], sort_keys=True).encode()
+    ).hexdigest()
+
+    check(
+        len(chain) == anchor["chain_entries"]
+        and head == anchor["chain_head_sha256"],
+        "Chain head differs from the published release anchor.",
+    )
+    print(f"Release anchor: chain head MATCH ({len(chain)} entries)")
 
 
 def make_inputs(windows, tok, mask):
@@ -40,6 +128,16 @@ def main(argv=None):
     parser.add_argument(
         "--data", type=Path, required=True,
         help="Directory containing chain.jsonl and segment slice files",
+    )
+    parser.add_argument(
+        "--anchor",
+        type=Path,
+        help="Published release anchor JSON (defaults to data/release/simple-run/anchor.json).",
+    )
+    parser.add_argument(
+        "--no-timestamps",
+        action="store_true",
+        help="Skip RFC 3161 timestamp checks; intended only for synthetic tests.",
     )
     args = parser.parse_args(argv)
 
@@ -85,6 +183,15 @@ def main(argv=None):
         )
 
     check(args.end < len(chain), f"Chain has no entry {args.end}.")
+
+    anchor_path = args.anchor or (
+        data_dir / "release" / "simple-run" / "anchor.json"
+    )
+    verify_release_anchor(
+        chain,
+        anchor_path,
+        verify_timestamps=not args.no_timestamps,
+    )
 
     manifest_bytes = stream_path.read_bytes()
     manifest_hash = hashlib.sha256(manifest_bytes).hexdigest()
