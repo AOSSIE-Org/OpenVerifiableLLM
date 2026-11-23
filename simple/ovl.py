@@ -33,6 +33,7 @@ import math
 from pathlib import Path
 import queue
 import secrets
+import shutil
 import sys
 import tempfile
 import threading
@@ -532,6 +533,18 @@ def cmd_fork(a):
              "previous": hashlib.sha256(json.dumps(chain[k], sort_keys=True).encode()).hexdigest(),
              "time": time.time(), "fork": {"from_entry": k, "documents": sorted(docs)}}
     (out / "chain.jsonl").write_text("\n".join(lines + [json.dumps(entry, sort_keys=True)]) + "\n", encoding="utf-8")
+
+    # Preserve the original timestamp evidence for inherited entries.
+    source_timestamps = src / "timestamps"
+    if source_timestamps.is_dir():
+        for i in range(k + 1):
+            for name in stamp.TSA:
+                receipt = source_timestamps / f"entry-{i:05d}.{name}.tsr"
+                if receipt.is_file():
+                    target_dir = out / "timestamps"
+                    target_dir.mkdir(exist_ok=True)
+                    shutil.copyfile(receipt, target_dir / receipt.name)
+
     read_chain(out)
     if TIMESTAMP:
         stamp.stamp_entry(out, entry)
