@@ -11,6 +11,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import torch
@@ -35,6 +36,15 @@ def fake_chain(n):
         chain.append({"index": i, "kind": "final" if i == n - 1 else "progress", "control": {"global_step": i},
                       "state": f"{i:064x}", "model": f"{i:064x}", "previous": link(chain[-1]) if chain else None})
     return chain
+
+
+def reply_with_imprint(digest_hex, params=b"\x05\x00"):
+    """A reply carrying a SHA-256 message imprint, as a real TSR does.
+
+    The imprint is the AlgorithmIdentifier (sha256, with or without NULL parameters) followed by
+    the OCTET STRING bytes in digest_hex (normally 32), as stamp.py builds for a timestamp request.
+    """
+    return ovl.stamp.SHA256_OID + params + b"\x04\x20" + bytes.fromhex(digest_hex)
 
 
 def args(run, anchor=None, no_anchor=False, no_timestamps=True):
@@ -199,6 +209,103 @@ class AnchorTimestamps(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "does not verify"):
                 self.verify()
 
+    def test_libressl_ca_failure_is_not_reported_as_anchor_change(self):
+        """issue #364: a CA-chain failure must not be blamed on a changed anchor.
+
+        The reply's imprint still matches anchor.json, so it is openssl that failed, not the
+        download. verify must fail closed, but say why instead of alleging tampering.
+        """
+        original = (self.run / "anchor.json").read_bytes()
+        digest = hashlib.sha256(original).hexdigest()
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(digest))
+        ca_error = "Verify error:unable to get local issuer certificate"
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value=ca_error), \
+             mock.patch.object(ovl.stamp, "is_libressl", return_value=True):
+            with self.assertRaises(SystemExit) as cm:
+                self.verify()
+        message = str(cm.exception)
+        self.assertNotIn("the anchor was changed", message)
+        self.assertIn(ca_error, message)
+        self.assertIn("OVL_OPENSSL", message)
+
+    def test_genuine_anchor_change_still_fails_as_tampering(self):
+        """A reply whose imprint is for different bytes must still be reported as tampering."""
+        original = (self.run / "anchor.json").read_bytes()
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(hashlib.sha256(original).hexdigest()))
+        (self.run / "anchor.json").write_text(json.dumps({**json.loads(original), "note": "edited"}))
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value="digest verify failure"):
+            with self.assertRaisesRegex(SystemExit, "the anchor was changed after it was stamped"):
+                self.verify()
+
+    def test_absent_parameters_imprint_still_detects_a_changed_anchor(self):
+        """RFC 5754 allows no NULL params; a real anchor change must still be reported as tampering."""
+        original = (self.run / "anchor.json").read_bytes()
+        digest = hashlib.sha256(original).hexdigest()
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(digest, params=b""))
+        (self.run / "anchor.json").write_text(json.dumps({**json.loads(original), "note": "edited"}))
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value="digest verify failure"):
+            with self.assertRaisesRegex(SystemExit, "the anchor was changed after it was stamped"):
+                self.verify()
+
+    def test_truncated_reply_is_not_reported_as_anchor_change(self):
+        """A marker with no digest must fail closed with the openssl detail, not allege tampering."""
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(""))
+        ca_error = "Verify error:unable to get local issuer certificate"
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value=ca_error):
+            with self.assertRaises(SystemExit) as cm:
+                self.verify()
+        message = str(cm.exception)
+        self.assertNotIn("the anchor was changed", message)
+        self.assertIn(ca_error, message)
+
+    def test_partial_imprint_is_not_reported_as_anchor_change(self):
+        """Ten digest bytes are not an imprint; slicing must not produce a short hex comparison."""
+        original = (self.run / "anchor.json").read_bytes()
+        partial = hashlib.sha256(original).hexdigest()[:20]  # 10 of the 32 bytes
+        (self.run / "anchor.digicert.tsr").write_bytes(reply_with_imprint(partial))
+        ca_error = "Verify error:unable to get local issuer certificate"
+
+        def openssl_stub(tsr, name, imprint, certs):
+            if name == "digicert":
+                return False, "Oct 20 14:38:43 2026 GMT"
+            return True, "Oct 20 14:38:43 2026 GMT"
+
+        with mock.patch.object(ovl.stamp, "verify_reply", side_effect=openssl_stub), \
+             mock.patch.object(ovl.stamp, "verify_failure_detail", return_value=ca_error):
+            with self.assertRaises(SystemExit) as cm:
+                self.verify()
+        message = str(cm.exception)
+        self.assertNotIn("the anchor was changed", message)
+        self.assertIn(ca_error, message)
+
     def test_timestamps_check_the_bytes_the_head_was_compared_with(self):
         # Swapping anchor.json after it was read must not change what the timestamps check.
         original = (self.run / "anchor.json").read_bytes()
@@ -232,6 +339,47 @@ class AnchorTimestamps(unittest.TestCase):
                 ovl.cmd_verify(args(self.run, no_timestamps=True))
         v.assert_not_called()
         self.assertIn("WARNING: --no-timestamps", out.getvalue())
+
+
+class ReplyVerification(unittest.TestCase):
+    """The openssl verdict itself: stdout alone must not be enough to pass."""
+
+    def _verify(self, returncode, stdout):
+        with mock.patch.object(ovl.stamp, "system_ca", return_value="/ca.pem"), \
+             mock.patch.object(ovl.stamp.subprocess, "run") as run:
+            run.side_effect = [
+                SimpleNamespace(returncode=returncode, stdout=stdout, stderr=""),
+                SimpleNamespace(returncode=0, stdout="Time stamp: Oct 20 14:38:43 2026 GMT\n", stderr=""),
+            ]
+            return ovl.stamp.verify_reply("reply.tsr", "digicert", ["-data", "anchor.json"], ("ca", "tsa"))
+
+    def test_nonzero_exit_fails_even_with_ok_on_stdout(self):
+        ok, when = self._verify(1, "Verification: OK\n")
+        self.assertFalse(ok)
+        self.assertEqual(when, "Oct 20 14:38:43 2026 GMT")
+
+    def test_zero_exit_with_ok_on_stdout_passes(self):
+        ok, when = self._verify(0, "Verification: OK\n")
+        self.assertTrue(ok)
+        self.assertEqual(when, "Oct 20 14:38:43 2026 GMT")
+
+    def test_reply_imprint_accepts_both_parameter_forms_and_rejects_short_digests(self):
+        """Both RFC 5754 forms yield the digest; a missing or partial digest yields None."""
+        digest = hashlib.sha256(b"anchor").hexdigest()
+        raw = bytes.fromhex(digest)
+        oid = ovl.stamp.SHA256_OID
+        cases = (
+            (oid + b"\x05\x00\x04\x20" + raw, digest),
+            (oid + b"\x04\x20" + raw, digest),
+            (oid + b"\x05\x00\x04\x20" + raw[:10], None),
+            (oid + b"\x05\x00\x04\x20", None),
+        )
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "reply.tsr"
+            for blob, expected in cases:
+                with self.subTest(blob=blob.hex()):
+                    path.write_bytes(blob)
+                    self.assertEqual(ovl.stamp.reply_imprint(path), expected)
 
 
 if __name__ == "__main__":

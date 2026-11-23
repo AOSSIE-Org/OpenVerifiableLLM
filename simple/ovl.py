@@ -597,6 +597,7 @@ def check_anchor_timestamps(anchor, data):
     file can't be swapped between the two checks."""
     if not stamp.system_ca():
         sys.exit("no system CA bundle found for the DigiCert timestamp; pass --no-timestamps to skip it")
+    digest = hashlib.sha256(data).hexdigest()
     stamped = {}
     with tempfile.TemporaryDirectory() as d:
         snapshot = Path(d) / "anchor.json"
@@ -614,7 +615,19 @@ def check_anchor_timestamps(anchor, data):
             except FileNotFoundError:
                 sys.exit("openssl not found; it is needed to check the anchor's timestamps")
             if not ok:
-                sys.exit(f"timestamp {tsr} does not verify for {anchor}: the anchor was changed after it was stamped")
+                # Only blame the anchor when the reply's imprint really differs from these bytes.
+                # Otherwise openssl failed for its own reason (e.g. LibreSSL cannot build the
+                # DigiCert chain on macOS); say so, and still fail closed.
+                imprint = stamp.reply_imprint(tsr)
+                if imprint is not None and imprint != digest:
+                    reason = "the anchor was changed after it was stamped"
+                else:
+                    detail = stamp.verify_failure_detail(tsr, name, ["-data", str(snapshot)], certs)
+                    reason = f"openssl could not verify the timestamp: {detail}"
+                    if stamp.is_libressl():
+                        reason += ("; LibreSSL cannot verify this DigiCert chain, install openssl@3 "
+                                   "and set OVL_OPENSSL to its path")
+                sys.exit(f"timestamp {tsr} does not verify for {anchor}: {reason}")
             print(f"anchor timestamp {name}: OK ({when})", flush=True)
             stamped[name] = when
     return stamped
