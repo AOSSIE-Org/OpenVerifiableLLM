@@ -75,9 +75,21 @@ def stamp_async(run, entry):
 
 
 def system_ca():
-    """The system CA bundle that holds DigiCert's root: Linux, then macOS."""
-    return next((p for p in ("/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
-                             "/etc/ssl/cert.pem") if Path(p).exists()), None)
+    """Return a CA bundle that can verify the DigiCert timestamp."""
+    paths = (
+        "/etc/ssl/certs/ca-certificates.crt",
+        "/etc/pki/tls/certs/ca-bundle.crt",
+        "/etc/ssl/cert.pem",
+    )
+    for p in paths:
+        if Path(p).is_file():
+            return p
+    try:
+        import certifi
+
+        return certifi.where()
+    except ImportError:
+        return None
 
 
 def freetsa_certs(d):
@@ -90,7 +102,13 @@ def freetsa_certs(d):
 def verify_reply(path, name, imprint, certs):
     """Check one saved reply with openssl. imprint is ["-digest", hex] or ["-data", file]; returns (ok, time)."""
     ca, tsa = certs
-    trust = ["-CAfile", str(ca), "-untrusted", str(tsa)] if name == "freetsa" else ["-CAfile", str(system_ca())]
+    if name == "freetsa":
+        trust = ["-CAfile", str(ca), "-untrusted", str(tsa)]
+    else:
+        ca_bundle = system_ca()
+        if ca_bundle is None:
+            return False, "CA bundle unavailable"
+        trust = ["-CAfile", str(ca_bundle)]
     r = subprocess.run(["openssl", "ts", "-verify", *imprint, "-in", str(path)] + trust, capture_output=True, text=True)
     when = subprocess.run(["openssl", "ts", "-reply", "-in", str(path), "-text"], capture_output=True, text=True).stdout
     when = next((l.split(":", 1)[1].strip() for l in when.splitlines() if l.startswith("Time stamp:")), "?")
