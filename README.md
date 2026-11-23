@@ -75,6 +75,7 @@ hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence \
   --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
 cd ovl/release/simple-run
 sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
 # anchor anchor.json: chain head MATCH (38 entries)
@@ -83,15 +84,49 @@ OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversati
 # weights conversation-model.pt: MATCH chain entry 37
 ```
 
+`sha256sum` trusts the list it reads. The `python -c` line checks that `release-hashes.txt` is the list
+that `anchor.json` commits to (its `release_hashes_sha256`), and `anchor.json` is tied to the chain by
+`verify` and to a date by the two timestamps. `verify` does not read the file hashes itself: without
+that line, a changed file and a matching edit of its line in `release-hashes.txt` pass both
+`sha256sum` and `verify`.
+
 Use `ovl.py` from the v1.1.0 tag (v1.0.2 or newer works too). The copy in the download's `code/`
 folder is older and does not check the anchor.
+
+**On Windows**, run this in PowerShell (tested on Windows 11 with PowerShell 7, Python 3.12 and Git
+for Windows 2.51). Git for Windows provides `openssl` and `sha256sum`, but not on the default `PATH`.
+The v1.1.0 `verify` looks for the DigiCert CA bundle only at Linux and macOS paths, so on Windows it
+stops with "no system CA bundle found": run it with `--no-timestamps` and check the two timestamps
+with `openssl` instead. Git Bash, CMD, and a check that needs no `sha256sum`, are in
+[docs/verify.md](docs/verify.md#windows).
+
+```powershell
+$git = "C:\Program Files\Git"   # change this if Git for Windows is installed elsewhere
+$env:PATH = "$git\usr\bin;$env:PATH"   # openssl.exe and sha256sum.exe from Git for Windows
+pip install huggingface_hub torch numpy
+hf download AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence `
+  --repo-type dataset --include "release/simple-run/*" --exclude "*/ckpt-*" --local-dir ovl
+cd ovl/release/simple-run
+sha256sum -c --ignore-missing release-hashes.txt
+python -c "import hashlib,json;a=json.load(open('anchor.json'));h=hashlib.sha256(open('release-hashes.txt','rb').read()).hexdigest();assert h==a['release_hashes_sha256'],'release-hashes.txt does not match anchor.json';print('release-hashes.txt: MATCH anchor.json')"
+git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
+$env:OVL_DEVICE = "cpu"
+python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt --no-timestamps
+# anchor anchor.json: chain head MATCH (38 entries)
+# WARNING: --no-timestamps: the anchor itself is not checked against its timestamps
+# weights conversation-model.pt: MATCH chain entry 37
+openssl ts -verify -in anchor.digicert.tsr -data anchor.json -CAfile "$git\mingw64\etc\ssl\certs\ca-bundle.crt"
+curl.exe -sO https://freetsa.org/files/cacert.pem; curl.exe -sO https://freetsa.org/files/tsa.crt
+openssl ts -verify -in anchor.freetsa.tsr -data anchor.json -CAfile cacert.pem -untrusted tsa.crt
+# each openssl command prints: Verification: OK
+```
 
 **3. Verification, on an RTX 5090 (about 1 hour, about US$1.50).**
 [Deploy the RunPod template](https://console.runpod.io/deploy?template=mai1ozh35g), wait, and read
 the last line of the log. Then terminate the pod. Post the line in Discord: every independent check
 counts.
 
-All the details, including macOS and checking by hand: [docs/verify.md](docs/verify.md).
+All the details, including macOS, Windows and checking by hand: [docs/verify.md](docs/verify.md).
 
 ## How it works
 
