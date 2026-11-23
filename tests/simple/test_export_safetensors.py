@@ -101,9 +101,11 @@ def test_verify_rejects_a_changed_safetensors_file(tmp_path):
     changed = safetensors.load_file(out)
     name = next(k for k, v in changed.items() if v.is_floating_point())
     changed[name][(0,) * changed[name].ndim] += 1e-6
-    safetensors.save_file(changed, out)
+    # Write a second file: on Windows `out` stays memory-mapped by load_file and can't be overwritten.
+    altered = tmp_path / "altered.safetensors"
+    safetensors.save_file(changed, altered)
     with pytest.raises(SystemExit):
-        verify(tmp_path, out)
+        verify(tmp_path, altered)
 
 
 def test_export_reports_missing_source_checkpoint(tmp_path):
