@@ -134,7 +134,7 @@ const TimelineChart: React.FC<{
 
   return (
     <svg viewBox={`0 0 ${W} 110`} width="100%" className="tl-chart" role="img" aria-labelledby="tl-title tl-desc">
-      <title id="tl-title">Training timeline: {chain.length} boundaries, evenly spaced</title>
+      <title id="tl-title">{`Training timeline: ${chain.length} boundaries, evenly spaced`}</title>
       <desc id="tl-desc">
         {description} {copy.timeline.restartTitle} in segment {hostFailureSegment}. {copy.timeline.codeChangeTitle} from boundary {codeChangeBoundary} onward.
       </desc>

@@ -14,19 +14,36 @@ import { Downloads } from './components/Downloads';
 import { Faq } from './components/Faq';
 import { Footer } from './components/Footer';
 
-export const App: React.FC = () => {
-  const [loaded, setLoaded] = useState<{ evidence: EvidenceData; facts: Facts } | null>(null);
+export interface AppProps {
+  initialData?: { evidence: EvidenceData; facts: Facts };
+}
+
+export const App: React.FC<AppProps> = ({ initialData }) => {
+  const [loaded, setLoaded] = useState<{ evidence: EvidenceData; facts: Facts } | null>(
+    () => initialData ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
     async function loadEvidence() {
+      let res: Response;
       try {
-        const res = await fetch('data/evidence.json');
+        res = await fetch('data/evidence.json');
         if (!res.ok) {
           throw new SnapshotError(`Failed to load evidence.json: HTTP ${res.status}`);
         }
+      } catch (err) {
+        // A network failure says nothing about the evidence. If the prerendered report is
+        // already up, and its embedded snapshot passed validation, keep showing it.
+        if (active && !initialData) {
+          setError(err instanceof Error ? err.message : String(err));
+        }
+        return;
+      }
+      // Evidence that arrives but fails validation still replaces the page with the error.
+      try {
         const evidence = validateEvidence(await res.json());
         const facts = summarize(evidence);
         if (active) {
@@ -43,7 +60,7 @@ export const App: React.FC = () => {
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialData]);
 
   if (error) {
     return <SnapshotProblem message={error} />;
