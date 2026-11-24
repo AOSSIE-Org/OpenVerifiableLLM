@@ -53,7 +53,7 @@ npm run e2e             # PW_CHANNEL=chrome uses an installed Chrome instead
 ```
 frontend/
 ├── public/
-│   ├── brand/       # Segment check SVGs (logo-dark, logo-light, favicon, app-icon, aossie-logo)
+│   ├── brand/       # Official logo (logo.svg, favicon.svg, app-icon.svg) and proposal/ directory
 │   └── data/        # evidence.json (pinned data committed for offline validation)
 ├── scripts/
 │   └── fetch-evidence.mjs  # Manual script to fetch and assemble snapshot from Hugging Face
