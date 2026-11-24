@@ -449,6 +449,33 @@ class ForkBoundaryTests(unittest.TestCase):
             ovl.cmd_fork(self.args(0))
         self.assertFalse(Path(self.args(0).out).exists())
 
+class BenchTests(unittest.TestCase):
+    def run_bench_with_batches(self, count):
+        loss = mock.Mock()
+        loss.item.return_value = 0.5
+
+        def fake_step(model, opt, batch, ctl):
+            return loss, ctl["cursor"] + 1, b""
+
+        batches = [(None, None) for _ in range(count)]
+        args = argparse.Namespace(data="unused", seconds=0)
+
+        with mock.patch.object(ovl, "fresh", return_value=(None, None)), \
+             mock.patch.object(ovl, "step", side_effect=fake_step), \
+             mock.patch.object(ovl, "prefetch", return_value=batches):
+            ovl.cmd_bench(args)
+
+    def test_benchmark_rejects_empty_stream(self):
+        with self.assertRaisesRegex(SystemExit, "at least 51 updates"):
+            self.run_bench_with_batches(0)
+
+    def test_benchmark_rejects_stream_shorter_than_warmup(self):
+        with self.assertRaisesRegex(SystemExit, "at least 51 updates"):
+            self.run_bench_with_batches(49)
+
+    def test_benchmark_rejects_stream_with_only_warmup_updates(self):
+        with self.assertRaisesRegex(SystemExit, "at least 51 updates"):
+            self.run_bench_with_batches(50)
 
 if __name__ == "__main__":
     unittest.main()
