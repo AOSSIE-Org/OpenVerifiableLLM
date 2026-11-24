@@ -133,7 +133,7 @@ Method, results, cost and lessons: [docs/how-it-works.md](docs/how-it-works.md).
 -   **Contribute code or docs.** Read [CONTRIBUTING.md](CONTRIBUTING.md)
 -   **Talk to us** on the [AOSSIE Discord](https://discord.gg/hjUhu33uAn) or in
     [GitHub issues](https://github.com/AOSSIE-Org/OpenVerifiableLLM/issues)
--   **Report a security problem** privately: see [MAINTAINERS.md](MAINTAINERS.md#reporting-a-vulnerability)
+-   **Report a security problem** privately: see [SECURITY.md](SECURITY.md)
 
 OpenVerifiableLLM is an [AOSSIE](https://aossie.org) project, licensed under [GPL-3.0](LICENSE).
 It follows AOSSIE's [code of conduct](https://github.com/AOSSIE-Org/.github/blob/master/CODE_OF_CONDUCT.md).

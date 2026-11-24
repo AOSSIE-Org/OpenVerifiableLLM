@@ -11,8 +11,12 @@ REPO=AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence
 REV=${REV:-1dc7fb2a430d24c06c970309d332c4891916548c}
 PREP=prepared/8de1d60065b1e8e084c31c202e47367f28c8b89f11b4e895873f775bc0f7ba68
 mkdir -p "$WORK" && cd "$WORK"
-pip install --break-system-packages -q huggingface_hub numpy rfc8785==0.1.4 tokenizers==0.23.2 \
-  mwparserfromhell==0.7.2 "safetensors>=0.4.5,<1.0" "pynacl>=1.5,<2.0" 2>&1 | grep -v -i warning || true
+# Hash-pinned install on top of the image (which has torch and numpy). The lock is fetched from
+# GitHub and must have this exact SHA-256 (requirements/pod.lock; pod.in lists the packages).
+POD_LOCK_SHA256=026ab3c377855e32bdfa81b48a561f67cb77afa81fa6bfef4211ec4ca6a01f2c
+curl -fsSL -o pod.lock https://raw.githubusercontent.com/AOSSIE-Org/OpenVerifiableLLM/main/requirements/pod.lock
+echo "$POD_LOCK_SHA256  pod.lock" | sha256sum -c --quiet - || { echo "pod.lock does not match the pinned hash" >&2; exit 1; }
+pip install --break-system-packages -q --require-hashes -r pod.lock
 python3 - "$REPO" "$REV" "$PREP" "$SEGMENT" <<'PY'
 import sys
 from huggingface_hub import hf_hub_download, snapshot_download

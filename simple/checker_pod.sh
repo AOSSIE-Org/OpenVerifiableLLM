@@ -15,7 +15,12 @@ GPU=$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader | head -1
 echo "GPU: $GPU"
 case "$GPU" in *"RTX 5090"*) ;; *) echo "WARNING: the run was trained on an RTX 5090; other GPU types are expected to MISMATCH";; esac
 mkdir -p "$WORK" && cd "$WORK"
-pip install -q huggingface_hub 2>&1 | grep -vi warning
+# Hash-pinned install on top of the image (which has torch and numpy). The lock is fetched from
+# GitHub and must have this exact SHA-256 (requirements/pod.lock; pod.in lists the packages).
+POD_LOCK_SHA256=026ab3c377855e32bdfa81b48a561f67cb77afa81fa6bfef4211ec4ca6a01f2c
+curl -fsSL -o pod.lock https://raw.githubusercontent.com/AOSSIE-Org/OpenVerifiableLLM/main/requirements/pod.lock
+echo "$POD_LOCK_SHA256  pod.lock" | sha256sum -c --quiet - || { echo "pod.lock does not match the pinned hash" >&2; exit 1; }
+pip install -q --require-hashes -r pod.lock || exit 1
 python3 - "$REPO" "$REV" "$RUN_PATH" <<'PY'
 import sys
 from huggingface_hub import snapshot_download

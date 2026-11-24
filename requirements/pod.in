@@ -1,0 +1,9 @@
+# Packages the GPU pod scripts install on top of the image
+# runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404, which already has torch 2.8.0 and numpy.
+# Shared packages keep the pins of preparation.lock (-c in the command below).
+rfc8785==0.1.4
+tokenizers==0.23.2
+mwparserfromhell==0.7.2
+safetensors>=0.4.5,<1.0
+pynacl>=1.5,<2.0
+huggingface_hub
