@@ -3,7 +3,7 @@
 Loss on the removed documents' own text (every window, exactly as training would see it) versus
 control documents from the same segment that both models trained on, the weight distance, and
 greedy completions for a few prompts. Prints one JSON object.
-    python simple/loo_eval.py --data PREP --original RUN --fork FORK [--prompt "3I/ATLAS is"]
+    python simple/loo_eval.py --data PREP --original RUN --fork FORK [--prompt "3I/ATLAS is"] [--chat-prompt "What is 3I/ATLAS?"]
 """
 import argparse
 import json
@@ -65,6 +65,8 @@ def main():
     p.add_argument("--controls", type=int, default=50)
     p.add_argument("--prompt", nargs="*", default=["3I/ATLAS is", "The interstellar comet 3I/ATLAS",
                                                    "Oumuamua was the first interstellar object"])
+    p.add_argument("--chat-prompt", default="What is 3I/ATLAS?",
+                   help="the question asked to the conversation models")
     a = p.parse_args()
     if a.controls <= 0:
         p.error("--controls must be positive")
@@ -100,7 +102,7 @@ def main():
     for name in ("original_conversation", "fork_conversation"):
         if models[name].exists():
             model = load(models[name])
-            result[name] = {"completions": {q: complete(model, tokenizer, "What is 3I/ATLAS?", chat=True) for q in ["chat"]}}
+            result[name] = {"completions": {"chat": complete(model, tokenizer, a.chat_prompt, chat=True)}}
             del model
     ob, fb = (torch.load(models[n], map_location="cpu", weights_only=True) for n in ("original_base", "fork_base"))
     diff = sum(float((ob[k].float() - fb[k].float()).norm() ** 2) for k in ob) ** 0.5
