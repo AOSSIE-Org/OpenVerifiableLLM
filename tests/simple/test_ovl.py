@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 from unittest import mock
 
@@ -448,6 +449,43 @@ class ForkBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
             ovl.cmd_fork(self.args(0))
         self.assertFalse(Path(self.args(0).out).exists())
+
+
+class TrainLockTests(unittest.TestCase):
+    def test_second_train_exits_when_folder_locked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "run"
+            out.mkdir()
+            lock_path = out / ".train.lock"
+            f = lock_path.open("a+")
+            if ovl.fcntl:
+                ovl.fcntl.flock(f.fileno(), ovl.fcntl.LOCK_EX | ovl.fcntl.LOCK_NB)
+            try:
+                args = argparse.Namespace(data="fake_data", out=str(out))
+                if ovl.fcntl:
+                    with self.assertRaisesRegex(SystemExit, f"another train is using {out}"):
+                        ovl.cmd_train(args)
+                    self.assertFalse((out / "recipe.json").exists())
+                    self.assertFalse((out / "chain.jsonl").exists())
+            finally:
+                if ovl.fcntl:
+                    ovl.fcntl.flock(f.fileno(), ovl.fcntl.LOCK_UN)
+                f.close()
+
+    def test_train_lock_windows_fallback_creates_lock_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "run"
+            args = argparse.Namespace(data="fake_data", out=str(out))
+            orig_fcntl = ovl.fcntl
+            try:
+                ovl.fcntl = None
+                with patch.object(ovl, "run_phases", return_value=None), \
+                     patch.object(ovl, "fresh", return_value=(MagicMock(), MagicMock())):
+                    ovl.cmd_train(args)
+                self.assertTrue((out / ".train.lock").exists())
+                self.assertTrue((out / "recipe.json").exists())
+            finally:
+                ovl.fcntl = orig_fcntl
 
 
 if __name__ == "__main__":

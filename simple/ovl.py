@@ -27,6 +27,10 @@ os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
 os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 import argparse
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 import hashlib
 import json
 import math
@@ -445,52 +449,62 @@ def load_checkpoint(run, entry, model):
 def cmd_train(a):
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    # A crash right after the file was opened can leave it empty: that is a run with no entries yet.
-    chain_file = out / "chain.jsonl"
-    chain = read_chain(out) if chain_file.exists() and chain_file.stat().st_size else []
-    model, opt = fresh()
-    start = None
-    if chain:
-        if chain[-1]["kind"] == "final":
-            sys.exit("run already complete")
-        check_recipe_and_data(chain, a.data)  # resuming on other data or another recipe would break the chain
-        opt = load_checkpoint(out, chain[-1], model)
-        start = chain[-1]["control"]
-        print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
-    else:
-        (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1), encoding="utf-8")
-    stamping = []
+    lock = (out / ".train.lock").open("a+")
+    if fcntl:
+        try:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            lock.close()
+            sys.exit(f"another train is using {out}")
+    try:
+        # A crash right after the file was opened can leave it empty: that is a run with no entries yet.
+        chain_file = out / "chain.jsonl"
+        chain = read_chain(out) if chain_file.exists() and chain_file.stat().st_size else []
+        model, opt = fresh()
+        start = None
+        if chain:
+            if chain[-1]["kind"] == "final":
+                sys.exit("run already complete")
+            check_recipe_and_data(chain, a.data)  # resuming on other data or another recipe would break the chain
+            opt = load_checkpoint(out, chain[-1], model)
+            start = chain[-1]["control"]
+            print(f"resuming at {start['phase']} epoch {start['epoch']} step {start['phase_step']}", flush=True)
+        else:
+            (out / "recipe.json").write_text(json.dumps(RECIPE, sort_keys=True, indent=1), encoding="utf-8")
+        stamping = []
 
-    def boundary(kind, ctl, o):
-        entry = {"index": len(chain), "kind": kind, "control": ctl, "state": state_digest(model, o),
-                 "model": model_digest(model.state_dict()),
-                 "previous": hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest() if chain else None,
-                 "time": time.time()}
-        if kind == "initial":
-            entry["environment"] = environment()
-            entry["recipe"] = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
-            entry["data"] = {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
-                             for p in ("wikipedia", "conversation")}
-        # Every boundary checkpoint is kept: each one is the start of a verifiable segment.
-        # Checkpoint first, then the chain entry, so a crash between them is harmless.
-        tmp = out / "ckpt.tmp"
-        torch.save({"control": ctl, "model": model.state_dict(), "opt": o.state_dict()}, tmp)
-        os.replace(tmp, out / f"ckpt-{entry['index']:05d}.pt")
-        if kind in ("base", "final"):
-            torch.save(model.state_dict(), out / f"{'base' if kind == 'base' else 'conversation'}-model.pt")
-        chain.append(entry)
-        with (out / "chain.jsonl").open("a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, sort_keys=True) + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        print(f"boundary {entry['index']} {kind} step {ctl['global_step']} state {entry['state'][:16]}", flush=True)
-        if TIMESTAMP:
-            stamping.append(stamp.stamp_async(out, entry))
+        def boundary(kind, ctl, o):
+            entry = {"index": len(chain), "kind": kind, "control": ctl, "state": state_digest(model, o),
+                     "model": model_digest(model.state_dict()),
+                     "previous": hashlib.sha256(json.dumps(chain[-1], sort_keys=True).encode()).hexdigest() if chain else None,
+                     "time": time.time()}
+            if kind == "initial":
+                entry["environment"] = environment()
+                entry["recipe"] = hashlib.sha256(json.dumps(RECIPE, sort_keys=True).encode()).hexdigest()
+                entry["data"] = {p: hashlib.sha256((Path(a.data) / p / "stream.json").read_bytes()).hexdigest()
+                                 for p in ("wikipedia", "conversation")}
+            # Every boundary checkpoint is kept: each one is the start of a verifiable segment.
+            # Checkpoint first, then the chain entry, so a crash between them is harmless.
+            tmp = out / "ckpt.tmp"
+            torch.save({"control": ctl, "model": model.state_dict(), "opt": o.state_dict()}, tmp)
+            os.replace(tmp, out / f"ckpt-{entry['index']:05d}.pt")
+            if kind in ("base", "final"):
+                torch.save(model.state_dict(), out / f"{'base' if kind == 'base' else 'conversation'}-model.pt")
+            chain.append(entry)
+            with (out / "chain.jsonl").open("a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, sort_keys=True) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+            print(f"boundary {entry['index']} {kind} step {ctl['global_step']} state {entry['state'][:16]}", flush=True)
+            if TIMESTAMP:
+                stamping.append(stamp.stamp_async(out, entry))
 
-    run_phases(a.data, model, opt, boundary, start)
-    for t in stamping:
-        t.join(timeout=120)
-    print("training complete", flush=True)
+        run_phases(a.data, model, opt, boundary, start)
+        for t in stamping:
+            t.join(timeout=120)
+        print("training complete", flush=True)
+    finally:
+        lock.close()
 
 
 def cmd_fork(a):
