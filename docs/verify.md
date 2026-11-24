@@ -17,12 +17,16 @@ folder `release/simple-run/`. The terms (segment, boundary, chain entry, anchor)
 
 ## 1. Consistency check, without a GPU
 
-Needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On macOS,
-`sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
+`bash simple/check_release.sh`, from a clone of this repository, does all of this in one command (about
+2 minutes). By hand, it needs Python 3.12 or newer, `git`, `openssl`, `sha256sum` and network access. On
+macOS, `sha256sum` comes with `brew install coreutils` (as `gsha256sum`). Download `release/simple-run/`
 without the `ckpt-*.pt` files, then from that folder:
 
 ```bash
-pip install huggingface_hub torch numpy
+# On Linux, add --index-url https://download.pytorch.org/whl/cpu to the torch install: the default
+# download includes CUDA (several GB), and this check needs only the CPU.
+pip install torch
+pip install huggingface_hub numpy
 sha256sum -c --ignore-missing release-hashes.txt   # every downloaded file matches the hash list
 git clone -q --depth 1 --branch v1.1.0 https://github.com/AOSSIE-Org/OpenVerifiableLLM ovl-code
 OVL_DEVICE=cpu python ovl-code/simple/ovl.py verify --run . --weights conversation-model.pt
