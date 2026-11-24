@@ -19,11 +19,41 @@ def check(ok, message):
 
 
 
-def verify_release_anchor(chain, anchor_path, verify_timestamps=True):
+def load_trusted_anchor_sha256(evidence_path):
+    # Load the expected anchor digest from repository-held release evidence.
+    check(evidence_path.is_file(), f"Missing trusted evidence file: {evidence_path}")
+    try:
+        evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise RuntimeError(f"Invalid trusted evidence file {evidence_path}: {err}") from err
+
+    source_hashes = evidence.get("sourceHashes") if isinstance(evidence, dict) else None
+    check(isinstance(source_hashes, dict), "Trusted evidence is missing sourceHashes.")
+    digest = source_hashes.get("release/simple-run/anchor.json")
+    check(
+        isinstance(digest, str)
+        and len(digest) == 64
+        and all(c in "0123456789abcdef" for c in digest),
+        "Trusted evidence contains an invalid release anchor SHA-256.",
+    )
+    return digest
+
+
+def verify_release_anchor(chain, anchor_path, trusted_anchor_sha256, verify_timestamps=True):
     """Authenticate the published chain head before trusting a segment replay."""
     check(anchor_path.is_file(), f"Missing required release anchor: {anchor_path}")
 
     anchor_bytes = anchor_path.read_bytes()
+    check(
+        isinstance(trusted_anchor_sha256, str) and len(trusted_anchor_sha256) == 64
+        and all(c in '0123456789abcdef' for c in trusted_anchor_sha256),
+        'Trusted release anchor SHA-256 must be 64 lowercase hexadecimal characters.',
+    )
+    actual_anchor_sha256 = hashlib.sha256(anchor_bytes).hexdigest()
+    check(
+        actual_anchor_sha256 == trusted_anchor_sha256,
+        'Release anchor SHA-256 does not match the trusted published digest.',
+    )
     try:
         anchor = json.loads(anchor_bytes.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as err:
@@ -135,6 +165,11 @@ def main(argv=None):
         help="Published release anchor JSON (defaults to data/release/simple-run/anchor.json).",
     )
     parser.add_argument(
+        "--evidence",
+        type=Path,
+        help="Trusted evidence JSON obtained independently of --data (defaults to repository evidence).",
+    )
+    parser.add_argument(
         "--no-timestamps",
         action="store_true",
         help="Skip RFC 3161 timestamp checks; intended only for synthetic tests.",
@@ -187,9 +222,16 @@ def main(argv=None):
     anchor_path = args.anchor or (
         data_dir / "release" / "simple-run" / "anchor.json"
     )
+    evidence_path = args.evidence or (
+        Path(__file__).resolve().parents[1]
+        / "frontend" / "public" / "data" / "evidence.json"
+    )
+    trusted_anchor_sha256 = load_trusted_anchor_sha256(evidence_path)
+
     verify_release_anchor(
         chain,
         anchor_path,
+        trusted_anchor_sha256,
         verify_timestamps=not args.no_timestamps,
     )
 

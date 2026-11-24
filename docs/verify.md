@@ -100,6 +100,25 @@ The script downloads the prepared data (hash-checked), the record and only the c
 needs. It prints `segment k->k+1: MATCH` or `MISMATCH` for each segment, and appends the local
 result to `local-verifications.jsonl` (the published `verifications.jsonl` stays untouched).
 
+## CPU-only segment-slice verification
+
+The CPU-only segment-slice verifier checks one adjacent pair of prepared Wikipedia chain entries without loading a model or GPU.
+
+Example:
+
+```bash
+python simple/segment_slice.py --start 30 --end 31 --data PREPARED_SLICE
+```
+
+The data directory must contain `chain.jsonl`, `source/wikipedia-stream.json`, and the requested document, token and mask slice files. The release anchor defaults to `PREPARED_SLICE/release/simple-run/anchor.json`; `--anchor FILE` selects another location for the same published anchor and its adjacent timestamp files.
+
+Before accepting the anchor, the verifier checks its exact SHA-256 against `release/simple-run/anchor.json` in the `sourceHashes` section of the trusted evidence file. By default, this is `frontend/public/data/evidence.json` from the verifier repository checkout. The checkout must be trusted.
+
+Use `--evidence FILE` only when the evidence file was obtained and authenticated independently of the prepared slice and its download source. Merely storing the evidence file outside the data directory does not make it trusted.
+
+`--no-timestamps` skips RFC 3161 timestamp verification only. It does not skip the trusted anchor digest, chain, manifest or segment checks.
+
+
 ## Check the timestamps by hand
 
 `verify` already does this. To do it yourself with `openssl`:

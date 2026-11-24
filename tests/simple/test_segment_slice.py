@@ -23,12 +23,15 @@ class SegmentSliceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.data = Path(self.tmp.name)
+        self.evidence_tmp = tempfile.TemporaryDirectory()
+        self.evidence = Path(self.evidence_tmp.name) / "evidence.json"
         (self.data / "source").mkdir()
 
         self._build_fixture()
 
     def tearDown(self):
         self.tmp.cleanup()
+        self.evidence_tmp.cleanup()
 
     def _build_fixture(self):
         """Build a small valid 30 -> 31 Wikipedia segment."""
@@ -145,11 +148,19 @@ class SegmentSliceTests(unittest.TestCase):
             "chain_entries": len(chain),
             "chain_head_sha256": chain_head,
         }
-        (release_dir / "anchor.json").write_text(
+        anchor_path = release_dir / "anchor.json"
+        anchor_path.write_text(
             json.dumps(anchor),
             encoding="utf-8",
         )
-
+        evidence = {
+            "sourceHashes": {
+                "release/simple-run/anchor.json": hashlib.sha256(
+                    anchor_path.read_bytes()
+                ).hexdigest()
+            }
+        }
+        self.evidence.write_text(json.dumps(evidence), encoding="utf-8")
 
     def _run(self):
         return subprocess.run(
@@ -162,6 +173,8 @@ class SegmentSliceTests(unittest.TestCase):
                 "31",
                 "--data",
                 str(self.data),
+                "--evidence",
+                str(self.evidence),
                 "--no-timestamps",
             ],
             capture_output=True,
@@ -268,6 +281,46 @@ class SegmentSliceTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(
             "Chain head differs from the published release anchor",
+            result.stderr,
+        )
+
+    def test_coordinated_chain_and_anchor_tampering_fails_trusted_digest(self):
+        chain_path = self.data / "chain.jsonl"
+        chain = [
+            json.loads(line)
+            for line in chain_path.read_text(encoding="utf-8").splitlines()
+        ]
+
+        # Rebuild a self-consistent chain after changing an entry.
+        chain[30]["control"]["cursor"] += 1
+        for index in range(31, len(chain)):
+            chain[index]["previous"] = hashlib.sha256(
+                json.dumps(chain[index - 1], sort_keys=True).encode()
+            ).hexdigest()
+
+        chain_path.write_text(
+            "".join(json.dumps(entry) + "\n" for entry in chain),
+            encoding="utf-8",
+        )
+
+        # Replace the anchor too, but leave the independently stored evidence
+        # digest untouched. The verifier must reject the replacement anchor.
+        anchor_path = self.data / "release" / "simple-run" / "anchor.json"
+        replacement_anchor = {
+            "chain_entries": len(chain),
+            "chain_head_sha256": hashlib.sha256(
+                json.dumps(chain[-1], sort_keys=True).encode()
+            ).hexdigest(),
+        }
+        anchor_path.write_text(
+            json.dumps(replacement_anchor),
+            encoding="utf-8",
+        )
+
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Release anchor SHA-256 does not match the trusted published digest.",
             result.stderr,
         )
 
