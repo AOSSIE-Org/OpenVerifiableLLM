@@ -1,14 +1,20 @@
 # Exact local CPU preparation environment; GPU training gets a separate lock.
---index-url https://pypi.org/simple
---extra-index-url https://download.pytorch.org/whl/cpu
+# PyPI is listed as the extra index so uv takes the hashes of every package that is on both indexes
+# from PyPI. The PyTorch mirror carries only some wheels (markupsafe: Linux x86_64 and Windows),
+# which left macOS with no hashed file to install. The files are the same bytes on both (#357).
+--index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://pypi.org/simple
 numpy==2.5.3
 tokenizers==0.23.2
 mwparserfromhell==0.7.2
 defusedxml==0.7.1
 pyarrow==25.0.1
 rfc8785==0.1.4
-torch==2.14.0+cpu
+# The +cpu build has no macOS wheels, so macOS installs the same version from PyPI (#357).
+torch==2.14.0+cpu ; sys_platform != "darwin"
+torch==2.14.0 ; sys_platform == "darwin"
 sigstore==4.5.0
 # Preserve versions already exercised by the local fixture environment.
 filelock==3.32.3
 setuptools==78.1.0
+markupsafe==3.0.3
