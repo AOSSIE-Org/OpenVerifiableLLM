@@ -130,7 +130,7 @@ A check relies on:
   "this code on this stack produced these weights".
 - **Enough independent checkers.** With N segments, M checkers who each pick one random segment
   catch one forged segment with probability 1 − ((N−1)/N)^M. For N = 37, that is about 110 checks
-  for 95% and 169 for 99%. So far there are 0 independent checks.
+  for 95% and 169 for 99% (proved in [`spec/OVL/Odds.lean`](../spec/OVL/Odds.lean)). So far there are 0 independent checks.
 - **Honest reporting.** A check result is a self-reported line. It is not signed, and nothing proves
   that the checker picked the segment at random. Signed results and segment choice from public
   randomness are on the [roadmap](roadmap.md).
