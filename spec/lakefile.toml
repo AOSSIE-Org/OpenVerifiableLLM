@@ -1,0 +1,6 @@
+name = "ovl_spec"
+version = "0.1.0"
+defaultTargets = ["OVL"]
+
+[[lean_lib]]
+name = "OVL"

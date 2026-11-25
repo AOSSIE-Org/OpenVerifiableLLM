@@ -1,0 +1,39 @@
+name: Lean spec
+on:
+  push:
+    branches: [main]
+    paths: ["spec/**", ".github/workflows/spec.yml"]
+  pull_request:
+    paths: ["spec/**", ".github/workflows/spec.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  proofs:
+    runs-on: ubuntu-latest
+    env:
+      LEAN_VERSION: "4.35.0"   # keep equal to spec/lean-toolchain
+      LEAN_SHA256: 7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Lean (hash-checked release archive)
+        run: |
+          grep -qx "leanprover/lean4:v${LEAN_VERSION}" spec/lean-toolchain
+          curl -sSfLo lean.tar.zst "https://github.com/leanprover/lean4/releases/download/v${LEAN_VERSION}/lean-${LEAN_VERSION}-linux.tar.zst"
+          echo "${LEAN_SHA256}  lean.tar.zst" | sha256sum -c -
+          mkdir "$RUNNER_TEMP/lean" && tar --zstd -xf lean.tar.zst -C "$RUNNER_TEMP/lean" --strip-components=1
+          echo "$RUNNER_TEMP/lean/bin" >> "$GITHUB_PATH"
+
+      - name: Check the proofs
+        working-directory: spec
+        run: |
+          lake build
+          # No proof may rest on `sorry` or on an added axiom.
+          lake env lean Axioms.lean | tee axioms.txt
+          if grep -vE "does not depend on any axioms|depends on axioms: \[(propext|Classical.choice|Quot.sound)(, (propext|Classical.choice|Quot.sound))*\]$" axioms.txt; then
+            echo "a theorem depends on an axiom outside Lean's standard three" >&2; exit 1
+          fi
