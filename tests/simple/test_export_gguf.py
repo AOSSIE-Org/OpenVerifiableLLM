@@ -1,5 +1,6 @@
 """export_gguf.py writes a llama.cpp `gpt2` file whose tensors and vocabulary match the source."""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -64,3 +65,106 @@ def test_utf8_tokenizer_without_ascii_escaping(tmp_path):
     f = r.fields["tokenizer.ggml.tokens"]
     tokens = [bytes(f.parts[i]).decode() for i in f.data]
     assert "Ġa" in tokens
+
+
+def test_export_refuses_to_overwrite_the_source(tmp_path):
+    make_run(tmp_path)
+    source = tmp_path / "conversation-model.pt"
+    before = source.read_bytes()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(source)],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "must not overwrite the source checkpoint" in r.stderr
+    assert source.read_bytes() == before
+    assert "Traceback" not in r.stderr
+
+    hard_link = tmp_path / "hardlink-model.pt"
+    os.link(source, hard_link)
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(hard_link)],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "must not overwrite the source checkpoint" in r.stderr
+    assert source.read_bytes() == before
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_missing_recipe(tmp_path):
+    make_run(tmp_path)
+    (tmp_path / "recipe.json").unlink()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "recipe file" in r.stderr and "not found" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_missing_tokenizer(tmp_path):
+    make_run(tmp_path)
+    (tmp_path / "tokenizer.json").unlink()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "tokenizer file" in r.stderr and "not found" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_missing_source_checkpoint(tmp_path):
+    make_run(tmp_path)
+    (tmp_path / "conversation-model.pt").unlink()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "source checkpoint" in r.stderr and "not found" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_invalid_source_checkpoint(tmp_path):
+    make_run(tmp_path)
+    (tmp_path / "conversation-model.pt").write_bytes(b"not a valid checkpoint")
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "source checkpoint" in r.stderr and "is invalid" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_missing_tensor(tmp_path):
+    make_run(tmp_path)
+    torch.save({"dummy": torch.zeros(1)}, tmp_path / "conversation-model.pt")
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "is invalid" in r.stderr or "missing required tensor" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_reports_non_contiguous_tokenizer_ids(tmp_path):
+    make_run(tmp_path)
+    tok = {"model": {"type": "BPE", "vocab": {"a": 0, "b": 2, "ab": 3, "Ġa": 4}, "merges": [["a", "b"]]}}
+    (tmp_path / "tokenizer.json").write_text(json.dumps(tok), encoding="utf-8")
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(tmp_path / "m.gguf")],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert "tokenizer ids must be contiguous" in r.stderr
+    assert "Traceback" not in r.stderr
+
+
+def test_export_preserves_existing_output_on_failure(tmp_path):
+    make_run(tmp_path)
+    out = tmp_path / "m.gguf"
+    out.write_bytes(b"previous valid export")
+    (tmp_path / "recipe.json").unlink()
+    r = subprocess.run([sys.executable, str(ROOT / "simple" / "export_gguf.py"), "--run", str(tmp_path),
+                        "--tokenizer", str(tmp_path / "tokenizer.json"), "--out", str(out)],
+                       capture_output=True, text=True)
+    assert r.returncode != 0
+    assert out.read_bytes() == b"previous valid export"
+    assert not (tmp_path / ".m.gguf.tmp").exists()

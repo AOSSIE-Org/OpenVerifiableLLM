@@ -15,7 +15,9 @@ Check the released .pt files with `ovl.py verify`.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import sys
 
 import gguf
 import numpy as np
@@ -50,46 +52,74 @@ def main():
     p.add_argument("--out", required=True)
     a = p.parse_args()
 
-    run = Path(a.run)
-    cfg = json.loads((run / "recipe.json").read_text(encoding="utf-8"))["model"]
+    run, out = Path(a.run), Path(a.out)
+    recipe_file = run / "recipe.json"
+    if not recipe_file.is_file():
+        sys.exit(f"recipe file {recipe_file} not found")
+    tok_file = Path(a.tokenizer)
+    if not tok_file.is_file():
+        sys.exit(f"tokenizer file {tok_file} not found")
     weights = run / f"{a.model}-model.pt"
-    sd = torch.load(weights, map_location="cpu", weights_only=True)
-    tok = json.loads(Path(a.tokenizer).read_text(encoding="utf-8"))["model"]
+    if not weights.is_file():
+        sys.exit(f"source checkpoint {weights} not found")
+    if weights.resolve() == out.resolve() or (out.exists() and weights.samefile(out)):
+        p.error("--out must not overwrite the source checkpoint")
+    try:
+        sd = torch.load(weights, map_location="cpu", weights_only=True)
+        if not isinstance(sd, dict) or "transformer.wte.weight" not in sd:
+            sys.exit(f"source checkpoint {weights} is invalid")
+    except Exception as exc:
+        sys.exit(f"source checkpoint {weights} is invalid: {exc}")
+
+    cfg = json.loads(recipe_file.read_text(encoding="utf-8"))["model"]
+    tok = json.loads(tok_file.read_text(encoding="utf-8"))["model"]
     vocab = sorted(tok["vocab"].items(), key=lambda kv: kv[1])
-    assert [i for _, i in vocab] == list(range(len(vocab))), "tokenizer ids must be contiguous"
-    assert len(CONTROLS) + len(vocab) == cfg["vocab_size"], "vocabulary size differs from the recipe"
+    if [i for _, i in vocab] != list(range(len(vocab))):
+        sys.exit("tokenizer ids must be contiguous")
+    if len(CONTROLS) + len(vocab) != cfg["vocab_size"]:
+        sys.exit("vocabulary size differs from the recipe")
     merges = [m if isinstance(m, str) else " ".join(m) for m in tok["merges"]]
+    try:
+        model_tensors = list(tensors(sd, cfg["num_layers"]))
+    except (KeyError, TypeError) as exc:
+        sys.exit(f"source checkpoint {weights} is missing required tensor: {exc}")
 
-    w = gguf.GGUFWriter(a.out, "gpt2")
-    w.add_name(f"OpenVerifiableLLM 23M {a.model}")
-    w.add_description(f"Exported from {weights.name} (sha256 {hashlib.sha256(weights.read_bytes()).hexdigest()})")
-    w.add_context_length(cfg["max_seq_len"])
-    w.add_embedding_length(cfg["embed_dim"])
-    w.add_feed_forward_length(4 * cfg["embed_dim"])
-    w.add_block_count(cfg["num_layers"])
-    w.add_head_count(cfg["num_heads"])
-    w.add_layer_norm_eps(1e-5)
-    w.add_file_type(gguf.LlamaFileType.ALL_F32)
+    tmp = out.with_name(f".{out.name}.tmp")
+    try:
+        w = gguf.GGUFWriter(str(tmp), "gpt2")
+        w.add_name(f"OpenVerifiableLLM 23M {a.model}")
+        w.add_description(f"Exported from {weights.name} (sha256 {hashlib.sha256(weights.read_bytes()).hexdigest()})")
+        w.add_context_length(cfg["max_seq_len"])
+        w.add_embedding_length(cfg["embed_dim"])
+        w.add_feed_forward_length(4 * cfg["embed_dim"])
+        w.add_block_count(cfg["num_layers"])
+        w.add_head_count(cfg["num_heads"])
+        w.add_layer_norm_eps(1e-5)
+        w.add_file_type(gguf.LlamaFileType.ALL_F32)
 
-    w.add_tokenizer_model("gpt2")
-    w.add_tokenizer_pre("gpt-2")
-    w.add_token_list(CONTROLS + [t for t, _ in vocab])
-    w.add_token_types([gguf.TokenType.CONTROL] * len(CONTROLS) + [gguf.TokenType.NORMAL] * len(vocab))
-    w.add_token_merges(merges)
-    w.add_pad_token_id(0)
-    w.add_bos_token_id(1)
-    w.add_eos_token_id(2)
-    w.add_add_bos_token(a.model == "base")
-    if a.model == "conversation":
-        w.add_chat_template(CHAT_TEMPLATE)
+        w.add_tokenizer_model("gpt2")
+        w.add_tokenizer_pre("gpt-2")
+        w.add_token_list(CONTROLS + [t for t, _ in vocab])
+        w.add_token_types([gguf.TokenType.CONTROL] * len(CONTROLS) + [gguf.TokenType.NORMAL] * len(vocab))
+        w.add_token_merges(merges)
+        w.add_pad_token_id(0)
+        w.add_bos_token_id(1)
+        w.add_eos_token_id(2)
+        w.add_add_bos_token(a.model == "base")
+        if a.model == "conversation":
+            w.add_chat_template(CHAT_TEMPLATE)
 
-    for name, t in tensors(sd, cfg["num_layers"]):
-        w.add_tensor(name, t.float().contiguous().numpy().astype(np.float32))
-    w.write_header_to_file()
-    w.write_kv_data_to_file()
-    w.write_tensors_to_file()
-    w.close()
-    print(f"wrote {a.out}")
+        for name, t in model_tensors:
+            w.add_tensor(name, t.float().contiguous().numpy().astype(np.float32))
+        w.write_header_to_file()
+        w.write_kv_data_to_file()
+        w.write_tensors_to_file()
+        w.close()
+        os.replace(tmp, out)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+    print(f"wrote {out}")
 
 
 if __name__ == "__main__":
