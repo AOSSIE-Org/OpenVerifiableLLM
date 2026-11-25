@@ -623,6 +623,15 @@ def check_anchor_timestamps(anchor, data):
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
+    max_segment = len(chain) - 2
+    if a.random < 0:
+        sys.exit(f"--random must be non-negative, got {a.random}")
+    if a.segment:
+        bad = [k for k in a.segment if not 0 <= k <= max_segment]
+        if bad:
+            if max_segment < 0:
+                sys.exit(f"--segment {bad[0]} invalid: chain has no segments (len={len(chain)})")
+            sys.exit(f"--segment {bad[0]} out of range: expected 0..{max_segment}")
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
     checks = []
     if anchor.exists():
