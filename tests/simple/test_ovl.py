@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -448,6 +449,81 @@ class ForkBoundaryTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
             ovl.cmd_fork(self.args(0))
         self.assertFalse(Path(self.args(0).out).exists())
+
+
+class VerifyBoundsTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.run = self.root / "run"
+        self.run.mkdir()
+        self.chain = fake_chain([("initial", tiny_state(0)), ("progress", tiny_state(1)), ("final", tiny_state(2))])
+        self.chain[0]["recipe"] = hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest()
+        self.chain[0]["data"] = {p: hashlib.sha256(b"{}").hexdigest() for p in ("wikipedia", "conversation")}
+        for i in range(1, len(self.chain)):
+            self.chain[i]["previous"] = link(self.chain[i - 1])
+        write_chain(self.run, self.chain)
+        self.data = self.root / "data"
+        for phase in ("wikipedia", "conversation"):
+            (self.data / phase).mkdir(parents=True)
+            (self.data / phase / "stream.json").write_text("{}")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def args(self, segment=None, random=0, data=None, weights=None):
+        return argparse.Namespace(run=str(self.run), data=str(data) if data is not None else str(self.data),
+                                  weights=str(weights) if weights is not None else None, segment=segment, random=random,
+                                  all=False, anchor=None, no_anchor=True, no_timestamps=True)
+
+    def test_out_of_range_segment_fails_before_fresh_and_reports_range(self):
+        for segs in ([-1], [-2], [2], [5], [0, 5]):
+            with self.subTest(segment=segs):
+                with mock.patch.object(ovl, "fresh") as fresh_mock, \
+                        mock.patch.object(ovl, "check_recipe_and_data") as data_mock:
+                    with self.assertRaisesRegex(SystemExit, r"--segment.*0\.\.1"):
+                        ovl.cmd_verify(self.args(segment=segs))
+                    fresh_mock.assert_not_called()
+                    data_mock.assert_not_called()
+
+    def test_segment_on_single_entry_chain_fails_before_fresh(self):
+        write_chain(self.run, [self.chain[0]])
+        with mock.patch.object(ovl, "fresh") as fresh_mock:
+            with self.assertRaisesRegex(SystemExit, r"--segment.*no segments"):
+                ovl.cmd_verify(self.args(segment=[0]))
+            fresh_mock.assert_not_called()
+
+    def test_negative_random_fails_before_fresh(self):
+        for n in (-1, -5):
+            with self.subTest(random=n):
+                with mock.patch.object(ovl, "fresh") as fresh_mock, \
+                        mock.patch.object(ovl, "check_recipe_and_data") as data_mock:
+                    with self.assertRaisesRegex(SystemExit, r"--random"):
+                        ovl.cmd_verify(self.args(random=n))
+                    fresh_mock.assert_not_called()
+                    data_mock.assert_not_called()
+
+    def test_valid_segment_and_random_bounds_proceed_to_verification(self):
+        with mock.patch.object(ovl, "fresh", side_effect=RuntimeError("fresh reached")) as fresh_mock:
+            with self.assertRaisesRegex(RuntimeError, "fresh reached"):
+                ovl.cmd_verify(self.args(segment=[0, 1], random=1))
+            fresh_mock.assert_called_once()
+
+    def test_cli_rejects_negative_and_out_of_range_values_before_replay(self):
+        for extra in (["--segment", "-1"], ["--segment", "5"], ["--random", "-1"]):
+            with self.subTest(extra=extra):
+                p = subprocess.run(
+                    [sys.executable, str(ROOT / "simple" / "ovl.py"), "verify",
+                     "--run", str(self.run), "--data", str(self.data), "--no-anchor", *extra],
+                    capture_output=True, text=True,
+                    env={**os.environ, "OVL_DEVICE": "cpu", "OVL_TIMESTAMP": "0"},
+                )
+                self.assertNotEqual(p.returncode, 0)
+                self.assertNotIn("IndexError", p.stderr)
+                self.assertNotIn("FileNotFoundError", p.stderr)
+                self.assertNotIn("initialization:", p.stdout)
+                self.assertNotIn("verify PASS", p.stdout)
+                self.assertIn("--" + ("random" if "--random" in extra else "segment"), p.stderr)
 
 
 if __name__ == "__main__":

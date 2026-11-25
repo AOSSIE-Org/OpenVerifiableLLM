@@ -620,9 +620,22 @@ def check_anchor_timestamps(anchor, data):
     return stamped
 
 
+def _validate_verify_bounds(chain, segment, random):
+    """Reject negative --random or out-of-range --segment before model init or replay."""
+    if random < 0:
+        sys.exit(f"--random must be non-negative (got {random})")
+    for k in segment or ():
+        if 0 <= k < len(chain) - 1:
+            continue
+        if len(chain) < 2:
+            sys.exit(f"--segment {k} is invalid: chain has no segments")
+        sys.exit(f"--segment {k} is outside the segment range 0..{len(chain) - 2}")
+
+
 def cmd_verify(a):
     run = Path(a.run)
     chain = read_chain(run)
+    _validate_verify_bounds(chain, getattr(a, "segment", None), getattr(a, "random", 0))
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
     checks = []
     if anchor.exists():
