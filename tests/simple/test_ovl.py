@@ -204,9 +204,13 @@ class CoverageTests(unittest.TestCase):
             ovl.step(self.model, self.opt, self.batch([10, 11, 15, 16]), c)
 
     def test_empty_batch_coverage_fails(self):
-        ids = torch.tensor([], dtype=torch.int64)
-        b = {"inputs": torch.zeros((1, 0), dtype=torch.int64), "targets": torch.zeros((1, 0), dtype=torch.int64),
-             "mask": torch.zeros((1, 0), dtype=torch.bool), "target_ids": torch.zeros((1, 0), dtype=torch.int64)}
+        empty = torch.zeros((1, 0), dtype=torch.int64)
+        b = {
+            "inputs": empty,
+            "targets": empty,
+            "mask": torch.zeros((1, 0), dtype=torch.bool),
+            "target_ids": empty,
+        }
         with self.assertRaisesRegex(SystemExit, "coverage error"):
             ovl.step(self.model, self.opt, b, self.ctl(10))
 
