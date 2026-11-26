@@ -581,7 +581,11 @@ def load_weights(path):
     if str(path).endswith(".safetensors"):
         from safetensors.torch import load_file
         return load_file(path)
-    return torch.load(path, map_location="cpu", weights_only=True)
+    sd = torch.load(path, map_location="cpu", weights_only=True)
+    if not isinstance(sd, dict) or not sd or not all(torch.is_tensor(v) for v in sd.values()):
+        sys.exit(f"{path} is not a model state dict (expected a non-empty dict of tensors, "
+                 "e.g. a released model, not a training checkpoint)")
+    return sd
 
 
 def released(chain, hit):
