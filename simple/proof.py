@@ -125,7 +125,13 @@ def build_membership_proof(doc, chain, data_bound, data_hash):
                 # before the run reached it. `fork` refuses a document trained before the
                 # fork and `verify` checks every excluded range starts at or after the fork
                 # entry's cursor, so do not report "excluded" for a chain that breaks that.
-                cursor = control.get("cursor", 0)
+                cursor = control.get("cursor")
+                if cursor is None:
+                    sys.exit(
+                        f"chain entry {k} excludes targets [{ex_start}, {ex_start + ex_len}) "
+                        "but has no cursor, so the chain does not show the exclusion came "
+                        "before the run reached that range"
+                    )
                 if ex_start < cursor:
                     sys.exit(
                         f"chain entry {k} excludes targets [{ex_start}, {ex_start + ex_len}) "

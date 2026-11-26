@@ -314,6 +314,27 @@ class TestMembershipProof(unittest.TestCase):
             mp.build_membership_proof(doc, late_fork_chain, True, self.stream_hash)
         self.assertIn("already past the start", str(ctx.exception))
 
+    def test_membership_exclusion_without_a_cursor_is_rejected(self):
+        # A fork entry always records its cursor. Without one the chain cannot place the
+        # exclusion before training, so a missing cursor must not be read as 0 and accepted
+        no_cursor_chain = [
+            self.chain[0],
+            {
+                "index": 1,
+                "kind": "fork",
+                "control": {
+                    "phase": "wikipedia",
+                    "exclude": {"wikipedia": [[0, 9037]]},
+                },
+                "state": "state_fork",
+                "previous": "prev_hash_1",
+            },
+        ]
+        doc = mp.find_article(self.data_dir, "12")
+        with self.assertRaises(SystemExit) as ctx:
+            mp.build_membership_proof(doc, no_cursor_chain, True, self.stream_hash)
+        self.assertIn("has no cursor", str(ctx.exception))
+
     def test_membership_exclusion_starting_at_the_fork_cursor_is_accepted(self):
         # The excluded range starts exactly where the fork entry's cursor is: not reached yet
         fork_chain = [
