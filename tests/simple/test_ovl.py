@@ -204,6 +204,25 @@ class CoverageTests(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "coverage error"):
             ovl.step(self.model, self.opt, self.batch([10, 11, 15, 16]), c)
 
+    def test_empty_batch_coverage_fails(self):
+        empty = torch.zeros((1, 0), dtype=torch.int64)
+        b = {
+            "inputs": empty,
+            "targets": empty,
+            "mask": torch.zeros((1, 0), dtype=torch.bool),
+            "target_ids": empty,
+        }
+        with self.assertRaisesRegex(SystemExit, "coverage error"):
+            ovl.step(self.model, self.opt, b, self.ctl(10))
+
+    def test_vectorized_coverage_advances_cursor_over_large_span(self):
+        span = list(range(1000, 2048))
+        ids = torch.tensor(span, dtype=torch.int64).view(-1, 4)
+        b = {"inputs": torch.ones_like(ids), "targets": torch.ones_like(ids),
+             "mask": ids >= 0, "target_ids": ids}
+        _, cursor, _ = ovl.step(self.model, self.opt, b, self.ctl(1000))
+        self.assertEqual(cursor, 2048)
+
 
 class WeightsMatchTests(unittest.TestCase):
     def setUp(self):
