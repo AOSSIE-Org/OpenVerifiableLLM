@@ -701,8 +701,8 @@ def cmd_bench(a):
 
 @torch.no_grad()
 def cmd_chat(a):
-    if a.temperature < 0:
-        sys.exit("--temperature must be non-negative")
+    if not math.isfinite(a.temperature) or a.temperature < 0:
+        sys.exit("--temperature must be non-negative and finite")
     from tokenizers import Tokenizer
     tok = Tokenizer.from_file(a.tokenizer)
     model = TinyGPT(**RECIPE["model"]).to(DEV)
