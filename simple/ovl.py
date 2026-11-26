@@ -545,8 +545,11 @@ def verify_segment(data, run, chain, k):
         model, _ = fresh()
         load_checkpoint(run, want, model)
         added = {key: v for key, v in want["control"].items() if key != "exclude"}
+        excl = want["control"].get("exclude", {})
         ok = (want["state"] == chain[k]["state"] and want["model"] == chain[k]["model"] and
               added == chain[k]["control"] and "exclude" not in chain[k]["control"] and
+              chain[k]["control"].get("phase") == "wikipedia" and
+              isinstance(excl, dict) and set(excl) <= {"wikipedia"} and
               all(s >= chain[k]["control"]["cursor"] for s, _ in excluded(want["control"])))
         print(f"segment {k}->{k + 1} (fork): {'MATCH' if ok else 'MISMATCH'}", flush=True)
         return ok
@@ -661,7 +664,9 @@ def cmd_verify(a):
         report["checks"].append({"weights": str(a.weights), "chain_entry": entry, "match": ok})
     if a.data:
         model, opt = fresh()  # regenerate the seeded initialization
-        ok = state_digest(model, opt) == chain[0]["state"]
+        ok = (chain[0].get("kind") == "initial" and chain[0].get("control") == initial_control()
+              and chain[0].get("model") == model_digest(model.state_dict())
+              and state_digest(model, opt) == chain[0]["state"])
         print(f"initialization: {'MATCH' if ok else 'MISMATCH'}", flush=True)
         report["checks"].append({"initialization": ok})
         segments = range(len(chain) - 1) if a.all else list(a.segment or [])
