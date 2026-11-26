@@ -450,5 +450,78 @@ class ForkBoundaryTests(unittest.TestCase):
         self.assertFalse(Path(self.args(0).out).exists())
 
 
+class VerifySoundnessTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.run_dir = self.root / "run"
+        self.run_dir.mkdir()
+        self.data = self.root / "data"
+        data_hashes = {}
+        for phase in ("wikipedia", "conversation"):
+            (self.data / phase).mkdir(parents=True)
+            (self.data / phase / "stream.json").write_text("{}")
+            data_hashes[phase] = hashlib.sha256(b"{}").hexdigest()
+        self.model, self.opt = ovl.fresh()
+        self.base_entry = {
+            "index": 0,
+            "kind": "initial",
+            "control": ovl.initial_control(),
+            "state": ovl.state_digest(self.model, self.opt),
+            "model": ovl.model_digest(self.model.state_dict()),
+            "previous": None,
+            "time": 0,
+            "recipe": hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest(),
+            "data": data_hashes,
+        }
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_verify_rejects_forged_initial_kind_control_or_model(self):
+        forgeries = [
+            {"kind": "final"},
+            {"model": "0" * 64},
+            {"control": {**ovl.initial_control(), "phase": "conversation", "epoch": 2}},
+            {"control": {**ovl.initial_control(), "exclude": {"wikipedia": [[0, 100]]}}},
+        ]
+        for patch in forgeries:
+            with self.subTest(patch=patch):
+                chain = [{**self.base_entry, **patch}]
+                write_chain(self.run_dir, chain)
+                a = argparse.Namespace(
+                    run=str(self.run_dir), data=str(self.data), weights=None,
+                    segment=None, random=0, all=False, anchor=None, no_anchor=True,
+                )
+                with self.assertRaises(SystemExit) as cm:
+                    ovl.cmd_verify(a)
+                self.assertEqual(cm.exception.code, 1)
+                report = json.loads((self.run_dir / "local-verifications.jsonl").read_text().splitlines()[-1])
+                self.assertFalse(report["checks"][0]["initialization"])
+                self.assertEqual(report["result"], "FAIL")
+
+    def test_verify_segment_rejects_fork_with_non_wikipedia_exclude_or_phase(self):
+        cases = [
+            (ovl.initial_control(), {"wikipedia": [[10, 3]], "conversation": [[0, 100]]}),
+            ({**ovl.initial_control(), "phase": "conversation"}, {"wikipedia": [[10, 3]]}),
+        ]
+        for base_ctl, excl in cases:
+            with self.subTest(base_ctl=base_ctl, excl=excl):
+                e0 = {**self.base_entry, "control": base_ctl}
+                fork_ctl = {**base_ctl, "exclude": excl}
+                e1 = {
+                    "index": 1, "kind": "fork", "control": fork_ctl,
+                    "state": e0["state"], "model": e0["model"],
+                    "previous": link(e0), "time": 0,
+                }
+                chain = [e0, e1]
+                write_chain(self.run_dir, chain)
+                torch.save(
+                    {"control": fork_ctl, "model": self.model.state_dict(), "opt": self.opt.state_dict()},
+                    self.run_dir / "ckpt-00001.pt",
+                )
+                self.assertFalse(ovl.verify_segment(str(self.data), str(self.run_dir), chain, 0))
+
+
 if __name__ == "__main__":
     unittest.main()
