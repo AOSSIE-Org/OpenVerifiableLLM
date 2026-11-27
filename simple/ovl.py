@@ -621,6 +621,11 @@ def check_anchor_timestamps(anchor, data):
 
 
 def cmd_verify(a):
+    random_count = a.random or 0
+    if random_count < 0:
+        sys.exit("--random must be non-negative")
+    random_supplied = getattr(a, "_random_explicit", False) or (a.random is not None and a.random != 0)
+    missing_data = (a.segment is not None or a.all or random_supplied) and not a.data
     run = Path(a.run)
     chain = read_chain(run)
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
@@ -670,11 +675,14 @@ def cmd_verify(a):
             segments = list(segments) + [pool.pop(secrets.randbelow(len(pool))) for _ in range(min(a.random, len(pool)))]
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
-    report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
+    report["result"] = ("PASS" if report["checks"] and not missing_data
+                        and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL")
     with (run / "local-verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
           f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
+    if missing_data:
+        sys.exit("--segment, --all and --random replay training and need --data")
     if report["result"] != "PASS":
         sys.exit(1)
 
@@ -727,12 +735,20 @@ def cmd_chat(a):
     print(tok.decode([i - OFFSET for i in out if i >= OFFSET]))
 
 
+class _TrackRandom(argparse.Action):
+    """Record explicit --random usage so --random 0 without --data is still rejected."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, values)
+        namespace._random_explicit = True
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     s = p.add_subparsers(dest="cmd", required=True)
     t = s.add_parser("train"); t.add_argument("--data", required=True); t.add_argument("--out", required=True)
     v = s.add_parser("verify"); v.add_argument("--run", required=True); v.add_argument("--data")
-    v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0)
+    v.add_argument("--segment", type=int, nargs="*"); v.add_argument("--random", type=int, default=0, action=_TrackRandom)
     v.add_argument("--all", action="store_true"); v.add_argument("--weights")
     anchored = v.add_mutually_exclusive_group()
     anchored.add_argument("--anchor"); anchored.add_argument("--no-anchor", action="store_true")
