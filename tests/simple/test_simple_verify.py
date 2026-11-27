@@ -168,7 +168,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             cmd.extend(extra_args)
         env = dict(os.environ)
         env["PYTHONPATH"] = f"{ROOT / 'simple'}"
-        env.setdefault("OVL_DEVICE", "cpu")
+        env["OVL_DEVICE"] = "cpu"
         res = subprocess.run(cmd, capture_output=True, text=True, env=env)
         return res.returncode, res.stdout, res.stderr
 
@@ -183,7 +183,7 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
 
     def test_anchored_segment_selectors_without_data_fail_closed(self):
         """Requesting --segment, --all, or --random without --data must fail even with a valid anchor."""
-        for flags in (["--segment", "0"], ["--segment"], ["--all"], ["--random", "1"]):
+        for flags in (["--segment", "0"], ["--segment"], ["--all"], ["--random", "0"], ["--random", "1"]):
             with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmp:
                 d = Path(tmp)
                 self._setup_anchored_run_dir(d)
