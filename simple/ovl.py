@@ -621,6 +621,9 @@ def check_anchor_timestamps(anchor, data):
 
 
 def cmd_verify(a):
+    if a.random < 0:
+        sys.exit("--random must be non-negative")
+    missing_data = (a.segment is not None or a.all or a.random) and not a.data
     run = Path(a.run)
     chain = read_chain(run)
     anchor = Path(a.anchor) if a.anchor else run / "anchor.json"
@@ -670,11 +673,14 @@ def cmd_verify(a):
             segments = list(segments) + [pool.pop(secrets.randbelow(len(pool))) for _ in range(min(a.random, len(pool)))]
         for k in sorted(segments):
             report["checks"].append({"segment": [k, k + 1], "match": verify_segment(a.data, run, chain, k)})
-    report["result"] = "PASS" if report["checks"] and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL"
+    report["result"] = ("PASS" if report["checks"] and not missing_data
+                        and all(c.get("match", c.get("initialization")) for c in report["checks"]) else "FAIL")
     with (run / "local-verifications.jsonl").open("a", encoding="utf-8") as f:
         f.write(json.dumps(report, sort_keys=True) + "\n")
     print(f"verify {report['result']}: {len(report['checks'])} checks; "
           f"{sum('segment' in c for c in report['checks'])} of {len(chain) - 1} segments", flush=True)
+    if missing_data:
+        sys.exit("--segment, --all and --random replay training and need --data")
     if report["result"] != "PASS":
         sys.exit(1)
 

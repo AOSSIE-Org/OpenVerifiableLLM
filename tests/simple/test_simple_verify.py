@@ -146,5 +146,65 @@ class SimpleVerifyZeroCheckTests(unittest.TestCase):
             self.assertFalse(last_record["checks"][0].get("match"))
 
 
+    def _setup_anchored_run_dir(self, dest):
+        dest.mkdir(parents=True, exist_ok=True)
+        e0 = {"index": 0, "kind": "initial", "control": {"global_step": 0},
+              "state": "0" * 64, "model": "0" * 64, "previous": None}
+        h0 = hashlib.sha256(json.dumps(e0, sort_keys=True).encode()).hexdigest()
+        e1 = {"index": 1, "kind": "final", "control": {"global_step": 1},
+              "state": "1" * 64, "model": "1" * 64, "previous": h0}
+        h1 = hashlib.sha256(json.dumps(e1, sort_keys=True).encode()).hexdigest()
+        (dest / "chain.jsonl").write_text(json.dumps(e0) + "\n" + json.dumps(e1) + "\n")
+        (dest / "anchor.json").write_text(json.dumps({
+            "chain_entries": 2, "chain_head_index": 1, "chain_head_sha256": h1,
+        }))
+
+    def _run_anchored_verify(self, run_dir, extra_args=None):
+        cmd = [
+            PYTHON, str(ROOT / "simple" / "ovl.py"), "verify",
+            "--run", str(run_dir), "--anchor", str(run_dir / "anchor.json"), "--no-timestamps",
+        ]
+        if extra_args:
+            cmd.extend(extra_args)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = f"{ROOT / 'simple'}"
+        env.setdefault("OVL_DEVICE", "cpu")
+        res = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        return res.returncode, res.stdout, res.stderr
+
+    def test_anchored_verify_passes_without_segment_selectors(self):
+        """Anchor-only verification without segment flags remains valid and passes."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            self._setup_anchored_run_dir(d)
+            code, out, err = self._run_anchored_verify(d)
+            self.assertEqual(code, 0, f"Anchor-only verify should pass. out: {out}, err: {err}")
+            self.assertIn("verify PASS: 1 checks", out)
+
+    def test_anchored_segment_selectors_without_data_fail_closed(self):
+        """Requesting --segment, --all, or --random without --data must fail even with a valid anchor."""
+        for flags in (["--segment", "0"], ["--segment"], ["--all"], ["--random", "1"]):
+            with self.subTest(flags=flags), tempfile.TemporaryDirectory() as tmp:
+                d = Path(tmp)
+                self._setup_anchored_run_dir(d)
+                code, out, err = self._run_anchored_verify(d, flags)
+                self.assertNotEqual(code, 0, f"{flags} without --data must exit nonzero")
+                self.assertNotIn("verify PASS", out, f"{flags} without --data must not report PASS")
+                self.assertIn("verify FAIL", out, f"{flags} without --data must report FAIL")
+                self.assertIn("need --data", err, f"{flags} should explain that --data is required")
+                verif_file = d / "local-verifications.jsonl"
+                last_record = json.loads(verif_file.read_text().splitlines()[-1])
+                self.assertEqual(last_record.get("result"), "FAIL")
+
+    def test_negative_random_fails(self):
+        """A negative --random count fails cleanly."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            self._setup_run_dir(d)
+            code, out, err = self._run_verify(d, ["--random", "-1"])
+            self.assertNotEqual(code, 0)
+            self.assertIn("--random must be non-negative", err)
+
+
 if __name__ == "__main__":
     unittest.main()
