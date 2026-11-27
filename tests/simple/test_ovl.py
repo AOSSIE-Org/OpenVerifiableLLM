@@ -390,10 +390,15 @@ class ForkBoundaryTests(unittest.TestCase):
         self.run = self.root / "run"
         self.run.mkdir()
         self.chain = fake_chain([("initial", tiny_state(0)), ("progress", tiny_state(1))])
+        self.chain[0]["recipe"] = hashlib.sha256(json.dumps(ovl.RECIPE, sort_keys=True).encode()).hexdigest()
+        self.chain[0]["data"] = {p: hashlib.sha256(b"{}").hexdigest() for p in ("wikipedia", "conversation")}
+        self.chain[1]["previous"] = link(self.chain[0])
         write_chain(self.run, self.chain)
         (self.run / "recipe.json").write_text("{}")
         self.data = self.root / "data"
-        (self.data / "wikipedia").mkdir(parents=True)
+        for phase in ("wikipedia", "conversation"):
+            (self.data / phase).mkdir(parents=True)
+            (self.data / phase / "stream.json").write_text("{}")
         doc = {"identity": ["wikipedia", "42"], "target_start": 10, "targets": 3}
         (self.data / "wikipedia" / "documents.jsonl").write_text(json.dumps(doc) + "\n")
         for k in range(2):
@@ -446,6 +451,20 @@ class ForkBoundaryTests(unittest.TestCase):
     def test_missing_recipe_fails_before_creating_output(self):
         (self.run / "recipe.json").unlink()
         with self.assertRaisesRegex(SystemExit, "recipe.*not found"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
+
+    def test_other_prepared_data_fails_before_creating_output(self):
+        (self.data / "wikipedia" / "stream.json").write_text('{"targets": 1}')
+        with self.assertRaisesRegex(SystemExit, "prepared data differs"):
+            ovl.cmd_fork(self.args(0))
+        self.assertFalse(Path(self.args(0).out).exists())
+
+    def test_other_recipe_fails_before_creating_output(self):
+        self.chain[0]["recipe"] = "0" * 64
+        self.chain[1]["previous"] = link(self.chain[0])
+        write_chain(self.run, self.chain)
+        with self.assertRaisesRegex(SystemExit, "RECIPE differs"):
             ovl.cmd_fork(self.args(0))
         self.assertFalse(Path(self.args(0).out).exists())
 

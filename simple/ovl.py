@@ -510,6 +510,7 @@ def cmd_fork(a):
         sys.exit(f"checkpoint {src / f'ckpt-{k:05d}.pt'} not found")
     if not (src / "recipe.json").is_file():
         sys.exit(f"recipe {src / 'recipe.json'} not found")
+    check_recipe_and_data(chain, a.data)
     pages, ranges, docs = set(a.exclude_page), [], []
     with (Path(a.data) / "wikipedia" / "documents.jsonl").open("rb") as f:
         for line in f:
