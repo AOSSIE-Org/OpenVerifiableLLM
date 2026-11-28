@@ -21,6 +21,7 @@ see [verify](../docs/verify.md).
 | Remove documents from a run and retrain | `python simple/ovl.py fork ...`, then `loo_eval.py` | RTX 5090 |
 | Estimate the cost of a bigger model | `python simple/bench_sizes.py --data PREP` | RTX 5090 |
 | Run the model in Ollama | `ollama run ryoari/openverifiablellm`, or build it yourself ([below](#run-the-model-in-ollama)) | any CPU |
+| Sign or verify a check receipt | `python simple/receipt.py verify RECEIPT.json --anchor RUN/anchor.json --rounds ROUNDS.json` | any CPU |
 
 `RUN` is a run directory (`chain.jsonl`, `recipe.json`, models, `ckpt-*.pt`). `PREP` is the prepared
 data directory, `prepared/8de1d600…` in the
@@ -54,6 +55,7 @@ silently reduces the requested sample size.
 | [`review_ckpt.py`](review_ckpt.py) | Inspects checkpoints before publication: exact hashes, zip members, restricted load, allowed strings |
 | [`export_safetensors.py`](export_safetensors.py) | Exports a released model to safetensors with every weight unchanged; `verify --weights` accepts the result |
 | [`export_gguf.py`](export_gguf.py), [`Modelfile`](Modelfile) | Export a released model to GGUF for llama.cpp and Ollama, and the Ollama build file with the training chat format |
+| [`receipt.py`](receipt.py) | Check receipts (roadmap item 6): `keygen`, `sign` and `verify` signed in-toto Statement check receipts inside DSSE envelopes |
 
 ## Requirements
 

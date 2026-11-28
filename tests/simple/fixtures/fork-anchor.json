@@ -1,0 +1,12 @@
+{
+ "chain_entries": 39,
+ "chain_head_index": 38,
+ "chain_head_sha256": "a29a9445fdef5634780f4c3b4793249c4beef0201f98bd7a079b02bed3ffe46c",
+ "chain_jsonl_sha256": "98ffe339f9a0e20458b2615597fdb9ca23b0b12a5bac3873c9327893e724e6c1",
+ "dataset": "AOSSIE/openverifiable-enwiki-20260901-20260918-r1-evidence",
+ "final_model": "20d34a096f331cf4c7f127bb58b9fc75f2abb62644d6585b1c90cbe64639ccd3",
+ "final_state": "839007ac7632d2f6b534c6547dd6bee02b5cfc6017d8dab8e74f1ed68a279dee",
+ "path": "release/unlearning-3i-atlas",
+ "release_hashes_sha256": "8b5800df8a3f88622d9cd91beb72949b37762e3e0b5f42253cd78c99c54ea508",
+ "schema": "ovl.release-anchor.v1"
+}
