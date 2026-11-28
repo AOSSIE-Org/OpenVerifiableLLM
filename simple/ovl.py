@@ -545,9 +545,14 @@ def verify_segment(data, run, chain, k):
         model, _ = fresh()
         load_checkpoint(run, want, model)
         added = {key: v for key, v in want["control"].items() if key != "exclude"}
+        excl = want["control"].get("exclude")
+        phase = want["control"].get("phase")
+        raw_ranges = excl.get(phase) if isinstance(excl, dict) else None
         ok = (want["state"] == chain[k]["state"] and want["model"] == chain[k]["model"] and
               added == chain[k]["control"] and "exclude" not in chain[k]["control"] and
-              all(s >= chain[k]["control"]["cursor"] for s, _ in excluded(want["control"])))
+              isinstance(excl, dict) and set(excl) == {phase} and isinstance(raw_ranges, list) and bool(raw_ranges) and
+              all(isinstance(r, (list, tuple)) and len(r) == 2 and type(r[0]) is int and type(r[1]) is int and
+                  r[0] >= chain[k]["control"]["cursor"] and r[1] > 0 for r in raw_ranges))
         print(f"segment {k}->{k + 1} (fork): {'MATCH' if ok else 'MISMATCH'}", flush=True)
         return ok
     model, _ = fresh()
