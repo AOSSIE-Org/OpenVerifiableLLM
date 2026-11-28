@@ -402,9 +402,12 @@ def read_chain(run):
     chain = []
     for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         try:
-            chain.append(json.loads(line))
+            entry = json.loads(line)
         except json.JSONDecodeError as err:
             sys.exit(f"{path}: line {n} is not valid JSON ({err.msg}); the file is cut off or damaged")
+        if not isinstance(entry, dict) or not {"index", "previous"} <= entry.keys():
+            sys.exit(f"{path}: line {n} is not a chain entry: it must be a JSON object with index and previous")
+        chain.append(entry)
     if not chain:
         sys.exit(f"{path} has no chain entries")
     for i, e in enumerate(chain):
