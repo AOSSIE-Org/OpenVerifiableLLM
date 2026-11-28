@@ -119,6 +119,25 @@ class ChainLinkTests(unittest.TestCase):
         )
         self.assertEqual(ovl.read_chain(self.run), self.chain)
 
+    def test_line_that_is_not_a_json_object_is_reported_with_its_line_number(self):
+        for bad in ("null", "5", "[]", '"text"'):
+            with self.subTest(line=bad):
+                write_chain(self.run, self.chain[:1])
+                with (self.run / "chain.jsonl").open("a") as f:
+                    f.write(bad + "\n")
+                with self.assertRaisesRegex(SystemExit, r"chain\.jsonl: line 2 is not a chain entry"):
+                    ovl.read_chain(self.run)
+
+    def test_entry_missing_index_or_previous_is_reported_with_its_line_number(self):
+        for missing in ("index", "previous"):
+            with self.subTest(missing=missing):
+                write_chain(self.run, self.chain[:1])
+                broken = {k: v for k, v in self.chain[1].items() if k != missing}
+                with (self.run / "chain.jsonl").open("a") as f:
+                    f.write(json.dumps(broken, sort_keys=True) + "\n")
+                with self.assertRaisesRegex(SystemExit, r"chain\.jsonl: line 2 is not a chain entry"):
+                    ovl.read_chain(self.run)
+
 
 class LearningRateTests(unittest.TestCase):
     def test_depends_only_on_step_and_phase(self):
