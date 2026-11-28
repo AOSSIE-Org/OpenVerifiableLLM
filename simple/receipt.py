@@ -257,14 +257,40 @@ def make_statement(release, challenge, results, checker_info, extra=None):
     }
 
 
-def results_from_report(report_line, segments, outcome_override=None):
+def _expected_report_heads(anchor_path, release):
+    """Return valid chain_head digests accepted from a local-verifications.jsonl line."""
+    heads = {release["chain_head_sha256"]}
+    data = json.loads(Path(anchor_path).read_bytes())
+    final_state = data.get("final_state")
+    if isinstance(final_state, str) and re.fullmatch(r"[0-9a-f]{64}", final_state):
+        heads.add(final_state)
+    return heads
+
+
+def results_from_report(report_line, segments, outcome_override=None, expected_chain_heads=None):
     """Extract results and environment stack from a local-verifications.jsonl line."""
     try:
         report = json.loads(report_line)
     except ValueError:
         raise Invalid("report line is not valid JSON") from None
+    if not isinstance(report, dict):
+        raise Invalid("report line must be a JSON object")
 
-    got = {tuple(c["segment"]): c.get("match") for c in report.get("checks", []) if "segment" in c}
+    if expected_chain_heads is not None:
+        head = report.get("chain_head")
+        if not isinstance(head, str) or head not in expected_chain_heads:
+            raise Invalid("report chain_head is missing or does not match release anchor")
+
+    checks = report.get("checks", [])
+    if not isinstance(checks, list):
+        raise Invalid("report checks field must be a list")
+    got = {}
+    for c in checks:
+        if isinstance(c, dict) and "segment" in c:
+            seg = c["segment"]
+            if not (isinstance(seg, list) and len(seg) == 2 and type(seg[0]) is int and type(seg[1]) is int):
+                raise Invalid(f"malformed report segment entry {seg!r}")
+            got[(seg[0], seg[1])] = c.get("match")
     want = {(s, s + 1) for s in segments}
     if set(got) != want:
         raise Invalid(f"report checked segments {sorted(s for s, _ in got)}, but drawn segments are {segments}")
@@ -349,7 +375,10 @@ def sign_receipt(key, anchor_path, round_num, signature_hex, segments=None, outc
         lines = p.read_text(encoding="utf-8").splitlines()
         if not lines:
             raise Invalid(f"report {report_path} is empty")
-        results, report = results_from_report(lines[-1], segments, outcome)
+        results, report = results_from_report(
+            lines[-1], segments, outcome,
+            expected_chain_heads=_expected_report_heads(anchor_path, release),
+        )
         extra["stack"] = report.get("environment", extra["stack"])
         extra["local_report_sha256"] = hashlib.sha256(lines[-1].encode("utf-8")).hexdigest()
         extra["started"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(report.get("time", time.time())))
@@ -402,9 +431,9 @@ def verify_receipt(envelope, anchor_path, rounds=None, allow_unverified_beacon=F
     `beacon_verified=False` (proving internal consistency and signer identity only).
     """
     claimed = unverified_payload(envelope)
-    p = claimed.get("predicate", {}) if isinstance(claimed, dict) else {}
-    checker = p.get("checker", {}) if isinstance(p, dict) else {}
-    pk_hex = checker.get("public_key")
+    p = claimed.get("predicate") if isinstance(claimed, dict) else None
+    checker = p.get("checker") if isinstance(p, dict) else None
+    pk_hex = checker.get("public_key") if isinstance(checker, dict) else None
     if not isinstance(pk_hex, str) or not re.fullmatch(r"[0-9a-f]{64}", pk_hex):
         raise Invalid("receipt checker has no valid 32-byte public_key hex")
 
@@ -432,7 +461,8 @@ def verify_receipt(envelope, anchor_path, rounds=None, allow_unverified_beacon=F
         raise Invalid(f"receipt subjects {subjects} do not match release digests {expected_subjects}")
 
     key_fp = fingerprint(pk_hex)
-    if pred.get("checker", {}).get("key_fp") != key_fp:
+    checker_obj = pred.get("checker")
+    if not isinstance(checker_obj, dict) or checker_obj.get("key_fp") != key_fp:
         raise Invalid("checker key_fp does not match public key fingerprint")
 
     ch = pred.get("challenge", {})
@@ -477,7 +507,13 @@ def verify_receipt(envelope, anchor_path, rounds=None, allow_unverified_beacon=F
         if not isinstance(r, dict) or "segment" not in r or "outcome" not in r:
             raise Invalid("malformed check result entry")
         seg = r["segment"]
-        if not (isinstance(seg, list) and len(seg) == 2 and seg[1] == seg[0] + 1):
+        if not (
+            isinstance(seg, list)
+            and len(seg) == 2
+            and type(seg[0]) is int
+            and type(seg[1]) is int
+            and seg[1] == seg[0] + 1
+        ):
             raise Invalid(f"segment {seg} is not a valid [s, s+1] interval")
         reported_segments.append(seg[0])
         outcome = r["outcome"]

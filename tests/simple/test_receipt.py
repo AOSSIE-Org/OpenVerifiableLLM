@@ -391,9 +391,10 @@ def test_sign_with_local_report(tmp_path):
     assert verified["beacon_verified"] is True
     assert verified["results"][0]["outcome"] == "MATCH"
 
-    # Now verify with a mismatched check in report
+    # Now verify with a mismatched check in report (same anchor chain_head, wrong segment)
     bad_report = tmp_path / "bad.jsonl"
     bad_report.write_text(json.dumps({
+        "chain_head": rel["chain_head_sha256"],
         "checks": [{"segment": [derived + 1, derived + 2], "match": True}]
     }) + "\n", encoding="utf-8")
     with pytest.raises(receipt.Invalid, match="report checked segments"):
@@ -405,6 +406,78 @@ def test_sign_with_local_report(tmp_path):
             report_path=bad_report
         )
 
+    # Real ovl.py reports store anchor final_state in chain_head
+    main_final_state = json.loads(MAIN_ANCHOR.read_text(encoding="utf-8"))["final_state"]
+    state_report = tmp_path / "state_report.jsonl"
+    state_report.write_text(json.dumps({
+        "time": 1730000001,
+        "chain_head": main_final_state,
+        "checks": [{"segment": [derived, derived + 1], "match": True}],
+    }) + "\n", encoding="utf-8")
+    env_state = receipt.sign_receipt(
+        key=key, anchor_path=MAIN_ANCHOR, round_num=SAMPLE_ROUND,
+        signature_hex=SAMPLE_SIG, report_path=state_report,
+    )
+    assert receipt.verify_receipt(env_state, MAIN_ANCHOR, rounds=ROUNDS_MAP)["verdict"] == "VALID"
+
+    # Missing or foreign-release chain_head in report must be rejected without importing results
+    for label, foreign_head in (
+        ("missing", None),
+        ("fork", json.loads(FORK_ANCHOR.read_text(encoding="utf-8"))["chain_head_sha256"]),
+    ):
+        bad_id_report = tmp_path / f"bad_id_{label}.jsonl"
+        payload = {"checks": [{"segment": [derived, derived + 1], "match": True}]}
+        if foreign_head is not None:
+            payload["chain_head"] = foreign_head
+        bad_id_report.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+        with pytest.raises(receipt.Invalid, match="report chain_head"):
+            receipt.sign_receipt(
+                key=key, anchor_path=MAIN_ANCHOR, round_num=SAMPLE_ROUND,
+                signature_hex=SAMPLE_SIG, report_path=bad_id_report,
+            )
+
+
+def test_verify_rejects_malformed_checker_and_segment_endpoints(tmp_path):
+    key = make_key(tmp_path / "checker.key")
+    pk_hex = receipt.public_hex(key)
+    key_fp = receipt.fingerprint(pk_hex)
+    rel = receipt.release_of(MAIN_ANCHOR)
+    n = rel["chain_entries"] - 1
+    seg = receipt.select(receipt.seed_for(receipt.parse_randomness(SAMPLE_SIG), rel["chain_head_sha256"], key_fp, 1), n, 1)[0]
+
+    # Signed envelope with non-dict checker (e.g. "checker": null) must raise Invalid, not AttributeError
+    null_checker_env = receipt.seal(
+        key,
+        receipt.STATEMENT_TYPE,
+        {
+            "_type": "https://in-toto.io/Statement/v1",
+            "predicateType": receipt.PREDICATE_TYPE,
+            "predicate": {"schema": receipt.RECEIPT_SCHEMA, "checker": None},
+        },
+    )
+    with pytest.raises(receipt.Invalid, match="no valid 32-byte public_key"):
+        receipt.verify_receipt(null_checker_env, MAIN_ANCHOR, rounds=ROUNDS_MAP)
+
+    # Signed receipts with non-int segment endpoints (None / bool / str) must raise Invalid, not TypeError
+    challenge = {
+        "beacon_chain_hash": receipt.BEACON_CHAIN_HASH,
+        "round": SAMPLE_ROUND,
+        "signature": SAMPLE_SIG,
+        "selection": receipt.SELECTION,
+        "j": 1,
+        "m": 1,
+        "k": 1,
+        "previous_outcome": None,
+    }
+    for bad_seg in ([None, 1], [False, True], [str(seg), str(seg + 1)]):
+        stmt = receipt.make_statement(
+            rel, challenge, [{"segment": bad_seg, "outcome": "MATCH"}],
+            {"key_fp": key_fp, "public_key": pk_hex},
+        )
+        bad_env = receipt.seal(key, receipt.STATEMENT_TYPE, stmt)
+        with pytest.raises(receipt.Invalid, match="not a valid"):
+            receipt.verify_receipt(bad_env, MAIN_ANCHOR, rounds=ROUNDS_MAP)
+
 
 def test_derive_deterministic():
     rel = receipt.release_of(MAIN_ANCHOR)
@@ -412,17 +485,12 @@ def test_derive_deterministic():
     rand_bytes = receipt.parse_randomness(SAMPLE_SIG)
     key_fp = "0" * 64
 
-    segs1 = receipt.select(receipt.seed_for(rand_bytes, rel["chain_head_sha256"], key_fp, 1), n, 1)
-    segs2 = receipt.select(receipt.seed_for(rand_bytes, rel["chain_head_sha256"], key_fp, 1), n, 1)
-    assert segs1 == segs2
-    assert len(segs1) == 1
-    assert 0 <= segs1[0] < n
-
-    # Multi-segment draw
-    multi = receipt.select(receipt.seed_for(rand_bytes, rel["chain_head_sha256"], key_fp, 1), n, 3)
-    assert len(multi) == 3
-    assert len(set(multi)) == 3
-    assert multi == sorted(multi)
+    # Independently computed fixed protocol vectors for ovllm-select-v0
+    # (simple-run-anchor, drand quicknet round 33803213, key_fp=00..00, j=1)
+    seed = receipt.seed_for(rand_bytes, rel["chain_head_sha256"], key_fp, 1)
+    assert seed.hex() == "b2e6947dd028354e220d682846c40f84b87406a2b13c3c8fdf1ef2a9ea1fba25"
+    assert receipt.select(seed, n, 1) == [2]
+    assert receipt.select(seed, n, 3) == [2, 4, 27]
 
 
 def test_cli_roundtrip(tmp_path):
